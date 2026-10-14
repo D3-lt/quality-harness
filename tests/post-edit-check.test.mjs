@@ -364,3 +364,39 @@ test('a PHP finding is said once', () => {
     assert.doesNotMatch(text, /\n\s*\n|^\s*\n/, `no blank line: ${JSON.stringify(text)}`)
   }
 })
+
+// ADR-102 T6, from a Codex review of v3.8.26..aede09ce (2026-10-14), each checked against TypeScript's own parser there.
+test('JSONC is read as TypeScript reads it', () => {
+  const dir = scratch()
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = run('Edit', target)
+    assert.equal(got.status, 0)
+    return `${got.stdout}${got.stderr}`.trim()
+  }
+  const valid = {
+    'bom.json': '﻿{"a":1,}\n',
+    'lf.json': '{\n// c\n"a":1,\n}\n',
+    'crlf.json': '{\r\n// c\r\n"a":1,\r\n}\r\n',
+    'cr.json': '{\r// c\r"a":1,\r}\r',
+  }
+  for (const [file, text] of Object.entries(valid)) assert.equal(said(file, text), '', `${file} is valid JSONC`)
+  // DIRTY: a comment between two halves of a token does not join them.
+  assert.match(said('split-number.json', '{"a":1/*c*/2}\n'), /split-number\.json: jq: parse error/)
+  assert.match(said('split-literal.json', '{"a":tru/*c*/e}\n'), /split-literal\.json: jq: parse error/)
+})
+
+test('a checker that fails without a word is UNRUN, and the hook exits 0', () => {
+  const dir = scratch()
+  const bin = join(dir, 'bin')
+  mkdirSync(bin)
+  for (const tool of ['node', 'php']) writeFileSync(join(bin, tool), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
+  for (const file of ['silent.cjs', 'silent.php']) {
+    const target = join(dir, file)
+    writeFileSync(target, file.endsWith('.php') ? '<?php echo 1;\n' : 'module.exports = 1\n')
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, TMPDIR: scratch() }, timeout: 60_000 })
+    assert.equal(got.status, 0, `${file}: advice never fails the edit: ${got.stderr}`)
+    assert.match(`${got.stdout}${got.stderr}`, /UNRUN/, `${file}: a silent failure is could-not-look: ${got.stdout}${got.stderr}`)
+  }
+})

@@ -38,7 +38,11 @@ case "$file_path" in
     command -v node >/dev/null 2>&1 || exit 0
     # The error alone: node follows it with its own stack frames, a version line and blank
     # lines, none of which is about the edited file (ADR-102 T4).
-    cjs_out=$(node --check "$file_path" 2>&1) || printf '%s\n' "$cjs_out" | grep -v -e '^    at ' -e '^Node\.js v' -e '^[[:space:]]*$' | tail -30
+    if ! cjs_out=$(node --check "$file_path" 2>&1); then
+      cjs_said=$(printf '%s\n' "$cjs_out" | { grep -v -e '^    at ' -e '^Node\.js v' -e '^[[:space:]]*$' || true; } | tail -30)
+      # A checker that failed without a word could not look: never silence, never exit 1 (ADR-102 T6).
+      printf '%s\n' "${cjs_said:-UNRUN — node --check failed without a diagnostic; $file_path is unchecked, not clean}"
+    fi
     ;;
   *.mjs)
     # An ES module only: node's module goal is the only one a `.mjs` has, and the Workflow
@@ -106,10 +110,10 @@ PARSE_OUT
   *.json)
     command -v jq >/dev/null 2>&1 || exit 0
     if ! json_out=$(jq empty "$file_path" 2>&1); then
-      # Named only when it is not JSONC either: tsconfig.json and editor settings carry
-      # comments and trailing commas by design. Comments are removed outside strings, then
-      # trailing commas, and the rest must parse (ADR-102).
-      if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? "").replace(/("(?:\\.|[^"\\])*")|,(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
+      # Named only when it is not JSONC either, read as TypeScript's parser reads it: a leading
+      # BOM is dropped, a line comment ends at CR or LF, a comment becomes a space (so it cannot
+      # join two halves of a token), then trailing commas go, and the rest must parse (ADR-102 T3, T6).
+      if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|,(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
         :
       else
         # jq names no file; the agent is told which one (ADR-102 T4).
@@ -148,6 +152,9 @@ except ValueError as error:
     # (measured 2026-10-14), so only a failing run is printed (ADR-102).
     # The display only, the log off, whatever the host php.ini says: by default php -l printed the
     # parse error twice, once to each (ADR-102 T5).
-    php_out=$(php -d display_errors=1 -d log_errors=0 -l "$file_path" 2>&1) || printf '%s\n' "$php_out" | grep -v '^[[:space:]]*$' | tail -30
+    if ! php_out=$(php -d display_errors=1 -d log_errors=0 -l "$file_path" 2>&1); then
+      php_said=$(printf '%s\n' "$php_out" | { grep -v '^[[:space:]]*$' || true; } | tail -30)
+      printf '%s\n' "${php_said:-UNRUN — php -l failed without a diagnostic; $file_path is unchecked, not clean}"
+    fi
     ;;
 esac

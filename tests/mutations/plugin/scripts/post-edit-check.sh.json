@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "ADR-102 T6: a leading BOM does not make JSONC a finding",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:JSONC is read as TypeScript reads it)$",
+      "from": ".replace(/^\\uFEFF/, \"\")",
+      "to": ""
+    },
+    {
+      "label": "ADR-102 T6: a line comment ends at CR as well as LF",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:JSONC is read as TypeScript reads it)$",
+      "from": "\\/\\/[^\\r\\n]*",
+      "to": "\\/\\/[^\\n]*"
+    },
+    {
+      "label": "ADR-102 T6: a removed comment cannot join two halves of a token",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:JSONC is read as TypeScript reads it)$",
+      "from": "(m, s) => s ?? \" \")",
+      "to": "(m, s) => s ?? \"\")"
+    },
+    {
+      "label": "ADR-102 T6: a CommonJS check that fails without a word is UNRUN",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a checker that fails without a word is UNRUN, and the hook exits 0)$",
+      "from": "\"${cjs_said:-UNRUN — node --check failed without a diagnostic; $file_path is unchecked, not clean}\"",
+      "to": "\"$cjs_said\""
+    },
+    {
+      "label": "ADR-102 T6: a silent PHP failure does not exit the hook 1",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a checker that fails without a word is UNRUN, and the hook exits 0)$",
+      "from": "{ grep -v '^[[:space:]]*$' || true; }",
+      "to": "grep -v '^[[:space:]]*$'"
+    },
+    {
       "label": "ADR-102 T5: a PHP finding is said once",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
@@ -13,8 +53,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a CommonJS finding is the error, not node's stack)$",
-      "from": " | grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' | tail -30",
-      "to": " | tail -30"
+      "from": "| { grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' || true; } |",
+      "to": "| cat |"
     },
     {
       "label": "ADR-102 T4: a JSON finding names the edited file",
@@ -37,8 +77,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a finding comes only from the file's own parser)$",
-      "from": "    cjs_out=$(node --check \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' | tail -30",
-      "to": "    cjs_out=$(node \"$(dirname \"$0\")/workflow-parse.mjs\" --module \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' | tail -30"
+      "from": "    if ! cjs_out=$(node --check \"$file_path\" 2>&1); then",
+      "to": "    if ! cjs_out=$(node \"$(dirname \"$0\")/workflow-parse.mjs\" --module \"$file_path\" 2>&1); then"
     },
     {
       "label": "ADR-102 T3: a JSON file jq refuses is named only when it is not JSONC either",
@@ -61,8 +101,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a clean file says nothing, and a broken one is still named)$",
-      "from": "    php_out=$(php -d display_errors=1 -d log_errors=0 -l \"$file_path\" 2>&1) || printf '%s\\n' \"$php_out\" | grep -v '^[[:space:]]*$' | tail -30",
-      "to": "    php_out=$(php -d display_errors=1 -d log_errors=0 -l \"$file_path\" 2>&1); printf '%s\\n' \"$php_out\" | grep -v '^[[:space:]]*$' | tail -30"
+      "from": "    if ! php_out=$(php -d display_errors=1 -d log_errors=0 -l \"$file_path\" 2>&1); then",
+      "to": "    php_out=$(php -d display_errors=1 -d log_errors=0 -l \"$file_path\" 2>&1); if true; then"
     },
     {
       "label": "hook: the post-edit check acts only on the edit tools",

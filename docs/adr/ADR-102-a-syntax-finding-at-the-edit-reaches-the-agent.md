@@ -142,3 +142,7 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
 7. A PHP finding is said once (T5). An outside run (a Laravel/React monorepo, 2026-10-14) showed `php -l` printing the
    parse error twice, once to its error log and once to its display, and which of the two appears depends on the host's
    `php.ini`; the check fixes both settings and drops blank lines.
+8. The JSONC fallback reads a file as TypeScript's parser does, and a checker that fails without a word is `UNRUN` (T6).
+   A Codex review of `v3.8.26..aede09ce` (2026-10-14) found that a leading BOM and CR line endings made valid JSONC a finding,
+   that removing a comment could join two tokens into a valid one and hide a real error, and that a checker which failed
+   silently made the hook exit 1 under `set -euo pipefail`.

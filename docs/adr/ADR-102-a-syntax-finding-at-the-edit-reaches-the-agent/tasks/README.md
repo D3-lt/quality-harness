@@ -16,6 +16,7 @@ README must be regenerated.
 | 4 | T6, T8 | T3, T4, T5 |
 | 5 | T7, T9 | T4, T6, T8 |
 | 6 | T10 | T7 |
+| 7 | T11 | T10 |
 
 ## Task Index
 
@@ -31,6 +32,7 @@ README must be regenerated.
 | T8 | a finding survives the host's console and php.ini | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
 | T9 | a python3 that is not Python is not a checker | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T10 | without jq, node reads JSON as JSONC | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
+| T11 | a node that cannot start says nothing about the file | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
 
 ## Contract Coupling
 

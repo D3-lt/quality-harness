@@ -159,3 +159,6 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
 12. Without `jq`, `node` reads JSON as JSONC (T10; the owner, 2026-10-14). The Windows outside runs of v3.8.27 found no `jq`
     on any of four hosts, so Decision 4's silence for an absent checker left every `.json` unread there although `node`,
     which the fallback already uses, was present. Decision 4 still holds for every other absent checker.
+13. A `node` that cannot start says nothing about the file (T11). The Codex review of T10 (2026-10-14) found a valid file named
+    with `MODULE_NOT_FOUND` and node's stack where `NODE_OPTIONS` named a missing module: only output that begins with the
+    reader's own marker is a finding, and any other failure is `UNRUN`.

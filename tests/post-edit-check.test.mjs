@@ -488,3 +488,18 @@ test('without jq, node reads JSON as JSONC', () => {
   writeFileSync(join(bin, 'node'), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
   assert.match(said('silent.json', '{"a":1}\n', { PATH: `${bin}:${process.env.PATH}` }).text, /UNRUN/)
 })
+
+// ADR-102 T11, from the Codex review of T10 (2026-10-14): without jq, a node that failed before the reader ran (here a
+// NODE_OPTIONS module that does not exist) had its own stack named as a finding about a valid file.
+test('a node that cannot start says nothing about the file', () => {
+  const dir = scratch()
+  for (const [file, text] of [['valid.json', '{"a":1}\n'], ['broken.json', '{"a": }\n']]) {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, QUALITY_HARNESS_JQ: 'qh-no-such-jq', NODE_OPTIONS: '--require=qh-no-such-module', TMPDIR: scratch() }, timeout: 60_000 })
+    const out = `${got.stdout}${got.stderr}`
+    assert.equal(got.status, 0)
+    assert.match(out, /^UNRUN/, `${file}: node could not look: ${out}`)
+    assert.doesNotMatch(out, /MODULE_NOT_FOUND|^\s+at |Node\.js v/m, `${file}: nothing of node's own: ${out}`)
+  }
+})

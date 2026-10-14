@@ -121,6 +121,14 @@
       "to": "    elif false; then"
     },
     {
+      "label": "ADR-102 T11: a node that cannot start says nothing about the file",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a node that cannot start says nothing about the file)$",
+      "from": "          \"QH-JSONC-ERROR \"*) printf",
+      "to": "          *) printf"
+    },
+    {
       "label": "ADR-102 T3: Python warnings are not findings",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],

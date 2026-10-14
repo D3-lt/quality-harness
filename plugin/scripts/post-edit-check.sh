@@ -110,8 +110,8 @@ PARSE_OUT
   *.json)
     # Read as TypeScript's parser reads JSONC: a leading BOM is dropped, a line comment ends at CR or LF, a comment
     # becomes a space (so it cannot join two halves of a token), then trailing commas go, and the rest must parse
-    # (ADR-102 T3, T6). It prints the parse error alone, and exits 1 on one.
-    jsonc='try { const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t) } catch (error) { console.log(error.message); process.exit(1) }'
+    # (ADR-102 T3, T6). It prints the parse error alone, after a marker, and exits 1 on one.
+    jsonc='try { const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t) } catch (error) { console.log("QH-JSONC-ERROR " + error.message); process.exit(1) }'
     # The jq to use; a test names one that is not installed, as on a host without it (ADR-102 T10).
     jq_cmd=${QUALITY_HARNESS_JQ:-jq}
     if command -v "$jq_cmd" >/dev/null 2>&1; then
@@ -127,12 +127,14 @@ PARSE_OUT
     elif command -v node >/dev/null 2>&1; then
       # No jq, as on every Windows host of the v3.8.27 outside runs: node reads the file alone and names it (ADR-102 T10).
       if ! json_out=$(node -e "$jsonc" "$file_path" 2>&1); then
-        if [ -n "$json_out" ]; then
-          printf '%s: %s\n' "$file_path" "$(printf '%s\n' "$json_out" | tail -30)"
-        else
-          # A checker that failed without a word could not look (ADR-102 T6).
-          echo "UNRUN — node failed without a diagnostic; $file_path is unchecked, not clean"
-        fi
+        case "$json_out" in
+          "QH-JSONC-ERROR "*) printf '%s: %s\n' "$file_path" "${json_out#QH-JSONC-ERROR }" ;;
+          # Anything else is node failing before or around the reader (a NODE_OPTIONS module that is missing, a
+          # broken install, an old node that cannot parse it), or failing without a word: it could not look, and what
+          # it said is not about this file (ADR-102 T6, T11). A prefix, never anywhere: a reader node cannot parse is
+          # echoed back after `[eval]:1`, marker and all.
+          *) echo "UNRUN — node could not read $file_path; it is unchecked, not clean" ;;
+        esac
       fi
     fi
     ;;

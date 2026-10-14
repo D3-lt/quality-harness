@@ -1,0 +1,80 @@
+# Task ADR-102-T11: a node that cannot start says nothing about the file
+
+**Depends-on:** T10
+**Covers:** none — no spec
+**Estimated scope:** S (one marker, one test)
+**Owner:** unassigned
+**Produces:** none
+**Consumes:** none
+**Data dependency:** hermetic; `NODE_OPTIONS` names a module that does not exist, and the fence refuses a skip
+**Proof map:** v1
+
+## Goal
+
+The Codex review of T10 (2026-10-14) found that, without `jq`, any output of a failed `node` was named as a finding about the
+file, although the reader never started: with `NODE_OPTIONS=--require=<missing module>`, a valid `plugin.json` was named with
+`MODULE_NOT_FOUND`, node's stack frames and its version. The reader now prints its parse error after a marker, and only output
+that begins with that marker is a finding; any other failure is `UNRUN` (ADR-102, Decision 13).
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `plugin/scripts/post-edit-check.sh` | edit | `QH-JSONC-ERROR ` before the reader's message; the `node`-alone branch names the file only after it |
+| `tests/post-edit-check.test.mjs` | edit | the test below |
+| `tests/mutations/plugin/scripts/post-edit-check.sh.json` | edit | the entry below |
+
+## Ordered Steps
+
+1. [S1] Add the test below and record the red run (TDD red: the valid file is named with node's stack).
+2. [S2] Prefix the reader's message with the marker and require it, as a prefix, before naming the file. A prefix, because a
+   reader that cannot even be parsed (an old node) echoes its own source, marker included, after `[eval]:1`.
+3. [S3] Record a killed mutant: the marker check removed. [proof: mutation]
+
+## Acceptance
+
+```bash
+out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \
+  && test "$(printf '%s\n' "$out" | grep -cxE "ok [0-9]+ - (a node that cannot start says nothing about the file|without jq, node reads JSON as JSONC)")" = 2 \
+  && ! printf '%s\n' "$out" | grep -q '# SKIP'
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `a node that cannot start says nothing about the file` | `tests/post-edit-check.test.mjs` | without `jq` and with a missing `NODE_OPTIONS` module, a valid and a broken `.json` both draw `UNRUN` and never `MODULE_NOT_FOUND`, a stack frame or the file named as broken | — | S1, S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the test |
+| 2 — something selects it | `plugin/hooks/hooks.json`'s second PostToolUse entry |
+| 3 — the caller can discover it | T2 hands it to the agent |
+| 4 — it is used | ADR-102's Follow-up |
+
+## Mutation Log
+- 2026-10-14 · 9fcee428* · mutant killed · exit 1 · `plugin/scripts/post-edit-check.sh` · any output of a failed node is named as a finding again, so a node that cannot start names a valid file · acceptance-sha256:c021bb0003ffb3b5f9c46214129d30ab9fb22681237d0a6737007830b0c54ca5
+
+## Invariants
+
+- A broken `.json` without `jq` is still named (T10); with `jq`, nothing changes.
+
+## Risks
+
+- None beyond T10's.
+
+## Stop Condition
+
+Stop and ask if a supported `node` prints anything before the reader's own output on a normal run.
+
+## Out of Scope
+
+- `.cjs` through `node --check` has the same exposure to a `node` that cannot start (deferred: BACKLOG §378, the sibling named with this task)
+
+## Verification Log
+- 2026-10-14 · 9fcee428* · exit 1 · `out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \ …` · acceptance-sha256:c021bb0003ffb3b5f9c46214129d30ab9fb22681237d0a6737007830b0c54ca5 · ms:9741 · test-lock-sha256:29f85870953623dceddda868f2c0aca76bc57988f5bbafae54471302a6aeca63 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCUpTT05DIGlzIHJlYWQgYXMgVHlwZVNjcmlwdCByZWFkcyBpdAliY2NkZjNjNGVjOWMyYjM3MTA4YzA0OTc4YjRiMjEzODgyMDU0ZDVkYzZiMTM2NjY4NjAwOTkzNjQ0MDdjNTlmCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgLmpzIGZpbGUgZHJhd3Mgbm90aGluZywgd2hldGhlciBpdCBpcyBhIFdvcmtmbG93IHNjcmlwdCwgYSBtb2R1bGUgb3IgYnJva2VuCTBmOWJkNjRiNjZiMzU2N2RhMWI0YjE2OTQ3Yjc2YTRkYTdlY2EzNDUwMzg0YTUxN2E4ZGQ1MGUzN2VmMzdkZDMKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBDb21tb25KUyBmaW5kaW5nIGlzIHRoZSBlcnJvciwgbm90IG5vZGUncyBzdGFjawk1YzY1NGRhZDM1MTRmYjY1ZDJhYmVjYWU2NTJhYzQyMTkzNmM2NTNkNzNjZTIyMzJlNzQ1MGY2ZTUxZWJkNDVlCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgUEhQIGZpbmRpbmcgaXMgc2FpZCBvbmNlCWNiZDUxODA1MTFkZTU1MjFiOTdiYmRlMzNlMWY3NjBlYjczYjc0MTNkZWE0NzY2NjIzNDRlYzg5MGM1YTI2M2YKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBQeXRob24gZmluZGluZyBzdXJ2aXZlcyBhIGNvbnNvbGUgdGhhdCBjYW5ub3QgZW5jb2RlIGl0cyBsaW5lCTg3Njg2Mzc0NjFjZDljN2UwNTgwMzMxZTUyNDJkMzljZWQ1ZTM1YzFhY2VmZTBjNTIwZGNmMWM4YjBkMzBkNDcKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBjaGVja2VyIHRoYXQgY291bGQgbm90IHJ1biBpcyBVTlJVTiwgbmV2ZXIgYSBmaW5kaW5nIGFib3V0IHRoZSBmaWxlCWJiNzBhYjdhYmU1YzFiNmM0MTMyMDQ2ZmE0ZTI2Nzg4MGZlMzM4NjMzMDAwNWMxMzA3ZmNhNDgxNjdmYTg4ZWYKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBjaGVja2VyIHRoYXQgZmFpbHMgd2l0aG91dCBhIHdvcmQgaXMgVU5SVU4sIGFuZCB0aGUgaG9vayBleGl0cyAwCTMwYWE3OWI1MjgwZjdmNTZkNzcyMjI2NmM0ZTE1YmE5YjU4MDU2MzljMzc1MjRkMjk3YmE4YzNhYmI2OTNkZWQKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBjbGVhbiBmaWxlIHNheXMgbm90aGluZywgYW5kIGEgYnJva2VuIG9uZSBpcyBzdGlsbCBuYW1lZAlkMzZiZDQzYThlNDUzY2M1MTUyMmZmNTUwNmZjYjllOGMyN2FjNTdjNmZiMWMyN2M4ZGU2ZDkzNjdjN2VjNWU3CmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgY29tbWEgd2l0aCBubyB2YWx1ZSBiZWZvcmUgaXQgaXMgbm90IGEgdHJhaWxpbmcgY29tbWEJN2E0ZjJlZjZmZjc3OWJmNzIyZTJiZjI1ZjQwNjU2MDA2MjliMDdlMmFhODU3OTJjMjRlZDk1ZGNlYmJhZDQ2Zgpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGR5aW5nIGNoZWNrZXIgY2Fubm90IHBhc3MgaXRzZWxmIG9mZiBhcyBjb21wbGV0ZSBieSBwcmludGluZyB0aGUgbWFya2VyCTg4ZTFjZTNjYjRkMWM0MGFlOWQyZDVlMDUxZWI4MDllZTFhY2I1YzRlYzUxOTljN2I0ZjI2N2Y1YjExZGI1ZjEKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBmaWxlIHR5cGUgdGhlIGhvb2sgZG9lcyBub3QgaGFuZGxlIGlzIHNpbGVudCwgbm90IGFuIGVycm9yCTFkYjA5MjkyZWI1OTViOTM4MWJiMTFlYjY0Yzg1NTg3YTVhNzhkMjcyZDA5YmZlOWU3MGY1OWU4MDFkM2E0ZWYKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBmaW5kaW5nIGNvbWVzIG9ubHkgZnJvbSB0aGUgZmlsZSdzIG93biBwYXJzZXIJOWNjNDU0ZTZhNGFjZWI1MTUzZmNmY2Y2Mzc1MjYxZGYzYzdlYjMyYmYwNjkzMmZiNzE1YWY5NDYzNTU5MWYxNApib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGZpbmRpbmcgbmFtZXMgdGhlIGVkaXRlZCBmaWxlIGFuZCBnaXZlcyB0aGUgZXJyb3IgYWxvbmUJYTY0ZmUzNGEyNWY1MWVmZTZmNjcyOTI2NGU0MTQ0OWY1Y2IzMmJkZjQ0MzljNmVhY2Q2OGZhYTBlM2IyNDc2NApib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIG5vZGUgdGhhdCBjYW5ub3Qgc3RhcnQgc2F5cyBub3RoaW5nIGFib3V0IHRoZSBmaWxlCTdiZjQxNjllYTIzZmM5Nzg3YTJhY2Q2ZWRiMDNkOWM2ZWIwZTE4YWEzMzhiMzg4MzJkMzdmYjRhNGRiMzhmODMKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBweXRob24zIHRoYXQgaXMgbm90IFB5dGhvbiBpcyBub3QgYSBjaGVja2VyCTNmZWVjOGMxODJlMTU4NGEyMzcxZTlmMmYwNGRmZmQ2ZTVlNmNhNTFlMTM0ZjI0NDlkNTA2Y2M5ZDlkMjEyNmUKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBzeW50YXggZmluZGluZyBhdCB0aGUgZWRpdCByZWFjaGVzIHRoZSBhZ2VudCwgYW5kIGEgY2xlYW4gZWRpdCBoYW5kcyBpdCBub3RoaW5nCTgxNTNjZTgzYzIzYTg1OTZlNzg0YjAxYjg1ZmI0ZjgxNjM4MmMxZGRjYmYyNzEyZDRlOTU5MWRkNTVjZDgwYWEKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJdGhlIGhvb2sgb25seSBhY3RzIG9uIHRoZSB0b29scyBpdCBpcyBmb3IsIGFuZCBvbiBmaWxlcyB0aGF0IGV4aXN0CTAzZjI2ZGFkNGY0ODVlMDZjNDBkNGI0NDI2YTcwMTAzZDBiODA2Zjk2ZTBlOTFiNWY5NTE4NjlmYjkzMDBlZWIKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJdGhlIGhvb2sgcGlja3MgdGhlIHBhcnNlIGdvYWwgZnJvbSB0aGUgZXh0ZW5zaW9uLCBhbmQgZGlhZ25vc3RpY3MgY2Fubm90IGZvcmdlIHRoZSBtYXJrZXIJNDBiY2Y2ZmY0OTJjNDJmZTdlZjg4MDZmYjNhYjg2M2Q1MzU5MWVlOTM2Nzk1MWI5ZjlkYTYyNWQ1NWI3N2ZlNQpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwl0aGUgaG9vayByZXBvcnRzIGEgc3ludGF4IGVycm9yIHdpdGhvdXQgZmFpbGluZyB0aGUgZWRpdAlhMWE1OWFhYmQxYjdmZmMxY2YxMGE3NmQxYzExYmE5ZWRkN2Y5ZjE4MDQ2MDkwYTMxMGJhZWY5NmNjNzM4ZTdkCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCXdpdGhvdXQganEsIG5vZGUgcmVhZHMgSlNPTiBhcyBKU09OQwlhNmEyOWM5ZjM2ZTEwZjg3ZjEyNWQ0NDIyOGEyMDMxZjYxNTEwMTBjNDM2ZTdiODVjYWU5OTQ0ZGJlOWE1NjQ0
+  ```
+  ```
+- 2026-10-14 · 9fcee428* · exit 0 · `out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \ …` · acceptance-sha256:c021bb0003ffb3b5f9c46214129d30ab9fb22681237d0a6737007830b0c54ca5 · ms:6852

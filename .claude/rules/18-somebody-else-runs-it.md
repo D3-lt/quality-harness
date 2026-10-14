@@ -91,3 +91,14 @@ the whole `lifecycle.mjs` share of the catalogue (338 entries at 3.1.1), which i
 campaign stays in CI, and the rule is about order. Nothing is bumped and no outside run is asked for
 until the push's own campaign is green. The test that went vacuous now asserts the attribution
 directly, rather than what readiness does with it.
+
+## Requests go out one at a time (2026-10-14)
+
+An outside round was sent to seven local sessions at once, twice beside this repository's full gate.
+The probes ran together and the 1-minute load reached about 22 on 10 cores; one probe alone over this
+repository moved it from 2.75 to 3.79 (BACKLOG, the corpus-probe load lead). Every `slower:` line of
+those rounds compared wall times taken under different contention, and read like a reader that had
+slowed down. So a request goes to one peer, the next after its reply; no gate runs here while a probe
+runs; and a probe report carries `load` (its start, its end, the core count), from which `--diff`
+marks a `slower:` line `unattributable` when either run was contended, or `load unknown` when either
+run did not record it. A diff against a report from before the field prints `before lacks load`.

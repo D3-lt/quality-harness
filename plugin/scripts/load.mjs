@@ -35,14 +35,16 @@ export function contention(start, end, cores) {
   return start > cores || end > cores
 }
 
+/** shownLoad is a load as a line prints it: two decimals, unless that would round a load above the core count down onto it. */
+export function shownLoad(value, cores) {
+  if (!read(value)) return 'unread'
+  const rounded = Math.round(value * 100) / 100
+  return String(value > cores && rounded <= cores ? value : rounded)
+}
+
 /** loadLine is the one sentence every result prints: both samples always, and what they mean. */
 export function loadLine(start, end, cores) {
-  // Two decimals, unless that would round a load above the core count down onto it.
-  const shown = value => {
-    if (!read(value)) return 'unread'
-    const rounded = Math.round(value * 100) / 100
-    return String(value > cores && rounded <= cores ? value : rounded)
-  }
+  const shown = value => shownLoad(value, cores)
   const said = `load: ${shown(start)} at start, ${shown(end)} at end, on ${cores ?? 'an unread number of'} cores (an endpoint observation)`
   const contended = contention(start, end, cores)
   if (contended === null) return `${said}; could not read the load`

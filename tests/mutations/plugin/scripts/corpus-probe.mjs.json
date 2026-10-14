@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "probe load: the end of the run is sampled as well as its start",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "only": "a probe records the load it ran under",
+      "from": "    load: { start: loadAtStart.load, end: loadAtEnd.load, cores: loadAtEnd.cores ?? loadAtStart.cores },",
+      "to": "    load: { start: loadAtStart.load, end: loadAtStart.load, cores: loadAtEnd.cores ?? loadAtStart.cores },"
+    },
+    {
+      "label": "probe load: a slower line from a contended run is marked unattributable",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "only": "cannot attribute to a reader",
+      "from": "  const busy = sides.filter(([, load]) => contended(load) === true)",
+      "to": "  const busy = []"
+    },
+    {
+      "label": "probe load: a load nobody read is unknown, never quiet",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "only": "cannot attribute to a reader",
+      "from": "  const contended = load => (load ? contention(load.start, load.end, load.cores) : null)",
+      "to": "  const contended = load => (load ? contention(load.start, load.end, load.cores) : false)"
+    },
+    {
+      "label": "probe load: two reports older than the field mark nothing",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "only": "names what changed between two runs",
+      "from": "  if (sides.every(([, load]) => load === undefined)) return ''",
+      "to": "  if (false) return ''"
+    },
+    {
       "label": "probe: the summary carries work-next's tasks not on disk",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [

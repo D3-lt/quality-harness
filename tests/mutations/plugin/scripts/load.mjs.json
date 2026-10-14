@@ -56,8 +56,8 @@
       "tests": [
         "tests/qh-check.test.mjs"
       ],
-      "from": "    return String(value > cores && rounded <= cores ? value : rounded)",
-      "to": "    return String(rounded)",
+      "from": "  return String(value > cores && rounded <= cores ? value : rounded)",
+      "to": "  return String(rounded)",
       "only": "^a load just above the core count is contended"
     },
     {

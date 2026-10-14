@@ -346,6 +346,47 @@ test('corpus-probe --diff over two identical reports says nothing changed', () =
   assert.deepEqual(lines, ['before lacks workNext.unbacked', 'before lacks timings'])
 })
 
+// The corpus-probe load lead (BACKLOG, 2026-10-14): seven probes sent at once drove the load to about
+// 22 on 10 cores, and every "slower" line of those rounds compared timings taken under different
+// contention. A report says the load it ran under; --diff marks a slower line it cannot attribute.
+test('a probe records the load it ran under, at its start and its end', () => {
+  const repo = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-probe-load-')))
+  try {
+    assert.equal(git(repo, 'init', '-q').status, 0)
+    const samples = [{ load: 2, cores: 10 }, { load: 12.5, cores: 10 }]
+    const report = probe(repo, { timeoutMs: 1, sampler: () => samples.shift() })
+    assert.deepEqual(report.load, { start: 2, end: 12.5, cores: 10 })
+    // DIRTY twin: a platform with no load average (Windows) is unread, never a quiet 0.
+    const unread = probe(repo, { timeoutMs: 1, sampler: () => ({ load: null, cores: 10 }) })
+    assert.deepEqual(unread.load, { start: null, end: null, cores: 10 })
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('corpus-probe --diff marks a slower line it cannot attribute to a reader', () => {
+  const quiet = { start: 1, end: 1.5, cores: 10 }
+  const slowerAfter = (beforeLoad, afterLoad) => {
+    const before = { ...baseReport(), load: beforeLoad }
+    const after = { ...baseReport(), load: afterLoad }
+    if (beforeLoad === undefined) delete before.load
+    after.timings = [{ reader: 'adr-next', target: 'docs/adr/ADR-001-a/tasks', ms: 3000 }, { reader: 'work-next', target: null, ms: 100 }]
+    const { status, lines, stderr } = diffOf(before, after)
+    assert.equal(status, 0, stderr)
+    return lines
+  }
+  const slower = 'slower: adr-next docs/adr/ADR-001-a/tasks 1000 → 3000 ms'
+  // CLEAN: both runs on a quiet machine, so the line stands as it is.
+  assert.deepEqual(slowerAfter(quiet, quiet), [slower])
+  // DIRTY: either run contended, and the line says which, with the load it saw.
+  assert.deepEqual(slowerAfter(quiet, { start: 3, end: 22, cores: 10 }),
+    [`${slower} — unattributable: the after run had load 22 on 10 cores`])
+  assert.deepEqual(slowerAfter({ start: 15, end: 2, cores: 10 }, { start: 3, end: 10.001, cores: 10 }),
+    [`${slower} — unattributable: the before run had load 15 on 10 cores, the after run had load 10.001 on 10 cores`])
+  // Could not look: a load that was not read, or a report from before the field, is unknown, never quiet.
+  assert.deepEqual(slowerAfter({ start: null, end: null, cores: 10 }, quiet),
+    [`${slower} — load unknown for the before run, so this may be the machine`])
+  assert.deepEqual(slowerAfter(undefined, quiet),
+    ['before lacks load', `${slower} — load unknown for the before run, so this may be the machine`])
+})
 test('corpus-probe --diff re-scrubs its inputs and never compares an unreadable run', () => {
   const before = baseReport()
   const after = baseReport()

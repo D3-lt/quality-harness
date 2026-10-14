@@ -60,6 +60,7 @@ import { scrubber } from './corpus-text.mjs'
 import { publicPath, pluginVersion } from './corpus-report.mjs'
 import { isMainModule } from './main-module.mjs'
 import { READER_DIRECTORIES } from './reader-paths.mjs'
+import { contention, loadLine, sampleLoad, shownLoad } from './load.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bin = path.join(here, '..', 'bin')
@@ -241,7 +242,7 @@ function scratchDirectory(prefix) {
 
 // `listing` is the seam a test sets, as work-next's is: git on macOS and Linux does not list through a
 // symlinked directory, so a link copy is reachable from a test only by naming the listing.
-export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS, listing: given, outputLimit = READER_OUTPUT_LIMIT } = {}) {
+export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS, listing: given, outputLimit = READER_OUTPUT_LIMIT, sampler = sampleLoad } = {}) {
   const resolved = realpathSync(root)
   const rel = target => publicPath(target, resolved)
   // Every reader's free text goes through here before it is emitted (see `scrubber`).
@@ -251,6 +252,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // whose readers moved under it — a commit mid-run, a mutation campaign restoring
   // files — must not report the commit it ended at (cold review of 833ea52).
   const readersAtStart = readerFingerprint(pluginRoot)
+  // The load the run shared the machine with, at its start and its end (load.mjs): its timings say
+  // nothing about a reader when other work ran beside it (the corpus-probe load lead, 2026-10-14).
+  const loadAtStart = sampler()
   const couldNotRun = []
   const note = (readerName, why) => couldNotRun.push({ reader: scrub(readerName), why: scrub(why) })
   const node = (script, args, options = {}) => spawnSync(process.execPath, [path.join(here, script), ...args],
@@ -452,6 +456,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const workNextUnproven = workNextPaths('readinessUnproven')
   const disagreements = compareReaders(adrNext, workNext && { ready: workNextReadyList, readinessUnproven: workNextUnproven })
 
+  const loadAtEnd = sampler()
   return {
     probe: {
       version: pluginVersion(), sha256: probeDigest(), readers: readersOfRun(readersAtStart, readerFingerprint(pluginRoot)),
@@ -504,6 +509,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     disagreements,
     couldNotRun,
     timings,
+    load: { start: loadAtStart.load, end: loadAtEnd.load, cores: loadAtEnd.cores ?? loadAtStart.cores },
     slowest: [...timings].sort((a, b) => b.ms - a.ms).slice(0, 5),
   }
 }
@@ -720,15 +726,35 @@ export function diffReports(before, after, scrub = text => String(text)) {
   if (!lacks('sessionStart', before.sessionStart, after.sessionStart) && before.sessionStart && after.sessionStart) {
     named('SessionStart', before.sessionStart.lines, after.sessionStart.lines)
   }
+  // A slower line compares two runs' wall times, which say nothing about a reader when either run
+  // shared the machine; each says the load it ran under, and two reports older than that field say
+  // nothing of it, as of any field both lack.
+  lacks('load', before.load, after.load)
   if (!lacks('timings', before.timings, after.timings)) {
     const key = entry => `${entry.reader}${entry.target ? ` ${entry.target}` : ''}`
     const was = new Map(before.timings.map(entry => [key(entry), entry.ms]))
+    const mark = slowerMark(before.load, after.load)
     for (const entry of after.timings) {
       const old = was.get(key(entry))
-      if (old !== undefined && entry.ms >= 2 * old && entry.ms - old >= 1000) say(`slower: ${key(entry)} ${old} → ${entry.ms} ms`)
+      if (old !== undefined && entry.ms >= 2 * old && entry.ms - old >= 1000) say(`slower: ${key(entry)} ${old} → ${entry.ms} ms${mark}`)
     }
   }
   return lines.length ? lines : ['nothing changed']
+}
+
+/**
+ * What a slower line adds about the load its two runs had: which run was contended and how much, or which
+ * run's load is unknown (a platform with no load average, a report from before the field). Never "quiet"
+ * for a load nobody read (ADR-005).
+ */
+function slowerMark(before, after) {
+  const sides = [['before', before], ['after', after]]
+  if (sides.every(([, load]) => load === undefined)) return ''
+  const contended = load => (load ? contention(load.start, load.end, load.cores) : null)
+  const busy = sides.filter(([, load]) => contended(load) === true)
+  if (busy.length) return ` — unattributable: ${busy.map(([side, load]) => `the ${side} run had load ${shownLoad(Math.max(load.start, load.end), load.cores)} on ${load.cores} cores`).join(', ')}`
+  const unknown = sides.filter(([, load]) => contended(load) === null).map(([side]) => side)
+  return unknown.length ? ` — load unknown for the ${unknown.join(' and ')} run${unknown.length > 1 ? 's' : ''}, so this may be the machine` : ''
 }
 
 /** The version of the interpreter the gates run under, or null when none answered. */
@@ -935,6 +961,7 @@ export function main(argv = process.argv.slice(2)) {
   const lines = [
     `corpus-probe ${report.probe.version} (sha256 ${report.probe.sha256.slice(0, 12)}…) — look: ${report.look}`,
     `corpora: ${report.corpora.length ? report.corpora.join(', ') : '(none)'}`,
+    report.load ? loadLine(report.load.start, report.load.end, report.load.cores) : 'load: not recorded',
     report.workNext ? `work-next: ${report.workNext.records} record(s), ${report.workNext.accepted} accepted, ${report.workNext.tasks} task file(s); ready ${report.workNext.ready.length}, retirable ${report.workNext.retirable.length}` : 'work-next: could not run',
     report.adrState ? `adr-state: ${report.adrState.read} read, ${report.adrState.governing} governing` : 'adr-state: could not run',
     ...report.adrNext.map(entry => `adr-next ${entry.tasksDir}: ready ${entry.ready ? entry.ready.map(task => task.id).join(', ') || '(none)' : 'could not run'}`),

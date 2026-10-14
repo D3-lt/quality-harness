@@ -335,6 +335,9 @@ already thought of; it cannot read the whole output over a shape it has never se
   no outside run is asked for until the push's own campaign is green.
 - **A gate run under contention is unattributable, including a pass.** Wait for load below the core
   count, then run the gate as its own job with its whole budget.
+- **Send outside-run requests one at a time, never beside a gate.** Probes sent to several peers at
+  once share the machine, and so does a gate run beside them: every timing from such a round is
+  unattributable. `corpus-probe --diff` marks a `slower:` line whose runs were contended.
 
 Why: `.claude/rules/18-somebody-else-runs-it.md`
 

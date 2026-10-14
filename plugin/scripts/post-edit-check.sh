@@ -108,16 +108,31 @@ PARSE_OUT
     bash -n "$file_path" 2>&1 | tail -30 || true
     ;;
   *.json)
-    command -v jq >/dev/null 2>&1 || exit 0
-    if ! json_out=$(jq empty "$file_path" 2>&1); then
-      # Named only when it is not JSONC either, read as TypeScript's parser reads it: a leading
-      # BOM is dropped, a line comment ends at CR or LF, a comment becomes a space (so it cannot
-      # join two halves of a token), then trailing commas go, and the rest must parse (ADR-102 T3, T6).
-      if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
-        :
-      else
-        # jq names no file; the agent is told which one (ADR-102 T4).
-        printf '%s: %s\n' "$file_path" "$(printf '%s\n' "$json_out" | tail -30)"
+    # Read as TypeScript's parser reads JSONC: a leading BOM is dropped, a line comment ends at CR or LF, a comment
+    # becomes a space (so it cannot join two halves of a token), then trailing commas go, and the rest must parse
+    # (ADR-102 T3, T6). It prints the parse error alone, and exits 1 on one.
+    jsonc='try { const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t) } catch (error) { console.log(error.message); process.exit(1) }'
+    # The jq to use; a test names one that is not installed, as on a host without it (ADR-102 T10).
+    jq_cmd=${QUALITY_HARNESS_JQ:-jq}
+    if command -v "$jq_cmd" >/dev/null 2>&1; then
+      if ! json_out=$("$jq_cmd" empty "$file_path" 2>&1); then
+        # Named only when it is not JSONC either (ADR-102 T3).
+        if command -v node >/dev/null 2>&1 && node -e "$jsonc" "$file_path" >/dev/null 2>&1; then
+          :
+        else
+          # jq names no file; the agent is told which one (ADR-102 T4).
+          printf '%s: %s\n' "$file_path" "$(printf '%s\n' "$json_out" | tail -30)"
+        fi
+      fi
+    elif command -v node >/dev/null 2>&1; then
+      # No jq, as on every Windows host of the v3.8.27 outside runs: node reads the file alone and names it (ADR-102 T10).
+      if ! json_out=$(node -e "$jsonc" "$file_path" 2>&1); then
+        if [ -n "$json_out" ]; then
+          printf '%s: %s\n' "$file_path" "$(printf '%s\n' "$json_out" | tail -30)"
+        else
+          # A checker that failed without a word could not look (ADR-102 T6).
+          echo "UNRUN — node failed without a diagnostic; $file_path is unchecked, not clean"
+        fi
       fi
     fi
     ;;

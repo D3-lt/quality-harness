@@ -156,3 +156,6 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
 11. A `python3` that is not Python is not a checker (T9). An outside run on Windows (2026-10-14) found `python3` to be the
     Microsoft Store alias, whose install hint reached the agent as a finding on every `.py` edit. The check uses the first
     of `python3` and `python` that runs a Python 3, and is silent, as Decision 4 has it, when neither does.
+12. Without `jq`, `node` reads JSON as JSONC (T10; the owner, 2026-10-14). The Windows outside runs of v3.8.27 found no `jq`
+    on any of four hosts, so Decision 4's silence for an absent checker left every `.json` unread there although `node`,
+    which the fallback already uses, was present. Decision 4 still holds for every other absent checker.

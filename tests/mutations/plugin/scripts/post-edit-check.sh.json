@@ -85,8 +85,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a finding names the edited file and gives the error alone)$",
-      "from": "        printf '%s: %s\\n' \"$file_path\" \"$(printf '%s\\n' \"$json_out\" | tail -30)\"",
-      "to": "        printf '%s\\n' \"$json_out\" | tail -30"
+      "from": "which one (ADR-102 T4).\n          printf '%s: %s\\n' \"$file_path\" \"$(printf '%s\\n' \"$json_out\" | tail -30)\"",
+      "to": "which one (ADR-102 T4).\n          printf '%s\\n' \"$json_out\" | tail -30"
     },
     {
       "label": "ADR-102 T4: a Python finding is the error, not a traceback",
@@ -109,8 +109,16 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a finding comes only from the file's own parser)$",
-      "from": "      if command -v node >/dev/null 2>&1 && node -e",
-      "to": "      if false && node -e"
+      "from": "        if command -v node >/dev/null 2>&1 && node -e",
+      "to": "        if false && node -e"
+    },
+    {
+      "label": "ADR-102 T10: without jq, node reads JSON as JSONC",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:without jq, node reads JSON as JSONC)$",
+      "from": "    elif command -v node >/dev/null 2>&1; then",
+      "to": "    elif false; then"
     },
     {
       "label": "ADR-102 T3: Python warnings are not findings",

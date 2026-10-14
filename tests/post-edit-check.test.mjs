@@ -461,3 +461,30 @@ test('a python3 that is not Python is not a checker', () => {
   // The alias as both names: nothing looked, so nothing is said, and never the alias's own text.
   assert.equal(said(onPath({ python3: alias, python: alias }), 'bad-too.py', 'def (:\n'), '')
 })
+
+// ADR-102 T10, from the Windows outside runs of v3.8.27 (2026-10-14): none of four hosts had jq, so no .json was ever read
+// there. node reads it alone. QUALITY_HARNESS_JQ names a jq that is not installed, as on those hosts.
+test('without jq, node reads JSON as JSONC', () => {
+  const dir = scratch()
+  const said = (file, text, extra = {}) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, QUALITY_HARNESS_JQ: 'qh-no-such-jq', TMPDIR: scratch(), ...extra }, timeout: 60_000 })
+    assert.equal(got.status, 0)
+    return { text: `${got.stdout}${got.stderr}`.trim(), target }
+  }
+  // DIRTY: broken JSON is named, with its file, and no stack.
+  for (const [file, text] of [['bad.json', '{"a": }\n'], ['empty-array.json', '{"a":[,]}\n']]) {
+    const { text: out, target } = said(file, text)
+    assert.ok(out.startsWith(`${target}: `), `${file} is named: ${out}`)
+    assert.doesNotMatch(out, /UNRUN|^\s+at |node:internal/m, `${file}: the error alone: ${out}`)
+  }
+  // CLEAN twins: JSON, JSONC with comments and trailing commas, and a leading BOM are silent.
+  for (const [file, text] of [['good.json', '{"a":1}\n'], ['jsonc.json', '// c\n{"a":[1,],/* d */}\n'], ['bom.json', '﻿{"a":1}\n']]) {
+    assert.equal(said(file, text).text, '', `${file} is valid JSONC`)
+  }
+  // A node that fails without a word could not look.
+  const bin = mkdtempSync(join(dir, 'bin-'))
+  writeFileSync(join(bin, 'node'), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
+  assert.match(said('silent.json', '{"a":1}\n', { PATH: `${bin}:${process.env.PATH}` }).text, /UNRUN/)
+})

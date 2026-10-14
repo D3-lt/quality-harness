@@ -15,6 +15,7 @@ README must be regenerated.
 | 3 | T2, T4 | T1, T3 |
 | 4 | T6, T8 | T3, T4, T5 |
 | 5 | T7, T9 | T4, T6, T8 |
+| 6 | T10 | T7 |
 
 ## Task Index
 
@@ -29,6 +30,7 @@ README must be regenerated.
 | T7 | a comma with no value before it is not a trailing comma | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T8 | a finding survives the host's console and php.ini | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
 | T9 | a python3 that is not Python is not a checker | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
+| T10 | without jq, node reads JSON as JSONC | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 
 ## Contract Coupling
 

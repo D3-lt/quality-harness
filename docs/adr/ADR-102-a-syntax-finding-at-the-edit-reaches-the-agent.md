@@ -106,3 +106,32 @@ Revert the two task commits: the hook goes back to plain stdout. No persistent s
 ## Follow-ups
 
 - [ ] After a week of use, count from session logs how often an agent's next tool call after a post-edit finding touched the same file.
+
+## Amendment (2026-10-14, the owner, after the cold review)
+
+A cold read-only review of this record, run while T1 was executing, found that the hook names VALID files as broken, and each
+was reproduced the same day: a `.cjs` file is parsed as an ES module (`require` plus a top-level `return`, valid CommonJS, is
+"does not parse as an ES module"); JSX in a `.js` file "parses as neither a module nor a Workflow script"; a `tsconfig.json`
+with comments is a `jq` parse error; a valid Python file prints Python 3.14's `SyntaxWarning`. Today these reach only the
+transcript. Wired by T2, each would reach the agent on every edit of a correct file, and an agent that "fixes" a file valid for
+its own toolchain is worse than one that hears nothing. Context above also names `node --check` for JavaScript; the hook runs
+`workflow-parse.mjs` and says why it does not use `node --check` (`post-edit-check.sh`, its BACKLOG §161 comment).
+
+The owner chose, offered three ways: **a finding is a syntax error, from a parser that is the file's own authority**, before
+anything is wired (T3, which T2 now depends on).
+
+3. `.mjs` keeps the ES-module parse; `.cjs` is checked by `node --check` (always CommonJS, so the §161 hazard of a `.js`
+   with `export` cannot occur); `.js` and `.jsx` are not checked, because their dialect (ES module, CommonJS, Workflow
+   script, JSX, Flow) cannot be known from the file. A JSON file `jq` refuses is named only when it does not parse as JSONC
+   either (comments and trailing commas removed, strings kept), a test of the content rather than a list of names. Python is
+   `ast.parse` with warnings off; `ruff` is dropped, because lint debt in a file the agent touched is not a syntax error.
+   `.sh`, `.bash` and `.php` are unchanged.
+4. Where this record says an `UNRUN` line is printed, that holds on the JavaScript parser's path only. A checker that is not
+   installed (`jq`, `python3`, `php`, `node`) says nothing, and a file checked within five seconds of the same file is not
+   checked again (the per-file debounce): silence after T2 means "nothing was found, or nothing looked", as it did before.
+5. The Risks row about two hooks' `additionalContext` merging cannot be observed as written: the facts gate acts on Markdown
+   records and this hook ignores them, so no edit draws output from both. T2's S3 observes the one thing it can: a finding from
+   this hook in the agent's context.
+
+T1's evidence locked the tests this changes, so T3 retakes T1's lock map with `adr-verify --relock --replace-hashes` after the
+change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner's approval.

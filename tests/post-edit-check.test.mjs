@@ -74,47 +74,26 @@ test('a file type the hook does not handle is silent, not an error', () => {
   assert.equal(`${got.stdout}${got.stderr}`.trim(), '', 'an unhandled extension must be silent')
 })
 
-test('a Workflow script is not reported as broken, and a broken one still is', () => {
-  // BACKLOG §161. `node --check` refuses a correct Workflow script — `Illegal return
-  // statement` on every one of the three shipped workflows under node 26 — so this
-  // hook, which runs after EVERY edit, would print a SyntaxError over correct code
-  // for anyone authoring one. An advisory that is always wrong on a whole file type
-  // is one a reader learns to skip (ADR-037).
+test('a .js file draws nothing, whether it is a Workflow script, a module or broken', () => {
+  // BACKLOG §161 made this hook accept a correct Workflow script, which `node --check` refuses. ADR-102's Amendment
+  // (2026-10-14) goes further: a `.js` file's dialect (module, CommonJS, Workflow script, JSX, Flow) cannot be known from
+  // the file, and once the hook's output reaches the agent a finding about a valid file is worse than none, so a `.js` is
+  // not checked at all. The must-fail direction is the `.mjs` row of "a finding comes only from the file's own parser"
+  // and of the parse-goal test: the same parser still names a broken module.
   const dir = scratch()
   const header = 'export const meta = { name: "w", description: "d" }\n'
-
-  const good = join(dir, 'good.js')
-  writeFileSync(good, `${header}if (1) { return { ok: true } }\nreturn { ok: false }\n`)
-  const quiet = run('Edit', good)
-  assert.equal(quiet.status, 0)
-  assert.equal(`${quiet.stdout}${quiet.stderr}`.trim(), '',
-    `a correct Workflow script must draw no advisory: ${quiet.stdout}${quiet.stderr}`)
-
-  // An ordinary ES module of the same extension is silent too — the hook accepts
-  // either dialect, so widening it must not have cost the common case.
-  const mod = join(dir, 'module.js')
-  writeFileSync(mod, 'import { join } from "node:path"\nexport const a = join("x", "y")\n')
-  const alsoQuiet = run('Edit', mod)
-  assert.equal(`${alsoQuiet.stdout}${alsoQuiet.stderr}`.trim(), '',
-    `a correct ES module must draw no advisory: ${alsoQuiet.stdout}${alsoQuiet.stderr}`)
-
-  // The must-fail direction, and it is the one that was VACUOUS: `node --check` on a
-  // .js file containing an `export` exits 0 whatever follows, on the node CI pins, so
-  // the hook said nothing about a broken file for as long as it has shipped.
-  // ⚠ An unbalanced BRACE would not prove it either — `node --check` wraps a file it
-  // reads as CommonJS and the wrapper's own closing brace completes it (measured
-  // 2026-09-07: exit 0 on `if (1) { return { ok: true }`). An unclosed paren cannot be
-  // completed that way, so it is refused in both dialects.
-  const bad = join(dir, 'bad.js')
-  writeFileSync(bad, `${header}const broken = (\n`)
-  const loud = run('Edit', bad)
-  assert.equal(loud.status, 0, 'advisory: it still must not fail the edit')
-  assert.match(`${loud.stdout}${loud.stderr}`, /parses as neither a module nor a Workflow script/,
-    `it must say both dialects were tried: ${loud.stdout}${loud.stderr}`)
-  assert.match(`${loud.stdout}${loud.stderr}`, /bad\.js/,
-    'the advice must name the file the user edited, not the copy the check made')
-  assert.doesNotMatch(`${loud.stdout}${loud.stderr}`, /candidate\.mjs/,
-    'the copy is an implementation detail and is deleted before the reader could open it')
+  const files = {
+    'good.js': `${header}if (1) { return { ok: true } }\nreturn { ok: false }\n`,
+    'module.js': 'import { join } from "node:path"\nexport const a = join("x", "y")\n',
+    'bad.js': `${header}const broken = (\n`,
+  }
+  for (const [name, text] of Object.entries(files)) {
+    const file = join(dir, name)
+    writeFileSync(file, text)
+    const got = run('Edit', file)
+    assert.equal(got.status, 0)
+    assert.equal(`${got.stdout}${got.stderr}`.trim(), '', `${name} is not checked: ${got.stdout}${got.stderr}`)
+  }
 })
 
 test('a checker that could not run is UNRUN, never a finding about the file', () => {
@@ -123,7 +102,7 @@ test('a checker that could not run is UNRUN, never a finding about the file', ()
   // "here is what is wrong with your file". Found by a different-lineage review of
   // 2cde29f, 2026-09-07. The hook requires the parser's own completion marker.
   const dir = scratch()
-  const subject = join(dir, 'subject.js')
+  const subject = join(dir, 'subject.mjs')
   writeFileSync(subject, 'export const meta = { name: "w" }\nconst broken = (\n')
 
   const copyOf = (into, parser) => {
@@ -138,7 +117,7 @@ test('a checker that could not run is UNRUN, never a finding about the file', ()
     { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
   assert.equal(absent.status, 0, 'advisory: a missing checker must not fail the edit')
   assert.match(`${absent.stdout}${absent.stderr}`, /UNRUN/)
-  assert.doesNotMatch(`${absent.stdout}${absent.stderr}`, /parses as neither/)
+  assert.doesNotMatch(`${absent.stdout}${absent.stderr}`, /does not parse as an ES module/)
 
   const corrupt = spawnSync('bash', [copyOf(join(dir, 'corrupt'), 'const x = (\n'), 'Edit', subject],
     { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
@@ -151,7 +130,7 @@ test('a checker that could not run is UNRUN, never a finding about the file', ()
   const working = spawnSync('bash', [copyOf(join(dir, 'working'), readFileSync(
     resolve(testDir, '..', 'plugin', 'scripts', 'workflow-parse.mjs'), 'utf8')), 'Edit', subject],
     { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
-  assert.match(`${working.stdout}${working.stderr}`, /parses as neither a module nor a Workflow script/,
+  assert.match(`${working.stdout}${working.stderr}`, /does not parse as an ES module/,
     `the copied hook must still work when its checker is there: ${working.stdout}${working.stderr}`)
   assert.doesNotMatch(`${working.stdout}${working.stderr}`, /UNRUN/)
   assert.doesNotMatch(`${working.stdout}${working.stderr}`, /QH-PARSE-COMPLETE/,
@@ -165,7 +144,7 @@ test('a dying checker cannot pass itself off as complete by printing the marker'
   // line now, done in shell rather than through `grep -v … || true`, which could not
   // tell its own "nothing matched" from "the filter itself failed".
   const dir = scratch()
-  const subject = join(dir, 'subject.js')
+  const subject = join(dir, 'subject.mjs')
   writeFileSync(subject, 'export const meta = { name: "w" }\nreturn 1\n')
 
   const withParser = (into, parser) => {
@@ -186,11 +165,11 @@ test('a dying checker cannot pass itself off as complete by printing the marker'
   // The must-fail direction: the same shape with the marker on its OWN line is a
   // finding, so the assertion above is about the line and not about the exit code.
   const honest = withParser(join(dir, 'honest'),
-    'console.error("subject.js: parses as neither a module nor a Workflow script")\n' +
+    'console.error("subject.mjs: does not parse as an ES module")\n' +
     'console.log("QH-PARSE-COMPLETE")\nprocess.exitCode = 1\n')
   assert.doesNotMatch(`${honest.stdout}${honest.stderr}`, /UNRUN/,
     `a real finding must not be reported as unchecked: ${honest.stdout}${honest.stderr}`)
-  assert.match(`${honest.stdout}${honest.stderr}`, /parses as neither/)
+  assert.match(`${honest.stdout}${honest.stderr}`, /does not parse as an ES module/)
 })
 
 test('the hook picks the parse goal from the extension, and diagnostics cannot forge the marker', () => {
@@ -210,13 +189,13 @@ test('the hook picks the parse goal from the extension, and diagnostics cannot f
   assert.match(`${mjs.stdout}${mjs.stderr}`, /does not parse as an ES module/,
     `a top-level return in a .mjs is broken and must be said: ${mjs.stdout}${mjs.stderr}`)
 
-  // The same bytes as .js are legitimately a Workflow script and must stay silent,
-  // or the assertion above is just a checker that refuses everything.
+  // The same bytes as .js draw nothing (a .js is not checked, ADR-102), or the assertion
+  // above is just a checker that refuses everything.
   const asJs = join(dir, 'subject.js')
   writeFileSync(asJs, workflowShaped)
   const js = run('Edit', asJs)
   assert.equal(`${js.stdout}${js.stderr}`.trim(), '',
-    `the same bytes as .js are a Workflow script: ${js.stdout}${js.stderr}`)
+    `the same bytes as .js are not checked: ${js.stdout}${js.stderr}`)
 
   // A checker whose DIAGNOSTIC contains the marker line: it goes to stderr, which
   // is not the protocol channel, so the run is still reported as not having run.
@@ -225,22 +204,22 @@ test('the hook picks the parse goal from the extension, and diagnostics cannot f
   writeFileSync(join(forge, 'post-edit-check.sh'), readFileSync(hook, 'utf8'))
   writeFileSync(join(forge, 'workflow-parse.mjs'),
     'console.error("QH-PARSE-COMPLETE")\nprocess.exit(1)\n')
-  const forged = spawnSync('bash', [join(forge, 'post-edit-check.sh'), 'Edit', asJs],
+  const forged = spawnSync('bash', [join(forge, 'post-edit-check.sh'), 'Edit', asMjs],
     { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
   assert.match(`${forged.stdout}${forged.stderr}`, /UNRUN/,
     `the marker on stderr is a diagnostic, not the protocol: ${forged.stdout}${forged.stderr}`)
 })
 
 // ADR-102 T1: what the hook prints is handed to the agent (T2), so a clean file must print nothing, whatever checker ran.
-// Measured 2026-10-14: `ruff check` prints `All checks passed!` and `php -l` prints `No syntax errors detected` on a clean
-// file. Each row runs the real checker; one that is not installed is a named skip, never a pass.
+// Measured 2026-10-14: `php -l` prints `No syntax errors detected` on a clean file (and `ruff`, run here until T3, printed
+// `All checks passed!`). Each row runs the real checker; one that is not installed is a named skip, never a pass.
 const has = command => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).status === 0
 test('a clean file says nothing, and a broken one is still named', async t => {
   const rows = [
     { name: 'a module', file: 'm.mjs', clean: 'export const x = 1\n', broken: 'export const = \n', finds: /m\.mjs|SyntaxError|Unexpected/, needs: 'node' },
     { name: 'a shell script', file: 's.sh', clean: 'echo hi\n', broken: 'if then\n', finds: /s\.sh|syntax error/, needs: 'bash' },
     { name: 'a JSON file', file: 'j.json', clean: '{"a": 1}\n', broken: '{"a": \n', finds: /parse error|j\.json/i, needs: 'jq' },
-    { name: 'Python in a ruff project', file: 'p.py', clean: 'x = 1\n', broken: 'import os\n', finds: /F401|unused/i, needs: 'ruff', project: true },
+    { name: 'Python in a project', file: 'p.py', clean: 'x = 1\n', broken: 'def (:\n', finds: /SyntaxError|p\.py/, needs: 'python3', project: true },
     { name: 'Python with no project', file: 'q.py', clean: 'x = 1\n', broken: 'def (:\n', finds: /SyntaxError|q\.py/, needs: 'python3' },
     { name: 'PHP', file: 'r.php', clean: '<?php echo 1;\n', broken: '<?php echo ;\n', finds: /Parse error|syntax error/i, needs: 'php' },
   ]
@@ -260,4 +239,33 @@ test('a clean file says nothing, and a broken one is still named', async t => {
       assert.match(`${loud.stdout}${loud.stderr}`, row.finds, `${row.name}: ${loud.stdout}${loud.stderr}`)
     })
   }
+})
+
+// ADR-102 T3 (the Amendment): each of the silent rows below drew a finding before, reproduced 2026-10-14, and once the hook's
+// output reaches the agent (T2) a finding about a valid file is worse than none. Every row runs the real checker through the
+// `run` helper (its own TMPDIR, so the per-file debounce never decides a row); the fence refuses a skip.
+test("a finding comes only from the file's own parser", () => {
+  const dir = scratch()
+  writeFileSync(join(dir, 'pyproject.toml'), '')
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = run('Edit', target)
+    assert.equal(got.status, 0, 'advisory: never fails the edit')
+    return `${got.stdout}${got.stderr}`.trim()
+  }
+  const silent = {
+    'legacy.cjs': 'const fs = require("fs")\nif (!fs) return\nmodule.exports = 1\n',
+    'component.js': 'const a = <div>hi</div>\nexport default a\n',
+    'broken.js': 'const broken = (\n',
+    'tsconfig.json': '{\n  // TypeScript reads comments\n  "compilerOptions": { "strict": true, },\n}\n',
+    'strings.json': '{"url": "http://x", "s": "a,}"}\n',
+    'escape.py': 'import re\nx = re.compile("\\d")\n',
+    'lint.py': 'import os\n',
+  }
+  for (const [file, text] of Object.entries(silent)) assert.equal(said(file, text), '', `${file} is valid for its own toolchain`)
+  // DIRTY twins: the same checkers still name a real syntax error.
+  assert.match(said('bad.cjs', 'const = 1\n'), /bad\.cjs|SyntaxError/)
+  assert.match(said('bad.json', '{"a": \n'), /parse error/i)
+  assert.match(said('bad.py', 'def (:\n'), /SyntaxError/)
 })

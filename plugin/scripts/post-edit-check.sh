@@ -12,19 +12,6 @@ esac
 file_path=${2-}
 [ -n "$file_path" ] && [ -f "$file_path" ] || exit 0
 
-find_up() {
-  local markers="$1" current="$2" marker parent
-  while [ -n "$current" ]; do
-    for marker in $markers; do
-      [ -e "$current/$marker" ] && { printf '%s' "$current"; return 0; }
-    done
-    parent=$(dirname "$current")
-    [ "$parent" != "$current" ] || break
-    current="$parent"
-  done
-  return 1
-}
-
 debounce() {
   local key="$1" marker now last tmp_root
   tmp_root=${TMPDIR:-/tmp}
@@ -40,16 +27,21 @@ debounce() {
 
 file_dir=$(dirname "$file_path")
 case "$file_path" in
-  *.js|*.mjs|*.cjs)
-    # ⚠ THE EXTENSION SELECTS THE PARSE GOAL, and giving every one of them the
-    # either-dialect mode was a false clean: a `.mjs` carrying a top-level `return`
-    # is broken — node's module goal is the only one it has — and the Workflow
-    # fallback accepted it silently. Only `.js` is ambiguous between an ES module
-    # and a Workflow script, so only `.js` gets `--js`.
-    case "$file_path" in
-      *.js) parse_mode=--js ;;
-      *)    parse_mode=--module ;;
-    esac
+  # ADR-102: a `.js` or `.jsx` file's dialect (ES module, CommonJS, Workflow script, JSX,
+  # Flow) cannot be known from the file, and what this hook prints reaches the agent, where
+  # a finding about a valid file is worse than none. Neither is checked.
+  *.js|*.jsx)
+    ;;
+  *.cjs)
+    # Always CommonJS, so node's own parser is the authority, and the §161 hazard below (a
+    # `.js` carrying `export`) cannot occur in it (ADR-102).
+    command -v node >/dev/null 2>&1 || exit 0
+    cjs_out=$(node --check "$file_path" 2>&1) || printf '%s\n' "$cjs_out" | tail -30
+    ;;
+  *.mjs)
+    # An ES module only: node's module goal is the only one a `.mjs` has, and the Workflow
+    # fallback once accepted a `.mjs` carrying a top-level `return` silently.
+    parse_mode=--module
     command -v node >/dev/null 2>&1 || exit 0
     # ⚠ NOT `node --check` — TWICE WRONG on a .js file. It reports a SyntaxError on a
     # CORRECT Workflow script (`Illegal return statement`, node 26), and on node 24 it
@@ -111,25 +103,28 @@ PARSE_OUT
     ;;
   *.json)
     command -v jq >/dev/null 2>&1 || exit 0
-    jq empty "$file_path" 2>&1 | tail -30 || true
+    if ! json_out=$(jq empty "$file_path" 2>&1); then
+      # Named only when it is not JSONC either: tsconfig.json and editor settings carry
+      # comments and trailing commas by design. Comments are removed outside strings, then
+      # trailing commas, and the rest must parse (ADR-102).
+      if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? "").replace(/("(?:\\.|[^"\\])*")|,(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
+        :
+      else
+        printf '%s\n' "$json_out" | tail -30
+      fi
+    fi
     ;;
   # Project-wide TypeScript, Rust and Go checks belong in explicit acceptance
   # commands. A per-edit debounce neither bounds their cost nor prevents overlap.
   *.ts|*.tsx|*.rs|*.go)
     ;;
   *.py)
-    project=$(find_up 'pyproject.toml setup.py setup.cfg requirements.txt Pipfile .venv' "$file_dir" || true)
-    if [ -n "$project" ] && command -v ruff >/dev/null 2>&1; then
-      debounce "py:$project" || exit 0
-      # --quiet: ruff prints `All checks passed!` on a clean file otherwise, and what this
-      # hook prints reaches the agent (ADR-102), so a clean file must say nothing.
-      (cd "$project" && ruff check --quiet "$file_path" 2>&1 | tail -40) || true
-    else
-      debounce "py:$file_path" || exit 0
-      command -v python3 >/dev/null 2>&1 || exit 0
-      python3 -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(), filename=sys.argv[1])' \
-        "$file_path" 2>&1 | tail -30 || true
-    fi
+    debounce "py:$file_path" || exit 0
+    command -v python3 >/dev/null 2>&1 || exit 0
+    # Syntax only, with warnings off: a SyntaxWarning (an invalid escape) is not an error, and
+    # lint debt in a file the agent touched is not a syntax error, so ruff is not run (ADR-102).
+    python3 -W ignore -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(), filename=sys.argv[1])' \
+      "$file_path" 2>&1 | tail -30 || true
     ;;
   *.php)
     debounce "php:$file_path" || exit 0

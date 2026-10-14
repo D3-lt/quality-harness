@@ -11,7 +11,8 @@ README must be regenerated.
 | Order | Task | Depends-on |
 |-------|------|------------|
 | 1 | T1 | none |
-| 2 | T2 | T1 |
+| 2 | T3 | T1 |
+| 3 | T2 | T1, T3 |
 
 ## Task Index
 
@@ -19,11 +20,12 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | the post-edit check is quiet on a clean file | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes) |
 | T2 | a syntax finding at the edit reaches the agent | pending | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes) |
+| T3 | a finding comes only from the file's own parser | pending | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 
 ## Contract Coupling
 
-T1 → T2: "stdout is empty for a clean file" (`post-edit-check.sh`).
+T1 → T2: "stdout is empty for a clean file" (`post-edit-check.sh`). T3 → T2: "a finding is a syntax error from the file's own parser" (`post-edit-check.sh`).
 
 ## Notes
 
-- No test is locked on `tests/post-edit-check.test.mjs` (`scripts/test-locks.py`, 2026-10-14: 0 locks).
+- No test was locked on `tests/post-edit-check.test.mjs` when the record was written (`scripts/test-locks.py`, 2026-10-14: 0 locks); T1's evidence locked eight, and T3 retakes that lock map (the Amendment).

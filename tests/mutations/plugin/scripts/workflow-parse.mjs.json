@@ -38,7 +38,7 @@
       ],
       "from": "    const said = [realpathSync(copy), copy].reduce((text, path) => text.split(path).join(name),",
       "to": "    const said = [].reduce((text, path) => text.split(path).join(name),",
-      "only": "^(?:a Workflow script is not reported as broken, and a broken one still is|--js accepts an ES module, accepts a Workflow script, and refuses neither-of-those)$"
+      "only": "^(?:--js accepts an ES module, accepts a Workflow script, and refuses neither-of-those)$"
     },
     {
       "label": "workflow-parse: exactly one header export is stripped, and only where the format puts it",
@@ -68,7 +68,7 @@
       ],
       "from": "  console.log('QH-PARSE-COMPLETE')",
       "to": "  if (false) console.log('QH-PARSE-COMPLETE')",
-      "only": "^(?:the hook reports a syntax error without failing the edit|a Workflow script is not reported as broken, and a broken one still is|a checker that could not run is UNRUN, never a finding about the file|the hook picks the parse goal from the extension, and diagnostics cannot forge the marker|the CLI separates a finding from a could-not-look, and says it ran|the CLI runs when its own path is reached through a symlink)$"
+      "only": "^(?:the hook reports a syntax error without failing the edit|a checker that could not run is UNRUN, never a finding about the file|the hook picks the parse goal from the extension, and diagnostics cannot forge the marker|the CLI separates a finding from a could-not-look, and says it ran|the CLI runs when its own path is reached through a symlink)$"
     },
     {
       "label": "workflow-parse: the CLI runs when its own path comes through a symlink, or it silently does nothing",

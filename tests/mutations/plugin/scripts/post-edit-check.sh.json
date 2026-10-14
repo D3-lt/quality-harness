@@ -1,12 +1,28 @@
 {
   "mutations": [
     {
-      "label": "ADR-102 T1: ruff is quiet on a clean file",
+      "label": "ADR-102 T3: a .cjs file is read by node's own parser",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
-      "only": "^(?:a clean file says nothing, and a broken one is still named)$",
-      "from": "      (cd \"$project\" && ruff check --quiet \"$file_path\" 2>&1 | tail -40) || true",
-      "to": "      (cd \"$project\" && ruff check \"$file_path\" 2>&1 | tail -40) || true"
+      "only": "^(?:a finding comes only from the file's own parser)$",
+      "from": "    cjs_out=$(node --check \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | tail -30",
+      "to": "    cjs_out=$(node \"$(dirname \"$0\")/workflow-parse.mjs\" --module \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | tail -30"
+    },
+    {
+      "label": "ADR-102 T3: a JSON file jq refuses is named only when it is not JSONC either",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a finding comes only from the file's own parser)$",
+      "from": "      if command -v node >/dev/null 2>&1 && node -e",
+      "to": "      if false && node -e"
+    },
+    {
+      "label": "ADR-102 T3: Python warnings are not findings",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a finding comes only from the file's own parser)$",
+      "from": "    python3 -W ignore -B -c",
+      "to": "    python3 -B -c"
     },
     {
       "label": "ADR-102 T1: php -l is printed only when it fails",
@@ -52,8 +68,8 @@
       "tests": [
         "tests/post-edit-check.test.mjs"
       ],
-      "from": "      *.js) parse_mode=--js ;;",
-      "to": "      *.js|*.mjs) parse_mode=--js ;;",
+      "from": "    parse_mode=--module",
+      "to": "    parse_mode=--js",
       "only": "^(?:the hook picks the parse goal from the extension, and diagnostics cannot forge the marker)$"
     },
     {
@@ -64,7 +80,7 @@
       ],
       "from": "    parse_out=$(node \"$parser\" \"$parse_mode\" \"$file_path\" 2>\"$parse_err\") || parse_status=$?",
       "to": "    parse_out=$(node \"$parser\" \"$parse_mode\" \"$file_path\" 2>&1) || parse_status=$?",
-      "only": "^(?:the hook reports a syntax error without failing the edit|a Workflow script is not reported as broken, and a broken one still is|a checker that could not run is UNRUN, never a finding about the file|a dying checker cannot pass itself off as complete by printing the marker|the hook picks the parse goal from the extension, and diagnostics cannot forge the marker)$"
+      "only": "^(?:the hook reports a syntax error without failing the edit|a checker that could not run is UNRUN, never a finding about the file|a dying checker cannot pass itself off as complete by printing the marker|the hook picks the parse goal from the extension, and diagnostics cannot forge the marker)$"
     },
     {
       "label": "hook-work: per-edit hooks leave project compilers explicit",

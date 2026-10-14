@@ -70,6 +70,17 @@ if [ -n "${QH_SELFTEST_CONCURRENCY:-}" ]; then
   esac
 fi
 printf 'selftest: concurrency %s (cores %s, load %s%s)\n' "$concurrency" "$cores" "$load" "$concurrency_how"
+# Stage 0 of making the check fast (BACKLOG §378, "qh-check cannot say where its time went"): every run keeps one row of
+# per-file test times beside the check ledger, red runs too, since a file that failed is the first one an ordering wants.
+# scripts/check-timing.mjs reads them. Outside a git checkout there is no ledger to keep them beside, and that is said.
+timing_dir=$(git -C "$REPO" rev-parse --absolute-git-dir 2>/dev/null || true)
+if [ -n "$timing_dir" ]; then
+  timing_ledger="$timing_dir/quality-harness/selftest-files.jsonl"
+  printf 'selftest: per-file times to %s\n' "$timing_ledger"
+else
+  timing_ledger=''
+  printf 'selftest: per-file times not kept (no git directory for %s)\n' "$REPO"
+fi
 if [ "${QH_SELFTEST_DRY:-0}" = 1 ]; then exit 0; fi
 
 # The manifest/skill validation needs the Claude Code CLI. Where it is absent
@@ -131,14 +142,34 @@ fi
 # the transcript names how far the file got even when the run dies without a
 # failing assertion to report. Off by default: it is a diagnostic, not a gate,
 # and nothing reads the file here.
-if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
-  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} \
-    --test-reporter=spec --test-reporter-destination=stdout \
-    --test-reporter=tap --test-reporter-destination="$QUALITY_HARNESS_TAP" \
-    "$REPO"/tests/*.test.mjs
-else
-  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} "$REPO"/tests/*.test.mjs
+reporters=(--test-reporter=spec --test-reporter-destination=stdout)
+timing_rows=''
+if [ -n "$timing_ledger" ]; then
+  timing_rows=$(mktemp "${TMPDIR:-/tmp}/qh-file-times.XXXXXX") || timing_rows=''
+  # A file URL, which node accepts as a reporter on every platform; a Git Bash path inside `--x=` is not one to rely on.
+  timing_reporter=$(node -e 'process.stdout.write(require("node:url").pathToFileURL(process.argv[1]).href)' \
+    "$REPO/scripts/file-timing-reporter.mjs" 2>/dev/null) || timing_reporter=''
+  if [ -n "$timing_rows" ] && [ -n "$timing_reporter" ]; then
+    reporters+=(--test-reporter="$timing_reporter" --test-reporter-destination="$timing_rows")
+  else
+    rm -f "$timing_rows"; timing_rows=''
+    printf 'selftest: per-file times not kept for this run (no temporary file, or no reporter URL)\n' >&2
+  fi
 fi
+if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
+  reporters+=(--test-reporter=tap --test-reporter-destination="$QUALITY_HARNESS_TAP")
+fi
+# The suite's status is read, not left to set -e, so a red run's times are kept before the script exits with it.
+tests_status=0
+QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
+  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} "${reporters[@]}" "$REPO"/tests/*.test.mjs || tests_status=$?
+if [ -n "$timing_rows" ]; then
+  if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$timing_ledger")" && cat "$timing_rows" >>"$timing_ledger"; then :
+  else printf 'selftest: per-file times were not kept for this run\n' >&2
+  fi
+  rm -f "$timing_rows"
+fi
+[ "$tests_status" = 0 ] || exit "$tests_status"
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.
 # `-f` is not decoration: a `__pycache__/` left in bin by any process that

@@ -11,6 +11,16 @@
       "only": "selftest prints its verdict"
     },
     {
+      "label": "selftest: per-file times are kept beside the check ledger of this checkout",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/file-timing.test.mjs"
+      ],
+      "from": "timing_dir=$(git -C \"$REPO\" rev-parse --absolute-git-dir 2>/dev/null || true)",
+      "to": "timing_dir=''",
+      "only": "^(?:the gate keeps its per-file times beside the check ledger, and says where)$"
+    },
+    {
       "label": "ADR-077 T2: the suite has a private lease directory",
       "file": "scripts/selftest.sh",
       "tests": [

@@ -1,0 +1,28 @@
+{
+  "mutations": [
+    {
+      "label": "check-timing: each file goes to the worker that is free first",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "from": "    const next = free.indexOf(Math.min(...free))",
+      "to": "    const next = 0",
+      "only": "^(?:the order a file list is run in decides how long the slowest worker takes)$"
+    },
+    {
+      "label": "check-timing: a run is joined only to a check whose window holds it",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "from": "when >= start && when <= end",
+      "to": "when <= end",
+      "only": "^(?:a run no check holds is said as unjoined, and a contended check is said as contended)$"
+    },
+    {
+      "label": "check-timing: red then green counts only when the tree did not change between",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "from": "before.after.tree === after?.after?.tree",
+      "to": "before.after.tree",
+      "only": "^(?:a tree that went red and then green with nothing changed is counted, and a fix between them is not)$"
+    }
+  ]
+}

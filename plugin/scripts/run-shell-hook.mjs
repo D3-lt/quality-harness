@@ -383,9 +383,12 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // Claude Code surfaces exit-0 stdout in transcript view only. Wrapping it as
   // additionalContext is what actually puts the finding in front of the model
   // at the moment of the edit. It is said once: the run is logged as complete,
-  // so the boundary does not look at the same content again.
+  // so the boundary does not look at the same content again. The post-edit
+  // check's syntax finding goes the same way (ADR-102); it prints nothing for a
+  // clean file, so a clean edit hands the agent nothing.
   const payload = parsedHookPayload(raw, process.platform)
-  if (scriptName === 'facts-gate-dispatch.sh'
+  const toTheAgent = scriptName === 'facts-gate-dispatch.sh' || scriptName === 'post-edit-check.sh'
+  if (toTheAgent
       && payload?.hook_event_name === 'PostToolUse'
       && run.status === 0 && !run.timedOut && !run.error && run.stdout.trim()) {
     process.stdout.write(JSON.stringify({

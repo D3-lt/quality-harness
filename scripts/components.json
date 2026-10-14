@@ -58,8 +58,8 @@
       { "kind": "tool", "by": "plugin/scripts/artifact-pass.mjs", "token": "'artifact.gated'" }
     ] },
     "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs post-edit-check.sh": { "consumers": [
-      { "kind": "user-message", "by": "plugin/scripts/post-edit-check.sh", "token": "printf" }
-    ], "reason": "its plain stdout reaches the transcript view only (ADR-097); removal deferred while spec facts F-33 and UC2-S5 bind it, and it costs 28 to 75 ms per edit (BACKLOG §378, 2026-10-14)" },
+      { "kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "scriptName === 'post-edit-check.sh'" }
+    ], "reason": "a syntax error from the file's own parser, told to the agent at the edit that broke it (ADR-102); a clean file says nothing, and it costs 28 to 75 ms per edit (BACKLOG §378, 2026-10-14)" },
     "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'" }
     ] },

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-102 T2: a syntax finding at the edit reaches the agent",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a syntax finding at the edit reaches the agent, and a clean edit hands it nothing)$",
+      "from": "  const toTheAgent = scriptName === 'facts-gate-dispatch.sh' || scriptName === 'post-edit-check.sh'",
+      "to": "  const toTheAgent = scriptName === 'facts-gate-dispatch.sh'"
+    },
+    {
       "label": "hooks: the runner fails closed on a timeout",
       "file": "plugin/scripts/run-shell-hook.mjs",
       "tests": [

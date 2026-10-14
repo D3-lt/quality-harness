@@ -269,3 +269,37 @@ test("a finding comes only from the file's own parser", () => {
   assert.match(said('bad.json', '{"a": \n'), /parse error/i)
   assert.match(said('bad.py', 'def (:\n'), /SyntaxError/)
 })
+
+// ADR-102 T2: exit-0 PostToolUse stdout is shown in the transcript only, so the finding is handed to the agent as
+// additionalContext, through the same wrapper the hook runs in (`run-shell-hook.mjs`). Each call has its own temp and data
+// directories, so neither the debounce nor an earlier call's ledger decides a row.
+const wrapper = resolve(testDir, '..', 'plugin', 'scripts', 'run-shell-hook.mjs')
+const throughTheHook = file => {
+  const home = scratch()
+  return spawnSync(process.execPath, [wrapper, 'post-edit-check.sh'], {
+    cwd: dirname(file), encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, TMPDIR: home, TEMP: home, TMP: home, HOME: home, CLAUDE_PLUGIN_DATA: join(home, 'data') },
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'adr-102', cwd: dirname(file), tool_input: { file_path: file } }),
+  })
+}
+test('a syntax finding at the edit reaches the agent, and a clean edit hands it nothing', () => {
+  const dir = scratch()
+  const broken = join(dir, 'broken.mjs')
+  writeFileSync(broken, 'export const = 1\n')
+  const loud = throughTheHook(broken)
+  assert.equal(loud.status, 0, 'advisory: never fails the edit')
+  const answer = JSON.parse(loud.stdout)
+  assert.equal(answer.hookSpecificOutput?.hookEventName, 'PostToolUse')
+  assert.match(answer.hookSpecificOutput?.additionalContext ?? '', /broken\.mjs|does not parse/,
+    `the diagnostic is in the agent's context: ${loud.stdout}`)
+  // CLEAN twins, and the T1 and T3 contract at this boundary: a clean module, a clean PHP file and a Python file with lint
+  // debt beside a pyproject.toml hand the agent nothing at all.
+  writeFileSync(join(dir, 'pyproject.toml'), '')
+  for (const [file, text] of [['fine.mjs', 'export const x = 1\n'], ['fine.php', '<?php echo 1;\n'], ['lint.py', 'import os\n']]) {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const quiet = throughTheHook(target)
+    assert.equal(quiet.status, 0)
+    assert.equal(quiet.stdout, '', `${file} hands the agent nothing: ${quiet.stdout}`)
+  }
+})

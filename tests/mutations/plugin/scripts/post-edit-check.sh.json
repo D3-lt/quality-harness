@@ -37,8 +37,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a checker that fails without a word is UNRUN, and the hook exits 0)$",
-      "from": "        *) echo \"UNRUN — node --check could not read $file_path; it is unchecked, not clean\" ;;",
-      "to": "        *) printf '%s\\n' \"$cjs_said\" ;;"
+      "from": "\"$cjs_said\" ;;\n        *) echo \"UNRUN — node did not check $file_path (it could not start, or stopped without a verdict); the file is unchecked, not clean\" ;;",
+      "to": "\"$cjs_said\" ;;\n        *) printf '%s\\n' \"$cjs_said\" ;;"
     },
     {
       "label": "ADR-102 T6: a silent PHP failure does not exit the hook 1",
@@ -127,6 +127,14 @@
       "only": "^(?:a node that cannot start says nothing about a \\.cjs file)$",
       "from": "        *SyntaxError*) printf '%s\\n' \"$cjs_said\" ;;",
       "to": "        ?*) printf '%s\\n' \"$cjs_said\" ;;"
+    },
+    {
+      "label": "an UNRUN line names node, not the file, as what failed",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:an UNRUN line names node, not the file, as what failed)$",
+      "from": "          *) echo \"UNRUN — node did not check $file_path (it could not start, or stopped without a verdict); the file is unchecked, not clean\" ;;",
+      "to": "          *) echo \"UNRUN — node could not read $file_path; it is unchecked, not clean\" ;;"
     },
     {
       "label": "ADR-102 T14: a JSON file with nothing in it reads the same with and without jq",

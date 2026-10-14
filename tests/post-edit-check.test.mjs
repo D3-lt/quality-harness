@@ -575,3 +575,17 @@ test('a node that cannot start says nothing about a .cjs file', () => {
   // DIRTY twin: with a node that starts, the broken file is still named.
   assert.match(said('broken-too.cjs', 'module.exports = {\n'), /SyntaxError/)
 })
+
+// From an outside run at the 3.8.29 candidate (2026-10-14): the UNRUN line said node "could not read" the file, which
+// sends an agent to the file's permissions when node itself did not start. It names node as what failed.
+test('an UNRUN line names node, not the file, as what failed', () => {
+  const dir = scratch()
+  for (const [file, text, extra] of [['valid.cjs', 'module.exports = 1\n', {}], ['valid.json', '{"a":1}\n', { QUALITY_HARNESS_JQ: 'qh-no-such-jq' }]]) {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '--require=qh-no-such-module', TMPDIR: scratch(), ...extra }, timeout: 60_000 })
+    const out = `${got.stdout}${got.stderr}`
+    assert.match(out, /^UNRUN — node did not check .*could not start/, `${file}: node is what failed: ${out}`)
+    assert.doesNotMatch(out, /could not read/, `${file}: the file is not blamed: ${out}`)
+  }
+})

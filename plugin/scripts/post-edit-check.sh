@@ -45,7 +45,7 @@ case "$file_path" in
       # it said is not about this file (ADR-102 T6, T15). Never silence, never exit 1.
       case "$cjs_said" in
         *SyntaxError*) printf '%s\n' "$cjs_said" ;;
-        *) echo "UNRUN — node --check could not read $file_path; it is unchecked, not clean" ;;
+        *) echo "UNRUN — node did not check $file_path (it could not start, or stopped without a verdict); the file is unchecked, not clean" ;;
       esac
     fi
     ;;
@@ -142,7 +142,7 @@ PARSE_OUT
           # broken install, an old node that cannot parse it), or failing without a word: it could not look, and what
           # it said is not about this file (ADR-102 T6, T11). A prefix, never anywhere, so nothing a preload prints
           # can be mistaken for the reader's verdict.
-          *) echo "UNRUN — node could not read $file_path; it is unchecked, not clean" ;;
+          *) echo "UNRUN — node did not check $file_path (it could not start, or stopped without a verdict); the file is unchecked, not clean" ;;
         esac
       fi
     fi

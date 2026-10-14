@@ -165,3 +165,5 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
     (T12): the Codex review of T11 found node's own stderr ahead of it turning a real parse error into `UNRUN`.
     Its message is collapsed onto one line (T13): an outside run at the 3.8.28 candidate found node quoting the file's text,
     newlines and all, so one finding spanned several lines.
+    A file with nothing but whitespace and comments is valid (T14), as `jq` reads it: an outside run of the 3.8.28 candidate
+    on Windows found a one-newline `.mcp.json` named by `node` and silent wherever `jq` is installed.

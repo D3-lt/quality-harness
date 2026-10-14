@@ -121,6 +121,14 @@
       "to": "    elif false; then"
     },
     {
+      "label": "ADR-102 T14: a JSON file with nothing in it reads the same with and without jq",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a JSON file with nothing in it reads the same with and without jq)$",
+      "from": "if (t.trim()) JSON.parse(t)",
+      "to": "JSON.parse(t)"
+    },
+    {
       "label": "ADR-102 T13: a JSON finding from node is one line",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],

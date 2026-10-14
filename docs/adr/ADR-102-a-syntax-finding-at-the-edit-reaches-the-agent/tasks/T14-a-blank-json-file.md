@@ -1,0 +1,79 @@
+# Task ADR-102-T14: a JSON file with nothing in it reads the same with and without jq
+
+**Depends-on:** T13
+**Covers:** none — no spec
+**Estimated scope:** S (one condition, one test)
+**Owner:** unassigned
+**Produces:** none
+**Consumes:** none
+**Data dependency:** hermetic; `QUALITY_HARNESS_JQ` names a `jq` that is not installed for the node path, and the fence refuses a skip
+**Proof map:** v1
+
+## Goal
+
+An outside run of the 3.8.28 candidate on Windows (9c10ae04, a Python WCAG repository, 2026-10-14) had `node` name a
+`.mcp.json` holding one newline, `Unexpected end of JSON input`. `jq empty` accepts a whitespace-only file (exit 0, measured
+the same day), so the same file was silent wherever `jq` is installed, and the tool that reads it tolerates it. The reader
+accepts a file with nothing but whitespace and comments, as `jq` does (ADR-102, Decision 13).
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `plugin/scripts/post-edit-check.sh` | edit | `if (t.trim()) JSON.parse(t)` in the reader |
+| `tests/post-edit-check.test.mjs` | edit | the test below |
+| `tests/mutations/plugin/scripts/post-edit-check.sh.json` | edit | the entry below |
+
+## Ordered Steps
+
+1. [S1] Add the test below and record the red run (TDD red: the blank file is named without `jq`).
+2. [S2] Parse only when something other than whitespace is left.
+3. [S3] Record a killed mutant: the condition removed. [proof: mutation]
+
+## Acceptance
+
+```bash
+out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \
+  && test "$(printf '%s\n' "$out" | grep -cxE "ok [0-9]+ - a JSON file with nothing in it reads the same with and without jq")" = 1 \
+  && ! printf '%s\n' "$out" | grep -q '# SKIP'
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `a JSON file with nothing in it reads the same with and without jq` | `tests/post-edit-check.test.mjs` | an empty file, one newline, CRLF and a comment-only file are silent through `node`; `{` is still named | — | S1, S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the test |
+| 2 — something selects it | `plugin/hooks/hooks.json`'s second PostToolUse entry |
+| 3 — the caller can discover it | T2 hands it to the agent |
+| 4 — it is used | ADR-102's Follow-up |
+
+## Mutation Log
+- 2026-10-14 · f2423af3* · mutant killed · exit 1 · `plugin/scripts/post-edit-check.sh` · a blank file is parsed again, so node names a file jq accepts · acceptance-sha256:8a75c419829d01db3556c78ad6739e2d62c0a83d0b89f0d0020dc4f84aabc150
+
+## Invariants
+
+- Broken JSON is still named on both paths (T3, T10).
+
+## Risks
+
+- None beyond T10's.
+
+## Stop Condition
+
+Stop and ask if `jq` on a supported platform refuses a whitespace-only file.
+
+## Out of Scope
+
+- The path form in a finding (`/c/…` from bash, `C:/…` from Python) differs on Windows (deferred: BACKLOG §378, the same run's note)
+
+## Verification Log
+- 2026-10-14 · f2423af3* · exit 1 · `out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \ …` · acceptance-sha256:8a75c419829d01db3556c78ad6739e2d62c0a83d0b89f0d0020dc4f84aabc150 · ms:6222 · test-lock-sha256:d9b8b7292edae4472fb5bd4c63da45c1f282b72cce01a862564b6623e6982833 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCUpTT05DIGlzIHJlYWQgYXMgVHlwZVNjcmlwdCByZWFkcyBpdAliY2NkZjNjNGVjOWMyYjM3MTA4YzA0OTc4YjRiMjEzODgyMDU0ZDVkYzZiMTM2NjY4NjAwOTkzNjQ0MDdjNTlmCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgLmpzIGZpbGUgZHJhd3Mgbm90aGluZywgd2hldGhlciBpdCBpcyBhIFdvcmtmbG93IHNjcmlwdCwgYSBtb2R1bGUgb3IgYnJva2VuCTBmOWJkNjRiNjZiMzU2N2RhMWI0YjE2OTQ3Yjc2YTRkYTdlY2EzNDUwMzg0YTUxN2E4ZGQ1MGUzN2VmMzdkZDMKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBDb21tb25KUyBmaW5kaW5nIGlzIHRoZSBlcnJvciwgbm90IG5vZGUncyBzdGFjawk1YzY1NGRhZDM1MTRmYjY1ZDJhYmVjYWU2NTJhYzQyMTkzNmM2NTNkNzNjZTIyMzJlNzQ1MGY2ZTUxZWJkNDVlCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgSlNPTiBmaWxlIHdpdGggbm90aGluZyBpbiBpdCByZWFkcyB0aGUgc2FtZSB3aXRoIGFuZCB3aXRob3V0IGpxCWZmNTllZDhmZjU2ZTM0MzlmNTE5ZGEzODkwZGZkNTExMWFmOTViOWI0YzQ2YTBiNjY5OTNkNzkzNWVlNjc4YmYKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBKU09OIGZpbmRpbmcgZnJvbSBub2RlIGlzIG9uZSBsaW5lCWMxM2ZhYTAwYWFkNDEzNTFjOTAxM2NmOTE2NWUzNmY4ZWNmNTQyNTE3ZWE3ZGFiNDY1Nzc1MWY0ZmVkNzI2YTQKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBQSFAgZmluZGluZyBpcyBzYWlkIG9uY2UJY2JkNTE4MDUxMWRlNTUyMWI5N2JiZGUzM2UxZjc2MGViNzNiNzQxM2RlYTQ3NjY2MjM0NGVjODkwYzVhMjYzZgpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIFB5dGhvbiBmaW5kaW5nIHN1cnZpdmVzIGEgY29uc29sZSB0aGF0IGNhbm5vdCBlbmNvZGUgaXRzIGxpbmUJODc2ODYzNzQ2MWNkOWM3ZTA1ODAzMzFlNTI0MmQzOWNlZDVlMzVjMWFjZWZlMGM1MjBkY2YxYzhiMGQzMGQ0Nwpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGNoZWNrZXIgdGhhdCBjb3VsZCBub3QgcnVuIGlzIFVOUlVOLCBuZXZlciBhIGZpbmRpbmcgYWJvdXQgdGhlIGZpbGUJYmI3MGFiN2FiZTVjMWI2YzQxMzIwNDZmYTRlMjY3ODgwZmUzMzg2MzMwMDA1YzEzMDdmY2E0ODE2N2ZhODhlZgpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGNoZWNrZXIgdGhhdCBmYWlscyB3aXRob3V0IGEgd29yZCBpcyBVTlJVTiwgYW5kIHRoZSBob29rIGV4aXRzIDAJMzBhYTc5YjUyODBmN2Y1NmQ3NzIyMjY2YzRlMTViYTliNTgwNTYzOWMzNzUyNGQyOTdiYThjM2FiYjY5M2RlZApib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGNsZWFuIGZpbGUgc2F5cyBub3RoaW5nLCBhbmQgYSBicm9rZW4gb25lIGlzIHN0aWxsIG5hbWVkCWQzNmJkNDNhOGU0NTNjYzUxNTIyZmY1NTA2ZmNiOWU4YzI3YWM1N2M2ZmIxYzI3YzhkZTZkOTM2N2M3ZWM1ZTcKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBjb21tYSB3aXRoIG5vIHZhbHVlIGJlZm9yZSBpdCBpcyBub3QgYSB0cmFpbGluZyBjb21tYQk3YTRmMmVmNmZmNzc5YmY3MjJlMmJmMjVmNDA2NTYwMDYyOWIwN2UyYWE4NTc5MmMyNGVkOTVkY2ViYmFkNDZmCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgZHlpbmcgY2hlY2tlciBjYW5ub3QgcGFzcyBpdHNlbGYgb2ZmIGFzIGNvbXBsZXRlIGJ5IHByaW50aW5nIHRoZSBtYXJrZXIJODhlMWNlM2NiNGQxYzQwYWU5ZDJkNWUwNTFlYjgwOWVlMWFjYjVjNGVjNTE5OWM3YjRmMjY3ZjViMTFkYjVmMQpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGZpbGUgdHlwZSB0aGUgaG9vayBkb2VzIG5vdCBoYW5kbGUgaXMgc2lsZW50LCBub3QgYW4gZXJyb3IJMWRiMDkyOTJlYjU5NWI5MzgxYmIxMWViNjRjODU1ODdhNWE3OGQyNzJkMDliZmU5ZTcwZjU5ZTgwMWQzYTRlZgpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGZpbmRpbmcgY29tZXMgb25seSBmcm9tIHRoZSBmaWxlJ3Mgb3duIHBhcnNlcgk5Y2M0NTRlNmE0YWNlYjUxNTNmY2ZjZjYzNzUyNjFkZjNjN2ViMzJiZjA2OTMyZmI3MTVhZjk0NjM1NTkxZjE0CmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCWEgZmluZGluZyBpcyByZWFkIGZyb20gdGhlIHJlYWRlcidzIG93biBvdXRwdXQsIG5vdCBub2RlJ3MJNzY4MjJjM2U4MGU4Yjk0YWVmZDczYTRkYTk1YzEwMDJlNDVkOTIxOTU2OWM3ZGM5YWI2MDk3N2ZkMGJlNjJlNgpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIGZpbmRpbmcgbmFtZXMgdGhlIGVkaXRlZCBmaWxlIGFuZCBnaXZlcyB0aGUgZXJyb3IgYWxvbmUJYTY0ZmUzNGEyNWY1MWVmZTZmNjcyOTI2NGU0MTQ0OWY1Y2IzMmJkZjQ0MzljNmVhY2Q2OGZhYTBlM2IyNDc2NApib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwlhIG5vZGUgdGhhdCBjYW5ub3Qgc3RhcnQgc2F5cyBub3RoaW5nIGFib3V0IHRoZSBmaWxlCTdiZjQxNjllYTIzZmM5Nzg3YTJhY2Q2ZWRiMDNkOWM2ZWIwZTE4YWEzMzhiMzg4MzJkMzdmYjRhNGRiMzhmODMKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBweXRob24zIHRoYXQgaXMgbm90IFB5dGhvbiBpcyBub3QgYSBjaGVja2VyCTNmZWVjOGMxODJlMTU4NGEyMzcxZTlmMmYwNGRmZmQ2ZTVlNmNhNTFlMTM0ZjI0NDlkNTA2Y2M5ZDlkMjEyNmUKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJYSBzeW50YXggZmluZGluZyBhdCB0aGUgZWRpdCByZWFjaGVzIHRoZSBhZ2VudCwgYW5kIGEgY2xlYW4gZWRpdCBoYW5kcyBpdCBub3RoaW5nCTgxNTNjZTgzYzIzYTg1OTZlNzg0YjAxYjg1ZmI0ZjgxNjM4MmMxZGRjYmYyNzEyZDRlOTU5MWRkNTVjZDgwYWEKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJdGhlIGhvb2sgb25seSBhY3RzIG9uIHRoZSB0b29scyBpdCBpcyBmb3IsIGFuZCBvbiBmaWxlcyB0aGF0IGV4aXN0CTAzZjI2ZGFkNGY0ODVlMDZjNDBkNGI0NDI2YTcwMTAzZDBiODA2Zjk2ZTBlOTFiNWY5NTE4NjlmYjkzMDBlZWIKYm9keQl0ZXN0cy9wb3N0LWVkaXQtY2hlY2sudGVzdC5tanMJdGhlIGhvb2sgcGlja3MgdGhlIHBhcnNlIGdvYWwgZnJvbSB0aGUgZXh0ZW5zaW9uLCBhbmQgZGlhZ25vc3RpY3MgY2Fubm90IGZvcmdlIHRoZSBtYXJrZXIJNDBiY2Y2ZmY0OTJjNDJmZTdlZjg4MDZmYjNhYjg2M2Q1MzU5MWVlOTM2Nzk1MWI5ZjlkYTYyNWQ1NWI3N2ZlNQpib2R5CXRlc3RzL3Bvc3QtZWRpdC1jaGVjay50ZXN0Lm1qcwl0aGUgaG9vayByZXBvcnRzIGEgc3ludGF4IGVycm9yIHdpdGhvdXQgZmFpbGluZyB0aGUgZWRpdAlhMWE1OWFhYmQxYjdmZmMxY2YxMGE3NmQxYzExYmE5ZWRkN2Y5ZjE4MDQ2MDkwYTMxMGJhZWY5NmNjNzM4ZTdkCmJvZHkJdGVzdHMvcG9zdC1lZGl0LWNoZWNrLnRlc3QubWpzCXdpdGhvdXQganEsIG5vZGUgcmVhZHMgSlNPTiBhcyBKU09OQwlhNmEyOWM5ZjM2ZTEwZjg3ZjEyNWQ0NDIyOGEyMDMxZjYxNTEwMTBjNDM2ZTdiODVjYWU5OTQ0ZGJlOWE1NjQ0
+  ```
+  ```
+- 2026-10-14 · f2423af3* · exit 0 · `out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \ …` · acceptance-sha256:8a75c419829d01db3556c78ad6739e2d62c0a83d0b89f0d0020dc4f84aabc150 · ms:6636

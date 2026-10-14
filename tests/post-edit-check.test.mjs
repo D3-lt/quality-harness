@@ -537,3 +537,21 @@ test('a JSON finding from node is one line', () => {
     assert.equal(out.trimEnd().split('\n').length, 1, `${file}: one line: ${JSON.stringify(out)}`)
   }
 })
+
+// ADR-102 T14, from an outside run of the 3.8.28 candidate on Windows (2026-10-14): a .mcp.json holding one newline was
+// named by node, while `jq empty` accepts it, so the same file was silent wherever jq is installed.
+test('a JSON file with nothing in it reads the same with and without jq', () => {
+  const dir = scratch()
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, QUALITY_HARNESS_JQ: 'qh-no-such-jq', TMPDIR: scratch() }, timeout: 60_000 })
+    assert.equal(got.status, 0)
+    return `${got.stdout}${got.stderr}`.trim()
+  }
+  for (const [file, text] of [['empty.json', ''], ['newline.json', '\n'], ['crlf.json', '\r\n'], ['comment.json', '// nothing yet\n']]) {
+    assert.equal(said(file, text), '', `${file} is read as jq reads it`)
+  }
+  // DIRTY twin: an unclosed object is still named.
+  assert.match(said('open.json', '{\n'), /open\.json: /)
+})

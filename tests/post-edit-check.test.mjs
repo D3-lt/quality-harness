@@ -400,3 +400,21 @@ test('a checker that fails without a word is UNRUN, and the hook exits 0', () =>
     assert.match(`${got.stdout}${got.stderr}`, /UNRUN/, `${file}: a silent failure is could-not-look: ${got.stdout}${got.stderr}`)
   }
 })
+
+// ADR-102 T7, from the verification review of T6 (Codex, 2026-10-14): the fallback's trailing-comma rule also removed a
+// comma that follows `[`, `{` or another comma, so `{"a":[,]}`, which TypeScript refuses, read as valid JSONC.
+test('a comma with no value before it is not a trailing comma', () => {
+  const dir = scratch()
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    return `${run('Edit', target).stdout}`.trim()
+  }
+  for (const [file, text] of [['empty-array.json', '{"a":[,]}\n'], ['double.json', '{"a":[1,,]}\n'], ['empty-object.json', '{,}\n']]) {
+    assert.match(said(file, text), new RegExp(`${file.replace('.', '\\.')}: jq: parse error`), `${file} is broken JSONC`)
+  }
+  // CLEAN twins: a real trailing comma, one before a space, and one inside a string stay valid.
+  for (const [file, text] of [['trailing.json', '{"a":[1,],}\n'], ['spaced.json', '{"a":[1 , ]}\n'], ['string.json', '{"s":"[,]",}\n']]) {
+    assert.equal(said(file, text), '', `${file} is valid JSONC`)
+  }
+})

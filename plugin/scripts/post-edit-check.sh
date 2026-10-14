@@ -113,7 +113,7 @@ PARSE_OUT
       # Named only when it is not JSONC either, read as TypeScript's parser reads it: a leading
       # BOM is dropped, a line comment ends at CR or LF, a comment becomes a space (so it cannot
       # join two halves of a token), then trailing commas go, and the rest must parse (ADR-102 T3, T6).
-      if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|,(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
+      if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
         :
       else
         # jq names no file; the agent is told which one (ADR-102 T4).

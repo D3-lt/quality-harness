@@ -16,6 +16,7 @@ README must be regenerated.
 | 4 | T4 | T3 |
 | 5 | T5 | T1 |
 | 6 | T6 | T3, T4, T5 |
+| 7 | T7 | T6 |
 
 ## Task Index
 
@@ -27,6 +28,7 @@ README must be regenerated.
 | T4 | a finding names the edited file and gives the error alone | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T5 | a PHP finding is said once | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T6 | JSONC is read as TypeScript reads it, and a silent checker failure is UNRUN | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
+| T7 | a comma with no value before it is not a trailing comma | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 
 ## Contract Coupling
 

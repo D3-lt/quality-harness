@@ -146,3 +146,6 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
    A Codex review of `v3.8.26..aede09ce` (2026-10-14) found that a leading BOM and CR line endings made valid JSONC a finding,
    that removing a comment could join two tokens into a valid one and hide a real error, and that a checker which failed
    silently made the hook exit 1 under `set -euo pipefail`.
+9. A comma with no value before it is not a trailing comma (T7). The verification review of T6 (Codex, 2026-10-14) found
+   `{"a":[,]}`, which TypeScript's parser refuses, made valid by the fallback's trailing-comma rule: a fail-open this record
+   introduced in T3, so it is fixed before the release.

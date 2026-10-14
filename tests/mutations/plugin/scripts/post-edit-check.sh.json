@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "ADR-102 T1: ruff is quiet on a clean file",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a clean file says nothing, and a broken one is still named)$",
+      "from": "      (cd \"$project\" && ruff check --quiet \"$file_path\" 2>&1 | tail -40) || true",
+      "to": "      (cd \"$project\" && ruff check \"$file_path\" 2>&1 | tail -40) || true"
+    },
+    {
+      "label": "ADR-102 T1: php -l is printed only when it fails",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a clean file says nothing, and a broken one is still named)$",
+      "from": "    php_out=$(php -l \"$file_path\" 2>&1) || printf '%s\\n' \"$php_out\" | tail -30",
+      "to": "    php_out=$(php -l \"$file_path\" 2>&1); printf '%s\\n' \"$php_out\" | tail -30"
+    },
+    {
       "label": "hook: the post-edit check acts only on the edit tools",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": [

@@ -230,3 +230,34 @@ test('the hook picks the parse goal from the extension, and diagnostics cannot f
   assert.match(`${forged.stdout}${forged.stderr}`, /UNRUN/,
     `the marker on stderr is a diagnostic, not the protocol: ${forged.stdout}${forged.stderr}`)
 })
+
+// ADR-102 T1: what the hook prints is handed to the agent (T2), so a clean file must print nothing, whatever checker ran.
+// Measured 2026-10-14: `ruff check` prints `All checks passed!` and `php -l` prints `No syntax errors detected` on a clean
+// file. Each row runs the real checker; one that is not installed is a named skip, never a pass.
+const has = command => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).status === 0
+test('a clean file says nothing, and a broken one is still named', async t => {
+  const rows = [
+    { name: 'a module', file: 'm.mjs', clean: 'export const x = 1\n', broken: 'export const = \n', finds: /m\.mjs|SyntaxError|Unexpected/, needs: 'node' },
+    { name: 'a shell script', file: 's.sh', clean: 'echo hi\n', broken: 'if then\n', finds: /s\.sh|syntax error/, needs: 'bash' },
+    { name: 'a JSON file', file: 'j.json', clean: '{"a": 1}\n', broken: '{"a": \n', finds: /parse error|j\.json/i, needs: 'jq' },
+    { name: 'Python in a ruff project', file: 'p.py', clean: 'x = 1\n', broken: 'import os\n', finds: /F401|unused/i, needs: 'ruff', project: true },
+    { name: 'Python with no project', file: 'q.py', clean: 'x = 1\n', broken: 'def (:\n', finds: /SyntaxError|q\.py/, needs: 'python3' },
+    { name: 'PHP', file: 'r.php', clean: '<?php echo 1;\n', broken: '<?php echo ;\n', finds: /Parse error|syntax error/i, needs: 'php' },
+  ]
+  for (const row of rows) {
+    await t.test(row.name, { skip: has(row.needs) ? false : `${row.needs} is not installed here` }, () => {
+      const dir = scratch()
+      if (row.project) writeFileSync(join(dir, 'pyproject.toml'), '')
+      const target = join(dir, row.file)
+      writeFileSync(target, row.clean)
+      const quiet = run('Edit', target)
+      assert.equal(quiet.status, 0)
+      assert.equal(`${quiet.stdout}${quiet.stderr}`.trim(), '', `${row.name}: a clean file must print nothing: ${quiet.stdout}${quiet.stderr}`)
+      // DIRTY twin: the same checker still names a broken file, so "nothing" is not a checker that stopped running.
+      writeFileSync(target, row.broken)
+      const loud = run('Edit', target)
+      assert.equal(loud.status, 0, 'advisory: a finding never fails the edit')
+      assert.match(`${loud.stdout}${loud.stderr}`, row.finds, `${row.name}: ${loud.stdout}${loud.stderr}`)
+    })
+  }
+})

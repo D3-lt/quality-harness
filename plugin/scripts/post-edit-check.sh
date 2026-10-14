@@ -121,7 +121,9 @@ PARSE_OUT
     project=$(find_up 'pyproject.toml setup.py setup.cfg requirements.txt Pipfile .venv' "$file_dir" || true)
     if [ -n "$project" ] && command -v ruff >/dev/null 2>&1; then
       debounce "py:$project" || exit 0
-      (cd "$project" && ruff check "$file_path" 2>&1 | tail -40) || true
+      # --quiet: ruff prints `All checks passed!` on a clean file otherwise, and what this
+      # hook prints reaches the agent (ADR-102), so a clean file must say nothing.
+      (cd "$project" && ruff check --quiet "$file_path" 2>&1 | tail -40) || true
     else
       debounce "py:$file_path" || exit 0
       command -v python3 >/dev/null 2>&1 || exit 0
@@ -132,6 +134,8 @@ PARSE_OUT
   *.php)
     debounce "php:$file_path" || exit 0
     command -v php >/dev/null 2>&1 || exit 0
-    php -l "$file_path" 2>&1 | tail -30 || true
+    # php -l says `No syntax errors detected` on a clean file and exits 255 on an error
+    # (measured 2026-10-14), so only a failing run is printed (ADR-102).
+    php_out=$(php -l "$file_path" 2>&1) || printf '%s\n' "$php_out" | tail -30
     ;;
 esac

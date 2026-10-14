@@ -974,6 +974,27 @@ test('a legacy record is not routed as a task and told its own ADR is missing', 
   rmSync(temp, { recursive: true, force: true })
 })
 
+test('a file nested below a tasks/ directory is not a task', () => {
+  // An outside report (a Go CLI repository, 2026-10-14): `bench/tasks/<fixture>/base/guide.md` was routed as an ADR task,
+  // because bash's `*` in `*/tasks/*.md` crosses `/`, and told its owning ADR was missing. A task file lives in `tasks/`
+  // itself; work-next learned the same about Ansible's `roles/*/tasks/files/notes.md` (ADR-099).
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-nested-tasks-'))
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+  const said = (relative, body) => {
+    const file = join(temp, ...relative.split('/'))
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, body)
+    const r = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), file], temp, undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+    return `${r.stdout}${r.stderr}`
+  }
+  assert.doesNotMatch(said('bench/tasks/fixture-md-repeated/base/guide.md', '# Guide\n\nSome text.\n'), /ADR ownership/,
+    'a guide below a fixture under tasks/ is not a task')
+  // DIRTY twin: a file in tasks/ itself is still a task, and its missing owner is still said.
+  assert.match(said('docs/adr/ADR-001-x/tasks/T1-a.md', '# Notes\n\nSome text.\n'), /ADR ownership/,
+    'a file in tasks/ is still checked for its owner')
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('a record, task, architecture or postmortem shown inside a code block is an example, not the document', () => {
   // BACKLOG §297, seen while committing v2.110.1: TUTORIALS.md shows an example
   // task inside a ```` fence, and the commit dispatcher grepped the whole file for a

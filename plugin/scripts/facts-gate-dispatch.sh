@@ -367,7 +367,10 @@ elif [ "$tasks_index" = 0 ] \
 # IS the ADR. Section presence is not a proxy for record-ness; the title is.
 # An index goes HERE, whatever its path looks like: a relative `tasks/README.md`
 # has no slash before `tasks/`, and excluding it above sent it nowhere.
-elif [ "$tasks_index" = 1 ] || [[ "$f" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' <<< "$structure" \
+# A file in `tasks/` ITSELF, never one nested below it: bash's `*` crosses `/`, so `*/tasks/*.md` claimed
+# `bench/tasks/<fixture>/base/guide.md` and said its owning ADR was missing (an outside report, 2026-10-14; work-next
+# learned the same about Ansible's `roles/*/tasks/files/notes.md`, ADR-099). A task title still claims a file anywhere.
+elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' <<< "$structure" \
     || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< "$structure"; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.

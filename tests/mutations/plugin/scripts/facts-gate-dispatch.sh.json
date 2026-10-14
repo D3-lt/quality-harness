@@ -16,9 +16,19 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "elif [ \"$tasks_index\" = 1 ] || [[ \"$f\" == */tasks/*.md ]]",
+      "from": "elif { [ \"$tasks_dir_lc\" = tasks ] && [[ \"$base_lc\" == *.md ]]; }",
       "to": "elif [[ \"$f\" == */tasks/*.md ]]",
       "only": "^(?:a tasks README is routed to its owner in any case and from a relative path)$"
+    },
+    {
+      "label": "dispatch: a file nested below a tasks/ directory is not a task",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "elif { [ \"$tasks_dir_lc\" = tasks ] && [[ \"$base_lc\" == *.md ]]; }",
+      "to": "elif { [[ \"$f\" == */tasks/*.md ]] || [ \"$tasks_dir_lc\" = tasks ]; }",
+      "only": "^(?:a file nested below a tasks/ directory is not a task)$"
     },
     {
       "label": "dispatch: a tasks README is not linted as a record (§285)",

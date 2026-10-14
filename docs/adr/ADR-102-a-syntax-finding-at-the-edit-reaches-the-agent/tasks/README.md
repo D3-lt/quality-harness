@@ -14,6 +14,7 @@ README must be regenerated.
 | 2 | T3 | T1 |
 | 3 | T2 | T1, T3 |
 | 4 | T4 | T3 |
+| 5 | T5 | T1 |
 
 ## Task Index
 
@@ -23,6 +24,7 @@ README must be regenerated.
 | T2 | a syntax finding at the edit reaches the agent | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes) |
 | T3 | a finding comes only from the file's own parser | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T4 | a finding names the edited file and gives the error alone | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
+| T5 | a PHP finding is said once | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 
 ## Contract Coupling
 

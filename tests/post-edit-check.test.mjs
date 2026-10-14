@@ -344,3 +344,23 @@ test("a CommonJS finding is the error, not node's stack", () => {
   assert.match(text, /SyntaxError: Unexpected end of input/)
   assert.doesNotMatch(text, /^ {4}at |^Node\.js v|\n\s*\n/m, `the error alone: ${JSON.stringify(text)}`)
 })
+
+// ADR-102 T5: php -l printed its parse error twice, once to the error log and once to the display (an outside run,
+// 2026-10-14), and which one shows depends on the host's php.ini. The ini below turns the display off and the log on,
+// the opposite of what the check asks for, so the check has to set both itself.
+test('a PHP finding is said once', () => {
+  const dir = scratch()
+  const bad = join(dir, 'bad.php')
+  writeFileSync(bad, '<?php function (\n')
+  const ini = join(dir, 'ini')
+  mkdirSync(ini)
+  writeFileSync(join(ini, 'zz-qh.ini'), 'display_errors=0\nlog_errors=1\n')
+  for (const env of [{}, { PHP_INI_SCAN_DIR: ini }]) {
+    const got = spawnSync('bash', [hook, 'Edit', bad], { encoding: 'utf8', env: { ...process.env, ...env, TMPDIR: scratch() }, timeout: 60_000 })
+    const text = `${got.stdout}${got.stderr}`
+    assert.equal(got.status, 0)
+    assert.equal((text.match(/Parse error:/g) ?? []).length, 1, `once: ${JSON.stringify(text)}`)
+    assert.match(text, /bad\.php on line 2/)
+    assert.doesNotMatch(text, /\n\s*\n|^\s*\n/, `no blank line: ${JSON.stringify(text)}`)
+  }
+})

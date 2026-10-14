@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-102 T5: a PHP finding is said once",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a PHP finding is said once)$",
+      "from": "php -d display_errors=1 -d log_errors=0 -l",
+      "to": "php -l"
+    },
+    {
       "label": "ADR-102 T4: a CommonJS finding is the error, not node's stack",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
@@ -53,8 +61,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a clean file says nothing, and a broken one is still named)$",
-      "from": "    php_out=$(php -l \"$file_path\" 2>&1) || printf '%s\\n' \"$php_out\" | tail -30",
-      "to": "    php_out=$(php -l \"$file_path\" 2>&1); printf '%s\\n' \"$php_out\" | tail -30"
+      "from": "    php_out=$(php -d display_errors=1 -d log_errors=0 -l \"$file_path\" 2>&1) || printf '%s\\n' \"$php_out\" | grep -v '^[[:space:]]*$' | tail -30",
+      "to": "    php_out=$(php -d display_errors=1 -d log_errors=0 -l \"$file_path\" 2>&1); printf '%s\\n' \"$php_out\" | grep -v '^[[:space:]]*$' | tail -30"
     },
     {
       "label": "hook: the post-edit check acts only on the edit tools",

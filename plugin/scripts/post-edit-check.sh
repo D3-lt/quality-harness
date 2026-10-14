@@ -146,6 +146,8 @@ except ValueError as error:
     command -v php >/dev/null 2>&1 || exit 0
     # php -l says `No syntax errors detected` on a clean file and exits 255 on an error
     # (measured 2026-10-14), so only a failing run is printed (ADR-102).
-    php_out=$(php -l "$file_path" 2>&1) || printf '%s\n' "$php_out" | tail -30
+    # The display only, the log off, whatever the host php.ini says: by default php -l printed the
+    # parse error twice, once to each (ADR-102 T5).
+    php_out=$(php -d display_errors=1 -d log_errors=0 -l "$file_path" 2>&1) || printf '%s\n' "$php_out" | grep -v '^[[:space:]]*$' | tail -30
     ;;
 esac

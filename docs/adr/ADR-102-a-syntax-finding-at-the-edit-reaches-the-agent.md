@@ -139,3 +139,6 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
    (wcag-web, 2026-10-14) showed two shapes an agent cannot act on well: `jq`'s error names no file
    (`jq: parse error: Unmatched '}' at line 1, column 7`), and Python's finding was an eleven-line traceback through
    `<string>` and the interpreter's own `ast.py` before the error.
+7. A PHP finding is said once (T5). An outside run (a Laravel/React monorepo, 2026-10-14) showed `php -l` printing the
+   parse error twice, once to its error log and once to its display, and which of the two appears depends on the host's
+   `php.ini`; the check fixes both settings and drops blank lines.

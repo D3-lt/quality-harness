@@ -13,7 +13,7 @@ f=${1-}
 # relaxes anything below, so an unknown boundary gets the full finding on stderr.
 boundary=${2-}
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BIN=$(dirname "$SCRIPT_DIR")/bin
 base=$(basename "$f")
 base_lc=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')
@@ -159,7 +159,7 @@ is_archive_catalog() {
 
 archive_catalog_for() {
   local dir readme
-  dir=$(cd "$(dirname "$1")" 2>/dev/null && pwd -P) || return 1
+  dir=$(CDPATH= cd -- "$(dirname "$1")" 2>/dev/null && pwd -P) || return 1
   while [ "$dir" != "/" ]; do
     readme="$dir/README.md"
     if [ -f "$readme" ] && is_archive_catalog "$readme"; then

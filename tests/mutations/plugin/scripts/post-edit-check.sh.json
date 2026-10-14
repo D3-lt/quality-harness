@@ -121,6 +121,14 @@
       "to": "    elif false; then"
     },
     {
+      "label": "ADR-102 T13: a JSON finding from node is one line",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a JSON finding from node is one line)$",
+      "from": "error.message.replace(/\\s*\\n\\s*/g, \" \")",
+      "to": "error.message"
+    },
+    {
       "label": "ADR-102 T12: a finding is read from the reader's own output, not node's",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],

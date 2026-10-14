@@ -522,3 +522,18 @@ test("a finding is read from the reader's own output, not node's", () => {
   assert.doesNotMatch(broken.text, /UNRUN|noise/, `the reader's words alone: ${broken.text}`)
   assert.equal(said('valid.json', '{"a":1}\n').text, '', 'a valid file is silent')
 })
+
+// ADR-102 T13, from an outside run at the 3.8.28 candidate (2026-10-14): node's parse error quotes the file's text with its
+// newlines, so without jq one finding spanned several lines.
+test('a JSON finding from node is one line', () => {
+  const dir = scratch()
+  for (const [file, text] of [['short.json', '{"a": }\n'], ['long.json', '{\n  "a": 1,\n  "b": ,\n  "c": 3\n}\n']]) {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, QUALITY_HARNESS_JQ: 'qh-no-such-jq', TMPDIR: scratch() }, timeout: 60_000 })
+    const out = `${got.stdout}${got.stderr}`
+    assert.equal(got.status, 0)
+    assert.ok(out.startsWith(`${target}: `), `${file} is named: ${out}`)
+    assert.equal(out.trimEnd().split('\n').length, 1, `${file}: one line: ${JSON.stringify(out)}`)
+  }
+})

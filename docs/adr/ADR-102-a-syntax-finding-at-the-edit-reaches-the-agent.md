@@ -163,3 +163,5 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
     with `MODULE_NOT_FOUND` and node's stack where `NODE_OPTIONS` named a missing module: only output that begins with the
     reader's own marker is a finding, and any other failure is `UNRUN`. The marker is read from the reader's stdout alone
     (T12): the Codex review of T11 found node's own stderr ahead of it turning a real parse error into `UNRUN`.
+    Its message is collapsed onto one line (T13): an outside run at the 3.8.28 candidate found node quoting the file's text,
+    newlines and all, so one finding spanned several lines.

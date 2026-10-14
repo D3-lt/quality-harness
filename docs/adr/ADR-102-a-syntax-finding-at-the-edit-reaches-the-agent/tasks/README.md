@@ -18,6 +18,7 @@ README must be regenerated.
 | 6 | T10 | T7 |
 | 7 | T11 | T10 |
 | 8 | T12 | T11 |
+| 9 | T13 | T12 |
 
 ## Task Index
 
@@ -35,6 +36,7 @@ README must be regenerated.
 | T10 | without jq, node reads JSON as JSONC | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T11 | a node that cannot start says nothing about the file | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
 | T12 | a finding is read from the reader's own output, not node's | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
+| T13 | a JSON finding from node is one line | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 
 ## Contract Coupling
 

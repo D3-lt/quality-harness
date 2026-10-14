@@ -25,6 +25,12 @@ test('every shipped file and hook declares what consumes it', () => {
   assert.deepEqual(checkComponents({ tracked, read, hooks: json('plugin/hooks/hooks.json'), manifest: json('scripts/components.json') }), [])
 })
 
+test('the command says the same of this repository, through its exit code', () => {
+  const run = spawnSync(process.execPath, [path.join(repoRoot, 'scripts', 'component-manifest.mjs')], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
+  assert.match(run.stdout, /^every shipped file and hook declares what consumes it$/m)
+})
+
 test('the manifest check names an undeclared, a stale, an unreached and an unreasoned component', () => {
   const files = {
     'plugin/hooks/hooks.json': '', 'plugin/a.mjs': "import x from './b.mjs'\n", 'plugin/b.mjs': '', 'plugin/c.mjs': '// c.mjs names only itself\n',

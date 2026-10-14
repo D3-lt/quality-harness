@@ -17,7 +17,11 @@
 // The reason is an allow-list entry, beside the component it excuses. This repository's dead-code rule says dead code is
 // "deleted or wired, never allow-listed" (CLAUDE.md §13); that is about code nothing reaches. An advisory here is reached
 // by the host on every event: the reason says why its text is worth that cost (CLAUDE.md §19), and it is read in review.
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { globToRegExp } from './rules-inject.mjs'
 
 export const FILE_KINDS = new Set(['host', 'command', 'on-demand', 'opt-in', 'reached', 'tombstone'])
@@ -92,3 +96,24 @@ export function checkComponents({ tracked, read, hooks, manifest }) {
   }
   return findings
 }
+
+/** `node scripts/component-manifest.mjs`: this repository's findings, exit 1 when there are any, 2 when it could not look. */
+function main() {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  const listed = spawnSync('git', ['-C', root, 'ls-files', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const tracked = listed.status === 0 ? listed.stdout.split('\n').filter(Boolean) : []
+  // An empty universe is not a clean one (CLAUDE.md §3): git that did not answer declares nothing.
+  if (!tracked.some(file => file.startsWith('plugin/'))) {
+    console.error('component-manifest: git listed no file under plugin/, so nothing was checked — could not look')
+    return 2
+  }
+  const read = file => { try { return readFileSync(path.join(root, file), 'utf8') } catch { return null } }
+  const json = file => JSON.parse(read(file) ?? 'null')
+  const findings = checkComponents({ tracked, read, hooks: json('plugin/hooks/hooks.json'), manifest: json('scripts/components.json') })
+  for (const finding of findings) console.log(`  ${finding}`)
+  console.log(findings.length ? `${findings.length} component finding(s)` : 'every shipped file and hook declares what consumes it')
+  return findings.length ? 1 : 0
+}
+
+// Importable without side effects (tests/package.test.mjs::importing a script runs its CLI on nobody).
+if (isMainModule(import.meta.url)) process.exit(main())

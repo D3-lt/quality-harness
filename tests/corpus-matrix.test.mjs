@@ -99,6 +99,11 @@ for (const [name, dir] of corpora) {
     assert.equal(report.look, expected.look, `${name}: look`)
     assert.deepEqual(report.corpora, expected.corpora, `${name}: corpus directories`)
     assert.deepEqual(report.records.map(r => [r.file, r.kind, r.frozen]), expected.records, `${name}: records read, with kind and frozen:\n${JSON.stringify(report.records, null, 2)}`)
+    // The load the run shared the machine with (the corpus-probe load lead, 2026-10-14). Its values are the
+    // machine's, so what is held is the shape: each sample a load average or null (not read), never absent.
+    const sample = value => value === null || (Number.isFinite(value) && value >= 0)
+    assert.ok(report.load && sample(report.load.start) && sample(report.load.end) && (report.load.cores === null || report.load.cores > 0),
+      `${name}: load:\n${JSON.stringify(report.load)}`)
     // `readinessUnproven` is asserted: a valid exit-3 answer was read as unproven
     // for a whole review round because nothing here looked (Codex, bdeba73).
     const fixedWorkNext = ['records', 'accepted', 'tasks', 'ready', 'unbacked', 'retirable', 'readinessUnproven', 'next']

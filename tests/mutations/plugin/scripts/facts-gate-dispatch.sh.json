@@ -6,9 +6,19 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "tasks_dir_lc=$(basename \"$(dirname \"$f\")\" | tr '[:upper:]' '[:lower:]')",
-      "to": "tasks_dir_lc=$(basename \"$(dirname \"$f\")\")",
+      "from": "tasks_dir_lc=$(basename \"$parent_dir\" | tr '[:upper:]' '[:lower:]')",
+      "to": "tasks_dir_lc=$(basename \"$parent_dir\")",
       "only": "^(?:a tasks README is routed to its owner in any case and from a relative path)$"
+    },
+    {
+      "label": "dispatch: a dot component does not hide a file in tasks/ (Codex review of 9fcee428)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "parent_dir=$(cd \"$(dirname \"$f\")\" 2>/dev/null && pwd) || parent_dir=$(dirname \"$f\")",
+      "to": "parent_dir=$(dirname \"$f\")",
+      "only": "^(?:a file nested below a tasks/ directory is not a task)$"
     },
     {
       "label": "dispatch: a relative tasks/README.md still reaches the task arm (§285)",

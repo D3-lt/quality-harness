@@ -121,6 +121,14 @@
       "to": "    elif false; then"
     },
     {
+      "label": "ADR-102 T12: a finding is read from the reader's own output, not node's",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a finding is read from the reader's own output, not node's)$",
+      "from": "json_out=$(node -e \"$jsonc\" \"$file_path\" 2>/dev/null)",
+      "to": "json_out=$(node -e \"$jsonc\" \"$file_path\" 2>&1)"
+    },
+    {
       "label": "ADR-102 T11: a node that cannot start says nothing about the file",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],

@@ -126,13 +126,15 @@ PARSE_OUT
       fi
     elif command -v node >/dev/null 2>&1; then
       # No jq, as on every Windows host of the v3.8.27 outside runs: node reads the file alone and names it (ADR-102 T10).
-      if ! json_out=$(node -e "$jsonc" "$file_path" 2>&1); then
+      # The reader's stdout alone: node's own stderr (an inspector starting, a preload that writes) ahead of the marker
+      # made a real parse error read as UNRUN (ADR-102 T12).
+      if ! json_out=$(node -e "$jsonc" "$file_path" 2>/dev/null); then
         case "$json_out" in
           "QH-JSONC-ERROR "*) printf '%s: %s\n' "$file_path" "${json_out#QH-JSONC-ERROR }" ;;
           # Anything else is node failing before or around the reader (a NODE_OPTIONS module that is missing, a
           # broken install, an old node that cannot parse it), or failing without a word: it could not look, and what
-          # it said is not about this file (ADR-102 T6, T11). A prefix, never anywhere: a reader node cannot parse is
-          # echoed back after `[eval]:1`, marker and all.
+          # it said is not about this file (ADR-102 T6, T11). A prefix, never anywhere, so nothing a preload prints
+          # can be mistaken for the reader's verdict.
           *) echo "UNRUN — node could not read $file_path; it is unchecked, not clean" ;;
         esac
       fi

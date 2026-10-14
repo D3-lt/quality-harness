@@ -328,7 +328,10 @@ fi
 # `# ADR-064 tasks` title reads as a record's (BACKLOG §285); see the record arm.
 tasks_index=0
 # Both names case-insensitive, like `base_lc` (CLAUDE.md §7; Codex review of 12a1341).
-tasks_dir_lc=$(basename "$(dirname "$f")" | tr '[:upper:]' '[:lower:]')
+# The directory as the filesystem names it, so `tasks/./T1.md` is in `tasks/` (Codex review of 9fcee428); a deleted
+# file's directory may be gone, and is then read as written.
+parent_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || parent_dir=$(dirname "$f")
+tasks_dir_lc=$(basename "$parent_dir" | tr '[:upper:]' '[:lower:]')
 [[ "$base_lc" == readme.md && "$tasks_dir_lc" == tasks ]] && tasks_index=1
 # Titles are read from the unfenced text: a record's or a task's title is its own,
 # never an example's (BACKLOG §297).
@@ -374,7 +377,7 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
     || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< "$structure"; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.
-  tdir=$(dirname "$f"); parent=$(dirname "$tdir")
+  tdir=$parent_dir; parent=$(dirname "$tdir")
   adr_ref=$(bom_free "$f" | sed -nE '1s/^# (Task )?(ADR-[^: ]+).*/\2/p')
   candidates=()
   shopt -s nullglob

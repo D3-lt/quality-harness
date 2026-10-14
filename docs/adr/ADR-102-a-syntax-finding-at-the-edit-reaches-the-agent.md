@@ -161,4 +161,5 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
     which the fallback already uses, was present. Decision 4 still holds for every other absent checker.
 13. A `node` that cannot start says nothing about the file (T11). The Codex review of T10 (2026-10-14) found a valid file named
     with `MODULE_NOT_FOUND` and node's stack where `NODE_OPTIONS` named a missing module: only output that begins with the
-    reader's own marker is a finding, and any other failure is `UNRUN`.
+    reader's own marker is a finding, and any other failure is `UNRUN`. The marker is read from the reader's stdout alone
+    (T12): the Codex review of T11 found node's own stderr ahead of it turning a real parse error into `UNRUN`.

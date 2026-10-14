@@ -503,3 +503,22 @@ test('a node that cannot start says nothing about the file', () => {
     assert.doesNotMatch(out, /MODULE_NOT_FOUND|^\s+at |Node\.js v/m, `${file}: nothing of node's own: ${out}`)
   }
 })
+
+// ADR-102 T12, from the Codex review of T11 (2026-10-14): node's own stderr ahead of the reader's marker (an inspector
+// starting, a preload that writes) turned a real parse error into UNRUN. The marker is read from stdout alone.
+test("a finding is read from the reader's own output, not node's", () => {
+  const dir = scratch()
+  const preload = join(dir, 'noise.cjs').replace(/\\/g, '/')
+  writeFileSync(preload, 'process.stderr.write("noise before the reader\\n")\n')
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, QUALITY_HARNESS_JQ: 'qh-no-such-jq', NODE_OPTIONS: `--require="${preload}"`, TMPDIR: scratch() }, timeout: 60_000 })
+    assert.equal(got.status, 0)
+    return { text: `${got.stdout}${got.stderr}`.trim(), target }
+  }
+  const broken = said('broken.json', '{"a": }\n')
+  assert.ok(broken.text.startsWith(`${broken.target}: `), `a reader that ran is heard: ${broken.text}`)
+  assert.doesNotMatch(broken.text, /UNRUN|noise/, `the reader's words alone: ${broken.text}`)
+  assert.equal(said('valid.json', '{"a":1}\n').text, '', 'a valid file is silent')
+})

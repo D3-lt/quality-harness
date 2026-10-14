@@ -992,6 +992,13 @@ test('a file nested below a tasks/ directory is not a task', () => {
   // DIRTY twin: a file in tasks/ itself is still a task, and its missing owner is still said.
   assert.match(said('docs/adr/ADR-001-x/tasks/T1-a.md', '# Notes\n\nSome text.\n'), /ADR ownership/,
     'a file in tasks/ is still checked for its owner')
+  // The same file spelled with a dot component is the same file (Codex review of 9fcee428).
+  const tasksDir = join(temp, 'docs', 'adr', 'ADR-002-y', 'tasks')
+  mkdirSync(tasksDir, { recursive: true })
+  writeFileSync(join(tasksDir, 'T1-b.md'), '# Notes\n\nSome text.\n')
+  const dotted = `${tasksDir}${process.platform === 'win32' ? '\\.\\' : '/./'}T1-b.md`
+  const viaDot = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), dotted], temp, undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+  assert.match(`${viaDot.stdout}${viaDot.stderr}`, /ADR ownership/, 'a dot component does not hide a file in tasks/')
   rmSync(temp, { recursive: true, force: true })
 })
 

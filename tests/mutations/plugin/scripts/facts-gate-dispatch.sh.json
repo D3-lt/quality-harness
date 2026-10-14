@@ -56,7 +56,7 @@
       "tests": [
         "tests/advice-says-advice.test.mjs"
       ],
-      "from": "Nothing is blocked; the artifact pass checks it again at the next publish, turn end or session end.",
+      "from": "Nothing is blocked, and it is not checked again until the file changes.",
       "to": "It blocks at commit and completion.",
       "only": "^(?:the ADR-ownership notice says nothing is blocked)$"
     },

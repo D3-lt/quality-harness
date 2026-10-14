@@ -382,8 +382,8 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // A deferral notice printed on exit-0 stdout reaches nobody at PostToolUse —
   // Claude Code surfaces exit-0 stdout in transcript view only. Wrapping it as
   // additionalContext is what actually puts the finding in front of the model
-  // at the moment of the edit, which is the 'report' half of "reports at the
-  // edit and again at the boundary".
+  // at the moment of the edit. It is said once: the run is logged as complete,
+  // so the boundary does not look at the same content again.
   const payload = parsedHookPayload(raw, process.platform)
   if (scriptName === 'facts-gate-dispatch.sh'
       && payload?.hook_event_name === 'PostToolUse'

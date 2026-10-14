@@ -395,7 +395,7 @@ elif [ "$tasks_index" = 1 ] || [[ "$f" == */tasks/*.md ]] || grep -qE '^# Task A
     # not be written yet, which is the same legitimate incompleteness the
     # boundary rule below exists for.
     if [ "$boundary" = "PostToolUse" ]; then
-      printf 'facts-first gate (ADR ownership) not satisfied yet for %s: expected exactly one owning ADR%s, found %s. Nothing is blocked; the artifact pass checks it again at the next publish, turn end or session end.\n' \
+      printf 'facts-first gate (ADR ownership) not satisfied yet for %s: expected exactly one owning ADR%s, found %s. Nothing is blocked, and it is not checked again until the file changes.\n' \
         "$f" "${adr_ref:+ ($adr_ref)}" "${#candidates[@]}"
       exit 0
     fi

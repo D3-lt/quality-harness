@@ -193,3 +193,24 @@ test('a review row whose base does not resolve covers nothing', () => {
     assert.equal(reviewEvidence(change, { cwd: dir }).verdict, 'reviewed')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// The cold review of ADR-098 (2026-10-14): `--range` refused every revision with a dot in it, so the
+// `<tag>..<head>` form CLAUDE.md §12 gives for a release review failed on every release tag.
+test('a review range from a dotted release tag is read, and a three-dot range is not', () => {
+  const dir = scratch()
+  try {
+    const base = commit(dir, 'plugin/a.mjs', 'one\n')
+    git(dir, 'tag', 'v1.2.3')
+    const head = commit(dir, 'plugin/a.mjs', 'two\n')
+    const prompt = join(dir, '.git', 'prompt.txt')
+    writeFileSync(prompt, 'review it')
+    const review = range => promptFileReview({ argv: ['--host', 'codex', '--effort', 'high', '--repo', dir, '--prompt-file', prompt, '--range', range],
+      resolve: () => 'codex', run: fakeCodex('Looks fine.\nVERDICT: APPROVE\n') })
+    const said = review('v1.2.3..HEAD')
+    assert.equal(said.code, 0, said.err)
+    assert.deepEqual([rows(dir)[0].base, rows(dir)[0].head], [base, head])
+    // DIRTY twin: a three-dot range names a different set of commits, and is refused as before.
+    assert.equal(review('v1.2.3...HEAD').code, 2)
+    assert.equal(rows(dir).length, 1, 'the refused range ran nothing and recorded nothing')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

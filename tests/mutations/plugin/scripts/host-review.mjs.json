@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-098 cold review: a review range from a dotted release tag is read",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "only": "a review range from a dotted release tag",
+      "from": "    const named = /^(\\S+?)\\.\\.(\\S+)$/.exec(String(arg('--range', argv) ?? ''))",
+      "to": "    const named = /^([^\\s.]+)\\.\\.([^\\s.]+)$/.exec(String(arg('--range', argv) ?? ''))"
+    },
+    {
       "label": "ADR-100 T1: an unavailable review covers nothing",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/review-ledger.test.mjs"],

@@ -272,7 +272,9 @@ export function promptFileReview({ argv = process.argv, resolve = resolveCodex, 
   if (typeof repo !== 'string' || !repo) return fail('no repository was named (--repo)')
   let range = { base: null, head: null, exact: false }
   if (argv.includes('--range')) {
-    const named = /^([^\s.]+)\.\.([^\s.]+)$/.exec(String(arg('--range', argv) ?? ''))
+    // A revision may hold dots (a release tag, `v3.8.25`), so the base is the shortest prefix before `..`. A three-dot
+    // range leaves a head that starts with a dot, which git resolves to no revision, so it is refused below.
+    const named = /^(\S+?)\.\.(\S+)$/.exec(String(arg('--range', argv) ?? ''))
     const resolved = named && { base: gitSha(repo, named[1]), head: gitSha(repo, named[2]), exact: false }
     if (!resolved?.base || !resolved?.head) return fail(`--range must be <base>..<head>, two revisions this repository has (got ${JSON.stringify(arg('--range', argv) ?? '')})`)
     range = resolved

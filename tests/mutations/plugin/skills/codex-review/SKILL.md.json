@@ -9,6 +9,16 @@
       "from": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs\" --host codex --effort <high|xhigh|max|ultra> --repo \"<repo-root>\" --prompt-file \"<contract-file>\"",
       "to": "\"<absolute-codex>\" exec -C \"<repo-root>\" -s read-only -m gpt-6.1-sol \"<contract>\"",
       "only": "^both Codex skills launch through host-review and keep their recursion markers$"
+    },
+    {
+      "label": "ADR-098 cold review: an unquoted codex exec launch in a skill is found",
+      "file": "plugin/skills/codex-review/SKILL.md",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs\" --host codex --effort <high|xhigh|max|ultra> --repo \"<repo-root>\" --prompt-file \"<contract-file>\"",
+      "to": "codex exec -C \"<repo-root>\" -s read-only -m gpt-6.1-sol \"<contract>\"",
+      "only": "^a skill that builds its own codex exec command is found in any spelling$"
     }
   ]
 }

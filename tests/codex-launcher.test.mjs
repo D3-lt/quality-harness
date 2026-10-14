@@ -132,3 +132,29 @@ test('a temporary directory that cannot be made is unavailable, not a throw', t 
   assert.equal(result.status, 'unavailable')
   assert.match(result.reason, /temporary directory/)
 })
+
+// The cold review of ADR-098 (2026-10-14): the pattern above sees only a quoted binary, so a skill that went back to
+// `codex exec -C …` unquoted, or to `"$CODEX" exec …`, stayed green. Any spelling of the binary followed by `exec` and a
+// flag is a launch; a prose mention (`codex exec` semantics) and the launcher's display block (`<codex> exec <…>`) are not.
+const anyLaunch = /(?:\bcodex|\$\{?CODEX\}?|<absolute-codex>)"?\s+exec\s+-/
+test('a skill that builds its own codex exec command is found in any spelling', () => {
+  for (const name of ['codex-review', 'codex-advise']) {
+    const text = readFileSync(path.join(repoRoot, 'plugin', 'skills', name, 'SKILL.md'), 'utf8')
+    assert.doesNotMatch(text, anyLaunch, `${name} writes its own codex exec command`)
+  }
+  // DIRTY: every spelling a skill could build is found.
+  for (const launch of ['codex exec -C "<repo-root>" -s read-only', '"$CODEX" exec -s read-only x', '${CODEX} exec --ephemeral x', '"<absolute-codex>" exec -C x']) {
+    assert.match(launch, anyLaunch, launch)
+  }
+  // CLEAN: what the skills say about the launcher is not a launch.
+  for (const prose of ['launch another `codex exec`,', 'Use plain `codex exec` semantics', '<codex> exec <optional-ignore-user-config> \\']) {
+    assert.doesNotMatch(prose, anyLaunch, prose)
+  }
+  // The same review: the builder scan above sees `'exec', ...` and `'exec', '-C'` only, so `['exec', '-s', …]` slipped
+  // past. Any flag after `exec` in an argv literal is a builder; host-review.mjs is the one allowed.
+  const builder = /['"]exec['"]\s*,\s*(?:\.\.\.|['"]-)/
+  const scripts = readdirSync(path.join(repoRoot, 'plugin', 'scripts')).filter(name => name.endsWith('.mjs') && name !== 'host-review.mjs')
+  assert.deepEqual(scripts.filter(name => builder.test(readFileSync(path.join(repoRoot, 'plugin', 'scripts', name), 'utf8'))), [])
+  for (const argv of ["['exec', '-s', 'read-only']", "['exec', '--ephemeral', x]", "['exec', ...flags]"]) assert.match(argv, builder, argv)
+  assert.doesNotMatch("new Set(['set', 'shopt', 'trap', 'exec', 'source'])", builder, 'a list of shell words is not a builder')
+})

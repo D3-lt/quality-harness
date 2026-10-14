@@ -230,4 +230,5 @@ every manifest before reusing it, so entries left from before are either valid o
 ## Follow-ups
 
 - [x] Owner decision: Accepted 2026-10-12, on the condition that the reversed records are retired through the adr-retire stage rather than reconciled in place (Decision 5, T2).
-- [ ] Outside run (CLAUDE.md §18) after T1 lands and before the tag: `corpus-probe.mjs --json` on a corpus we do not own, everything it printed, verbatim; its SessionStart lines are expected to lose the ready paragraph and nothing else.
+- [x] Outside run (CLAUDE.md §18) after T1 lands and before the tag: `corpus-probe.mjs --json` on a corpus we do not own, everything it printed, verbatim; its SessionStart lines are expected to lose the ready paragraph and nothing else.
+  Done 2026-10-12, before the v3.8.22 tag, at its release commit `686ac9be`: `docs/corpus-reports/2026-10-12-laravel-react-monorepo-3.8.22-686ac9b.json` (look ok, 96 compared, no verdict moved) beside a PARTIAL PHP corpus; filed through `attest-import`.

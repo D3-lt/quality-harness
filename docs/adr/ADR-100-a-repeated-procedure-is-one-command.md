@@ -196,4 +196,5 @@ Revert the task commits. The review ledger is append-only and read only by `rele
 ## Follow-ups
 
 - [x] Name the catalogue entries that enforce each part in `Enforced-by:` once T1 to T4 have them — done 2026-10-13: the record names the mutation label for its central claim; each task's own entries carry the `ADR-100 T<n>:` prefix in `tests/mutations/`, and T4 was withdrawn on its ship rule
-- [ ] An outside run of the changed readers before the release that carries T1 (CLAUDE.md §18)
+- [x] An outside run of the changed readers before the release that carries T1 (CLAUDE.md §18)
+  Done 2026-10-13 for v3.8.23, which carries T1 (`e6a00957`): attestations at `297ea135` and `7b675248` from seven corpora (for one, `docs/corpus-reports/2026-10-13-laravel-react-monorepo-3.8.23-297ea13.json`: look ok, 96 compared, no verdict moved), filed through `attest-import`.

@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-14",
+  "at": "9c10ae04d3dc2db9f40b252013424df91c7ab134",
+  "plugin": "3.8.28",
+  "kind": "probe",
+  "probeSha256": "86e9da6dc59a49b296f8c5f3456031cf0789f7c6a16b0f8bd42cf6292627c21e",
+  "readers": "cc19ca6814bef26ef39081a48d50ad10257d10379dc728d15b069cfc97f96a41",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 52,
+    "undecided": 0,
+    "tasks": 220,
+    "taskDirectories": 49
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 53,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "memory-runtime-win",
+  "found": ""
+}

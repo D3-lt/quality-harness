@@ -40,8 +40,13 @@ case "$file_path" in
     # lines, none of which is about the edited file (ADR-102 T4).
     if ! cjs_out=$(node --check "$file_path" 2>&1); then
       cjs_said=$(printf '%s\n' "$cjs_out" | { grep -v -e '^    at ' -e '^Node\.js v' -e '^[[:space:]]*$' || true; } | tail -30)
-      # A checker that failed without a word could not look: never silence, never exit 1 (ADR-102 T6).
-      printf '%s\n' "${cjs_said:-UNRUN — node --check failed without a diagnostic; $file_path is unchecked, not clean}"
+      # node --check reports a syntax error as `SyntaxError: …`. Anything else is node failing before or around the parse
+      # (a NODE_OPTIONS module that is missing, a broken install), or failing without a word: it could not look, and what
+      # it said is not about this file (ADR-102 T6, T15). Never silence, never exit 1.
+      case "$cjs_said" in
+        *SyntaxError*) printf '%s\n' "$cjs_said" ;;
+        *) echo "UNRUN — node --check could not read $file_path; it is unchecked, not clean" ;;
+      esac
     fi
     ;;
   *.mjs)

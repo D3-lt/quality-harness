@@ -167,3 +167,5 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
     newlines and all, so one finding spanned several lines.
     A file with nothing but whitespace and comments is valid (T14), as `jq` reads it: an outside run of the 3.8.28 candidate
     on Windows found a one-newline `.mcp.json` named by `node` and silent wherever `jq` is installed.
+    The same holds for `.cjs` (T15): `node --check` names the file only when it reports a `SyntaxError`, and anything else is
+    `UNRUN`. With no runnable Python 3, a `.py` stays silent, as Decision 4 has it (the owner, 2026-10-14).

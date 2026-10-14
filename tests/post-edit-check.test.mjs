@@ -555,3 +555,23 @@ test('a JSON file with nothing in it reads the same with and without jq', () => 
   // DIRTY twin: an unclosed object is still named.
   assert.match(said('open.json', '{\n'), /open\.json: /)
 })
+
+// ADR-102 T15, the .cjs sibling of T11 (2026-10-14): node --check that could not start printed MODULE_NOT_FOUND, minus its
+// stack frames, as a finding about the file.
+test('a node that cannot start says nothing about a .cjs file', () => {
+  const dir = scratch()
+  const said = (file, text, extra = {}) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch(), ...extra }, timeout: 60_000 })
+    assert.equal(got.status, 0)
+    return `${got.stdout}${got.stderr}`.trim()
+  }
+  for (const [file, text] of [['valid.cjs', 'module.exports = 1\n'], ['broken.cjs', 'module.exports = {\n']]) {
+    const out = said(file, text, { NODE_OPTIONS: '--require=qh-no-such-module' })
+    assert.match(out, /^UNRUN/, `${file}: node could not look: ${out}`)
+    assert.doesNotMatch(out, /MODULE_NOT_FOUND|Cannot find module/, `${file}: nothing of node's own: ${out}`)
+  }
+  // DIRTY twin: with a node that starts, the broken file is still named.
+  assert.match(said('broken-too.cjs', 'module.exports = {\n'), /SyntaxError/)
+})

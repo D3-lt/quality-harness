@@ -17,53 +17,54 @@
     { "path": "plugin/scripts/*", "consumer": "reached" }
   ],
   "hooks": {
-    "SessionStart · * · lifecycle.mjs": { "consumers": [
+    "SessionStart · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "refusal", "by": "plugin/scripts/on-session-start.mjs", "token": "offerPublishHook" },
       { "kind": "tool", "by": "plugin/scripts/tree-facts.mjs", "token": "'session.started'" },
       { "kind": "agent-context", "by": "plugin/scripts/on-session-start.mjs", "token": "additionalContext" }
     ] },
-    "SessionStart · * · branch-state.mjs --cached 120": { "consumers": [
+    "SessionStart · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/branch-state.mjs --cached 120": { "consumers": [
       { "kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write" }
     ], "reason": "CLAUDE.md §15: a branch whose CI was not read is UNKNOWN, and nothing else says so at the start" },
-    "UserPromptSubmit · * · branch-state.mjs --brief --cached 120": { "consumers": [
+    "UserPromptSubmit · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/branch-state.mjs --brief --cached 120": { "consumers": [
       { "kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write" }
     ], "reason": "CLAUDE.md §15 and ADR-094: said again only when the line changed or CI is red; ADR-097 kept it on a measure that did not fit an orientation note" },
-    "SubagentStart · * · lifecycle.mjs": { "consumers": [
+    "SubagentStart · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.started'" },
       { "kind": "agent-context", "by": "plugin/scripts/on-subagent-start.mjs", "token": "additionalContext" }
     ] },
-    "SubagentStop · * · lifecycle.mjs": { "consumers": [
+    "SubagentStop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.ended'" },
-      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "additionalContext" }
+      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" }
     ] },
-    "TaskCompleted · * · lifecycle.mjs": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "additionalContext" }
-    ], "reason": "ADR-096 routes turn-end findings to the agent; where TaskCompleted's output goes is unsettled (BACKLOG §378, ADR-096's deferred item 3), and its task.completed event has no reader" },
-    "Stop · * · lifecycle.mjs": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "additionalContext" }
+    "TaskCompleted · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
+      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" }
+    ], "reason": "a turn-end finding at TaskCompleted is said as systemMessage, to the user only (lifecycle.mjs deliver), and its task.completed event has no reader: a candidate for removal (BACKLOG §378)" },
+    "Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
+      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "stopReachesAgent" },
+      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" }
     ], "reason": "ADR-096: a turn-end finding reaches the agent and continues its turn once; ADR-096's Follow-up measures whether a continued turn acts" },
-    "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit · lifecycle.mjs": { "consumers": [
+    "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "refusal", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "permissionDecision" },
       { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'publish.requested'" }
     ] },
-    "PreToolUse · Skill · lifecycle.mjs": { "consumers": [
+    "PreToolUse · Skill · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/ledger-report.mjs", "token": "'skill.invoked'" }
     ] },
-    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · run-shell-hook.mjs facts-gate-dispatch.sh": { "consumers": [
+    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs facts-gate-dispatch.sh": { "consumers": [
       { "kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "additionalContext" },
       { "kind": "tool", "by": "plugin/scripts/artifact-pass.mjs", "token": "'artifact.gated'" }
     ] },
-    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · run-shell-hook.mjs post-edit-check.sh": { "consumers": [
+    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs post-edit-check.sh": { "consumers": [
       { "kind": "user-message", "by": "plugin/scripts/post-edit-check.sh", "token": "printf" }
     ], "reason": "its plain stdout reaches the transcript view only (ADR-097); removal deferred while spec facts F-33 and UC2-S5 bind it, and it costs 28 to 75 ms per edit (BACKLOG §378, 2026-10-14)" },
-    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · lifecycle.mjs": { "consumers": [
+    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'" }
     ] },
-    "PreCompact · * · lifecycle.mjs": { "consumers": [
+    "PreCompact · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "readSessionNote" },
       { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "'context.compacting'" }
     ] },
-    "SessionEnd · * · lifecycle.mjs": { "consumers": [
+    "SessionEnd · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/session-notes.mjs", "token": "sessions.jsonl" }
     ] }
   }

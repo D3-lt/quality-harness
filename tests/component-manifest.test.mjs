@@ -31,10 +31,14 @@ test('the manifest check names an undeclared, a stale, an unreached and an unrea
     'plugin/new.mjs': '', 'plugin/t.mjs': '', 'plugin/reader.mjs': "if (entry.event === 'x.seen') {}\n",
   }
   const hooks = { hooks: {
-    Stop: [{ hooks: [{ args: ['${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs'] }] }],
-    PostToolUse: [{ matcher: 'Edit', hooks: [{ args: ['${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs', 'x.sh'] }] }],
+    Stop: [{ hooks: [{ command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs'] }] }],
+    PostToolUse: [{ matcher: 'Edit', hooks: [{ command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs', 'x.sh'] }] }],
   } }
-  assert.deepEqual(hookKeys(hooks), ['Stop · * · lifecycle.mjs', 'PostToolUse · Edit · run.mjs x.sh'])
+  assert.deepEqual(hookKeys(hooks), ['Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs', 'PostToolUse · Edit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs x.sh'])
+  // A hook that runs something else under the same file name is a different hook: another interpreter, another directory.
+  for (const changed of [{ command: 'echo', args: ['${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs'] }, { command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/old/lifecycle.mjs'] }]) {
+    assert.notDeepEqual(hookKeys({ hooks: { Stop: [{ hooks: [changed] }] } }), [hookKeys(hooks)[0]], JSON.stringify(changed))
+  }
   const manifest = {
     files: [
       { path: 'plugin/hooks/hooks.json', consumer: 'host' },
@@ -46,7 +50,7 @@ test('the manifest check names an undeclared, a stale, an unreached and an unrea
       { path: 'plugin/reader.mjs', consumer: 'command' },
     ],
     hooks: {
-      'Stop · * · lifecycle.mjs': { consumers: [{ kind: 'agent-context', by: 'plugin/a.mjs', token: 'import' }] },
+      'Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs': { consumers: [{ kind: 'agent-context', by: 'plugin/a.mjs', token: 'import' }] },
       'Ghost · * · y.mjs': { consumers: [{ kind: 'tool', by: 'plugin/reader.mjs', token: "'x.seen'" }] },
     },
   }
@@ -56,22 +60,22 @@ test('the manifest check names an undeclared, a stale, an unreached and an unrea
     'plugin/c.mjs is declared reached, and no other shipped file names it',
     'plugin/gone.mjs declares no shipped file: every file it matches is gone or declared above it',
     'plugin/t.mjs is kept with no consumer and gives no reason',
-    'hook PostToolUse · Edit · run.mjs x.sh runs and the manifest does not declare what consumes it',
-    'hook Stop · * · lifecycle.mjs only puts text in front of a reader, and gives no reason for that cost',
+    'hook PostToolUse · Edit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs x.sh runs and the manifest does not declare what consumes it',
+    'hook Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs only puts text in front of a reader, and gives no reason for that cost',
     'hook Ghost · * · y.mjs is declared and hooks.json runs no such entry',
   ])
   // A consumer that does not hold its token, or names an untracked file, or a kind nobody defined.
   const wrong = checkComponents({ tracked: Object.keys(files), read: file => files[file] ?? null, hooks, manifest: {
     files: [{ path: 'plugin/**', consumer: 'command' }],
     hooks: {
-      'Stop · * · lifecycle.mjs': { consumers: [{ kind: 'tool', by: 'plugin/reader.mjs', token: "'y.seen'" }, { kind: 'tool', by: 'plugin/gone.mjs', token: 'x' }] },
-      'PostToolUse · Edit · run.mjs x.sh': { consumers: [{ kind: 'vibes', by: 'plugin/a.mjs', token: 'import' }] },
+      'Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs': { consumers: [{ kind: 'tool', by: 'plugin/reader.mjs', token: "'y.seen'" }, { kind: 'tool', by: 'plugin/gone.mjs', token: 'x' }] },
+      'PostToolUse · Edit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs x.sh': { consumers: [{ kind: 'vibes', by: 'plugin/a.mjs', token: 'import' }] },
     },
   } })
   assert.deepEqual(wrong, [
-    `hook Stop · * · lifecycle.mjs: plugin/reader.mjs does not hold "'y.seen'", so it is not shown to consume this hook`,
-    'hook Stop · * · lifecycle.mjs: plugin/gone.mjs is not a tracked file',
-    'hook PostToolUse · Edit · run.mjs x.sh: "vibes" is not a hook consumer (refusal, tool, agent-context, user-message)',
+    'hook Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs: plugin/reader.mjs does not hold "\'y.seen\'", so it is not shown to consume this hook',
+    'hook Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs: plugin/gone.mjs is not a tracked file',
+    'hook PostToolUse · Edit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs x.sh: "vibes" is not a hook consumer (refusal, tool, agent-context, user-message)',
   ])
   // CLEAN twin: the same tree, every component declared, reached, reasoned and read.
   const clean = checkComponents({ tracked: Object.keys(files), read: file => files[file] ?? null, hooks, manifest: {
@@ -82,8 +86,8 @@ test('the manifest check names an undeclared, a stale, an unreached and an unrea
       { path: 'plugin/*.mjs', consumer: 'command' },
     ],
     hooks: {
-      'Stop · * · lifecycle.mjs': { consumers: [{ kind: 'agent-context', by: 'plugin/a.mjs', token: 'import' }], reason: 'measured' },
-      'PostToolUse · Edit · run.mjs x.sh': { consumers: [{ kind: 'tool', by: 'plugin/reader.mjs', token: "'x.seen'" }] },
+      'Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs': { consumers: [{ kind: 'agent-context', by: 'plugin/a.mjs', token: 'import' }], reason: 'measured' },
+      'PostToolUse · Edit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run.mjs x.sh': { consumers: [{ kind: 'tool', by: 'plugin/reader.mjs', token: "'x.seen'" }] },
     },
   } })
   assert.deepEqual(clean, [])

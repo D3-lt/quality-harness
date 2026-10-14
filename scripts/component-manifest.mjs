@@ -24,10 +24,13 @@ export const FILE_KINDS = new Set(['host', 'command', 'on-demand', 'opt-in', 're
 export const HOOK_KINDS = new Set(['refusal', 'tool', 'agent-context', 'user-message'])
 const ADVISORY = new Set(['agent-context', 'user-message'])
 
-/** One hooks.json entry as the manifest names it: the event, the matcher (or `*`) and the script with its arguments. */
+/**
+ * One hooks.json entry as the manifest names it: the event, the matcher (or `*`), and the command with every argument as
+ * written, the plugin-root placeholder included. The whole command, because a hook whose interpreter became `echo` or
+ * whose script moved runs something else under the same file name (Codex review of v3.8.25..fcd58d21).
+ */
 export function hookKey(event, matcher, hook) {
-  const [script, ...args] = hook.args ?? []
-  return [event, matcher ?? '*', [path.posix.basename(String(script ?? hook.command)), ...args].join(' ')].join(' · ')
+  return [event, matcher ?? '*', [hook.command, ...(hook.args ?? [])].join(' ')].join(' · ')
 }
 
 /** Every hook entry of a parsed hooks.json, by its manifest key. */

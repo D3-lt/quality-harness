@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "manifest: a hook's identity holds its command and its script's path",
+      "file": "scripts/component-manifest.mjs",
+      "tests": ["tests/component-manifest.test.mjs"],
+      "only": "names an undeclared, a stale",
+      "from": "  return [event, matcher ?? '*', [hook.command, ...(hook.args ?? [])].join(' ')].join(' · ')",
+      "to": "  return [event, matcher ?? '*', [path.posix.basename(String(hook.args?.[0] ?? hook.command)), ...(hook.args ?? []).slice(1)].join(' ')].join(' · ')"
+    },
+    {
       "label": "manifest: an advisory-only hook needs its reason",
       "file": "scripts/component-manifest.mjs",
       "tests": ["tests/component-manifest.test.mjs"],

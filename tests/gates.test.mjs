@@ -999,6 +999,16 @@ test('a file nested below a tasks/ directory is not a task', () => {
   const dotted = `${tasksDir}${process.platform === 'win32' ? '\\.\\' : '/./'}T1-b.md`
   const viaDot = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), dotted], temp, undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
   assert.match(`${viaDot.stdout}${viaDot.stderr}`, /ADR ownership/, 'a dot component does not hide a file in tasks/')
+  // A relative path under CDPATH still finds its owner: `cd` prints where CDPATH took it, and that line once became part
+  // of the directory, so a task with an owner was told it had none (Codex review of 53c6d167).
+  const record = join(temp, 'docs', 'adr', 'ADR-003-z')
+  mkdirSync(join(record, 'tasks'), { recursive: true })
+  writeFileSync(join(record, 'ADR-003-z.md'), ['# ADR-003-z: Example', '## Existing Primitives Audit', 'x', '## Decision', 'x',
+    '## Alternatives Considered', '- x', '## Consequences', 'x', ''].join('\n\n'))
+  writeFileSync(join(record, 'tasks', 'T1-c.md'), '# Task ADR-003-z-T1: an owned task\n')
+  const viaCdpath = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), 'docs/adr/ADR-003-z/tasks/T1-c.md'], temp, undefined,
+    { ...env, CLAUDE_PROJECT_DIR: temp, CDPATH: '.' })
+  assert.doesNotMatch(`${viaCdpath.stdout}${viaCdpath.stderr}`, /ADR ownership/, 'CDPATH does not hide a task\'s owner')
   rmSync(temp, { recursive: true, force: true })
 })
 

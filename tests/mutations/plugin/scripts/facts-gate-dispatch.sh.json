@@ -16,8 +16,18 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "parent_dir=$(cd \"$(dirname \"$f\")\" 2>/dev/null && pwd) || parent_dir=$(dirname \"$f\")",
+      "from": "parent_dir=$(CDPATH= cd -- \"$(dirname \"$f\")\" 2>/dev/null && pwd) || parent_dir=$(dirname \"$f\")",
       "to": "parent_dir=$(dirname \"$f\")",
+      "only": "^(?:a file nested below a tasks/ directory is not a task)$"
+    },
+    {
+      "label": "dispatch: CDPATH does not hide a relative task's owner (Codex review of 53c6d167)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "parent_dir=$(CDPATH= cd -- ",
+      "to": "parent_dir=$(cd -- ",
       "only": "^(?:a file nested below a tasks/ directory is not a task)$"
     },
     {

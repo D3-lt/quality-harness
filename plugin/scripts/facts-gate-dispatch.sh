@@ -329,8 +329,9 @@ fi
 tasks_index=0
 # Both names case-insensitive, like `base_lc` (CLAUDE.md §7; Codex review of 12a1341).
 # The directory as the filesystem names it, so `tasks/./T1.md` is in `tasks/` (Codex review of 9fcee428); a deleted
-# file's directory may be gone, and is then read as written.
-parent_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || parent_dir=$(dirname "$f")
+# file's directory may be gone, and is then read as written. CDPATH is cleared: under it, cd prints where it went, and
+# that line became part of the directory (Codex review of 53c6d167).
+parent_dir=$(CDPATH= cd -- "$(dirname "$f")" 2>/dev/null && pwd) || parent_dir=$(dirname "$f")
 tasks_dir_lc=$(basename "$parent_dir" | tr '[:upper:]' '[:lower:]')
 [[ "$base_lc" == readme.md && "$tasks_dir_lc" == tasks ]] && tasks_index=1
 # Titles are read from the unfenced text: a record's or a task's title is its own,

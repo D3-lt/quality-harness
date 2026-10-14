@@ -356,7 +356,7 @@ function armedSession(prefix, { armed = true, offered = false } = {}) {
     const run = spawnSync('python3', [hookQhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, run.stderr)
   }
-  return { decide, check, dir, tell }
+  return { decide, check, dir, session, tell }
 }
 const decisionIn = text => (text.startsWith('{') ? JSON.parse(text).hookSpecificOutput?.permissionDecision ?? null : null)
 
@@ -1539,4 +1539,17 @@ test('a relative path or a look-alike wrapper name stays a mention', () => {
     assert.equal(publishCommandIn(command), null, command)
     assert.notEqual(unarmed.decide(command), 'deny', command)
   }
+})
+
+// ADR-098 Follow-up: a new `publish.offered` is recorded only when a NEW env file is written
+// (`offerPublishHook` appends once per file), and the Bash tool reads a new file only from the
+// next user prompt (ADR-068 T2). So a hook run from before the latest offer says nothing about
+// the shell that runs this command: the session is awaiting arming, and the refusal stays.
+test('a hook run before the latest offer does not arm the session', () => {
+  const stale = armedSession('stale-armed-')
+  appendEvent(stale.dir, stale.session, { event: 'publish.offered' })
+  assert.equal(stale.decide('git commit -m x'), 'deny', 'awaiting arming: git may not run its hook in this shell')
+  // CLEAN twin: git's hook running after the latest offer arms it again.
+  appendEvent(stale.dir, stale.session, { event: 'publish.hook-ran', hook: 'prepare-commit-msg' })
+  assert.notEqual(stale.decide('git commit -m x'), 'deny', 'armed again: the commit is left to git')
 })

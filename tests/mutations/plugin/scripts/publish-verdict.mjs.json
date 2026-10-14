@@ -17,8 +17,18 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "an armed session leaves a plain invocation",
-      "from": "entry => entry.event === 'publish.hook-ran')) {",
-      "to": "entry => entry.event === 'publish.offered')) {"
+      "from": "  return !awaitingArming(events) && events.some(entry => entry.event === 'publish.hook-ran')",
+      "to": "  return !awaitingArming(events) && events.some(entry => entry.event === 'publish.offered')"
+    },
+    {
+      "label": "publish armed: a hook run before the latest offer does not arm the session",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "a hook run before the latest offer",
+      "from": "  return !awaitingArming(events) && events.some(entry => entry.event === 'publish.hook-ran')",
+      "to": "  return events.some(entry => entry.event === 'publish.hook-ran')"
     },
     {
       "label": "publish armed: a PowerShell call keeps the refusal",

@@ -212,5 +212,6 @@ which nothing in `plugin/` or `tests/` reads.
 
 ## Follow-ups
 
-- [ ] Owner decision: `publish-verdict.mjs:338-339` downgrades ADR-061's refusal when any `publish.hook-ran` is in the log, while ADR-068's `awaitingArming` treats a hook run before the latest offer as not arming. Using `awaitingArming` there too would refuse a plain commit in that window (the fail-closed direction). Found while drafting the deferred mention repair; not reproduced live.
+- [x] Owner decision: `publish-verdict.mjs:338-339` downgrades ADR-061's refusal when any `publish.hook-ran` is in the log, while ADR-068's `awaitingArming` treats a hook run before the latest offer as not arming. Using `awaitingArming` there too would refuse a plain commit in that window (the fail-closed direction). Found while drafting the deferred mention repair; not reproduced live.
+  Answered 2026-10-14 (owner: reproduce first). Reproduced at the PreToolUse boundary: `tests/publish-command.test.mjs` "a hook run before the latest offer does not arm the session" failed on the old line, since a new offer is recorded only for a new env file, which Bash reads only from the next prompt. Fixed: `armedByGit` in `publish-verdict.mjs` applies `awaitingArming`, so the window keeps ADR-061's refusal (`"publish": "warn"` still opts out); its catalogue mutant is killed.
 - [ ] Owner action: adr-write's step 5 asks for one cold read-only review of a split-task record before it is presented; the drafting session was a leaf role not permitted to spawn one, so none was run.

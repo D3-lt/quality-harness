@@ -122,13 +122,20 @@ export function publishHookExports(node = process.execPath, script = PUBLISH_HOO
     'unset __qh_n __qh_k', ''].join('\n')
 }
 
-/** Offer the hook for this session, and record what happened. */
 // The session was offered git's hook and no hook run has followed the latest offer.
 export function awaitingArming(events) {
   const offered = events.map(entry => entry.event).lastIndexOf('publish.offered')
   return offered >= 0 && !events.slice(offered + 1).some(entry => entry.event === 'publish.hook-ran')
 }
 
+// Armed: git's hook has run since the latest offer. A run from before it says nothing about
+// the shell a command now runs in, since a new env file reaches Bash only from the next user
+// prompt (ADR-068 T2; the ADR-098 Follow-up).
+function armedByGit(events) {
+  return !awaitingArming(events) && events.some(entry => entry.event === 'publish.hook-ran')
+}
+
+/** Offer the hook for this session, and record what happened. */
 export function offerPublishHook({ cwd, session, env = process.env, run = spawnSync, exports = publishHookExports }) {
   const record = entry => appendEvent(cwd, session, entry)
   const file = env.CLAUDE_ENV_FILE
@@ -333,10 +340,11 @@ export function publishUnchecked(input, requested, env = process.env) {
   if (!verdict) return
   // ADR-066 T3: in a Bash session where git's own hook has RUN, a plain invocation
   // is left to git, which refuses it at the event in the repository it commits
-  // into. An offer is not arming, PowerShell does not source the env file, and a
-  // form that could have switched the hook off keeps the refusal.
+  // into. An offer is not arming, nor is a hook run from before the latest offer;
+  // PowerShell does not source the env file, and a form that could have switched
+  // the hook off keeps the refusal.
   if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(input.tool_input?.command)
-    && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'publish.hook-ran')) {
+    && armedByGit(readEvents(input.cwd, input.session_id))) {
     verdict = { ...verdict, deny: false, text: `${verdict.text} In this session git's own hook refuses it at the event (ADR-066), so this is advice.` }
   }
   // ADR-086 T2: in a Bash session, a commit the text proves lands in a repository the

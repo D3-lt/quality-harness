@@ -213,7 +213,7 @@ test('the hook picks the parse goal from the extension, and diagnostics cannot f
 // ADR-102 T1: what the hook prints is handed to the agent (T2), so a clean file must print nothing, whatever checker ran.
 // Measured 2026-10-14: `php -l` prints `No syntax errors detected` on a clean file (and `ruff`, run here until T3, printed
 // `All checks passed!`). Each row runs the real checker; one that is not installed is a named skip, never a pass.
-const has = command => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).status === 0
+const has = command => spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8', timeout: 10_000 }).status === 0
 test('a clean file says nothing, and a broken one is still named', async t => {
   const rows = [
     { name: 'a module', file: 'm.mjs', clean: 'export const x = 1\n', broken: 'export const = \n', finds: /m\.mjs|SyntaxError|Unexpected/, needs: 'node' },

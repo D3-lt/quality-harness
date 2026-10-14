@@ -153,3 +153,6 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
     platforms: on Windows a cp1252 console turned an undecodable Python file's finding into a traceback, on macOS the
     PHP test failed where `php` is absent instead of skipping, and on Linux the T5 mutant survived because Ubuntu's
     `php.ini` already turns the display off, so the test's count could not tell the display from the log.
+11. A `python3` that is not Python is not a checker (T9). An outside run on Windows (2026-10-14) found `python3` to be the
+    Microsoft Store alias, whose install hint reached the agent as a finding on every `.py` edit. The check uses the first
+    of `python3` and `python` that runs a Python 3, and is silent, as Decision 4 has it, when neither does.

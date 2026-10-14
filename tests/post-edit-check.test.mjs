@@ -433,3 +433,31 @@ test('a Python finding survives a console that cannot encode its line', () => {
   assert.doesNotMatch(text, /Traceback|UnicodeEncodeError/, `no traceback: ${text}`)
   assert.ok(text.trim().split('\n').length <= 2, `the error and its line, no more: ${text}`)
 })
+
+// ADR-102 T9, from an outside run on Windows (2026-10-14): `python3` there was the Microsoft Store alias, which prints an
+// install hint and exits 9009, and the hook handed that hint to the agent as its finding while the file went unchecked.
+test('a python3 that is not Python is not a checker', () => {
+  const dir = scratch()
+  const real = spawnSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8', timeout: 10_000 }).stdout.trim()
+  const alias = '#!/bin/sh\necho "Python was not found; run without arguments to install from the Microsoft Store"\nexit 9009\n'
+  const onPath = tools => {
+    const bin = mkdtempSync(join(dir, 'bin-'))
+    for (const [name, body] of Object.entries(tools)) writeFileSync(join(bin, name), body, { mode: 0o755 })
+    return bin
+  }
+  const said = (bin, file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, TMPDIR: scratch() }, timeout: 60_000 })
+    assert.equal(got.status, 0)
+    return `${got.stdout}${got.stderr}`
+  }
+  // The alias first and a real interpreter as `python`: the real one reads the file.
+  const both = onPath({ python3: alias, python: `#!/bin/sh\nexec "${real}" "$@"\n` })
+  const broken = said(both, 'bad.py', 'def (:\n')
+  assert.match(broken, /bad\.py:1:\d+: SyntaxError/, `checked by the real interpreter: ${broken}`)
+  assert.doesNotMatch(broken, /Microsoft Store/)
+  assert.equal(said(both, 'good.py', 'x = 1\n'), '', 'a valid file is silent')
+  // The alias as both names: nothing looked, so nothing is said, and never the alias's own text.
+  assert.equal(said(onPath({ python3: alias, python: alias }), 'bad-too.py', 'def (:\n'), '')
+})

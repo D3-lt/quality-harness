@@ -127,13 +127,23 @@ PARSE_OUT
     ;;
   *.py)
     debounce "py:$file_path" || exit 0
-    command -v python3 >/dev/null 2>&1 || exit 0
+    # A python3 that cannot run Python is not a checker: Windows' Microsoft Store alias prints an install hint and exits
+    # 9009, and that hint reached the agent as a finding (ADR-102 T9). The first of python3 and python that runs a
+    # Python 3 is used; with neither, nothing looked, and nothing is said (Decision 4).
+    py=
+    for candidate in python3 python; do
+      if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 7))' >/dev/null 2>&1; then
+        py=$candidate
+        break
+      fi
+    done
+    [ -n "$py" ] || exit 0
     # Syntax only, with warnings off: a SyntaxWarning (an invalid escape) is not an error, and
     # lint debt in a file the agent touched is not a syntax error, so ruff is not run (ADR-102).
     # The error itself, as path:line:column, never a traceback through `<string>` and ast.py
     # (ADR-102 T4); bytes, so a coding cookie is honoured and an undecodable file is named too. A console that cannot
     # encode the source line (Windows' cp1252) escapes it, rather than raising inside the handler (ADR-102 T8).
-    python3 -W ignore -B -c '
+    "$py" -W ignore -B -c '
 import ast, pathlib, sys
 sys.stdout.reconfigure(errors="backslashreplace")
 path = sys.argv[1]

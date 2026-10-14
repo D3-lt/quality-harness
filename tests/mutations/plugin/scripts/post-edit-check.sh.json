@@ -65,6 +65,14 @@
       "to": ""
     },
     {
+      "label": "ADR-102 T9: a python3 that is not Python is not a checker",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a python3 that is not Python is not a checker)$",
+      "from": " && \"$candidate\" -c 'import sys; sys.exit(sys.version_info < (3, 7))' >/dev/null 2>&1; then",
+      "to": "; then"
+    },
+    {
       "label": "ADR-102 T4: a CommonJS finding is the error, not node's stack",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
@@ -109,8 +117,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a finding comes only from the file's own parser)$",
-      "from": "    python3 -W ignore -B -c",
-      "to": "    python3 -B -c"
+      "from": "    \"$py\" -W ignore -B -c",
+      "to": "    \"$py\" -B -c"
     },
     {
       "label": "ADR-102 T1: php -l is printed only when it fails",

@@ -100,6 +100,9 @@ export function summarize(checks) {
       command, runs: list.length, passed: passes.length,
       medianPassMs: percentile(passes, 0.5), p90PassMs: percentile(passes, 0.9),
       contended: list.filter(check => check.contended === true).length,
+      // Load says contended only past the core count at the run's two ends; a run can share the machine with another check
+      // all the way through and still read uncontended (a peer's survey, 2026-10-14). qh-check names those checks; count them.
+      beside: list.filter(check => [check.beside, check.besideAtEnd].some(named => Array.isArray(named) && named.length > 0)).length,
       redThenGreen: redThenGreen(list),
     }
   })
@@ -111,7 +114,7 @@ function summaryText(ledgers) {
     if (lines.length === 0) { out.push(`${name}: no checks recorded`); continue }
     for (const line of lines) {
       const pass = line.medianPassMs === null ? 'no pass recorded' : `pass median ${seconds(line.medianPassMs)}, p90 ${seconds(line.p90PassMs)}`
-      out.push(`${name}: ${line.runs} runs, ${line.passed} passed; ${pass}; ${line.contended} contended; ${line.redThenGreen} red then green on the same tree — ${line.command}`)
+      out.push(`${name}: ${line.runs} runs, ${line.passed} passed; ${pass}; ${line.contended} contended by load, ${line.beside} with another check beside them; ${line.redThenGreen} red then green on the same tree — ${line.command}`)
     }
   }
   return `${out.join('\n')}\n`

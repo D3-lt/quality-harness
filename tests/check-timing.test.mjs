@@ -87,14 +87,15 @@ test('a tree that went red and then green with nothing changed is counted, and a
 
 test('a ledger is summarised per command: runs, passes, pass times, contention and red then green', () => {
   const checks = [
-    check('2026-10-14T10:00:00.000Z', 2, 't1', 0), check('2026-10-14T10:10:00.000Z', 4, 't2', 0, true),
+    { ...check('2026-10-14T10:00:00.000Z', 2, 't1', 0), beside: [{ command: 'qh-check: go test ./...' }] },
+    check('2026-10-14T10:10:00.000Z', 4, 't2', 0, true),
     check('2026-10-14T10:20:00.000Z', 6, 't3', 1), check('2026-10-14T10:30:00.000Z', 8, 't3', 0),
     { ...check('2026-10-14T11:00:00.000Z', 1, 'f1', 0), command: 'node --test fast' },
   ]
   const [full, fast] = summarize(checks)
   assert.equal(full.command, 'bash scripts/selftest.sh')
-  assert.deepEqual({ runs: full.runs, passed: full.passed, contended: full.contended, redThenGreen: full.redThenGreen },
-    { runs: 4, passed: 3, contended: 1, redThenGreen: 1 })
+  assert.deepEqual({ runs: full.runs, passed: full.passed, contended: full.contended, beside: full.beside, redThenGreen: full.redThenGreen },
+    { runs: 4, passed: 3, contended: 1, beside: 1, redThenGreen: 1 }, 'a check beside a run is counted even when the load was not')
   assert.equal(full.medianPassMs, 4 * 60_000, 'the failed run is not a pass time')
   assert.equal(full.p90PassMs, 8 * 60_000)
   assert.deepEqual({ command: fast.command, runs: fast.runs }, { command: 'node --test fast', runs: 1 })

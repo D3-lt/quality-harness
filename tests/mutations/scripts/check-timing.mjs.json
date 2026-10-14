@@ -31,6 +31,14 @@
       "from": "    const passes = list.filter(check => check.exit === 0)",
       "to": "    const passes = list.filter(check => check)",
       "only": "^(?:a ledger is summarised per command: runs, passes, pass times, contention and red then green)$"
+    },
+    {
+      "label": "check-timing: a run with another check beside it is counted, whatever the load said",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "from": "      beside: list.filter(check => [check.beside, check.besideAtEnd]",
+      "to": "      beside: list.filter(check => [check.besideAtEnd]",
+      "only": "^(?:a ledger is summarised per command: runs, passes, pass times, contention and red then green)$"
     }
   ]
 }

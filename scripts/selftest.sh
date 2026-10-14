@@ -58,14 +58,12 @@ else
 fi
 concurrency=default
 concurrency_how=''
-concurrency_args=()
 if [ -n "${QH_SELFTEST_CONCURRENCY:-}" ]; then
   case "$QH_SELFTEST_CONCURRENCY" in
     *[!0-9]*|0|0[0-9]*) printf 'selftest: QH_SELFTEST_CONCURRENCY=%s is not a positive whole number; ignored.\n' "$QH_SELFTEST_CONCURRENCY" ;;
     *)
       concurrency=$QH_SELFTEST_CONCURRENCY
       concurrency_how='; set by QH_SELFTEST_CONCURRENCY'
-      concurrency_args=("--test-concurrency=$concurrency")
       ;;
   esac
 fi
@@ -169,27 +167,25 @@ fi
 # the transcript names how far the file got even when the run dies without a
 # failing assertion to report. Off by default: it is a diagnostic, not a gate,
 # and nothing reads the file here.
-reporters=(--test-reporter=spec --test-reporter-destination=stdout)
+# Through scripts/run-tests.mjs, not `node --test`: node 24's CLI sorts the files it is given, so the order above never reached it
+# (measured 2026-10-14). The runner keeps the order, prints the same spec report, writes the per-file times and the TAP
+# transcript where it is told to, and exits 1 exactly when node --test would.
+runner_args=()
+[ "$concurrency" = default ] || runner_args+=(--concurrency "$concurrency")
 timing_rows=''
 if [ -n "$timing_ledger" ]; then
   timing_rows=$(mktemp "${TMPDIR:-/tmp}/qh-file-times.XXXXXX") || timing_rows=''
-  # A file URL, which node accepts as a reporter on every platform; a Git Bash path inside `--x=` is not one to rely on.
-  timing_reporter=$(node -e 'process.stdout.write(require("node:url").pathToFileURL(process.argv[1]).href)' \
-    "$REPO/scripts/file-timing-reporter.mjs" 2>/dev/null) || timing_reporter=''
-  if [ -n "$timing_rows" ] && [ -n "$timing_reporter" ]; then
-    reporters+=(--test-reporter="$timing_reporter" --test-reporter-destination="$timing_rows")
-  else
-    rm -f "$timing_rows"; timing_rows=''
-    printf 'selftest: per-file times not kept for this run (no temporary file, or no reporter URL)\n' >&2
+  if [ -n "$timing_rows" ]; then runner_args+=(--times "$timing_rows")
+  else printf 'selftest: per-file times not kept for this run (no temporary file)\n' >&2
   fi
 fi
 if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
-  reporters+=(--test-reporter=tap --test-reporter-destination="$QUALITY_HARNESS_TAP")
+  runner_args+=(--tap "$QUALITY_HARNESS_TAP")
 fi
 # The suite's status is read, not left to set -e, so a red run's times are kept before the script exits with it.
 tests_status=0
 QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
-  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} "${reporters[@]}" "${test_files[@]}" || tests_status=$?
+  node "$REPO/scripts/run-tests.mjs" ${runner_args[@]+"${runner_args[@]}"} -- "${test_files[@]}" || tests_status=$?
 if [ -n "$timing_rows" ]; then
   if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$timing_ledger")" && cat "$timing_rows" >>"$timing_ledger"; then :
   else printf 'selftest: per-file times were not kept for this run\n' >&2

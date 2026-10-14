@@ -1,0 +1,28 @@
+{
+  "mutations": [
+    {
+      "label": "run-tests: the files start in the order given, not sorted as node --test sorts them",
+      "file": "scripts/run-tests.mjs",
+      "tests": ["tests/run-tests.test.mjs"],
+      "from": "const stream = run({ files, concurrency, isolation: 'process' })",
+      "to": "const stream = run({ files: [...files].sort(), concurrency, isolation: 'process' })",
+      "only": "^(?:the runner starts the files in the order it is given them)$"
+    },
+    {
+      "label": "run-tests: it exits 0 only on a summary that says success",
+      "file": "scripts/run-tests.mjs",
+      "tests": ["tests/run-tests.test.mjs"],
+      "from": "export const exitCodeFor = success => (success === true ? 0 : 1)",
+      "to": "export const exitCodeFor = success => (success === false ? 1 : 0)",
+      "only": "^(?:a run with no summary did not pass)$"
+    },
+    {
+      "label": "run-tests: the per-file times are written where it is told to",
+      "file": "scripts/run-tests.mjs",
+      "tests": ["tests/run-tests.test.mjs"],
+      "from": "if (times) readers.push(",
+      "to": "if (false) readers.push(",
+      "only": "^(?:the runner keeps the spec output, the per-file times and a TAP transcript where it is told to)$"
+    }
+  ]
+}

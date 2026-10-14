@@ -34,14 +34,17 @@
     ] },
     "SubagentStop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.ended'" },
-      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" }
+      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
+      { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
     ] },
     "TaskCompleted · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" }
-    ], "reason": "a turn-end finding at TaskCompleted is said as systemMessage, to the user only (lifecycle.mjs deliver), and its task.completed event has no reader: a candidate for removal (BACKLOG §378)" },
+      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
+      { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
+    ] },
     "Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "stopReachesAgent" },
-      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" }
+      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
+      { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
     ], "reason": "ADR-096: a turn-end finding reaches the agent and continues its turn once; ADR-096's Follow-up measures whether a continued turn acts" },
     "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "refusal", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "permissionDecision" },

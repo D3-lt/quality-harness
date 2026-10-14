@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-14",
+  "at": "3a1478d35ddebb3748fcdfd3b55f355c4a892ef7",
+  "plugin": "3.8.26",
+  "kind": "probe",
+  "probeSha256": "86e9da6dc59a49b296f8c5f3456031cf0789f7c6a16b0f8bd42cf6292627c21e",
+  "readers": "4f4eeda4d58d81d3c3ddbaa239cff281517dd6c184f2e539f43ca9047388cb93",
+  "platform": "Darwin 27.0.0",
+  "node": "26.11.0",
+  "python": "3.14.8",
+  "corpus": {
+    "records": 154,
+    "undecided": 0,
+    "tasks": 350,
+    "taskDirectories": 152
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 154,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "go-cli-adr",
+  "found": ""
+}

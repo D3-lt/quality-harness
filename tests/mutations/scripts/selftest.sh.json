@@ -21,6 +21,16 @@
       "only": "^(?:the gate keeps its per-file times beside the check ledger, and says where)$"
     },
     {
+      "label": "selftest: an order is named longest first only when the ordering said it read the times",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/test-order.test.mjs"
+      ],
+      "from": "  if [ \"$order_said\" = 'order: times' ] && [ \"${#ordered[@]}\" = \"${#test_files[@]}\" ]; then",
+      "to": "  if [ \"${#ordered[@]}\" = \"${#test_files[@]}\" ]; then",
+      "only": "^(?:the gate runs its files in that order, and in glob order when it cannot)$"
+    },
+    {
       "label": "ADR-077 T2: the suite has a private lease directory",
       "file": "scripts/selftest.sh",
       "tests": [

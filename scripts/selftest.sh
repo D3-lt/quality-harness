@@ -81,6 +81,33 @@ else
   timing_ledger=''
   printf 'selftest: per-file times not kept (no git directory for %s)\n' "$REPO"
 fi
+# Stage 1 (BACKLOG §378): the files run failed first, then unmeasured, then longest first, from the last run's own times
+# (scripts/test-order.mjs). node starts files in the order given, nine at a time, and the glob's order started the longest one
+# late enough to end the run alone. The same files run either way: the order is accepted only when it names as many files as
+# the glob, and anything else falls back to the glob and says so. QH_SELFTEST_ORDER=glob keeps the glob's order (to measure
+# one against the other), and QH_SELFTEST_TIMES names another times file (for tests/test-order.test.mjs).
+test_files=("$REPO"/tests/*.test.mjs)
+order_how='in glob order (no per-file times yet)'
+times_source=${QH_SELFTEST_TIMES:-$timing_ledger}
+if [ "${QH_SELFTEST_ORDER:-}" = glob ]; then
+  order_how='in glob order (QH_SELFTEST_ORDER=glob)'
+elif [ -n "$times_source" ] && [ -s "$times_source" ]; then
+  ordered=()
+  order_said=''
+  while IFS= read -r ordered_file; do
+    if [ -z "$order_said" ]; then order_said=$ordered_file; continue; fi
+    ordered+=("$ordered_file")
+  done < <(node "$REPO/scripts/test-order.mjs" "$times_source" "$REPO" "${test_files[@]}" 2>/dev/null || true)
+  if [ "$order_said" = 'order: times' ] && [ "${#ordered[@]}" = "${#test_files[@]}" ]; then
+    test_files=("${ordered[@]}")
+    order_how='failed first, then unmeasured, then longest first, by the last run'"'"'s times'
+  elif [ "$order_said" = 'order: times' ]; then
+    order_how="in glob order (the ordering named ${#ordered[@]} of ${#test_files[@]} files)"
+  else
+    order_how='in glob order (no per-file times could be read)'
+  fi
+fi
+printf 'selftest: test files run %s; first: %s\n' "$order_how" "${test_files[0]##*/}"
 if [ "${QH_SELFTEST_DRY:-0}" = 1 ]; then exit 0; fi
 
 # The manifest/skill validation needs the Claude Code CLI. Where it is absent
@@ -162,7 +189,7 @@ fi
 # The suite's status is read, not left to set -e, so a red run's times are kept before the script exits with it.
 tests_status=0
 QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
-  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} "${reporters[@]}" "$REPO"/tests/*.test.mjs || tests_status=$?
+  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} "${reporters[@]}" "${test_files[@]}" || tests_status=$?
 if [ -n "$timing_rows" ]; then
   if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$timing_ledger")" && cat "$timing_rows" >>"$timing_ledger"; then :
   else printf 'selftest: per-file times were not kept for this run\n' >&2

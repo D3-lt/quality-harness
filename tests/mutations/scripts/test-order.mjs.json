@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "test-order: a file that failed in the last run runs first",
+      "file": "scripts/test-order.mjs",
+      "tests": ["tests/test-order.test.mjs"],
+      "from": "    return [entry.failed > 0 ? 0 : 2, -(entry.ms ?? 0)]",
+      "to": "    return [2, -(entry.ms ?? 0)]",
+      "only": "^(?:a failed file runs first, an unmeasured one next, and the rest longest first)$"
+    },
+    {
+      "label": "test-order: the rest run longest first",
+      "file": "scripts/test-order.mjs",
+      "tests": ["tests/test-order.test.mjs"],
+      "from": "    return [entry.failed > 0 ? 0 : 2, -(entry.ms ?? 0)]",
+      "to": "    return [entry.failed > 0 ? 0 : 2, entry.ms ?? 0]",
+      "only": "^(?:a failed file runs first, an unmeasured one next, and the rest longest first)$"
+    },
+    {
+      "label": "test-order: a file the times do not name runs before the measured ones",
+      "file": "scripts/test-order.mjs",
+      "tests": ["tests/test-order.test.mjs"],
+      "from": "    if (!entry) return [1, 0]",
+      "to": "    if (!entry) return [3, 0]",
+      "only": "^(?:a failed file runs first, an unmeasured one next, and the rest longest first)$"
+    },
+    {
+      "label": "test-order: it says when it printed the order given",
+      "file": "scripts/test-order.mjs",
+      "tests": ["tests/test-order.test.mjs"],
+      "from": "`order: ${row ? 'times' : 'given'}\\n",
+      "to": "`order: times\\n",
+      "only": "^(?:the script reorders real paths by their names inside the root, and keeps the order given with no times|the gate runs its files in that order, and in glob order when it cannot)$"
+    }
+  ]
+}

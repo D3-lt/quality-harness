@@ -23,6 +23,14 @@
       "from": "before.after.tree === after?.after?.tree",
       "to": "before.after.tree",
       "only": "^(?:a tree that went red and then green with nothing changed is counted, and a fix between them is not)$"
+    },
+    {
+      "label": "check-timing: a pass time is a passing run's own window, never a failed run's",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "from": "    const passes = list.filter(check => check.exit === 0)",
+      "to": "    const passes = list.filter(check => check)",
+      "only": "^(?:a ledger is summarised per command: runs, passes, pass times, contention and red then green)$"
     }
   ]
 }

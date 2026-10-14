@@ -12,7 +12,8 @@
 //
 // Repository-owned and read-only. It exits 0 whatever it finds; 2 on a usage error.
 //
-// Usage: node scripts/check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--json]
+// Usage: node scripts/check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--json]
+// --summary reads only qh-check's own ledgers (checks.jsonl, fast-checks.jsonl), so it answers in any repository qh-check runs in.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import os from 'node:os'
@@ -78,6 +79,44 @@ export function report({ times, checks, runs = 5, workers = null }) {
   return { runs: reported, flaky: { checks: checks.length, redThenGreen: redThenGreen(checks) } }
 }
 
+const percentile = (sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : null)
+
+/**
+ * One line per command a check ledger holds: how often it ran and passed, how long a pass took (median and 90th percentile of
+ * the passes' own windows), how many were contended, and how many went red and then green on the same tree. It reads only what
+ * qh-check already wrote, so it answers in any repository qh-check runs in, with or without per-file times.
+ */
+export function summarize(checks) {
+  const byCommand = new Map()
+  for (const check of checks) {
+    const key = String(check?.command ?? '(no command)')
+    if (!byCommand.has(key)) byCommand.set(key, [])
+    byCommand.get(key).push(check)
+  }
+  return [...byCommand].map(([command, list]) => {
+    const passes = list.filter(check => check.exit === 0)
+      .map(check => Date.parse(check?.after?.at) - Date.parse(check?.before?.at)).filter(Number.isFinite).sort((a, b) => a - b)
+    return {
+      command, runs: list.length, passed: passes.length,
+      medianPassMs: percentile(passes, 0.5), p90PassMs: percentile(passes, 0.9),
+      contended: list.filter(check => check.contended === true).length,
+      redThenGreen: redThenGreen(list),
+    }
+  })
+}
+
+function summaryText(ledgers) {
+  const out = []
+  for (const [name, lines] of ledgers) {
+    if (lines.length === 0) { out.push(`${name}: no checks recorded`); continue }
+    for (const line of lines) {
+      const pass = line.medianPassMs === null ? 'no pass recorded' : `pass median ${seconds(line.medianPassMs)}, p90 ${seconds(line.p90PassMs)}`
+      out.push(`${name}: ${line.runs} runs, ${line.passed} passed; ${pass}; ${line.contended} contended; ${line.redThenGreen} red then green on the same tree — ${line.command}`)
+    }
+  }
+  return `${out.join('\n')}\n`
+}
+
 const seconds = ms => `${(ms / 1000).toFixed(1)} s`
 
 function text({ runs, flaky }) {
@@ -99,12 +138,12 @@ function text({ runs, flaky }) {
 if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2)
   const value = name => { const at = argv.indexOf(name); return at >= 0 ? argv[at + 1] : undefined }
-  const known = new Set(['--dir', '--runs', '--workers', '--json'])
+  const known = new Set(['--dir', '--runs', '--workers', '--json', '--summary'])
   const unknown = argv.filter((arg, index) => arg.startsWith('--') && !known.has(arg) && !known.has(argv[index - 1]))
   const runs = Number(value('--runs') ?? 5)
   const workers = value('--workers') === undefined ? null : Number(value('--workers'))
   if (unknown.length || !Number.isInteger(runs) || runs < 1 || (workers !== null && (!Number.isInteger(workers) || workers < 1))) {
-    process.stderr.write('usage: check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--json]\n')
+    process.stderr.write('usage: check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--json]\n')
     process.exit(2)
   }
   let dir = value('--dir')
@@ -113,6 +152,11 @@ if (isMainModule(import.meta.url)) {
     if (git.status !== 0) { process.stderr.write('check-timing: not in a git checkout, and no --dir named\n'); process.exit(2) }
     dir = path.join(git.stdout.trim(), 'quality-harness')
   }
-  const result = report({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), runs, workers })
-  process.stdout.write(argv.includes('--json') ? `${JSON.stringify(result, null, 2)}\n` : text(result))
+  if (argv.includes('--summary')) {
+    const ledgers = ['checks.jsonl', 'fast-checks.jsonl'].map(name => [name, summarize(rows(path.join(dir, name)))])
+    process.stdout.write(argv.includes('--json') ? `${JSON.stringify(Object.fromEntries(ledgers), null, 2)}\n` : summaryText(ledgers))
+  } else {
+    const result = report({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), runs, workers })
+    process.stdout.write(argv.includes('--json') ? `${JSON.stringify(result, null, 2)}\n` : text(result))
+  }
 }

@@ -9,7 +9,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { makespan } from '../scripts/check-timing.mjs'
+import { makespan, summarize } from '../scripts/check-timing.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const script = path.join(repoRoot, 'scripts', 'check-timing.mjs')
@@ -82,5 +82,29 @@ test('a tree that went red and then green with nothing changed is counted, and a
     const { flaky } = JSON.parse(read(dir, '--json').stdout)
     assert.equal(flaky.redThenGreen, 1, 'only the unchanged tree')
     assert.equal(flaky.checks, 4)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('a ledger is summarised per command: runs, passes, pass times, contention and red then green', () => {
+  const checks = [
+    check('2026-10-14T10:00:00.000Z', 2, 't1', 0), check('2026-10-14T10:10:00.000Z', 4, 't2', 0, true),
+    check('2026-10-14T10:20:00.000Z', 6, 't3', 1), check('2026-10-14T10:30:00.000Z', 8, 't3', 0),
+    { ...check('2026-10-14T11:00:00.000Z', 1, 'f1', 0), command: 'node --test fast' },
+  ]
+  const [full, fast] = summarize(checks)
+  assert.equal(full.command, 'bash scripts/selftest.sh')
+  assert.deepEqual({ runs: full.runs, passed: full.passed, contended: full.contended, redThenGreen: full.redThenGreen },
+    { runs: 4, passed: 3, contended: 1, redThenGreen: 1 })
+  assert.equal(full.medianPassMs, 4 * 60_000, 'the failed run is not a pass time')
+  assert.equal(full.p90PassMs, 8 * 60_000)
+  assert.deepEqual({ command: fast.command, runs: fast.runs }, { command: 'node --test fast', runs: 1 })
+  // CLEAN twin: a ledger with no pass says so rather than a time.
+  assert.equal(summarize([check('2026-10-14T10:00:00.000Z', 2, 't', 1)])[0].medianPassMs, null)
+  const dir = ledger([], checks)
+  try {
+    const out = read(dir, '--summary')
+    assert.equal(out.status, 0, out.stderr)
+    assert.match(out.stdout, /^checks\.jsonl: 4 runs, 3 passed; pass median 240\.0 s/m)
+    assert.match(out.stdout, /^fast-checks\.jsonl: no checks recorded$/m)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

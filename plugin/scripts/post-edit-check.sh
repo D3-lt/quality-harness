@@ -36,7 +36,9 @@ case "$file_path" in
     # Always CommonJS, so node's own parser is the authority, and the §161 hazard below (a
     # `.js` carrying `export`) cannot occur in it (ADR-102).
     command -v node >/dev/null 2>&1 || exit 0
-    cjs_out=$(node --check "$file_path" 2>&1) || printf '%s\n' "$cjs_out" | tail -30
+    # The error alone: node follows it with its own stack frames, a version line and blank
+    # lines, none of which is about the edited file (ADR-102 T4).
+    cjs_out=$(node --check "$file_path" 2>&1) || printf '%s\n' "$cjs_out" | grep -v -e '^    at ' -e '^Node\.js v' -e '^[[:space:]]*$' | tail -30
     ;;
   *.mjs)
     # An ES module only: node's module goal is the only one a `.mjs` has, and the Workflow
@@ -110,7 +112,8 @@ PARSE_OUT
       if command -v node >/dev/null 2>&1 && node -e 'const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (m, s) => s ?? "").replace(/("(?:\\.|[^"\\])*")|,(?=\s*[}\]])/g, (m, s) => s ?? ""); JSON.parse(t)' "$file_path" 2>/dev/null; then
         :
       else
-        printf '%s\n' "$json_out" | tail -30
+        # jq names no file; the agent is told which one (ADR-102 T4).
+        printf '%s: %s\n' "$file_path" "$(printf '%s\n' "$json_out" | tail -30)"
       fi
     fi
     ;;
@@ -123,8 +126,20 @@ PARSE_OUT
     command -v python3 >/dev/null 2>&1 || exit 0
     # Syntax only, with warnings off: a SyntaxWarning (an invalid escape) is not an error, and
     # lint debt in a file the agent touched is not a syntax error, so ruff is not run (ADR-102).
-    python3 -W ignore -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(), filename=sys.argv[1])' \
-      "$file_path" 2>&1 | tail -30 || true
+    # The error itself, as path:line:column, never a traceback through `<string>` and ast.py
+    # (ADR-102 T4); bytes, so a coding cookie is honoured and an undecodable file is named too.
+    python3 -W ignore -B -c '
+import ast, pathlib, sys
+path = sys.argv[1]
+try:
+    ast.parse(pathlib.Path(path).read_bytes(), filename=path)
+except SyntaxError as error:
+    print(f"{path}:{error.lineno}:{error.offset}: SyntaxError: {error.msg}")
+    if error.text:
+        print(error.text.rstrip())
+except ValueError as error:
+    print(f"{path}: could not be read as Python source ({type(error).__name__}: {error})")
+' "$file_path" 2>&1 | tail -30 || true
     ;;
   *.php)
     debounce "php:$file_path" || exit 0

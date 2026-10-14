@@ -1,12 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-102 T4: a CommonJS finding is the error, not node's stack",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a CommonJS finding is the error, not node's stack)$",
+      "from": " | grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' | tail -30",
+      "to": " | tail -30"
+    },
+    {
+      "label": "ADR-102 T4: a JSON finding names the edited file",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a finding names the edited file and gives the error alone)$",
+      "from": "        printf '%s: %s\\n' \"$file_path\" \"$(printf '%s\\n' \"$json_out\" | tail -30)\"",
+      "to": "        printf '%s\\n' \"$json_out\" | tail -30"
+    },
+    {
+      "label": "ADR-102 T4: a Python finding is the error, not a traceback",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a finding names the edited file and gives the error alone)$",
+      "from": "except SyntaxError as error:",
+      "to": "except ImportError as error:"
+    },
+    {
       "label": "ADR-102 T3: a .cjs file is read by node's own parser",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:a finding comes only from the file's own parser)$",
-      "from": "    cjs_out=$(node --check \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | tail -30",
-      "to": "    cjs_out=$(node \"$(dirname \"$0\")/workflow-parse.mjs\" --module \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | tail -30"
+      "from": "    cjs_out=$(node --check \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' | tail -30",
+      "to": "    cjs_out=$(node \"$(dirname \"$0\")/workflow-parse.mjs\" --module \"$file_path\" 2>&1) || printf '%s\\n' \"$cjs_out\" | grep -v -e '^    at ' -e '^Node\\.js v' -e '^[[:space:]]*$' | tail -30"
     },
     {
       "label": "ADR-102 T3: a JSON file jq refuses is named only when it is not JSONC either",

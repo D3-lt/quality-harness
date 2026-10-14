@@ -135,3 +135,7 @@ anything is wired (T3, which T2 now depends on).
 
 T1's evidence locked the tests this changes, so T3 retakes T1's lock map with `adr-verify --relock --replace-hashes` after the
 change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner's approval.
+6. A finding names the edited file and gives the error alone (T4). An outside run over a repository we do not own
+   (wcag-web, 2026-10-14) showed two shapes an agent cannot act on well: `jq`'s error names no file
+   (`jq: parse error: Unmatched '}' at line 1, column 7`), and Python's finding was an eleven-line traceback through
+   `<string>` and the interpreter's own `ast.py` before the error.

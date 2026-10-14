@@ -303,3 +303,44 @@ test('a syntax finding at the edit reaches the agent, and a clean edit hands it 
     assert.equal(quiet.stdout, '', `${file} hands the agent nothing: ${quiet.stdout}`)
   }
 })
+
+// ADR-102 T4: an outside run (wcag-web, 2026-10-14) read what the agent would be handed for a broken JSON and a broken
+// Python file: a jq error naming no file, and an eleven-line traceback through `<string>` and the interpreter's ast.py.
+test('a finding names the edited file and gives the error alone', () => {
+  const dir = scratch()
+  const said = (file, content) => {
+    const target = join(dir, file)
+    writeFileSync(target, content)
+    const got = run('Edit', target)
+    assert.equal(got.status, 0)
+    return { text: `${got.stdout}${got.stderr}`, target }
+  }
+  const json = said('bad.json', '{"a": }\n')
+  assert.ok(json.text.includes(json.target), `the JSON finding names its file: ${json.text}`)
+  assert.match(json.text, /parse error/)
+  const py = said('bad.py', 'x = 1\ndef (:\n')
+  assert.ok(py.text.startsWith(`${py.target}:2:`), `the Python finding starts with path:line: ${py.text}`)
+  assert.match(py.text, /SyntaxError: invalid syntax/)
+  assert.doesNotMatch(py.text, /Traceback|<string>|ast\.py/, `no traceback: ${py.text}`)
+  assert.ok(py.text.trim().split('\n').length <= 2, `the error and its line, no more: ${py.text}`)
+  // A file Python cannot decode is a broken file too, said as one line about that file.
+  const binary = join(dir, 'binary.py')
+  writeFileSync(binary, Buffer.from([0x78, 0x3d, 0xff, 0xfe, 0x0a]))
+  const got = run('Edit', binary)
+  assert.ok(`${got.stdout}${got.stderr}`.startsWith(binary), `named: ${got.stdout}${got.stderr}`)
+  assert.doesNotMatch(`${got.stdout}${got.stderr}`, /Traceback/)
+})
+
+// ADR-102 T4, from a second outside run (wcag-docs, 2026-10-14): `node --check` follows the error with node's own stack
+// frames, a version line and blank lines, none of which is about the edited file.
+test("a CommonJS finding is the error, not node's stack", () => {
+  const dir = scratch()
+  const bad = join(dir, 'bad.cjs')
+  writeFileSync(bad, 'module.exports = {\n')
+  const got = run('Edit', bad)
+  assert.equal(got.status, 0)
+  const text = `${got.stdout}${got.stderr}`
+  assert.ok(text.includes(bad), `names the file: ${text}`)
+  assert.match(text, /SyntaxError: Unexpected end of input/)
+  assert.doesNotMatch(text, /^ {4}at |^Node\.js v|\n\s*\n/m, `the error alone: ${JSON.stringify(text)}`)
+})

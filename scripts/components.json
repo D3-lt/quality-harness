@@ -1,0 +1,70 @@
+{
+  "files": [
+    { "path": "plugin/.claude-plugin/plugin.json", "consumer": "host" },
+    { "path": "plugin/hooks/hooks.json", "consumer": "host" },
+    { "path": "plugin/evals/**", "consumer": "host", "note": "plugin.json declares them as experimental evals (ADR-032)" },
+    { "path": "plugin/README.md", "consumer": "on-demand" },
+    { "path": "plugin/agents/*.md", "consumer": "on-demand" },
+    { "path": "plugin/skills/**", "consumer": "on-demand" },
+    { "path": "plugin/workflows/*.js", "consumer": "on-demand" },
+    { "path": "plugin/templates/**", "consumer": "on-demand" },
+    { "path": "plugin/bin/qh-mcp*", "consumer": "opt-in", "note": "registered by the adopter (the operating skill)" },
+    { "path": "plugin/bin/*", "consumer": "command", "note": "a gate: its exit code is the contract; each .cmd is its Windows twin" },
+    { "path": "plugin/lib/*.py", "consumer": "reached" },
+    { "path": "plugin/scripts/statusline.mjs", "consumer": "opt-in", "note": "configured by the adopter as a status line" },
+    { "path": "plugin/scripts/classify-command.mjs", "consumer": "tombstone",
+      "reason": "empty since ADR-060 T7; kept because ADR-060's Governs: names it and a record is never rewritten (its own header)" },
+    { "path": "plugin/scripts/*", "consumer": "reached" }
+  ],
+  "hooks": {
+    "SessionStart · * · lifecycle.mjs": { "consumers": [
+      { "kind": "refusal", "by": "plugin/scripts/on-session-start.mjs", "token": "offerPublishHook" },
+      { "kind": "tool", "by": "plugin/scripts/tree-facts.mjs", "token": "'session.started'" },
+      { "kind": "agent-context", "by": "plugin/scripts/on-session-start.mjs", "token": "additionalContext" }
+    ] },
+    "SessionStart · * · branch-state.mjs --cached 120": { "consumers": [
+      { "kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write" }
+    ], "reason": "CLAUDE.md §15: a branch whose CI was not read is UNKNOWN, and nothing else says so at the start" },
+    "UserPromptSubmit · * · branch-state.mjs --brief --cached 120": { "consumers": [
+      { "kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write" }
+    ], "reason": "CLAUDE.md §15 and ADR-094: said again only when the line changed or CI is red; ADR-097 kept it on a measure that did not fit an orientation note" },
+    "SubagentStart · * · lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.started'" },
+      { "kind": "agent-context", "by": "plugin/scripts/on-subagent-start.mjs", "token": "additionalContext" }
+    ] },
+    "SubagentStop · * · lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.ended'" },
+      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "additionalContext" }
+    ] },
+    "TaskCompleted · * · lifecycle.mjs": { "consumers": [
+      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "additionalContext" }
+    ], "reason": "ADR-096 routes turn-end findings to the agent; where TaskCompleted's output goes is unsettled (BACKLOG §378, ADR-096's deferred item 3), and its task.completed event has no reader" },
+    "Stop · * · lifecycle.mjs": { "consumers": [
+      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "additionalContext" }
+    ], "reason": "ADR-096: a turn-end finding reaches the agent and continues its turn once; ADR-096's Follow-up measures whether a continued turn acts" },
+    "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit · lifecycle.mjs": { "consumers": [
+      { "kind": "refusal", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "permissionDecision" },
+      { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'publish.requested'" }
+    ] },
+    "PreToolUse · Skill · lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/ledger-report.mjs", "token": "'skill.invoked'" }
+    ] },
+    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · run-shell-hook.mjs facts-gate-dispatch.sh": { "consumers": [
+      { "kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "additionalContext" },
+      { "kind": "tool", "by": "plugin/scripts/artifact-pass.mjs", "token": "'artifact.gated'" }
+    ] },
+    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · run-shell-hook.mjs post-edit-check.sh": { "consumers": [
+      { "kind": "user-message", "by": "plugin/scripts/post-edit-check.sh", "token": "printf" }
+    ], "reason": "its plain stdout reaches the transcript view only (ADR-097); removal deferred while spec facts F-33 and UC2-S5 bind it, and it costs 28 to 75 ms per edit (BACKLOG §378, 2026-10-14)" },
+    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'" }
+    ] },
+    "PreCompact · * · lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "readSessionNote" },
+      { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "'context.compacting'" }
+    ] },
+    "SessionEnd · * · lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/session-notes.mjs", "token": "sessions.jsonl" }
+    ] }
+  }
+}

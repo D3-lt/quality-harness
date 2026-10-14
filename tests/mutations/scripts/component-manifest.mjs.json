@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "manifest: an advisory-only hook needs its reason",
+      "file": "scripts/component-manifest.mjs",
+      "tests": ["tests/component-manifest.test.mjs"],
+      "only": "names an undeclared, a stale",
+      "from": "    if (consumers.length > 0 && consumers.every(consumer => ADVISORY.has(consumer.kind)) && !hook.reason) {",
+      "to": "    if (consumers.length > 0 && consumers.every(consumer => ADVISORY.has(consumer.kind)) && false) {"
+    },
+    {
+      "label": "manifest: a reached file is named by another shipped file",
+      "file": "scripts/component-manifest.mjs",
+      "tests": ["tests/component-manifest.test.mjs"],
+      "only": "names an undeclared, a stale",
+      "from": "  return tracked.some(other => other !== file && other.startsWith('plugin/') && (() => {",
+      "to": "  return tracked.some(other => other.startsWith('plugin/') && (() => {"
+    },
+    {
+      "label": "manifest: a consumer holds its token",
+      "file": "scripts/component-manifest.mjs",
+      "tests": ["tests/component-manifest.test.mjs"],
+      "only": "names an undeclared, a stale",
+      "from": "      else if (!text.includes(consumer.token)) findings.push(",
+      "to": "      else if (false) findings.push("
+    },
+    {
+      "label": "manifest: a shipped file no entry wins is named",
+      "file": "scripts/component-manifest.mjs",
+      "tests": ["tests/component-manifest.test.mjs"],
+      "only": "names an undeclared, a stale",
+      "from": "    else findings.push(`${file} ships and no entry in the manifest declares what consumes it`)",
+      "to": "    else void file"
+    }
+  ]
+}

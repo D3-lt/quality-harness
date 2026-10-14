@@ -149,3 +149,7 @@ change is reviewed in the same commit, as ADR-091 and ADR-099 did with the owner
 9. A comma with no value before it is not a trailing comma (T7). The verification review of T6 (Codex, 2026-10-14) found
    `{"a":[,]}`, which TypeScript's parser refuses, made valid by the fallback's trailing-comma rule: a fail-open this record
    introduced in T3, so it is fixed before the release.
+10. A finding survives the host's console and `php.ini` (T8). The CI run of `380e40c` (2026-10-14) failed on all three
+    platforms: on Windows a cp1252 console turned an undecodable Python file's finding into a traceback, on macOS the
+    PHP test failed where `php` is absent instead of skipping, and on Linux the T5 mutant survived because Ubuntu's
+    `php.ini` already turns the display off, so the test's count could not tell the display from the log.

@@ -57,6 +57,14 @@
       "to": "php -l"
     },
     {
+      "label": "ADR-102 T8: a Python finding survives a console that cannot encode its line",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^(?:a Python finding survives a console that cannot encode its line)$",
+      "from": "sys.stdout.reconfigure(errors=\"backslashreplace\")\n",
+      "to": ""
+    },
+    {
       "label": "ADR-102 T4: a CommonJS finding is the error, not node's stack",
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],

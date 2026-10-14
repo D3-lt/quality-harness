@@ -347,8 +347,9 @@ test("a CommonJS finding is the error, not node's stack", () => {
 
 // ADR-102 T5: php -l printed its parse error twice, once to the error log and once to the display (an outside run,
 // 2026-10-14), and which one shows depends on the host's php.ini. The ini below turns the display off and the log on,
-// the opposite of what the check asks for, so the check has to set both itself.
-test('a PHP finding is said once', () => {
+// the opposite of what the check asks for, so the check has to set both itself. Counting alone could not tell the two
+// apart where php.ini already turns the display off (Ubuntu's, CI at 380e40c): the log's line is `PHP Parse error:`.
+test('a PHP finding is said once', { skip: has('php') ? false : 'php is not installed here' }, () => {
   const dir = scratch()
   const bad = join(dir, 'bad.php')
   writeFileSync(bad, '<?php function (\n')
@@ -362,6 +363,7 @@ test('a PHP finding is said once', () => {
     assert.equal((text.match(/Parse error:/g) ?? []).length, 1, `once: ${JSON.stringify(text)}`)
     assert.match(text, /bad\.php on line 2/)
     assert.doesNotMatch(text, /\n\s*\n|^\s*\n/, `no blank line: ${JSON.stringify(text)}`)
+    assert.doesNotMatch(text, /PHP Parse error/, `the display, not the log: ${JSON.stringify(text)}`)
   }
 })
 
@@ -417,4 +419,17 @@ test('a comma with no value before it is not a trailing comma', () => {
   for (const [file, text] of [['trailing.json', '{"a":[1,],}\n'], ['spaced.json', '{"a":[1 , ]}\n'], ['string.json', '{"s":"[,]",}\n']]) {
     assert.equal(said(file, text), '', `${file} is valid JSONC`)
   }
+})
+
+// ADR-102 T8, from CI at 380e40c (2026-10-14): Windows' console is cp1252, so printing the source line of an undecodable
+// file raised inside the handler and the agent was handed a traceback. PYTHONIOENCODING stands in for that console here.
+test('a Python finding survives a console that cannot encode its line', () => {
+  const binary = join(scratch(), 'binary.py')
+  writeFileSync(binary, Buffer.from([0x78, 0x3d, 0xff, 0xfe, 0x0a]))
+  const got = spawnSync('bash', [hook, 'Edit', binary], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'cp1252', TMPDIR: scratch() }, timeout: 60_000 })
+  const text = `${got.stdout}${got.stderr}`
+  assert.equal(got.status, 0)
+  assert.ok(text.startsWith(`${binary}:1:`), `named: ${text}`)
+  assert.doesNotMatch(text, /Traceback|UnicodeEncodeError/, `no traceback: ${text}`)
+  assert.ok(text.trim().split('\n').length <= 2, `the error and its line, no more: ${text}`)
 })

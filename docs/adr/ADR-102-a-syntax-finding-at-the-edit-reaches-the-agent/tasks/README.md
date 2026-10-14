@@ -8,15 +8,13 @@ README must be regenerated.
 
 ## Execution Order
 
-| Order | Task | Depends-on |
-|-------|------|------------|
+| Wave | Tasks | Depends-on |
+|------|-------|------------|
 | 1 | T1 | none |
-| 2 | T3 | T1 |
-| 3 | T2 | T1, T3 |
-| 4 | T4 | T3 |
-| 5 | T5 | T1 |
-| 6 | T6 | T3, T4, T5 |
-| 7 | T7 | T6 |
+| 2 | T3, T5 | T1 |
+| 3 | T2, T4 | T1, T3 |
+| 4 | T6, T8 | T3, T4, T5 |
+| 5 | T7 | T6 |
 
 ## Task Index
 
@@ -29,6 +27,7 @@ README must be regenerated.
 | T5 | a PHP finding is said once | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 | T6 | JSONC is read as TypeScript reads it, and a silent checker failure is UNRUN | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
 | T7 | a comma with no value before it is not a trailing comma | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
+| T8 | a finding survives the host's console and php.ini | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (two named tests pass, nothing skipped) |
 
 ## Contract Coupling
 

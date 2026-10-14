@@ -90,3 +90,4 @@ Stop and ask if a §13 step has no command or rule file to carry it after T3.
   ```
 - 2026-10-13 · e6a00957* · exit 0 · `grep -qE '^## 12\. Reviews$' CLAUDE.md && grep -qE '^## 13\. Releasing$' CLAUDE.md \ …` · acceptance-sha256:999afd50004b422cac64c8d04a77797df26358a5128723d4ad89aa2d002def86 · ms:7155
 - 2026-10-13 · e6a00957* · exit 0 · `grep -qE '^## 12\. Reviews$' CLAUDE.md && grep -qE '^## 13\. Releasing$' CLAUDE.md \ …` · acceptance-sha256:999afd50004b422cac64c8d04a77797df26358a5128723d4ad89aa2d002def86 · ms:7324
+- 2026-10-14 · human-observed · S3: the owner signed off in the session of 2026-10-14 after reading the CLAUDE.md §12/§13 diff from 72443c13^ and its mapping: every removed procedure step is carried by release.mjs, host-review.mjs, the codex-review skill or a .claude/rules file

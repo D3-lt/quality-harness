@@ -19,8 +19,8 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | the post-edit check is quiet on a clean file | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes) |
-| T2 | a syntax finding at the edit reaches the agent | pending | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes) |
-| T3 | a finding comes only from the file's own parser | pending | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
+| T2 | a syntax finding at the edit reaches the agent | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes) |
+| T3 | a finding comes only from the file's own parser | done | none — no spec | `node --test tests/post-edit-check.test.mjs` (one named test passes, nothing skipped) |
 
 ## Contract Coupling
 

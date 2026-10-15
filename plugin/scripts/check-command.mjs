@@ -172,7 +172,8 @@ function packageManagerCommand(directory) {
   if (!scripts || typeof scripts !== 'object') return null
   const runner = existsSync(path.join(directory, 'pnpm-lock.yaml')) ? 'pnpm'
     : existsSync(path.join(directory, 'yarn.lock')) ? 'yarn'
-    : existsSync(path.join(directory, 'bun.lockb')) ? 'bun'
+    // bun 1.3.3 writes a text `bun.lock`; `bun.lockb` is the older binary one (measured 2026-10-15).
+    : ['bun.lock', 'bun.lockb'].some(file => existsSync(path.join(directory, file))) ? 'bun'
     : 'npm'
   // A BUILD IS NOT A CHECK. `build` was the last resort here, so any repository
   // with a package.json and no test/check/lint/typecheck script was told its
@@ -182,7 +183,10 @@ function packageManagerCommand(directory) {
   // that passes while the code is broken.
   for (const name of ['test', 'check', 'lint', 'typecheck']) {
     if (typeof scripts[name] === 'string' && scripts[name].trim()) {
-      return runner === 'npm' ? `npm run ${name}` : `${runner} ${name}`
+      // Always `run`: a bare name can be the runner's own command. `yarn check` (1.22.22) ran
+      // yarn's folder check and never the script; `bun test` (1.3.3) ran bun's test runner
+      // (measured 2026-10-15, tests/package-runner-check.test.mjs).
+      return `${runner} run ${name}`
     }
   }
   return null

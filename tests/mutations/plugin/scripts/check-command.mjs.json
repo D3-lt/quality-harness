@@ -188,6 +188,26 @@
       "from": "it runs ${checkInCode(command)} (this project's own check)",
       "to": "it runs \\`${command}\\` (this project's own check)",
       "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "checks: an inferred package check runs the script through run",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/package-runner-check.test.mjs"
+      ],
+      "from": "      return `${runner} run ${name}`",
+      "to": "      return runner === 'npm' ? `npm run ${name}` : `${runner} ${name}`",
+      "only": "^(?:the inferred package check runs the script through `run`, for every package manager)$"
+    },
+    {
+      "label": "checks: bun's text lockfile names bun",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/package-runner-check.test.mjs"
+      ],
+      "from": "    : ['bun.lock', 'bun.lockb'].some(file => existsSync(path.join(directory, file))) ? 'bun'",
+      "to": "    : ['bun.lockb'].some(file => existsSync(path.join(directory, file))) ? 'bun'",
+      "only": "^(?:the inferred package check runs the script through `run`, for every package manager)$"
     }
   ]
 }

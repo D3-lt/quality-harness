@@ -89,7 +89,10 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // An unreadable tree is said at the event too; a refusal is only ever code 1.
   if (verdict?.unobserved) return { code: 0, message: verdict.text }
   // A commit let through on a fast check is told so at the event, and so is a verdict that could
-  // not be read whole (ADR-088): advice, exit 0, never a silent pass. Other advice stays the hook's.
+  // not be read whole (ADR-088): advice, exit 0, never a silent pass. So is one `"publish": "warn"`
+  // turned from a refusal into a warning: the opt-out is a warning, never silence (BACKLOG §381).
+  // Other advice stays the hook's.
+  if (!verdict?.deny && verdict?.warned) return { code: 0, message: `${verdict.text}\n(warned, not refused, by git's ${event} hook: "publish": "warn" in .quality-harness.json — ADR-061)` }
   if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }
   return { code: 1, message: `${verdict.text}\n(refused by git's ${event} hook — ADR-066)` }
 }

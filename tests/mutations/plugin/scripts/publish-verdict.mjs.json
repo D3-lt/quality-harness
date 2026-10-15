@@ -134,8 +134,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "from": "  const deny = refusable && !setting.warn",
+      "to": "  const deny = refusable",
       "only": "^(?:a project can turn the publish refusal back into a warning, and only on purpose)$"
     },
     {
@@ -164,8 +164,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
-      "to": "  const deny = !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log)",
+      "to": "  const refusable = !logIncomplete(log)",
       "only": "^(?:a passing check on the tree is not refused because the index differs from it|an unchecked index warning does not invent a passing check|an index that could not be checked says unknown even when the tree passed)$"
     },
     {
@@ -234,8 +234,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "to": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
       "only": "^(?:the publish warning advises, never blocks, while this repository is unchecked)$"
     },
     {
@@ -494,8 +494,8 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "to": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
       "only": "^rule P: no combination of facts breaks a property a refusal must have$"
     },
     {
@@ -504,8 +504,8 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "to": "  const refusable = treeUnchecked && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
       "only": "^rule P: no combination of facts breaks a property a refusal must have$"
     },
     {
@@ -514,8 +514,8 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "to": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven' && invoked !== null",
       "only": "^rule P: no combination of facts breaks a property a refusal must have$"
     },
     {
@@ -524,8 +524,8 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "to": "  const refusable = treeUnchecked && !logIncomplete(log) && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
       "only": "^rule P: no combination of facts breaks a property a refusal must have$"
     },
     {
@@ -534,8 +534,8 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "from": "  const deny = refusable && !setting.warn",
+      "to": "  const deny = refusable",
       "only": "^rule P: no combination of facts breaks a property a refusal must have$"
     },
     {
@@ -544,9 +544,29 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && !setting.warn && invoked !== null",
+      "from": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "to": "  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && invoked !== null",
       "only": "^rule P: no combination of facts breaks a property a refusal must have$"
+    },
+    {
+      "label": "publish-hook: the warned verdict is the one the opt-out turned",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "    warned: refusable && setting.warn,",
+      "to": "    warned: false,",
+      "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
+    },
+    {
+      "label": "publish-hook: a checked commit under publish warn is not warned about",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "    warned: refusable && setting.warn,",
+      "to": "    warned: setting.warn,",
+      "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
     }
   ]
 }

@@ -119,6 +119,16 @@
       "from": "verdict?.fast || verdict?.unknown ?",
       "to": "verdict?.fast ?",
       "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
+    },
+    {
+      "label": "publish-hook: under publish warn git's hook warns at the event",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  if (!verdict?.deny && verdict?.warned) return",
+      "to": "  if (false) return",
+      "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
     }
   ]
 }

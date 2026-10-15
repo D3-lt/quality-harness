@@ -270,7 +270,9 @@ export function publishJudgement(facts, { invoked, commitOnly = false }) {
   const setting = facts.setting()
   // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
   // evidence than advice). A command that merely mentions the words is warned.
-  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null
+  // What would be refused but for the opt-out: git's hook warns of it at the event (BACKLOG §381).
+  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null
+  const deny = refusable && !setting.warn
   // ADR-081: a command proven to be one commit, on a tree whose latest declared fast
   // check passed, is told rather than refused. Its key carries the fast records, so a
   // commit refused before the fast pass is told after it. Anything that pushes, and
@@ -296,6 +298,8 @@ export function publishJudgement(facts, { invoked, commitOnly = false }) {
     // A record that could not be read whole is could-not-look, which git's hook says at the event
     // rather than passing in silence (ADR-088; a Codex review of its diff).
     unknown: !deny && logIncomplete(log),
+    // `"publish": "warn"` turned a refusal into this warning; git's hook says it, never nothing.
+    warned: refusable && setting.warn,
     // On a torn log this still warns — it must — but says UNKNOWN, not "no check
     // has": a check may have succeeded and its record be what was lost (ADR-005).
     // An order that cannot be established is the same kind of could-not-look.

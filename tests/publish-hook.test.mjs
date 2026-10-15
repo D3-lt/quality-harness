@@ -402,3 +402,32 @@ test("a torn log tail does not swallow the hook's own record", { skip: needsConf
   assert.equal(read.complete, false, 'the torn line is still reported as torn')
   assert.ok(read.map(entry => entry.event).includes('publish.hook-ran'), JSON.stringify(read))
 })
+
+// BACKLOG §381, item 3 (from §378): under `"publish": "warn"` git's hook returned `{ code: 0 }` with
+// no message, so a commit a script ran on an unchecked tree was not even warned about: PreToolUse
+// saw only the script's name. The opt-out turns a refusal into a warning, never into silence.
+test('under "publish": "warn" the git hook warns at the event and lets the commit through', { skip: needsConfigHooks }, () => {
+  const dir = repository('warned-')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', publish: 'warn' }))
+  git(dir, 'commit', '-qam', 'warn')
+  const session = `hook-warned-${process.pid}`
+  startSession(dir, session)
+  writeFileSync(path.join(dir, 'a.md'), 'changed\n')
+  const run = shell(dir, `printf 'git commit -qam changed\\n' > inner.sh && sh inner.sh; s=$?; rm -f inner.sh; exit $s\n`, session)
+  assert.equal(run.status, 0, `warn mode does not refuse: ${run.stderr}`)
+  assert.match(run.stderr, /unchecked/, `the commit is warned about at the event: ${run.stderr}`)
+  assert.match(run.stderr, /"publish": "warn"/, `and says why it was let through: ${run.stderr}`)
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '3', 'the commit reached the branch')
+  // CLEAN twins. A checked tree with only part of it staged: the verdict is advice about the index,
+  // never refusable, so git's hook stays quiet as it does without the opt-out.
+  writeFileSync(path.join(dir, 'a.md'), 'checked\n')
+  writeFileSync(path.join(dir, 'b.md'), 'unstaged\n')
+  const partial = shell(dir, `python3 ${quoted(qhCheck)} >/dev/null && git add a.md && git commit -qm partial\n`, session)
+  assert.equal(partial.status, 0, partial.stderr)
+  assert.doesNotMatch(partial.stderr, /warned, not refused/, `only what would be refused is warned about: ${partial.stderr}`)
+  // And a checked tree commits in silence.
+  writeFileSync(path.join(dir, 'a.md'), 'checked again\n')
+  const checked = shell(dir, `python3 ${quoted(qhCheck)} >/dev/null && git commit -qam checked\n`, session)
+  assert.equal(checked.status, 0, checked.stderr)
+  assert.doesNotMatch(checked.stderr, /quality-harness: |by git's/, `a checked commit is not warned about: ${checked.stderr}`)
+})

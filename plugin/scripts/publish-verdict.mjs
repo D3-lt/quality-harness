@@ -367,7 +367,9 @@ export function publishUnchecked(input, requested, env = process.env) {
     if (here !== null && there !== here) {
       verdict = {
         ...verdict, deny: false, key: `${verdict.key}:foreign`,
-        text: 'quality-harness: this commit lands in a repository other than this checkout — git keeps it in a different git directory — so this checkout\'s state does not refuse it (ADR-104). If the commit was meant for this checkout, run `qh-check` first.',
+        // It still says what the command names: ADR-060 T4's locked test asserts that a commit
+        // into another repository is warned of as naming commit or push, and it is one.
+        text: `quality-harness: the command about to run names commit or push (\`${publishCommandIn(input.tool_input?.command)}\`), and it lands in a repository other than this checkout — git keeps it in a different git directory — so this checkout's state does not refuse it (ADR-104). If the commit was meant for this checkout, run \`qh-check\` first.`,
       }
     }
   }

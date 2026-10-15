@@ -171,7 +171,7 @@ test('what runs beside the commit, or redirects it, keeps the refusal', () => {
   // An inherited redirect moves the commit whatever the text says (ADR-086's rule).
   assert.equal(foreignCommitPath(`git -C ${F} commit -m x`, { GIT_DIR: '/x' }, 'linux'), null)
   // CLEAN twin: the same reader proves the plain row.
-  assert.equal(foreignCommitPath(`git -C ${F} commit -m x`, {}, 'linux'), F)
+  assert.equal(foreignCommitPath(`git -C ${F} commit -m x`, {}, process.platform), F)
 })
 
 test('a probe that fails proves nothing, and the probe is bounded and hidden', () => {
@@ -209,5 +209,5 @@ test('arithmetic, a here-string and a command before the commit keep the refusal
     assert.doesNotMatch(said.text, ADVICE, command)
   }
   // CLEAN twin: a real quoted here-document is still a message.
-  assert.equal(foreignCommitPath(`git -C ${F} commit -F - <<'EOF'\nm\nEOF`, {}, 'linux'), F)
+  assert.equal(foreignCommitPath(`git -C ${F} commit -F - <<'EOF'\nm\nEOF`, {}, process.platform), F)
 })

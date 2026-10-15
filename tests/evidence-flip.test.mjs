@@ -395,7 +395,8 @@ test('at every hook boundary a torn log is never quieter than a whole one, howev
     const said = (boundary, tear) => {
       const label = `s${count++}`
       const dir = join(top, label)
-      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SESSION_END_RUNNER: 'inline' }
+      // A Windows runner's git can outlast the product's 5 s budget (CLAUDE.md §7): the test sets it.
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SESSION_END_RUNNER: 'inline', QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' }
       const run = (command, args, options = {}) => {
         const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
         assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)

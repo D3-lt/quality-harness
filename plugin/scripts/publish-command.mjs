@@ -141,17 +141,25 @@ export function foreignCommitPath(command, env = process.env, platform = process
   if (ARITHMETIC.test(withoutData(maskedMessages(command)))) return null
   const { commands, complete } = shellWords(command.replace(/\n$/, ''))
   if (!complete || commands.length === 0) return null
-  const [commit, ...after] = commands
+  // ADR-104 T3: `cd L && git commit` is read as `git -C L commit`. Only `&&`: after `;`, `||` or a
+  // newline a `cd` that fails leaves the commit in this checkout. One argument and no option; the path
+  // rule below refuses `$`, globs and `~`, and a `-C` after it leaves `commit` out of place.
+  const moved = commands[0].argv[0] === 'cd'
+  if (moved && (commands[0].argv.length !== 2 || commands[0].ended !== '&&')) return null
+  const [commit, ...after] = commands.slice(moved ? 1 : 0)
+  if (!commit) return null
   // A quoted here-document is a message (`-F -`), and it is the only redirection allowed.
   // A here-string (`<<<`) is one too in shellWords, with no delimiter: not admitted.
   const plain = step => !step.assignments.length && !step.substitutions.length && step.pipeTo === null
     && !step.code.some(Boolean) && step.heredocs.every(document => document.quoted && document.delimiter !== null)
     && step.redirects === step.heredocs.length
     && DATA_JOINS.has(step.ended)
-  if (!plain(commit) || commit.dynamic.length || commit.argv[0] !== 'git' || commit.argv[1] !== '-C') return null
-  const target = commit.argv[2] ?? ''
+  // The `cd` step is plain too: an unquoted here-document on it runs its `$(…)`.
+  if (moved && !plain(commands[0])) return null
+  if (!plain(commit) || commit.dynamic.length || commit.argv[0] !== 'git' || (!moved && commit.argv[1] !== '-C')) return null
+  const target = moved ? commands[0].argv[1] : commit.argv[2] ?? ''
   if (!absoluteOn(platform, target) || /[$`~*?[\]{}]/.test(target) || target.split(/[\\/]/).includes('..')) return null
-  let at = 3
+  let at = moved ? 1 : 3
   while (commit.argv[at] === '-c' && USER_IDENTITY.test(commit.argv[at + 1] ?? '')) at += 2
   if (commit.argv[at] !== 'commit' || !plainGitArguments('commit', commit.argv.slice(at + 1))) return null
   const data = step => plain(step) && !step.heredocs.length && (step.argv[0] === 'echo' || step.argv[0] === 'true') && !step.dynamic.includes(0)

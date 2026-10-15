@@ -1492,6 +1492,36 @@
       "from": "again.complete && stands(again.commands)) out = next",
       "to": "again.complete) out = next",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104 T3: only && joins cd to the commit",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "commands[0].ended !== '&&')) return null",
+      "to": "false)) return null",
+      "only": "^(?:a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal)$"
+    },
+    {
+      "label": "ADR-104 T3: cd takes exactly one path",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "if (moved && (commands[0].argv.length !== 2 ||",
+      "to": "if (moved && (false ||",
+      "only": "^(?:a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal)$"
+    },
+    {
+      "label": "ADR-104 T3: the cd step is plain",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "  if (moved && !plain(commands[0])) return null",
+      "to": "  if (false) return null",
+      "only": "^(?:a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal)$"
     }
   ]
 }

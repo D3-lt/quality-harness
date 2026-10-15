@@ -252,3 +252,40 @@ test('literal data is not arithmetic, and an expansion of it still is', () => {
     assert.equal(unarmed.tell(command).decision, 'deny', command)
   }
 })
+
+// ADR-104 T3 (alternative (d), the owner, 2026-10-15): `cd L && git commit` is read as `git -C L commit`. Only `&&` joins
+// them: after `;`, `||` or a newline a `cd` that fails leaves the commit in this checkout.
+test('a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal', () => {
+  const F = slashed(foreign)
+  for (const command of [`cd ${F} && git commit -m x`, `cd ${F} && git -c user.name=q -c user.email=q@x commit -qm x; echo "commit exit $?"`]) {
+    assert.equal(foreignCommitPath(command, {}, process.platform), F, command)
+    const said = session().tell(command)
+    assert.notEqual(said.decision, 'deny', `${command}\n${said.text}`)
+    assert.match(said.text, ADVICE, command)
+  }
+  // DIRTY twins (CLAUDE.md §16): each keeps the refusal.
+  const unarmed = session()
+  const here = slashed(unarmed.dir)
+  mkdirSync(join(unarmed.dir, 'sub'), { recursive: true })
+  for (const command of [
+    `cd ${F}; git commit -m x`,
+    `cd ${F} || git commit -m x`,
+    `cd ${F}\ngit commit -m x`,
+    'cd foreign && git commit -m x',
+    'cd ~/x && git commit -m x',
+    'cd "$X" && git commit -m x',
+    `cd -P ${F} && git commit -m x`,
+    // zsh reads `cd A B` as "replace A with B in $PWD": the text does not say where that lands.
+    `cd ${F} ${here} && git commit -m x`,
+    `cd ${F} && cd ${here} && git commit -m x`,
+    `cd ${F} && git -C ${here} commit -m x`,
+    `cd ${F} && git commit -m x && git push`,
+    `cd ${here} && git commit -m x`,
+    `cd ${here}/sub && git commit -m x`,
+    `cd ${F} <<EOF && git commit -m x\n$(git -C ${here} push)\nEOF\n`,
+  ]) {
+    const said = unarmed.tell(command)
+    assert.equal(said.decision, 'deny', command)
+    assert.doesNotMatch(said.text, ADVICE, command)
+  }
+})

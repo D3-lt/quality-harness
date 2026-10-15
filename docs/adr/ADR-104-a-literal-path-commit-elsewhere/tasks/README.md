@@ -13,6 +13,7 @@ README must be regenerated.
 |-------|------|------------|
 | 1 | T1 | none |
 | 2 | T2 | none |
+| 3 | T3 | T1 |
 
 ## Task Index
 
@@ -20,6 +21,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | a literal-path commit into another repository is advised | done | none — no spec | `node --test tests/foreign-commit.test.mjs` (named tests pass, nothing skipped) |
 | T2 | one commit with a user identity is one commit | done | none — no spec | `node --test tests/commit-identity.test.mjs` (named test passes, nothing skipped) |
+| T3 | a literal `cd` into another repository, then one commit, is advised | done | none — no spec | `node --test tests/foreign-commit.test.mjs` (named test passes, nothing skipped) |
 
 ## Contract Coupling
 

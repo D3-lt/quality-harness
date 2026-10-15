@@ -3,7 +3,7 @@
 // beside the check ledger. Driven through node --test itself, over fixture files this test writes.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
@@ -50,13 +50,48 @@ test('the reporter writes one row naming each file, the time its tests took, its
   assert.match(row.at, /^\d{4}-\d\d-\d\dT/)
   const file = name => row.files.find(entry => entry.file === name)
   // CLEAN: the passing file counts its top-level tests only, and its time is theirs: a subtest is inside its parent's.
-  assert.deepEqual({ tests: file('slow.test.mjs').tests, failed: file('slow.test.mjs').failed }, { tests: 2, failed: 0 })
+  assert.deepEqual({ tests: file('slow.test.mjs').tests, failed: file('slow.test.mjs').failed }, { tests: 2, failed: 0 }, JSON.stringify(row.files))
   assert.ok(file('slow.test.mjs').ms >= 390 && file('slow.test.mjs').ms < 2_000, `summed top-level time: ${file('slow.test.mjs').ms}`)
   assert.equal(row.files.length, 3, 'each file once, whatever path form node gives it')
   // DIRTY: a failing assertion and a file that does not load are both failures of their file.
   assert.equal(file('red.test.mjs').failed, 1)
   assert.equal(file('broken.test.mjs').failed, 1)
   assert.equal(file('broken.test.mjs').tests, 0, 'a file that did not load ran no test')
+})
+
+// Windows CI, 2026-10-15: node named one file in two forms, the root as given and as the filesystem names it, and the row read
+// `tests: 0` for a file whose two tests passed. Driven through the reporter with events in both forms, in both orders.
+test('a file node names in two path forms is one row, holding all its tests', async () => {
+  const { default: fileTiming } = await import(reporter)
+  const parent = mkdtempSync(path.join(os.tmpdir(), 'qh-file-timing-forms-'))
+  const saved = process.env.QH_SELFTEST_ROOT
+  try {
+    const real = path.join(parent, 'real')
+    mkdirSync(real)
+    const link = path.join(parent, 'link')
+    try { symlinkSync(real, link, 'dir') } catch { return }
+    const linkFile = path.join(link, 'slow.test.mjs')
+    const realFile = path.join(realpathSync.native(real), 'slow.test.mjs')
+    const own = (type, file) => ({ type, data: { file, nesting: 0, name: file } })
+    const one = (type, name, ms) => ({ type, data: { file: realFile, nesting: 0, name, details: { duration_ms: ms } } })
+    const rowOf = async events => {
+      process.env.QH_SELFTEST_ROOT = link
+      let out = ''
+      for await (const chunk of fileTiming((async function* () { yield* events })())) out += chunk
+      return JSON.parse(out).files
+    }
+    const tests = [one('test:pass', 'one', 300), one('test:pass', 'two', 100)]
+    // CLEAN: the file's own event first, in the given form; its tests in the real form.
+    assert.deepEqual(await rowOf([own('test:enqueue', linkFile), ...tests, own('test:pass', linkFile)]),
+      [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 0 }])
+    // DIRTY twin: its tests come first, and the file's own event that ends it fails (a file that did not finish loading).
+    assert.deepEqual(await rowOf([...tests, own('test:fail', linkFile)]),
+      [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 1 }])
+  } finally {
+    if (saved === undefined) delete process.env.QH_SELFTEST_ROOT
+    else process.env.QH_SELFTEST_ROOT = saved
+    rmSync(parent, { recursive: true, force: true })
+  }
 })
 
 test('the gate keeps its per-file times beside the check ledger, and says where', () => {

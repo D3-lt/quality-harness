@@ -5,14 +5,14 @@
       "file": "scripts/file-timing-reporter.mjs",
       "tests": ["tests/file-timing.test.mjs"],
       "from": "    if (event.type === 'test:fail') entry.failed += 1",
-      "to": "    if (event.type === 'test:fail' && name !== entry.entryName) entry.failed += 1",
+      "to": "    if (event.type === 'test:fail' && !(typeof name === 'string' && nameOf(path.resolve(name)) === key)) entry.failed += 1",
       "only": "^(?:the reporter writes one row naming each file, the time its tests took, its tests and its failures)$"
     },
     {
       "label": "file-timing: a file's own entry is not counted as one of its tests",
       "file": "scripts/file-timing-reporter.mjs",
       "tests": ["tests/file-timing.test.mjs"],
-      "from": "    if (name === entry.entryName) continue\n",
+      "from": "    if (typeof name === 'string' && nameOf(path.resolve(name)) === key) continue\n",
       "to": "",
       "only": "^(?:the reporter writes one row naming each file, the time its tests took, its tests and its failures)$"
     },
@@ -31,6 +31,14 @@
       "from": "  const roots = [...new Set([realRoot(given), given])]",
       "to": "  const roots = [given]",
       "only": "^(?:the reporter writes one row naming each file, the time its tests took, its tests and its failures)$"
+    },
+    {
+      "label": "file-timing: a file node names in two path forms is one row",
+      "file": "scripts/file-timing-reporter.mjs",
+      "tests": ["tests/file-timing.test.mjs"],
+      "from": "    const key = nameOf(path.resolve(file))",
+      "to": "    const key = path.resolve(file)",
+      "only": "^(?:a file node names in two path forms is one row, holding all its tests)$"
     }
   ]
 }

@@ -8,8 +8,8 @@
 // ⚠ NO WALL TIME. Measured 2026-10-14 on node 24: a reporter receives each file's events in one batch, file after file, not as
 // they happen, so the time an event arrives says nothing about when it ran (three files read 502 ms each, one of them 1 ms of
 // work). The time a file's top-level tests report is real; the process around them is not counted. A file that does not load is
-// one failing event at nesting 0, named for the file, with no tests under it, and its file is named once whether node gives the
-// path absolute or relative.
+// one failing event at nesting 0, named for the file, with no tests under it. A file is one row whatever path forms node gives it:
+// on Windows CI it named one file both as the root was given and as the filesystem names it, in one run (2026-10-15).
 import { realpathSync } from 'node:fs'
 import path from 'node:path'
 
@@ -32,21 +32,18 @@ export default async function* fileTiming(source) {
   for await (const event of source) {
     const { file, nesting, name, details } = event.data ?? {}
     if (!file) continue
-    const key = path.resolve(file)
+    const key = nameOf(path.resolve(file))
     let entry = files.get(key)
-    if (!entry) {
-      // A file's first event is its own entry, named for the file: remember the name, so a load failure is told from a test.
-      entry = { entryName: name, ms: 0, tests: 0, failed: 0 }
-      files.set(key, entry)
-    }
+    if (!entry) files.set(key, entry = { ms: 0, tests: 0, failed: 0 })
     if (nesting !== 0 || (event.type !== 'test:pass' && event.type !== 'test:fail')) continue
     if (event.type === 'test:fail') entry.failed += 1
-    if (name === entry.entryName) continue
+    // The file's own entry is named for the file, in whichever form: it fails when the file does not load, and is not a test.
+    if (typeof name === 'string' && nameOf(path.resolve(name)) === key) continue
     entry.tests += 1
     entry.ms += details?.duration_ms ?? 0
   }
   const rows = [...files].map(([file, entry]) => ({
-    file: nameOf(file),
+    file,
     ms: Math.round(entry.ms),
     tests: entry.tests,
     failed: entry.failed,

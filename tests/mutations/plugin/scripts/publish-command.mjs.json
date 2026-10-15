@@ -25,7 +25,25 @@
         "tests/foreign-commit.test.mjs"
       ],
       "from": "  const [commit, ...after] = commands",
-      "to": "  const [commit, ...after] = [commands.at(-1), ...commands.slice(0, -1)]"
+      "to": "  const [commit, ...after] = commands.slice(Math.max(0, commands.findIndex(step => step.argv[0] === 'git')))"
+    },
+    {
+      "label": "publish foreign: arithmetic keeps the refusal (ADR-104 T1, Codex review of 99a574c1)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "  if (ARITHMETIC.test(maskedMessages(command))) return null",
+      "to": "  if (false) return null"
+    },
+    {
+      "label": "publish foreign: a here-string is not a here-document (ADR-104 T1, Codex review of 99a574c1)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "document.quoted && document.delimiter !== null)",
+      "to": "document.quoted)"
     },
     {
       "label": "publish armed: a $ or a backtick keeps the refusal",

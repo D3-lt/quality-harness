@@ -191,3 +191,23 @@ test('a probe that fails proves nothing, and the probe is bounded and hidden', (
 test('tests/foreign-commit.test.mjs is in the declared fast check', () => {
   assert.match(JSON.parse(readFileSync(join(repoRoot, '.quality-harness.json'), 'utf8')).fastCheck, /tests\/foreign-commit\.test\.mjs/)
 })
+
+// Codex review of 99a574c1: each row was accepted by the reader there and advised as foreign,
+// while bash ran the hidden call. A new test, so T1's locked tests stay as they were.
+test('arithmetic, a here-string and a command before the commit keep the refusal', () => {
+  const unarmed = session()
+  const F = slashed(foreign)
+  const rows = [
+    `((a['$(git -C ${slashed(unarmed.dir)} push)']=0)); git -C ${F} commit -m x`,
+    `git -C ${F} commit -m x; echo $((a['$(git -C ${slashed(unarmed.dir)} push)']))`,
+    `git -C ${F} commit -F - <<< 'message'`,
+    `echo before; git -C ${F} commit -m x`,
+  ]
+  for (const command of rows) {
+    const said = unarmed.tell(command)
+    assert.equal(said.decision, 'deny', command)
+    assert.doesNotMatch(said.text, ADVICE, command)
+  }
+  // CLEAN twin: a real quoted here-document is still a message.
+  assert.equal(foreignCommitPath(`git -C ${F} commit -F - <<'EOF'\nm\nEOF`, {}, 'linux'), F)
+})

@@ -135,12 +135,18 @@ const DATA_JOINS = new Set(['', ';', '&&', '\n'])
 export function foreignCommitPath(command, env = process.env, platform = process.platform) {
   if (typeof command !== 'string') return null
   if (Object.keys(env ?? {}).some(name => INHERITED_REDIRECTS.test(name))) return null
+  // Arithmetic runs what its index holds, and shellWords reads no command in it:
+  // `((a['$(git push)']=0))` before the commit or `echo $((…))` after it pushes here
+  // (Codex review of 99a574c1, P1). A quoted message is masked first, as ADR-086 does.
+  if (ARITHMETIC.test(maskedMessages(command))) return null
   const { commands, complete } = shellWords(command.replace(/\n$/, ''))
   if (!complete || commands.length === 0) return null
   const [commit, ...after] = commands
   // A quoted here-document is a message (`-F -`), and it is the only redirection allowed.
+  // A here-string (`<<<`) is one too in shellWords, with no delimiter: not admitted.
   const plain = step => !step.assignments.length && !step.substitutions.length && step.pipeTo === null
-    && !step.code.some(Boolean) && step.heredocs.every(document => document.quoted) && step.redirects === step.heredocs.length
+    && !step.code.some(Boolean) && step.heredocs.every(document => document.quoted && document.delimiter !== null)
+    && step.redirects === step.heredocs.length
     && DATA_JOINS.has(step.ended)
   if (!plain(commit) || commit.dynamic.length || commit.argv[0] !== 'git' || commit.argv[1] !== '-C') return null
   const target = commit.argv[2] ?? ''

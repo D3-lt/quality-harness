@@ -9,7 +9,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { makespan, summarize } from '../scripts/check-timing.mjs'
+import { makespan, replay, summarize } from '../scripts/check-timing.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const script = path.join(repoRoot, 'scripts', 'check-timing.mjs')
@@ -115,5 +115,50 @@ test('a ledger is summarised per command: runs, passes, pass times, contention a
     assert.equal(out.status, 0, out.stderr)
     assert.match(out.stdout, /^checks\.jsonl: 4 runs, 3 passed; pass median 240\.0 s/m)
     assert.match(out.stdout, /^fast-checks\.jsonl: no checks recorded$/m)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// Stage 3's replay: three runs over two trees, the second red in a file that names the changed path.
+const replayRuns = failedA => {
+  const t1 = '2026-10-15T01:00:00.000Z'
+  const t2 = '2026-10-15T02:00:00.000Z'
+  const t3 = '2026-10-15T03:00:00.000Z'
+  const times = [
+    { at: t1, files: [{ file: 'a', ms: 100, tests: 1, failed: 0 }, { file: 'b', ms: 100, tests: 1, failed: 0 }, { file: 'c', ms: 800, tests: 1, failed: 0 }] },
+    { at: t2, files: [{ file: 'a', ms: 100, tests: 1, failed: failedA }, { file: 'b', ms: 100, tests: 1, failed: 0 }, { file: 'c', ms: 700, tests: 1, failed: 0 }, { file: 'new', ms: 100, tests: 1, failed: 0 }] },
+    { at: t3, files: [{ file: 'a', ms: 100, tests: 1, failed: 0 }, { file: 'b', ms: 100, tests: 1, failed: 0 }, { file: 'c', ms: 800, tests: 1, failed: 0 }] },
+  ]
+  return { times, checks: [check(t1, 5, 'A', 0), check(t2, 5, 'B', failedA ? 1 : 0), check(t3, 5, 'B', 0)] }
+}
+const changedBetween = (a, b) => (a === 'A' && b === 'B' ? ['src/a.js'] : [])
+
+test('the replay selects what changed, names a change, failed before or is new, and catches a red run inside the ceiling', () => {
+  const { times, checks } = replayRuns(1)
+  const met = replay({ times, checks, changedBetween, mentions: (file, paths) => file === 'a' && paths.includes('src/a.js'), need: 3 })
+  assert.equal(met.trees.length, 1, 'the run on the same tree again is not a change')
+  assert.equal(met.trees[0].selected, 2, 'a, which names the change, and new, which the run before does not name')
+  assert.equal(met.trees[0].share, 0.2)
+  assert.deepEqual([met.red, met.caught, met.verdict], [1, 1, 'MEETS'])
+  // DIRTY twins: a red file nothing selects is missed; too few runs and no red run are UNPROVEN, never a pass.
+  assert.equal(replay({ times, checks, changedBetween, mentions: () => false, need: 3 }).verdict, 'FAILS')
+  assert.equal(replay({ times, checks, changedBetween, mentions: () => true, need: 3, ceiling: 0.1 }).verdict, 'FAILS', 'over the ceiling')
+  assert.match(replay({ times, checks, changedBetween, mentions: () => true, need: 30 }).verdict, /^UNPROVEN: 3 runs with per-file times, 30 needed/)
+  const green = replayRuns(0)
+  assert.equal(replay({ ...green, changedBetween, mentions: () => true, need: 3 }).verdict, 'UNPROVEN: no red run to replay')
+  // A file that failed in the run before is selected, whatever changed: run 2 was red in a, run 4 changes nothing a names.
+  const after = replay({ times: [times[0], times[1], { at: '2026-10-15T04:00:00.000Z', files: times[2].files }], checks: [checks[0], checks[1], check('2026-10-15T04:00:00.000Z', 5, 'C', 0)], changedBetween, mentions: () => false, need: 3 })
+  assert.deepEqual([after.trees.length, after.trees[1].selected], [2, 1])
+  const unread = replay({ times, checks, changedBetween: () => null, mentions: () => true, need: 3 })
+  assert.deepEqual([unread.trees.length, unread.unread], [0, 1], 'a change that could not be read is counted, not replayed')
+})
+
+test('check-timing --replay reads the ledgers and says when a change could not be read', () => {
+  const { times, checks } = replayRuns(1)
+  const dir = ledger(times, checks)
+  try {
+    const run = read(dir, '--replay', '--need', '3')
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stdout, /replay: 3 runs, 0 changed trees, 1 whose change could not be read; red 0 of 0 caught; median none .* — UNPROVEN: no red run to replay/)
+    assert.equal(read(dir, '--replay', '--need', '0').status, 2, 'a need that is not a positive count is a usage error')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

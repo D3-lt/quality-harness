@@ -1,6 +1,70 @@
 {
   "mutations": [
     {
+      "label": "check-timing replay: a file whose text names a changed path is selected",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "        const selected = new Set(files.filter(entry => changed.includes(entry.file) || mentions(entry.file, changed)",
+      "to": "        const selected = new Set(files.filter(entry => changed.includes(entry.file)"
+    },
+    {
+      "label": "check-timing replay: a file the run before does not name is selected",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "          || !before.has(entry.file) || before.get(entry.file).failed > 0).map(entry => entry.file))",
+      "to": "          || before.get(entry.file)?.failed > 0).map(entry => entry.file))"
+    },
+    {
+      "label": "check-timing replay: a file that failed in the run before is selected",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "          || !before.has(entry.file) || before.get(entry.file).failed > 0).map(entry => entry.file))",
+      "to": "          || !before.has(entry.file)).map(entry => entry.file))"
+    },
+    {
+      "label": "check-timing replay: the same tree again is not a change",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "    if (!tree || tree === previous?.tree) { if (tree) previous = { tree, files }; continue }",
+      "to": "    if (!tree) continue"
+    },
+    {
+      "label": "check-timing replay: too few runs is UNPROVEN",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "  const verdict = times.length < need ?",
+      "to": "  const verdict = false ?"
+    },
+    {
+      "label": "check-timing replay: no red run is UNPROVEN",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "    : red.length === 0 ? 'UNPROVEN: no red run to replay'",
+      "to": "    : false ? 'UNPROVEN: no red run to replay'"
+    },
+    {
+      "label": "check-timing replay: a share over the ceiling fails",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^the replay selects",
+      "from": "      : caught === red.length && median <= ceiling ? 'MEETS' : 'FAILS'",
+      "to": "      : caught === red.length ? 'MEETS' : 'FAILS'"
+    },
+    {
+      "label": "check-timing replay: --replay is wired",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "only": "^check-timing --replay",
+      "from": "  } else if (argv.includes('--replay')) {",
+      "to": "  } else if (false) {"
+    },
+    {
       "label": "check-timing: each file goes to the worker that is free first",
       "file": "scripts/check-timing.mjs",
       "tests": ["tests/check-timing.test.mjs"],

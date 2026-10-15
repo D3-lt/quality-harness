@@ -12,10 +12,11 @@
 //
 // Repository-owned and read-only. It exits 0 whatever it finds; 2 on a usage error.
 //
-// Usage: node scripts/check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--json]
+// Usage: node scripts/check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--replay [--need N]] [--json]
 // --summary reads only qh-check's own ledgers (checks.jsonl, fast-checks.jsonl), so it answers in any repository qh-check runs in.
+// --replay is stage 3's offline question: would a selection have gone red on every red run, and what would it have cost?
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
@@ -108,6 +109,56 @@ export function summarize(checks) {
   })
 }
 
+/**
+ * Stage 3's replay (BACKLOG §378): for each run of per-file times whose tree differs from the run before it, the files a
+ * selection would have run — a file that changed, a file whose text names a changed path, a file that failed in the run before,
+ * and a file the run before does not name — and their share of the run's summed test time. A run whose files failed is caught
+ * when every failed file was selected. `changedBetween(a, b)` gives the paths that differ between two trees, or null when it
+ * could not look; `mentions(file, paths)` says whether a file names one. It reads a file's text as it is now, not as it was.
+ *
+ * The verdict is MEETS only with `need` runs or more, at least one red run, every red run caught and a median share at or under
+ * `ceiling`; too few runs, or none red, is UNPROVEN, never a pass (ADR-005).
+ */
+export function replay({ times, checks, changedBetween, mentions, need = 30, ceiling = 0.4 }) {
+  const trees = []
+  let previous = null
+  let unread = 0
+  for (const row of times) {
+    const files = Array.isArray(row.files) ? row.files : []
+    const tree = windowHolding(checks, row.at)?.before?.tree ?? null
+    if (!tree || tree === previous?.tree) { if (tree) previous = { tree, files }; continue }
+    if (previous) {
+      const changed = changedBetween(previous.tree, tree)
+      if (!changed) { unread += 1 } else {
+        const before = new Map(previous.files.map(entry => [entry.file, entry]))
+        const selected = new Set(files.filter(entry => changed.includes(entry.file) || mentions(entry.file, changed)
+          || !before.has(entry.file) || before.get(entry.file).failed > 0).map(entry => entry.file))
+        const total = files.reduce((sum, entry) => sum + (entry.ms ?? 0), 0)
+        const kept = files.filter(entry => selected.has(entry.file)).reduce((sum, entry) => sum + (entry.ms ?? 0), 0)
+        const failed = files.filter(entry => entry.failed > 0).map(entry => entry.file)
+        trees.push({ at: row.at, changed: changed.length, selected: selected.size, files: files.length,
+          share: total > 0 ? kept / total : 0, failed, caught: failed.every(file => selected.has(file)) })
+      }
+    }
+    previous = { tree, files }
+  }
+  const shares = trees.map(entry => entry.share).sort((a, b) => a - b)
+  const median = percentile(shares, 0.5)
+  const red = trees.filter(entry => entry.failed.length > 0)
+  const caught = red.filter(entry => entry.caught).length
+  const verdict = times.length < need ? `UNPROVEN: ${times.length} runs with per-file times, ${need} needed`
+    : red.length === 0 ? 'UNPROVEN: no red run to replay'
+      : caught === red.length && median <= ceiling ? 'MEETS' : 'FAILS'
+  return { runs: times.length, trees, unread, red: red.length, caught, median, ceiling, verdict }
+}
+
+function replayText(result) {
+  const percent = share => `${Math.round(share * 100)}%`
+  const out = result.trees.map(entry => `${entry.at} — ${entry.changed} path(s) changed; ${entry.selected} of ${entry.files} files selected, ${percent(entry.share)} of the test time${entry.failed.length ? `; RED ${entry.failed.join(', ')}: ${entry.caught ? 'caught' : 'MISSED'}` : ''}`)
+  out.push(`replay: ${result.runs} runs, ${result.trees.length} changed trees${result.unread ? `, ${result.unread} whose change could not be read` : ''}; red ${result.caught} of ${result.red} caught; median ${result.median === null ? 'none' : percent(result.median)} of the test time (ceiling ${percent(result.ceiling)}) — ${result.verdict}`)
+  return `${out.join('\n')}\n`
+}
+
 function summaryText(ledgers) {
   const out = []
   for (const [name, lines] of ledgers) {
@@ -141,12 +192,14 @@ function text({ runs, flaky }) {
 if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2)
   const value = name => { const at = argv.indexOf(name); return at >= 0 ? argv[at + 1] : undefined }
-  const known = new Set(['--dir', '--runs', '--workers', '--json', '--summary'])
+  const known = new Set(['--dir', '--runs', '--workers', '--json', '--summary', '--replay', '--need'])
   const unknown = argv.filter((arg, index) => arg.startsWith('--') && !known.has(arg) && !known.has(argv[index - 1]))
   const runs = Number(value('--runs') ?? 5)
+  const need = Number(value('--need') ?? 30)
   const workers = value('--workers') === undefined ? null : Number(value('--workers'))
-  if (unknown.length || !Number.isInteger(runs) || runs < 1 || (workers !== null && (!Number.isInteger(workers) || workers < 1))) {
-    process.stderr.write('usage: check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--json]\n')
+  if (unknown.length || !Number.isInteger(runs) || runs < 1 || !Number.isInteger(need) || need < 1
+    || (workers !== null && (!Number.isInteger(workers) || workers < 1))) {
+    process.stderr.write('usage: check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--replay [--need N]] [--json]\n')
     process.exit(2)
   }
   let dir = value('--dir')
@@ -158,6 +211,18 @@ if (isMainModule(import.meta.url)) {
   if (argv.includes('--summary')) {
     const ledgers = ['checks.jsonl', 'fast-checks.jsonl'].map(name => [name, summarize(rows(path.join(dir, name)))])
     process.stdout.write(argv.includes('--json') ? `${JSON.stringify(Object.fromEntries(ledgers), null, 2)}\n` : summaryText(ledgers))
+  } else if (argv.includes('--replay')) {
+    const changedBetween = (a, b) => {
+      const diff = spawnSync('git', ['diff', '--name-only', a, b], { encoding: 'utf8', timeout: 30_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 })
+      return diff.status === 0 ? diff.stdout.split('\n').filter(Boolean) : null
+    }
+    const texts = new Map()
+    const mentions = (file, paths) => {
+      if (!texts.has(file)) texts.set(file, existsSync(file) ? readFileSync(file, 'utf8') : '')
+      return paths.some(changed => texts.get(file).includes(changed))
+    }
+    const result = replay({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), changedBetween, mentions, need })
+    process.stdout.write(argv.includes('--json') ? `${JSON.stringify(result, null, 2)}\n` : replayText(result))
   } else {
     const result = report({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), runs, workers })
     process.stdout.write(argv.includes('--json') ? `${JSON.stringify(result, null, 2)}\n` : text(result))

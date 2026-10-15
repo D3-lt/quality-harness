@@ -5,10 +5,10 @@
 // Every Codex run the plugin starts is built here, by `codexInvocation` (ADR-098 T1): the codex-review and
 // codex-advise skills launch through the `--prompt-file` form below rather than writing their own command.
 // Pi stays unavailable until a command that prints its interface has been run; nothing here guesses argv.
-// Claude's host is a fresh headless `claude -p` (2026-10-15): read-only tools, git reads only, recorded like the others.
+// Claude's host is a fresh headless `claude -p` (2026-10-15): no shell, the scope's diff handed to it, recorded like the others.
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { stateDir } from './event-log.mjs'
@@ -230,14 +230,14 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
   const target = { repo, scope, requirements, evidence }
   if (host === 'cursor' || host === 'claude') {
     // Recorded as a Codex run is, so release-evidence sees it: on 2026-10-15 Codex refused this repository and the owner
-    // chose a recorded Claude review in its place, through Cursor first; on the owner's plan Cursor runs no named model
-    // ("Free plans can only use Auto"), so through `claude -p`. A review handed its output ran nothing and records nothing.
+    // chose a recorded Claude review in its place, through Cursor first; Cursor could not run a named model here, so
+    // through `claude -p`. A review handed its output ran nothing and records nothing.
     // The range is resolved before the run, as Codex's is: a commit that lands while it runs was not reviewed (the
     // recorded Claude review of 18879680..8892eb9c).
     const range = output === undefined && !missingTarget(target) ? scopeRange(repo, scope) : null
     const review = host === 'cursor'
       ? runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
-      : runClaude({ model: model ?? CLAUDE_MODEL, target, resolve: resolve ?? resolveClaude, run, output })
+      : runClaude({ model: model ?? CLAUDE_MODEL, target, range, resolve: resolve ?? resolveClaude, run, output })
     if (range) {
       recordReview(repo, { host, model: review.model ?? model, effort: null, ...range, status: review.status, findings: review.findings.length })
     }
@@ -282,20 +282,57 @@ function runCursor({ model, target, resolve, run, output }) {
 }
 
 // `--safe-mode` loads no hooks, plugins or CLAUDE.md, so no Stop hook can continue the reviewer's turn; `dontAsk` denies
-// whatever the allowlist does not name (measured 2026-10-15, Claude Code 2.1.300: a `touch` was denied). The answer is the
-// envelope's `result`, and an error envelope is not a review whatever its text says. Not a sandbox: `git diff`, `show` and
-// `log` take `--output=<file>`, which the prefix allowlist lets through (the recorded review of 18879680..8892eb9c).
-function runClaude({ model, target, resolve, run, output }) {
+// whatever the allowlist does not name (measured 2026-10-15, Claude Code 2.1.300: a `touch` was denied). It has no shell:
+// with git allowed by prefix, `git diff --output=<file>` could write (BACKLOG §381), so the launcher writes the scope's diff
+// where the reviewer may read it, and only Read, Grep and Glob are offered. The answer is the envelope's `result`, and an
+// error envelope is not a review whatever its text says.
+function runClaude({ model, target, range, resolve, run, output }) {
   if (output !== undefined) return reviewFromOutput(output, { host: 'claude', model, effort: null })
   const bin = resolve()
   if (!bin) return unavailable('claude', null, 'claude binary is absent', model)
   const missing = missingTarget(target)
   if (missing) return unavailable('claude', null, missing, model)
-  const args = ['-p', '--output-format', 'json', '--safe-mode', '--no-session-persistence', '--strict-mcp-config',
-    '--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', 'Read,Grep,Glob,Bash',
-    '--allowedTools', 'Bash(git diff:*)', 'Bash(git show:*)', 'Bash(git log:*)', 'Bash(git status:*)',
-    '--model', model, reviewPrompt(target)]
-  const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, killSignal: 'SIGKILL', cwd: target.repo, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  const diff = scopeDiff(target.repo, target.scope, range)
+  if (diff === null) return unavailable('claude', null, `the diff of scope ${JSON.stringify(target.scope)} could not be made`, model)
+  let directory
+  try { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-claude-review-')) } catch (error) {
+    return unavailable('claude', null, `a directory for the scope's diff could not be made (${error.code ?? error.message})`, model)
+  }
+  try {
+    const file = path.join(directory, 'scope.diff')
+    writeFileSync(file, diff, 'utf8')
+    const prompt = `${reviewPrompt(target)}\nYou have no shell. The launcher wrote that scope's commits and diff to ${JSON.stringify(file)}: read it there, and read any file of the repository you need.`
+    const args = ['-p', '--output-format', 'json', '--safe-mode', '--no-session-persistence', '--strict-mcp-config',
+      '--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', 'Read,Grep,Glob', '--add-dir', directory,
+      '--model', model, prompt]
+    const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, killSignal: 'SIGKILL', cwd: target.repo, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    return claudeReview(child, model)
+  } catch (error) {
+    return unavailable('claude', null, `the scope's diff could not be written (${error.code ?? error.message})`, model)
+  } finally {
+    try { rmSync(directory, { recursive: true, force: true }) } catch (error) {
+      process.stderr.write(`host-review: the temporary directory ${directory} was not removed (${error.code ?? error.message})\n`)
+    }
+  }
+}
+
+// What the reviewer is shown, made here because it has no shell: for `base`, the commits and their diff over the range
+// resolved before the run; for `commit`, that commit; for `uncommitted`, the status and the diff against HEAD (an untracked
+// file it reads itself). Null when git could not say.
+function scopeDiff(repo, scope, range) {
+  const git = args => {
+    const child = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true })
+    return child.status === 0 ? String(child.stdout ?? '') : null
+  }
+  const kind = String(scope ?? '').trim().split(/\s+/)[0]
+  const parts = kind === 'base' && range?.base && range?.head ? [git(['log', '--oneline', `${range.base}..${range.head}`]), git(['diff', `${range.base}...${range.head}`])]
+    : kind === 'commit' && range?.head ? [git(['show', range.head])]
+      : kind === 'uncommitted' ? [git(['status', '--short']), git(['diff', 'HEAD'])]
+        : [null]
+  return parts.every(part => part !== null) ? parts.join('\n') : null
+}
+
+function claudeReview(child, model) {
   if (child?.error?.code === 'ETIMEDOUT') return unavailable('claude', null, 'claude was killed at its budget of 600 s', model)
   if (!child || child.error || child.status !== 0) {
     const said = `${child?.stderr ?? ''}\n${child?.stdout ?? ''}`.trim().split('\n').map(line => line.trim()).filter(Boolean).at(-1)?.slice(0, 300)

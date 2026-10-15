@@ -155,8 +155,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "const own = commands[i].ended === '&' || (PIPED.has(joiner)",
-      "to": "const own = false || (PIPED.has(joiner)",
+      "from": "const own = commands[end].ended === '&' || (end > i",
+      "to": "const own = false || (end > i",
       "only": "a check whose exit status the text fixes is refused"
     },
     {
@@ -165,8 +165,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (own.exits && i < commands.length - 1 && !PIPED.has(joiner)",
-      "to": "    if (own.exits && !PIPED.has(joiner)",
+      "from": "    if (own.exits && end === i && end < commands.length - 1) {",
+      "to": "    if (own.exits && end === i) {",
       "only": "a check whose exit status the text fixes is refused"
     },
     {
@@ -215,8 +215,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "commands[i].ended === '&' || (PIPED.has(joiner) && passThroughSink(commands[i]))",
-      "to": "commands[i].ended === '&'",
+      "from": "commands[end].ended === '&' || (end > i && passThroughSink(commands[end]))",
+      "to": "commands[end].ended === '&'",
       "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
     },
     {
@@ -260,24 +260,44 @@
       "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
     },
     {
-      "label": "check-command: an exit piped onward stops nothing",
+      "label": "check-command: an exit inside a pipeline stops nothing",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": " && !PIPED.has(joiner) && !PIPED.has(commands[i].ended)) {",
-      "to": " && !PIPED.has(joiner)) {",
+      "from": "    if (own.exits && end === i && end < commands.length - 1) {",
+      "to": "    if (own.exits && end < commands.length - 1) {",
       "only": "^(?:an exit inside a pipeline does not end the list)$"
     },
     {
-      "label": "check-command: an exit a pipe feeds stops nothing",
+      "label": "check-command: a pipeline's status is its last stage's",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": " && !PIPED.has(joiner) && !PIPED.has(commands[i].ended)) {",
-      "to": " && !PIPED.has(commands[i].ended)) {",
-      "only": "^(?:an exit inside a pipeline does not end the list)$"
+      "from": ": commandStatus(commands[end], depth)",
+      "to": ": commandStatus(commands[i], depth)",
+      "only": "^(?:a pipeline is joined to the list as one unit)$"
+    },
+    {
+      "label": "check-command: a pipeline is one unit of the list",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end++",
+      "to": "    while (false) end++",
+      "only": "^(?:a pipeline is joined to the list as one unit)$"
+    },
+    {
+      "label": "check-command: the list resumes after the whole pipeline",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    i = end\n",
+      "to": "    void end\n",
+      "only": "^(?:a pipeline is joined to the list as one unit)$"
     }
   ]
 }

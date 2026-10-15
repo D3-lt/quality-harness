@@ -256,6 +256,46 @@
       "from": "effort: null, ...range, status: review.status",
       "to": "effort: null, ...scopeRange(repo, scope), status: review.status",
       "only": "^(?:a Cursor or Claude review records the HEAD it was shown, not the one after it)$"
+    },
+    {
+      "label": "host-review: the Claude reviewer has no shell",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "'--tools', 'Read,Grep,Glob', '--add-dir'",
+      "to": "'--tools', 'Read,Grep,Glob,Bash', '--add-dir'",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: the Claude reviewer is handed the scope's diff",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "    writeFileSync(file, diff, 'utf8')",
+      "to": "    writeFileSync(file, '', 'utf8')",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: a scope with no diff is not reviewed blind",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "  if (diff === null) return unavailable(",
+      "to": "  if (false) return unavailable(",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: the base diff covers the range resolved before the run",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "git(['diff', `${range.base}...${range.head}`])",
+      "to": "git(['diff', `${range.head}...${range.head}`])",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
     }
   ]
 }

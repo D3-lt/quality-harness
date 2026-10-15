@@ -143,18 +143,23 @@ function listStatus(text, depth) {
   let status = 'zero'
   for (let i = 0; i < commands.length; i++) {
     const joiner = i === 0 ? ';' : commands[i - 1].ended
-    const own = commands[i].ended === '&' || (PIPED.has(joiner) && passThroughSink(commands[i])) ? { status: 'zero' } : commandStatus(commands[i], depth)
+    // A pipeline is one unit, joined to the list only as a whole: `true || npm test | false` skips all of it (sh, bash
+    // and dash, BACKLOG §381). Without pipefail (`set` is refused above) its status is its last stage's.
+    let end = i
+    while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end++
+    const own = commands[end].ended === '&' || (end > i && passThroughSink(commands[end])) ? { status: 'zero' } : commandStatus(commands[end], depth)
     // `exit` before the end stops the list on the paths that reach it; the others go
     // on, so only a path every run takes is known. As the LAST command it is simply
     // the list's status, combined like any other (`test -f F || exit 0` is 0). Inside a
     // pipeline it runs in a subshell and stops nothing (sh, bash, dash; zsh runs no check).
-    if (own.exits && i < commands.length - 1 && !PIPED.has(joiner) && !PIPED.has(commands[i].ended)) {
+    if (own.exits && end === i && end < commands.length - 1) {
       if (joiner === '&&' ? status === 'zero' : joiner === '||' ? status === 'nonzero' : true) return own.status
       return 'either'
     }
     if (joiner === '&&') status = status === 'zero' ? own.status : status === 'nonzero' ? 'nonzero' : merge(own.status, 'nonzero')
     else if (joiner === '||') status = status === 'nonzero' ? own.status : status === 'zero' ? 'zero' : merge(own.status, 'zero')
     else status = own.status
+    i = end
   }
   return status
 }

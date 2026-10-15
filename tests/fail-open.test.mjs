@@ -603,3 +603,14 @@ test('an exit inside a pipeline does not end the list', () => {
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })
+
+// BACKLOG §381 (the scoped verification of e657e75c): a pipeline binds tighter than `&&` and `||`, so `true || npm test |
+// false` skips the whole pipeline and exits 0 under sh, bash and dash (measured 2026-10-15). It was folded left to right,
+// read nonzero, and accepted as a real check.
+test('a pipeline is joined to the list as one unit', () => {
+  const constant = ['true || npm test | false', 'exit 0 | cat || npm test | false', 'true || false | npm test', 'npm test | tee log || npm test | false']
+  // DIRTY twins: a pipeline whose last stage is the tests still decides the list where it runs.
+  const real = ['false || npm test | grep -q ok', 'true && npm test | grep -q ok', 'npm test | tee log && npm test', 'false || true | npm test']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})

@@ -252,8 +252,9 @@ test('a Cursor review trusts the workspace it is asked about, and a failed one s
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
   
-// 2026-10-15: Cursor could not run a named model on the owner's plan ("Free plans can only use Auto"), so the recorded
-// Claude review the owner chose runs as `claude -p`: fresh context, read-only tools, git reads only, its run recorded.
+// 2026-10-15: Cursor could not run a named model here, so the recorded Claude review the owner chose runs as `claude -p`:
+// fresh context, no shell and no write tool, its run recorded. The launcher hands it the scope's diff (BACKLOG §381: with
+// git allowed by prefix, `git diff --output=<file>` could write).
 test('a headless Claude review is read-only, unwraps its result, and leaves one review row', () => {
   const dir = scratch()
   try {
@@ -261,15 +262,22 @@ test('a headless Claude review is read-only, unwraps its result, and leaves one 
     const head = commit(dir, 'plugin/a.mjs', 'two\n')
     const seen = []
     const envelope = result => JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result })
-    const run = answer => (bin, args, options) => { seen.push({ bin, args, options }); return { status: 0, stdout: envelope(answer) } }
+    const run = answer => (bin, args, options) => {
+      seen.push({ bin, args, options, diff: readFileSync(join(args[args.indexOf('--add-dir') + 1], 'scope.diff'), 'utf8') })
+      return { status: 0, stdout: envelope(answer) }
+    }
     const blocking = JSON.stringify({ status: 'blocking', findings: [{ file: 'plugin/a.mjs', line: 1, problem: 'p', impact: 'i', evidence: 'e', minimal_fix: 'f', severity: 'blocking' }] })
     const result = hostReview({ host: 'claude', repo: dir, scope: `base ${base}`, resolve: () => 'claude', run: run(blocking) })
     assert.equal(result.status, 'blocking', JSON.stringify(result))
-    const { args, options } = seen[0]
+    const { args, options, diff } = seen[0]
     for (const flag of ['-p', '--safe-mode', '--no-session-persistence', '--strict-mcp-config']) assert.ok(args.includes(flag), flag)
     assert.equal(args[args.indexOf('--permission-mode') + 1], 'dontAsk')
-    assert.equal(args[args.indexOf('--tools') + 1], 'Read,Grep,Glob,Bash')
-    assert.ok(!args.some(arg => /Edit|Write|Bash\(\*|Bash\(git (?:commit|push|add)/.test(arg)), JSON.stringify(args))
+    assert.equal(args[args.indexOf('--tools') + 1], 'Read,Grep,Glob')
+    assert.ok(!args.includes('--allowedTools') && !args.some(arg => /\bBash\b|\bEdit\b|\bWrite\b/.test(arg)), JSON.stringify(args))
+    // The diff of the scope it was asked about, in a directory it may read and that is gone once it has answered.
+    assert.match(diff, /^-one$/m)
+    assert.match(diff, /^\+two$/m)
+    assert.ok(!existsSync(args[args.indexOf('--add-dir') + 1]))
     assert.ok(options.timeout > 0 && options.windowsHide)
     const [row] = rows(dir)
     assert.deepEqual([row.host, row.model, row.base, row.head, row.status, row.findings], ['claude', CLAUDE_MODEL, base, head, 'blocking', 1])
@@ -280,6 +288,9 @@ test('a headless Claude review is read-only, unwraps its result, and leaves one 
     assert.equal(rows(dir).at(-1).status, 'unavailable')
     const absent = hostReview({ host: 'claude', repo: dir, scope: `base ${base}`, resolve: () => null, run: () => assert.fail('nothing to run') })
     assert.equal(absent.status, 'unavailable')
+    // DIRTY twin: a scope whose diff cannot be made is not reviewed blind.
+    const blind = hostReview({ host: 'claude', repo: dir, scope: 'base no-such-ref', resolve: () => 'claude', run: () => assert.fail('nothing to run') })
+    assert.match(blind.reason, /the diff of scope "base no-such-ref" could not be made/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 

@@ -12,7 +12,7 @@
 //
 // Repository-owned and read-only. It exits 0 whatever it finds; 2 on a usage error.
 //
-// Usage: node scripts/check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--replay [--need N]] [--json]
+// Usage: node scripts/check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--replay [--trees N] [--reds N]] [--json]
 // --summary reads only qh-check's own ledgers (checks.jsonl, fast-checks.jsonl), so it answers in any repository qh-check runs in.
 // --replay is stage 3's offline question: would a selection have gone red on every red run, and what would it have cost?
 import { spawnSync } from 'node:child_process'
@@ -116,10 +116,11 @@ export function summarize(checks) {
  * when every failed file was selected. `changedBetween(a, b)` gives the paths that differ between two trees, or null when it
  * could not look; `mentions(file, paths)` says whether a file names one. It reads a file's text as it is now, not as it was.
  *
- * The verdict is MEETS only with `need` runs or more, at least one red run, every red run caught and a median share at or under
- * `ceiling`; too few runs, or none red, is UNPROVEN, never a pass (ADR-005).
+ * The verdict is MEETS only with `trees` changed trees or more, `reds` red runs or more, every red run caught and a median share
+ * at or under `ceiling`; fewer of either is UNPROVEN, never a pass (ADR-005). Changed trees and red runs are what a selection is
+ * judged on, not runs: a run repeated on the same tree adds a run and no evidence (the owner, 2026-10-15; BACKLOG §378).
  */
-export function replay({ times, checks, changedBetween, mentions, need = 30, ceiling = 0.4 }) {
+export function replay({ times, checks, changedBetween, mentions, trees: needTrees = 30, reds: needReds = 5, ceiling = 0.4 }) {
   const trees = []
   let previous = null
   let unread = 0
@@ -146,9 +147,9 @@ export function replay({ times, checks, changedBetween, mentions, need = 30, cei
   const median = percentile(shares, 0.5)
   const red = trees.filter(entry => entry.failed.length > 0)
   const caught = red.filter(entry => entry.caught).length
-  const verdict = times.length < need ? `UNPROVEN: ${times.length} runs with per-file times, ${need} needed`
-    : red.length === 0 ? 'UNPROVEN: no red run to replay'
-      : caught === red.length && median <= ceiling ? 'MEETS' : 'FAILS'
+  const verdict = trees.length < needTrees || red.length < needReds
+    ? `UNPROVEN: ${trees.length} changed trees of ${needTrees} needed, ${red.length} red runs of ${needReds}`
+    : caught === red.length && median <= ceiling ? 'MEETS' : 'FAILS'
   return { runs: times.length, trees, unread, red: red.length, caught, median, ceiling, verdict }
 }
 
@@ -192,14 +193,15 @@ function text({ runs, flaky }) {
 if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2)
   const value = name => { const at = argv.indexOf(name); return at >= 0 ? argv[at + 1] : undefined }
-  const known = new Set(['--dir', '--runs', '--workers', '--json', '--summary', '--replay', '--need'])
+  const known = new Set(['--dir', '--runs', '--workers', '--json', '--summary', '--replay', '--trees', '--reds'])
   const unknown = argv.filter((arg, index) => arg.startsWith('--') && !known.has(arg) && !known.has(argv[index - 1]))
   const runs = Number(value('--runs') ?? 5)
-  const need = Number(value('--need') ?? 30)
+  const needTrees = Number(value('--trees') ?? 30)
+  const needReds = Number(value('--reds') ?? 5)
   const workers = value('--workers') === undefined ? null : Number(value('--workers'))
-  if (unknown.length || !Number.isInteger(runs) || runs < 1 || !Number.isInteger(need) || need < 1
+  if (unknown.length || !Number.isInteger(runs) || runs < 1 || ![needTrees, needReds].every(count => Number.isInteger(count) && count >= 1)
     || (workers !== null && (!Number.isInteger(workers) || workers < 1))) {
-    process.stderr.write('usage: check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--replay [--need N]] [--json]\n')
+    process.stderr.write('usage: check-timing.mjs [--dir <state dir>] [--runs N] [--workers N] [--summary] [--replay [--trees N] [--reds N]] [--json]\n')
     process.exit(2)
   }
   let dir = value('--dir')
@@ -221,7 +223,7 @@ if (isMainModule(import.meta.url)) {
       if (!texts.has(file)) texts.set(file, existsSync(file) ? readFileSync(file, 'utf8') : '')
       return paths.some(changed => texts.get(file).includes(changed))
     }
-    const result = replay({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), changedBetween, mentions, need })
+    const result = replay({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), changedBetween, mentions, trees: needTrees, reds: needReds })
     process.stdout.write(argv.includes('--json') ? `${JSON.stringify(result, null, 2)}\n` : replayText(result))
   } else {
     const result = report({ times: rows(path.join(dir, 'selftest-files.jsonl')), checks: rows(path.join(dir, 'checks.jsonl')), runs, workers })

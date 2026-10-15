@@ -76,3 +76,4 @@ Stop and ask if S3 shows the agent does not receive the diagnostic.
   ```
   ```
 - 2026-10-14 · 1ff433af* · exit 0 · `out=$(node --test --test-reporter=tap tests/post-edit-check.test.mjs 2>&1) \ …` · acceptance-sha256:7ba57134069426103ffd7a1e7f569bc0127cc6460c2140514206c1deaff5cd5e · ms:6839
+- 2026-10-15 · human-observed · S3: observed live on 2026-10-15 in a Claude Code 2.1.300 session with the plugin loaded from this checkout: a Write of a scratch .mjs with an unclosed parameter list put the PostToolUse hook's finding in front of the agent as additionalContext, naming the file, line 3 and 'does not parse as an ES module'; the owner signed off the same day

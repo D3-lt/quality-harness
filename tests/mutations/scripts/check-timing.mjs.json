@@ -33,28 +33,28 @@
       "to": "    if (!tree) continue"
     },
     {
-      "label": "check-timing replay: too few runs is UNPROVEN",
+      "label": "check-timing replay: too few changed trees is UNPROVEN",
       "file": "scripts/check-timing.mjs",
       "tests": ["tests/check-timing.test.mjs"],
       "only": "^the replay selects",
-      "from": "  const verdict = times.length < need ?",
-      "to": "  const verdict = false ?"
+      "from": "  const verdict = trees.length < needTrees || red.length < needReds",
+      "to": "  const verdict = red.length < needReds"
     },
     {
-      "label": "check-timing replay: no red run is UNPROVEN",
+      "label": "check-timing replay: too few red runs is UNPROVEN",
       "file": "scripts/check-timing.mjs",
       "tests": ["tests/check-timing.test.mjs"],
       "only": "^the replay selects",
-      "from": "    : red.length === 0 ? 'UNPROVEN: no red run to replay'",
-      "to": "    : false ? 'UNPROVEN: no red run to replay'"
+      "from": "  const verdict = trees.length < needTrees || red.length < needReds",
+      "to": "  const verdict = trees.length < needTrees"
     },
     {
       "label": "check-timing replay: a share over the ceiling fails",
       "file": "scripts/check-timing.mjs",
       "tests": ["tests/check-timing.test.mjs"],
       "only": "^the replay selects",
-      "from": "      : caught === red.length && median <= ceiling ? 'MEETS' : 'FAILS'",
-      "to": "      : caught === red.length ? 'MEETS' : 'FAILS'"
+      "from": "    : caught === red.length && median <= ceiling ? 'MEETS' : 'FAILS'",
+      "to": "    : caught === red.length ? 'MEETS' : 'FAILS'"
     },
     {
       "label": "check-timing replay: --replay is wired",

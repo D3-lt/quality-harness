@@ -65,5 +65,7 @@ test('the headline a person sees at a publish warning names the finding', () => 
     // the host does with the JSON — a finding in one channel only can be hidden.
     assert.match(out.stderr, /whether this repository is checked is unknown/, 'never hidden: the full text is also on stderr')
     assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+    // The hook's detached children (branch-state's refresher, the artifact pass) can still be
+    // writing under TMPDIR or CLAUDE_PLUGIN_DATA here: ENOTEMPTY on CI 2026-10-15 (BACKLOG §380).
+  } finally { rmSync(top, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
 })

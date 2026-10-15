@@ -3183,3 +3183,11 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 - Whether CLAUDE.md §3 should name ADR-104's exemption beside ADR-081's.
 
 ADR-095's Follow-ups (a per-test verdict cache, the Stop timing outside run) stay ticked or open where they are, at the top of this file, and still cite §378.
+
+**Progress, 2026-10-15** (each with a red run first, a test through the real hook or script, and catalogue mutants killed; unreleased):
+- Item 2, the unarmed hook said: 5b9108d3. Said once per repository and reason; a host that offers no env file is not told, since it has no Bash environment to arm.
+- Item 3, `"publish": "warn"` at git's hook: 9f7d1573. Nine older mutants on the refusal's condition moved to its new lines.
+- Item 4(a), literal data is not arithmetic: c74ff306. `echo "((1))"` stays refused by the older rule that a quoted span holding `(` may be code. Item 4(b), the `cd` form, needs a task under ADR-104 and is not started.
+- Item 5, U+2028 and U+2029 end a JSONC line comment: 2eb10c61. A bare separator reads as a space, or the fix would have made a false finding.
+- Item 1, the `tee` pipeline, is not started: `tests/fail-open.test.mjs` "a check whose exit status the text fixes is refused, whatever it is spelled", locked by ADR-088 T2, lists `npm test | tee log` as a real check. Fixing it changes that locked assertion, which is the owner's decision.
+- Found while doing them: `check-command.mjs` inferred `bun test` and `yarn check`, which run the runner's own command and not the script, and missed `bun.lock` (b5002a75, from a peer's survey); five lease-holder processes from `tests/lease.test.mjs` had outlived a selftest by 8 h 51 min (986143eb bounds them; 324a44c2 makes selftest.sh find and kill any process still naming its run directory, after the suite and in its trap).

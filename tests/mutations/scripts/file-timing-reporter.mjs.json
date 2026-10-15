@@ -28,8 +28,8 @@
       "label": "file-timing: a root reached through a symlink is resolved, or every file is named from outside it",
       "file": "scripts/file-timing-reporter.mjs",
       "tests": ["tests/file-timing.test.mjs"],
-      "from": "  const root = realRoot(process.env.QH_SELFTEST_ROOT || process.cwd())",
-      "to": "  const root = process.env.QH_SELFTEST_ROOT || process.cwd()",
+      "from": "  const roots = [...new Set([realRoot(given), given])]",
+      "to": "  const roots = [given]",
       "only": "^(?:the reporter writes one row naming each file, the time its tests took, its tests and its failures)$"
     }
   ]

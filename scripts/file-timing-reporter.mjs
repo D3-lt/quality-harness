@@ -13,17 +13,26 @@
 import { realpathSync } from 'node:fs'
 import path from 'node:path'
 
-// node names a test file by its real path, so a root reached through a symlink (macOS's /var → /private/var) is resolved too,
-// or every file would be named from outside it.
+// node names a test file in the form it reached it, so the root is tried as given and as the filesystem names it: a root reached
+// through a symlink (macOS's /var → /private/var) is named by its real path, and a Windows short name (CI's RUNNER~1) by the
+// form given, which realpath would lengthen (Windows CI, 2026-10-15). A file inside neither keeps its own path.
 const realRoot = root => { try { return realpathSync.native(root) } catch { return root } }
 
 export default async function* fileTiming(source) {
-  const root = realRoot(process.env.QH_SELFTEST_ROOT || process.cwd())
+  const given = process.env.QH_SELFTEST_ROOT || process.cwd()
+  const roots = [...new Set([realRoot(given), given])]
+  const nameOf = file => {
+    for (const root of roots) {
+      const relative = path.relative(root, file)
+      if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) return relative.split(path.sep).join('/')
+    }
+    return file.split(path.sep).join('/')
+  }
   const files = new Map()
   for await (const event of source) {
     const { file, nesting, name, details } = event.data ?? {}
     if (!file) continue
-    const key = path.resolve(root, file)
+    const key = path.resolve(file)
     let entry = files.get(key)
     if (!entry) {
       // A file's first event is its own entry, named for the file: remember the name, so a load failure is told from a test.
@@ -37,7 +46,7 @@ export default async function* fileTiming(source) {
     entry.ms += details?.duration_ms ?? 0
   }
   const rows = [...files].map(([file, entry]) => ({
-    file: path.relative(root, file).split(path.sep).join('/'),
+    file: nameOf(file),
     ms: Math.round(entry.ms),
     tests: entry.tests,
     failed: entry.failed,

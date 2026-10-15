@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-103 T3: a row written after this run is not its history",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/slow-run.test.mjs"],
+      "from": "  return slowRunLine(rows.slice(0, at), record.command,",
+      "to": "  return slowRunLine(rows.filter(row => row?.id !== record.id), record.command,",
+      "only": "^(?:only the rows before this run's own are its history)$"
+    },
+    {
       "label": "ADR-103 T2: five earlier passes are the floor for a slow-run line",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": ["tests/slow-run.test.mjs"],

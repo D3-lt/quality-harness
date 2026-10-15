@@ -13,6 +13,7 @@ README must be regenerated.
 |-------|------|------------|
 | 1 | T1 | none |
 | 2 | T2 | none |
+| 3 | T3 | T1, T2 |
 
 ## Task Index
 
@@ -20,3 +21,4 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | a fast check is named where the runner offers one that can pass | done | none — no spec | `node --test tests/fast-check-hint.test.mjs` (named tests pass, nothing skipped) |
 | T2 | a slow run is said against its own history | done | none — no spec | `node --test tests/slow-run.test.mjs` (named tests pass, nothing skipped) |
+| T3 | a dependency is a declaration, and history ends at this run | done | none — no spec | `node --test tests/fast-check-hint.test.mjs tests/slow-run.test.mjs` (two named tests pass, nothing skipped) |

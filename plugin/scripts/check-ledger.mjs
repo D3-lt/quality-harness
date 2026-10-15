@@ -1,7 +1,7 @@
 // What the ledgers say was checked: the latest check event for a tree, whether it certifies, whether an order could be
 // established, which writes git could not see, and the records a session log imports from the check ledger. Moved out of
 // lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A log read in part is never read as a log with nothing in it.
-import { readFileSync, readdirSync, realpathSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, stateDir } from './event-log.mjs'
 import { outsideRoot } from './decision-corpus.mjs'
@@ -184,13 +184,26 @@ export function slowRunLine(records, command, ms) {
 }
 
 /** `slowRunLine` for the full run `record` qh-check just wrote: the rows of `checks.jsonl` other than its own. */
+// ADR-103 T3: the history is the rows BEFORE this run's own, never one written after it (a concurrent writer's, the Codex review of
+// T2), read from the ledger's last MiB, so a ledger that grows for years costs no more per run; a partial first line is not a
+// row. A run the tail does not hold has no place to end its history, and says nothing.
+const SLOW_RUN_TAIL_BYTES = 1024 * 1024
 export function slowRunLineAfter(root, record) {
   let text
-  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
-  const earlier = text.split('\n').flatMap(line => {
-    try { const row = JSON.parse(line); return row?.id === record.id ? [] : [row] } catch { return [] }
-  })
-  return slowRunLine(earlier, record.command, Date.parse(record.after?.at) - Date.parse(record.before?.at))
+  try {
+    const file = path.join(stateDir(root), 'checks.jsonl')
+    const size = statSync(file).size
+    const from = Math.max(0, size - SLOW_RUN_TAIL_BYTES)
+    const bytes = Buffer.alloc(size - from)
+    const fd = openSync(file, 'r')
+    try { readSync(fd, bytes, 0, bytes.length, from) } finally { closeSync(fd) }
+    text = bytes.toString('utf8')
+    if (from > 0) text = text.slice(text.indexOf('\n') + 1)
+  } catch { return null }
+  const rows = text.split('\n').flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
+  const at = rows.findIndex(row => row?.id === record.id)
+  if (at < 0) return null
+  return slowRunLine(rows.slice(0, at), record.command, Date.parse(record.after?.at) - Date.parse(record.before?.at))
 }
 
 /**

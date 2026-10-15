@@ -97,3 +97,24 @@ test('the hint says what a fast pass is, and writes nothing', () => {
     assert.deepEqual(readFileSync(path.join(repo, '.quality-harness.json')), config, 'the declaration is the owner\'s: nothing is written')
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+
+// ADR-103 T3, from the Codex review of T1 (2026-10-15): a mention of pytest-testmon anywhere in pyproject.toml was named as if
+// declared, and the hint claimed "a minute or more" under a threshold set to 0.
+test('a dependency is a declaration of that name, not a mention', () => {
+  const top = sandbox()
+  try {
+    const hint = files => fastCheckHint(project(top, `p${Math.random().toString(36).slice(2)}`, files))
+    for (const toml of [
+      '[project]\ndependencies = [\n  # "pytest-testmon",\n  "pytest",\n]\n',
+      '[project]\ndescription = "pytest-testmon based helpers"\n',
+      '[project]\ndependencies = ["pytest-testmon-helper"]\n',
+    ]) assert.doesNotMatch(hint({ 'pyproject.toml': toml }), COMMAND_IN_HINT, toml)
+    assert.doesNotMatch(hint({ 'requirements.txt': '# pytest-testmon\npytest-testmon-helper==1\n' }), COMMAND_IN_HINT)
+    // CLEAN twins: a real declaration in each form is named.
+    for (const toml of ['[project]\ndependencies = ["pytest-testmon>=2"]\n', '[tool.poetry.group.dev.dependencies]\npytest-testmon = "*"\n']) {
+      assert.match(hint({ 'pyproject.toml': toml }), /`pytest --testmon`/, toml)
+    }
+    assert.match(hint({ 'requirements.txt': 'pytest-testmon==2.2.0  # pinned\n' }), /`pytest --testmon`/)
+    assert.doesNotMatch(hint({ 'README.md': 'x\n' }), /minute|second|took/, 'the hint claims no duration')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

@@ -174,8 +174,10 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     if (firstMentionHere(root, hint)) stderr.write(`qh-check: ${hint}\n`)
   }
   stderr.write(`qh-check: ${loadLine(before.load, after.load, loadAtStart.cores)}\n`)
-  // ADR-103 T2: a full run that took half again this command's own median says so; a --fast run never does.
-  const slow = fast ? null : slowRunLineAfter(root, record)
+  // ADR-103 T2: a full run that took half again this command's own median says so. A --fast run's record is in
+  // fast-checks.jsonl, so slowRunLineAfter, which ends the history at this run's own row in checks.jsonl, finds none and says
+  // nothing; a separate `fast` gate here was redundant, and its mutant could not be killed (ADR-103 T3).
+  const slow = slowRunLineAfter(root, record)
   if (slow) stderr.write(`qh-check: ${slow}\n`)
   if (ended.error) {
     stderr.write(`qh-check: the check could not start (${ended.error.code ?? ended.error.message}).\n`)

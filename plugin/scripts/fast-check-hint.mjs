@@ -10,7 +10,9 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-const LEVER = 'this check took a minute or more, and .quality-harness.json declares no "fastCheck". With one, `qh-check --commit` runs it '
+// No duration in the text: the threshold is configurable (QUALITY_HARNESS_PROSE_HINT_MS), and "a minute or more" said under a
+// threshold of 0 was a claim nothing measured (the Codex review of T1, ADR-103 T3).
+const LEVER = '.quality-harness.json declares no "fastCheck". With one, `qh-check --commit` runs it '
   + 'and commits on its pass; a push still needs the full check (ADR-081, ADR-100). Which tests may stand in for the suite is the '
   + 'project owner\'s call.'
 
@@ -25,11 +27,19 @@ function packageNames(root) {
   } catch { return new Set() }
 }
 
+// ADR-103 T3: a dependency is a declaration with exactly that name, never a mention. A `#` comment is dropped first (a `#` inside
+// a quoted value is rare, and dropping it errs toward naming nothing); then a TOML string that IS the name with an optional
+// version, a TOML key that is the name (Poetry's tables), or a requirements line naming it. A description, a comment and
+// `pytest-testmon-helper` each read as testmon before (the Codex review of T1).
+const uncommented = text => text.split('\n').map(line => line.replace(/(^|\s)#.*$/, '$1')).join('\n')
+const TOML_DECLARED = [/["']pytest-testmon\s*(?:[<>=!~;[][^"'\n]*)?["']/, /^\s*pytest-testmon\s*=/m]
+const REQUIREMENT = /^\s*pytest-testmon\s*(?:[<>=!~;[]|$)/m
 function testmonFile(root) {
-  if (/(^|["'\s])pytest-testmon\b/m.test(read(path.join(root, 'pyproject.toml')) ?? '')) return 'pyproject.toml'
+  const toml = uncommented(read(path.join(root, 'pyproject.toml')) ?? '')
+  if (TOML_DECLARED.some(declared => declared.test(toml))) return 'pyproject.toml'
   let names = []
   try { names = readdirSync(root).filter(name => /^requirements.*\.txt$/.test(name)).sort() } catch { names = [] }
-  return names.find(name => /^\s*pytest-testmon\b/m.test(read(path.join(root, name)) ?? '')) ?? null
+  return names.find(name => REQUIREMENT.test(uncommented(read(path.join(root, name)) ?? ''))) ?? null
 }
 
 /** The hint's text for the project at `root`: one constant per runner, since a hint is said once per its text (firstMentionHere). */

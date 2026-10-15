@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { slowRunLine } from '../plugin/scripts/check-ledger.mjs'
+import { slowRunLine, slowRunLineAfter } from '../plugin/scripts/check-ledger.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 
 const qhCheckScript = fileURLToPath(new URL('../plugin/scripts/qh-check.mjs', import.meta.url))
@@ -70,4 +70,21 @@ test("only this command's own recent full passes make the median", () => {
   // The last 20: 25 old passes of 1 s and 20 recent ones of 10 s. Over all 45 the median is 1 s and 12 s is 12x it; over the
   // last 20 it is 10 s, and 12 s is within its history.
   assert.equal(slowRunLine([...passes(25, 1000), ...passes(20, 10_000)], COMMAND, 12_000), null)
+})
+
+// ADR-103 T3, from the Codex review of T2 (2026-10-15): rows written after this run's own (a concurrent writer's) counted as its
+// earlier passes.
+test("only the rows before this run's own are its history", () => {
+  const top = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-slow-after-')))
+  try {
+    mkdirSync(stateDir(top), { recursive: true })
+    const ledger = rows => writeFileSync(path.join(stateDir(top), 'checks.jsonl'), rows.map(row => `${JSON.stringify(row)}\n`).join(''))
+    const current = pass(3000)
+    ledger([...passes(4, 2000), current, pass(2000)])
+    assert.equal(slowRunLineAfter(top, current), null, 'a row after this run is not its history')
+    ledger(passes(5, 2000))
+    assert.equal(slowRunLineAfter(top, current), null, 'a run the ledger does not hold has no place to end its history')
+    ledger([...passes(5, 2000), current])
+    assert.match(String(slowRunLineAfter(top, current)), /of its last 5 passes/)
+  } finally { rmSync(top, { recursive: true, force: true }) }
 })

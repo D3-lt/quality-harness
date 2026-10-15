@@ -1,6 +1,33 @@
 {
   "mutations": [
     {
+      "label": "publish foreign: nothing but echo and true after the commit (ADR-104 T1)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "(step.argv[0] === 'echo' || step.argv[0] === 'true')",
+      "to": "(step.argv[0] === 'echo' || step.argv[0] === 'true' || step.argv[0] === 'git' || step.argv[0] === 'printf')"
+    },
+    {
+      "label": "publish foreign: on POSIX only a leading / is absolute (ADR-104 T1)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": ": word.startsWith('/'))",
+      "to": ": /^(?:[\\\\/]|[A-Za-z]:[\\\\/])/.test(word))"
+    },
+    {
+      "label": "publish foreign: the commit is the first command (ADR-104 T1)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "  const [commit, ...after] = commands",
+      "to": "  const [commit, ...after] = [commands.at(-1), ...commands.slice(0, -1)]"
+    },
+    {
       "label": "publish armed: a $ or a backtick keeps the refusal",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": [
@@ -17,8 +44,26 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "still refuses every form",
-      "from": "    else if (words[at] === '-c' && /^user\\.\\w+=/.test(words[at + 1] ?? '')) at += 2",
+      "from": "    else if (words[at] === '-c' && USER_IDENTITY.test(words[at + 1] ?? '')) at += 2",
       "to": "    else if (words[at] === '-c') at += 2"
+    },
+    {
+      "label": "publish fast pass: only a user.* -c is one commit (ADR-104 T2)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/commit-identity.test.mjs"
+      ],
+      "from": "    else if (only.argv[index] === '-c' && USER_IDENTITY.test(only.argv[index + 1] ?? '')) index += 2",
+      "to": "    else if (only.argv[index] === '-c') index += 2"
+    },
+    {
+      "label": "publish: USER_IDENTITY admits only a user. key (ADR-104 T2)",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/commit-identity.test.mjs"
+      ],
+      "from": "const USER_IDENTITY = /^user\\.\\w+=/",
+      "to": "const USER_IDENTITY = /^\\w+\\.\\w+=/"
     },
     {
       "label": "publish armed: n is no plain short option",

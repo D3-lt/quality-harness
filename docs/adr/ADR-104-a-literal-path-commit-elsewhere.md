@@ -1,6 +1,6 @@
 # ADR-104: A commit whose literal `-C` path names another repository is not this checkout's publish
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-15
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner asked on 2026-10-15 ("proceed", answering whether the sign-off on pending items meant drafting this record) for BACKLOG §367's false refusal to get a record

@@ -18,8 +18,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | a literal-path commit into another repository is advised | pending | none — no spec | `node --test tests/foreign-commit.test.mjs` (named tests pass, nothing skipped) |
-| T2 | one commit with a user identity is one commit | pending | none — no spec | `node --test tests/commit-identity.test.mjs` (named test passes, nothing skipped) |
+| T1 | a literal-path commit into another repository is advised | done | none — no spec | `node --test tests/foreign-commit.test.mjs` (named tests pass, nothing skipped) |
+| T2 | one commit with a user identity is one commit | done | none — no spec | `node --test tests/commit-identity.test.mjs` (named test passes, nothing skipped) |
 
 ## Contract Coupling
 

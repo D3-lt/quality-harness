@@ -51,6 +51,7 @@ out=$(node --test --test-reporter=tap tests/commit-identity.test.mjs 2>&1) \
 | 4 — it is used | through the real PreToolUse hook in the test |
 
 ## Mutation Log
+- 2026-10-15 · f1297c97* · mutant killed · exit 1 · `plugin/scripts/publish-command.mjs` · a fast pass would admit any -c key before commit, including core.hooksPath · acceptance-sha256:bbeae9cddac535d6aec80c68f979371b5a79f0438653fb87d35a886663a4803b
 
 ## Invariants
 
@@ -69,3 +70,7 @@ Stop and ask if a `user.` key is found that runs a program or moves the reposito
 - A chained command on a fast pass (permanent: boundary: ADR-081 admits one commit and nothing else)
 
 ## Verification Log
+- 2026-10-15 · f1297c97* · exit 1 · `out=$(node --test --test-reporter=tap tests/commit-identity.test.mjs 2>&1) \ …` · acceptance-sha256:bbeae9cddac535d6aec80c68f979371b5a79f0438653fb87d35a886663a4803b · ms:261 · test-lock-sha256:6ce192ca78411b65bb2b8b138f453252533efb88e122d9896774fc6b01509e38 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY29tbWl0LWlkZW50aXR5LnRlc3QubWpzCWEgY29tbWl0IHdpdGggYSB1c2VyIGlkZW50aXR5IHJlYWRzIHRoZSBzYW1lIGF0IGFsbCB0aHJlZSByZWFkZXJzLCBhbmQgb3RoZXIgLWMga2V5cyBkbyBub3QJYmEwNTFhZDM1ZDczMzJiM2I1NTE5YzI5ZDgzMmEwZDUwNTRlNDcwYTQ5ZDI1OGY0ZjE2YzExZWFhN2FjYTYyOA
+  ```
+  ```
+- 2026-10-15 · f1297c97* · exit 0 · `out=$(node --test --test-reporter=tap tests/commit-identity.test.mjs 2>&1) \ …` · acceptance-sha256:bbeae9cddac535d6aec80c68f979371b5a79f0438653fb87d35a886663a4803b · ms:591

@@ -1,6 +1,24 @@
 {
   "mutations": [
     {
+      "label": "publish foreign: only a different git directory is foreign (ADR-104 T1)",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "    if (here !== null && there !== here) {",
+      "to": "    if (here !== null) {"
+    },
+    {
+      "label": "publish foreign: a probe that prints nothing proves nothing (ADR-104 T1)",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "  if (!printed) return null",
+      "to": "  if (!printed) return '/'"
+    },
+    {
       "label": "publish-hook: the stored command single-quotes its paths",
       "file": "plugin/scripts/publish-verdict.mjs",
       "tests": [

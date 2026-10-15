@@ -2,11 +2,11 @@
 // tree (ADR-061, ADR-081), the reviewer guard for a role spawned read-only (ADR-060), and the offer of git's own hook
 // (ADR-066). Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A refusal needs evidence; a command
 // that is only mentioned is warned about, never refused (CLAUDE.md section 3).
-import { commitOnlyCommand, decodedPowerShell, freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from './publish-command.mjs'
+import { commitOnlyCommand, decodedPowerShell, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from './publish-command.mjs'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { appendEvent, nearestExistingDirectory, readEvents } from './event-log.mjs'
-import { appendFileSync, readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { gitLines, gitRepositoryLookup, sameObservation, sessionBaseline } from './tree-facts.mjs'
 import { checkCommandOrigin, inferredCheckCaveat, publishSetting, publishSettingNote } from './check-command.mjs'
@@ -356,10 +356,36 @@ export function publishUnchecked(input, requested, env = process.env) {
       text: 'quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout\'s unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first.',
     }
   }
+  // ADR-104: a commit the text proves is one git command into an absolute literal path is
+  // told, not refused, when git places that path's repository elsewhere than this checkout's.
+  // Git's answer, not the path's: a gitfile, a symlink or a linked worktree leads back here.
+  // Advice as well as a refusal is replaced, since neither is about this checkout (§371).
+  const target = input.tool_name === 'Bash' ? foreignCommitPath(input.tool_input?.command, env) : null
+  if (target !== null) {
+    const there = commonDirectory(target, input.cwd)
+    const here = there === null ? null : commonDirectory(input.cwd, input.cwd)
+    if (here !== null && there !== here) {
+      verdict = {
+        ...verdict, deny: false, key: `${verdict.key}:foreign`,
+        text: 'quality-harness: this commit lands in a repository other than this checkout — git keeps it in a different git directory — so this checkout\'s state does not refuse it (ADR-104). If the commit was meant for this checkout, run `qh-check` first.',
+      }
+    }
+  }
   // A denial has to happen on every attempt. Saying it once and then allowing
   // the same command is the warning's dedupe applied to a refusal.
   if (!verdict.deny && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === verdict.key)) return
   queueAction({ rule: 'P', key: verdict.key, detail: verdict.detail, deny: verdict.deny, text: verdict.text })
+}
+
+// ADR-104 Decision 2: the git directory a path's repository keeps, as git resolves it, after
+// realpath, or null when git could not say: a probe that fails, times out or prints nothing
+// proves nothing, and the refusal stands.
+export function commonDirectory(dir, cwd, run = spawnSync) {
+  const probe = run('git', ['-C', dir, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const printed = probe?.status === 0 && !probe.error ? String(probe.stdout ?? '').trim() : ''
+  if (!printed) return null
+  try { return realpathSync.native(printed) } catch { return null }
 }
 
 export function reviewChangedState(input, ended) {

@@ -43,15 +43,22 @@ export function commitOnlyCommand(command) {
   // An unquoted here-document expands `$(…)`, so its body is code again (Codex review of ADR-081).
   if (only.heredocs.some(document => !document.quoted)) return false
   // The subcommand itself must be `commit`. An alias, `rebase --exec`, `-c` or `--exec-path`
-  // can each run other commands, so before it only `-C <dir>` and `--no-pager` are allowed.
+  // can each run other commands, so before it only `-C <dir>`, `--no-pager` and an identity
+  // (`-c user.<key>=…`, ADR-104 T2) are allowed.
   let index = 1
   while (index < only.argv.length && only.argv[index].startsWith('-')) {
     if (only.argv[index] === '-C') index += 2
     else if (only.argv[index] === '--no-pager') index += 1
+    else if (only.argv[index] === '-c' && USER_IDENTITY.test(only.argv[index + 1] ?? '')) index += 2
     else return false
   }
   return only.argv[index] === 'commit'
 }
+
+// ADR-104 T2: a `-c` value that names the commit's identity. A `user.` key runs nothing and
+// moves no repository, so every reader of git's options before the verb admits it, and no
+// other key.
+const USER_IDENTITY = /^user\.\w+=/
 
 // Arithmetic assigns variables, and shellWords reads no command in it: `((R=1))` between
 // `mktemp` and `cd "$R"` moves the commit (Codex re-review of a14a751, 2026-10-06).
@@ -102,9 +109,47 @@ export function freshRepositoryCommit(command, env = process.env) {
   return rest.every(step => {
     if (!plain(step) || step.argv[0] !== 'git') return false
     let at = 1
-    while (step.argv[at] === '-c' && /^user\.(?:name|email)=/.test(step.argv[at + 1] ?? '')) at += 2
+    while (step.argv[at] === '-c' && USER_IDENTITY.test(step.argv[at + 1] ?? '')) at += 2
     return step.argv[at] === 'add' || step.argv[at] === 'commit'
   })
+}
+
+// ADR-104: what is absolute where the hook runs. On POSIX only a leading `/`: `\B` and `C:/B`
+// are relative there, and the hook's cwd is not proven to be the shell's. On Windows only a
+// drive and a separator; an MSYS `/c/x` is Git Bash's to translate, so it is not read here.
+const absoluteOn = (platform, word) => (platform === 'win32' ? /^[A-Za-z]:[\\/]/.test(word) : word.startsWith('/'))
+
+// What may end the commit or a command after it: a `&`, `|`, `||` or `)` is not data's join.
+const DATA_JOINS = new Set(['', ';', '&&', '\n'])
+
+/**
+ * foreignCommitPath proves from the text alone that a command is ONE git commit into the
+ * absolute literal path it names with `-C`, and returns that path (ADR-104 Decision 1); the
+ * hook then asks git where that path's repository is (Decision 2). One git command, because
+ * one git process finds its repository once: a second git step could run the target's
+ * clean filter and re-point a symlinked path first (Codex cold review). After the commit
+ * only `echo` and `true` may run — `publishCommandIn` returning null means "not
+ * recognised", and `g=git; $g push` is not recognised. Anything this cannot prove is not
+ * one, and keeps ADR-061's refusal.
+ */
+export function foreignCommitPath(command, env = process.env, platform = process.platform) {
+  if (typeof command !== 'string') return null
+  if (Object.keys(env ?? {}).some(name => INHERITED_REDIRECTS.test(name))) return null
+  const { commands, complete } = shellWords(command.replace(/\n$/, ''))
+  if (!complete || commands.length === 0) return null
+  const [commit, ...after] = commands
+  // A quoted here-document is a message (`-F -`), and it is the only redirection allowed.
+  const plain = step => !step.assignments.length && !step.substitutions.length && step.pipeTo === null
+    && !step.code.some(Boolean) && step.heredocs.every(document => document.quoted) && step.redirects === step.heredocs.length
+    && DATA_JOINS.has(step.ended)
+  if (!plain(commit) || commit.dynamic.length || commit.argv[0] !== 'git' || commit.argv[1] !== '-C') return null
+  const target = commit.argv[2] ?? ''
+  if (!absoluteOn(platform, target) || /[$`~*?[\]{}]/.test(target) || target.split(/[\\/]/).includes('..')) return null
+  let at = 3
+  while (commit.argv[at] === '-c' && USER_IDENTITY.test(commit.argv[at + 1] ?? '')) at += 2
+  if (commit.argv[at] !== 'commit' || !plainGitArguments('commit', commit.argv.slice(at + 1))) return null
+  const data = step => plain(step) && !step.heredocs.length && (step.argv[0] === 'echo' || step.argv[0] === 'true') && !step.dynamic.includes(0)
+  return after.every(data) ? target : null
 }
 
 // Shells whose `-c` string runs, each executed with `-c` on 2026-09-26 (§296).
@@ -788,7 +833,7 @@ function segmentVerdict(words, fresh = NO_FRESH_DIRECTORIES) {
   while (at < words.length && words[at].startsWith('-')) {
     if (words[at] === '--no-pager' || words[at] === '-P') at += 1
     else if (words[at] === '-C' && at + 1 < words.length) at += 2
-    else if (words[at] === '-c' && /^user\.\w+=/.test(words[at + 1] ?? '')) at += 2
+    else if (words[at] === '-c' && USER_IDENTITY.test(words[at + 1] ?? '')) at += 2
     else return -1
   }
   const verb = words[at]

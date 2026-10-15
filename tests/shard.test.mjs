@@ -64,5 +64,5 @@ test('every command that turns sharding on runs every shard file', () => {
   }
   assert.match(config.fastCheck, /QH_TEST_SHARDED=1/, 'the fast check, which publish-command bounded, is sharded')
   // The gate runs tests/*.test.mjs, which holds every shard file, with sharding on.
-  assert.match(readFileSync(path.join(repoRoot, 'scripts', 'selftest.sh'), 'utf8'), /^QH_TEST_SHARDED=1 .*\\$/m)
+  assert.match(readFileSync(path.join(repoRoot, 'scripts', 'selftest.sh'), 'utf8'), /QH_TEST_SHARDED=1 QH_SELFTEST_ROOT=.*\\\n\s+node scripts\/run-tests\.mjs/)
 })

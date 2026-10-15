@@ -7,10 +7,11 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const reporter = path.join(repoRoot, 'scripts', 'file-timing-reporter.mjs')
+// A file URL: on Windows node's loader reads a bare `C:\…` as a URL with the scheme `c:` and exits 7 (a Windows run, 2026-10-15).
+const reporter = pathToFileURL(path.join(repoRoot, 'scripts', 'file-timing-reporter.mjs')).href
 
 const timed = files => {
   const parent = mkdtempSync(path.join(os.tmpdir(), 'qh-file-timing-'))

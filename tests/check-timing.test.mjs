@@ -71,6 +71,14 @@ test('a run no check holds is said as unjoined, and a contended check is said as
     assert.equal(runs[0].check, null, 'no check window holds the first run')
     assert.equal(runs[1].check.contended, true)
   } finally { rmSync(dir, { recursive: true, force: true }) }
+  // A load qh-check could not read (Windows has none) is said as unread, never as a quiet 0.00 (a Windows run, 2026-10-15).
+  const unread = ledger([{ at: '2026-10-14T11:00:00.000Z', files: [{ file: 'tests/a.test.mjs', ms: 1, tests: 1, failed: 0 }] }],
+    [{ ...check('2026-10-14T11:01:00.000Z', 3, 't3', 0), before: { at: '2026-10-14T10:58:00.000Z', tree: 't3', load: null } }])
+  try {
+    const out = read(unread).stdout
+    assert.match(out, /load unread/)
+    assert.doesNotMatch(out, /load 0\.00/)
+  } finally { rmSync(unread, { recursive: true, force: true }) }
 })
 
 test('a tree that went red and then green with nothing changed is counted, and a fix between them is not', () => {

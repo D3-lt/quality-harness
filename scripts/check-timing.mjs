@@ -127,7 +127,7 @@ function text({ runs, flaky }) {
   if (runs.length === 0) out.push('check-timing: no per-file times kept yet; a full run of scripts/selftest.sh keeps them')
   for (const run of runs) {
     const check = run.check
-      ? `check exit ${run.check.exit}, wall ${seconds(run.check.wallMs)}, load ${Number(run.check.load).toFixed(2)}${run.check.contended ? ', CONTENDED: not comparable' : ''}`
+      ? `check exit ${run.check.exit}, wall ${seconds(run.check.wallMs)}, load ${Number.isFinite(run.check.load) ? run.check.load.toFixed(2) : 'unread'}${run.check.contended ? ', CONTENDED: not comparable' : ''}`
       : 'no check window holds this run: not joined'
     out.push(`${run.at} — ${run.files} files, ${seconds(run.summedMs)} of test time; ${check}`)
     out.push(`  a model: per-file times only, ${run.model.workers} workers — as listed ${seconds(run.model.listedMs)}, longest first ${seconds(run.model.longestFirstMs)}`)

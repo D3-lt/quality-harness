@@ -39,6 +39,14 @@
       "from": "      beside: list.filter(check => [check.beside, check.besideAtEnd]",
       "to": "      beside: list.filter(check => [check.besideAtEnd]",
       "only": "^(?:a ledger is summarised per command: runs, passes, pass times, contention and red then green)$"
+    },
+    {
+      "label": "check-timing: a load qh-check could not read is said as unread, not 0.00",
+      "file": "scripts/check-timing.mjs",
+      "tests": ["tests/check-timing.test.mjs"],
+      "from": "load ${Number.isFinite(run.check.load) ? run.check.load.toFixed(2) : 'unread'}",
+      "to": "load ${Number(run.check.load).toFixed(2)}",
+      "only": "^(?:a run no check holds is said as unjoined, and a contended check is said as contended)$"
     }
   ]
 }

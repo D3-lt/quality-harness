@@ -84,7 +84,10 @@ fi
 # late enough to end the run alone. The same files run either way: the order is accepted only when it names as many files as
 # the glob, and anything else falls back to the glob and says so. QH_SELFTEST_ORDER=glob keeps the glob's order (to measure
 # one against the other), and QH_SELFTEST_TIMES names another times file (for tests/test-order.test.mjs).
-test_files=("$REPO"/tests/*.test.mjs)
+# Repository-relative names, run from the repository root: as absolute paths, 225 files under a deep Windows checkout came to
+# 34,928 characters, past the 32,767 a command line may hold, and the ordering died unsaid (a Windows run, 2026-10-15).
+test_files=()
+for test_file in "$REPO"/tests/*.test.mjs; do test_files+=("tests/${test_file##*/}"); done
 order_how='in glob order (no per-file times yet)'
 times_source=${QH_SELFTEST_TIMES:-$timing_ledger}
 if [ "${QH_SELFTEST_ORDER:-}" = glob ]; then
@@ -95,7 +98,7 @@ elif [ -n "$times_source" ] && [ -s "$times_source" ]; then
   while IFS= read -r ordered_file; do
     if [ -z "$order_said" ]; then order_said=$ordered_file; continue; fi
     ordered+=("$ordered_file")
-  done < <(node "$REPO/scripts/test-order.mjs" "$times_source" "$REPO" "${test_files[@]}" 2>/dev/null || true)
+  done < <(cd "$REPO" && node scripts/test-order.mjs "$times_source" . "${test_files[@]}" 2>/dev/null || true)
   if [ "$order_said" = 'order: times' ] && [ "${#ordered[@]}" = "${#test_files[@]}" ]; then
     test_files=("${ordered[@]}")
     order_how='failed first, then unmeasured, then longest first, by the last run'"'"'s times'
@@ -186,8 +189,8 @@ fi
 tests_status=0
 # QH_TEST_SHARDED=1: a file cut into slices (tests/helpers/shard.mjs) runs each slice as its own process; the glob holds every
 # shard file, so no slice goes unrun.
-QH_TEST_SHARDED=1 QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
-  node "$REPO/scripts/run-tests.mjs" ${runner_args[@]+"${runner_args[@]}"} -- "${test_files[@]}" || tests_status=$?
+(cd "$REPO" && QH_TEST_SHARDED=1 QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
+  node scripts/run-tests.mjs ${runner_args[@]+"${runner_args[@]}"} -- "${test_files[@]}") || tests_status=$?
 if [ -n "$timing_rows" ]; then
   if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$timing_ledger")" && cat "$timing_rows" >>"$timing_ledger"; then :
   else printf 'selftest: per-file times were not kept for this run\n' >&2

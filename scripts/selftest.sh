@@ -16,6 +16,8 @@ QH_RUN_TMP=''
 QH_LEASES=''
 cleanup() {
   if command -v pkill >/dev/null 2>&1; then pkill -P $$ 2>/dev/null || true; fi
+  # A grandchild re-parented to pid 1 is out of pkill -P's reach; it still names this run's directory.
+  if [ -n "$QH_RUN_TMP" ]; then node "$REPO/scripts/run-orphans.mjs" "$QH_RUN_TMP" --grace-ms 0 --kill >/dev/null 2>&1 || true; fi
   if [ -n "$QH_RUN_TMP" ]; then rm -rf "${QH_RUN_TMP:?}"; fi
   if [ -n "$QH_LEASES" ]; then rm -rf "${QH_LEASES:?}"; fi
 }
@@ -234,7 +236,7 @@ bash "$REPO/scripts/unused-names.sh"
 
 # §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of
-# reach here, which is what the gates' own tree kill is for. Without pgrep the
+# reach here; the orphan check after this one finds it by the run directory it names. Without pgrep the
 # check is UNRUN and says so; it never reads "no children" (ADR-005).
 #
 # ⚠ THE FIRST SHAPE OF THIS CHECK MEASURED ITSELF. `leftover=$(pgrep -P $$
@@ -257,6 +259,21 @@ else
     exit 1
   fi
   rm -f "$leak_list"
+fi
+
+# §130 again, for what -P cannot see: a grandchild whose parent died is re-parented to pid 1,
+# and five lease holders lived 8 h 51 min that way (2026-10-15). Each still named this run's
+# directory, which is how scripts/run-orphans.mjs finds one; after a grace it kills what is left
+# and that is a red run. Could not look is UNRUN, as above, never "none".
+if [ -n "$QH_RUN_TMP" ]; then
+  orphan_status=0
+  node "$REPO/scripts/run-orphans.mjs" "$QH_RUN_TMP" --grace-ms 5000 --kill || orphan_status=$?
+  if [ "$orphan_status" = 3 ]; then
+    printf 'orphan check UNRUN — ps did not run, so nothing here says no process outlived the suite\n' >&2
+  elif [ "$orphan_status" != 0 ]; then
+    printf 'FAIL — process(es) the suite started outlived it (named and killed above)\n' >&2
+    exit 1
+  fi
 fi
 
 # §310: what the tests left in their temp directory, by name, before the trap removes

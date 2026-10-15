@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "run-orphans: a directory is named as a whole path, not as a prefix",
+      "file": "scripts/run-orphans.mjs",
+      "tests": [
+        "tests/run-orphans.test.mjs"
+      ],
+      "from": "(?:/|\\\\s|$)`)",
+      "to": "`)",
+      "only": "^(?:naming picks the processes whose arguments name the directory, never itself)$"
+    },
+    {
+      "label": "run-orphans: the finder never names itself",
+      "file": "scripts/run-orphans.mjs",
+      "tests": [
+        "tests/run-orphans.test.mjs"
+      ],
+      "from": "    .filter(row => row.pid !== self && named.test(row.args))",
+      "to": "    .filter(row => named.test(row.args))",
+      "only": "^(?:naming picks the processes whose arguments name the directory, never itself)$"
+    },
+    {
+      "label": "run-orphans: --kill kills the survivors",
+      "file": "scripts/run-orphans.mjs",
+      "tests": [
+        "tests/run-orphans.test.mjs"
+      ],
+      "from": "    if (kill) try { process.kill(row.pid, 'SIGKILL') } catch { /* it ended on its own */ }",
+      "to": "    if (false) try { process.kill(row.pid, 'SIGKILL') } catch { /* it ended on its own */ }",
+      "only": "^(?:a detached process naming the directory is named and killed; none named exits 0)$"
+    },
+    {
+      "label": "run-orphans: the grace lets a process end on its own",
+      "file": "scripts/run-orphans.mjs",
+      "tests": [
+        "tests/run-orphans.test.mjs"
+      ],
+      "from": "  for (const end = Date.now() + grace; left?.length && Date.now() < end;) {",
+      "to": "  for (const end = Date.now(); left?.length && Date.now() < end;) {",
+      "only": "^(?:a process that ends inside the grace is not a leak)$"
+    }
+  ]
+}

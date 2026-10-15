@@ -20,9 +20,25 @@
       "label": "test-order: a file the times do not name runs before the measured ones",
       "file": "scripts/test-order.mjs",
       "tests": ["tests/test-order.test.mjs"],
-      "from": "    if (!entry) return [1, 0]",
-      "to": "    if (!entry) return [3, 0]",
+      "from": "    if (!entry || (entry.tests === 0 && !(entry.failed > 0))) return [1, 0]",
+      "to": "    if (!entry || (entry.tests === 0 && !(entry.failed > 0))) return [3, 0]",
       "only": "^(?:a failed file runs first, an unmeasured one next, and the rest longest first)$"
+    },
+    {
+      "label": "test-order: a file whose row counted no tests is unmeasured",
+      "file": "scripts/test-order.mjs",
+      "tests": ["tests/test-order.test.mjs"],
+      "from": "    if (!entry || (entry.tests === 0 && !(entry.failed > 0))) return [1, 0]",
+      "to": "    if (!entry) return [1, 0]",
+      "only": "^(?:a file whose row counted no tests of its own is unmeasured, not the shortest)$"
+    },
+    {
+      "label": "test-order: a 0-test file that failed still runs first",
+      "file": "scripts/test-order.mjs",
+      "tests": ["tests/test-order.test.mjs"],
+      "from": "    if (!entry || (entry.tests === 0 && !(entry.failed > 0))) return [1, 0]",
+      "to": "    if (!entry || entry.tests === 0) return [1, 0]",
+      "only": "^(?:a file whose row counted no tests of its own is unmeasured, not the shortest)$"
     },
     {
       "label": "test-order: it says when it printed the order given",

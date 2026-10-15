@@ -10,6 +10,11 @@
 // work). The time a file's top-level tests report is real; the process around them is not counted. A file that does not load is
 // one failing event at nesting 0, named for the file, with no tests under it. A file is one row whatever path forms node gives it:
 // on Windows CI it named one file both as the root was given and as the filesystem names it, in one run (2026-10-15).
+//
+// ⚠ A TEST IS NAMED BY THE FILE THAT CALLED test(). Measured 2026-10-15 on node 24.11.1: a test registered through a helper
+// (tests/helpers/shard.mjs) carries the helper's path, so its time is charged to the helper's row and the files that import it
+// read 0 tests. The file's own complete event cannot correct it: through run() it read 30 ms for a 400 ms file and passed
+// for a file whose test failed, and `loc` in a test's options is ignored. Readers treat a 0-test row as unmeasured.
 import { realpathSync } from 'node:fs'
 import path from 'node:path'
 

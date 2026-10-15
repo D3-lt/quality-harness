@@ -6,7 +6,8 @@
 // From the latest row of per-file times (selftest-files.jsonl, kept by the gate): files that failed in that run first, so a
 // still-red file says so early; then files the row does not name, since a new or renamed file has no time to be ranked by;
 // then the rest, longest first. Ties keep the order given. The times are the last run's own, never a table kept beside the
-// suite (the rule shardByCost in scripts/mutate.mjs follows).
+// suite (the rule shardByCost in scripts/mutate.mjs follows). A file whose row counted no tests of its own is unmeasured too:
+// its tests were charged to the helper that registered them (file-timing-reporter.mjs), so its 0 ms is not its time.
 //
 // ⚠ THE SAME FILES, ALWAYS. The output is the input reordered: every file given is printed once and nothing else, so an
 // ordering can make a run faster and never make it check less. With no row, or a row that cannot be read, the order given is
@@ -38,7 +39,7 @@ export function order(files, row, nameOf = file => file) {
   const times = new Map(row.files.map(entry => [entry.file, entry]))
   const rank = file => {
     const entry = times.get(nameOf(file))
-    if (!entry) return [1, 0]
+    if (!entry || (entry.tests === 0 && !(entry.failed > 0))) return [1, 0]
     return [entry.failed > 0 ? 0 : 2, -(entry.ms ?? 0)]
   }
   return files

@@ -30,6 +30,18 @@ test('the order is always the same files, whatever the times name', () => {
   assert.deepEqual([...got].sort(), given, 'a file the times name but nobody gave is not added, and none is dropped')
 })
 
+test('a file whose row counted no tests of its own is unmeasured, not the shortest', () => {
+  // node names a test by the file that called test(), so a file whose tests a helper registers (tests/helpers/shard.mjs) reads
+  // 0 tests and 0 ms, and ranked by that time it ran last though it is the longest (2026-10-15).
+  const times = row([{ file: 'a', ms: 5000, tests: 3, failed: 0 }, { file: 'b', ms: 0, tests: 0, failed: 0 }, { file: 'c', ms: 100, tests: 1, failed: 0 }])
+  assert.deepEqual(order(['a', 'b', 'c'], times), ['b', 'a', 'c'])
+  // DIRTY twin: a file that counted a test is measured, and its 0 ms ranks it last.
+  const counted = row([{ file: 'a', ms: 5000, tests: 3, failed: 0 }, { file: 'b', ms: 0, tests: 1, failed: 0 }, { file: 'c', ms: 100, tests: 1, failed: 0 }])
+  assert.deepEqual(order(['a', 'b', 'c'], counted), ['a', 'c', 'b'])
+  // A file that did not load counted no tests and failed: it still runs first, ahead of an unmeasured one given before it.
+  assert.deepEqual(order(['a', 'new', 'b'], row([{ file: 'a', ms: 5000, tests: 3, failed: 0 }, { file: 'b', ms: 0, tests: 0, failed: 1 }])), ['b', 'new', 'a'])
+})
+
 test('the latest row that names a file is the one read, and an unreadable line is passed over', () => {
   const text = [JSON.stringify(row([{ file: 'old', ms: 1, failed: 0 }])), JSON.stringify(row([{ file: 'new', ms: 1, failed: 0 }])), '{torn', JSON.stringify({ files: [] })].join('\n')
   assert.deepEqual(latestTimes(text).files.map(entry => entry.file), ['new'])

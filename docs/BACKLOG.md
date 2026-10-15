@@ -3623,6 +3623,8 @@ Measured in this session: with no `qh-check` passed on the tree, `git init … &
 
 2026-10-15: observed again in this repository on a fast-pass tree (`git -C <scratchpad fixture> -c user.email=… commit -qm base; echo "commit exit $?"`, refused as "not proven to be one commit"). ADR-104 (Proposed) records the decision for the literal `-C` form, with the twin rows measured on git 2.56.0. Left here, deferred by ADR-104: `cd <literal> && git commit`, and a fixture built in the same command as its commit.
 
+Correction, 2026-10-15: of the two items above, only `cd <literal> && git commit` is deferred by ADR-104. A fixture built in the same command as its commit is a permanent boundary there (Out of Scope: a program or a second git step before the commit can re-point `L`), so it is not open work.
+
 ## 368. OPEN 2026-10-09 — `subagent.ended` outnumbers `subagent.started` 692 to 30 in one session log
 
 One session log (a week of events) holds 774 `subagent.ended` rows over 692 distinct agent ids and 46 `subagent.started` over 30; 722 of the ended rows carry an empty `agentType`. `SubagentStop` has no matcher in `plugin/hooks/hooks.json`, so it fires for every stop. Source not traced: workflow or teammate agents that never fire a start are the lead. Costs one `lifecycle.mjs` run each (timeout 120).

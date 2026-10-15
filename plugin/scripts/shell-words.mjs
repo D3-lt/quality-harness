@@ -33,6 +33,7 @@ export function shellWords(text) {
   let pipeNext = false
   let naming = false
   const groups = []
+  let closedGroup = false
   let i = 0
 
   function fresh() {
@@ -66,6 +67,7 @@ export function shellWords(text) {
       const body = group?.negated ? commands.slice(group.start) : []
       const single = body.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') && !body[0]?.negated
       for (const c of single ? body.slice(0, 1) : body) c.negated = single ? group.negated : 'unknown'
+      closedGroup = true
       return
     }
     for (const expanded of braces(w.chars)) {
@@ -85,6 +87,10 @@ export function shellWords(text) {
     // pushes before the open fails (Codex review of 341c49c).
     const empty = command.argv.length === 0 && command.assignments.length === 0 && command.heredocs.length === 0
       && command.substitutions.length === 0
+    // The operator after a group's `}` joins the group, so its last command takes it: `{ …; } &` runs in the background
+    // and `{ …; } || x` decides `x` (the verification of 0b9b528a). Before, it was dropped and the command kept its `;`.
+    if (empty && closedGroup && commands.length && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator
+    closedGroup = false
     if (!empty) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
       command.ended = operator

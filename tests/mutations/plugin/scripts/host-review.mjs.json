@@ -173,7 +173,7 @@
       "tests": [
         "tests/review-ledger.test.mjs"
       ],
-      "from": "    if (output === undefined && !missingTarget(target)) {",
+      "from": "    if (range) {",
       "to": "    if (false) {",
       "only": "^(?:a Cursor review the launcher runs leaves one review row too)$"
     },
@@ -246,6 +246,16 @@
       "from": "      recordReview(repo, { host, model: review.model ?? model,",
       "to": "      recordReview(repo, { host: 'cursor', model: review.model ?? model,",
       "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: a Cursor or Claude row names the HEAD it was shown",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "effort: null, ...range, status: review.status",
+      "to": "effort: null, ...scopeRange(repo, scope), status: review.status",
+      "only": "^(?:a Cursor or Claude review records the HEAD it was shown, not the one after it)$"
     }
   ]
 }

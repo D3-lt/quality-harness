@@ -232,11 +232,14 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
     // Recorded as a Codex run is, so release-evidence sees it: on 2026-10-15 Codex refused this repository and the owner
     // chose a recorded Claude review in its place, through Cursor first; on the owner's plan Cursor runs no named model
     // ("Free plans can only use Auto"), so through `claude -p`. A review handed its output ran nothing and records nothing.
+    // The range is resolved before the run, as Codex's is: a commit that lands while it runs was not reviewed (the
+    // recorded Claude review of 18879680..8892eb9c).
+    const range = output === undefined && !missingTarget(target) ? scopeRange(repo, scope) : null
     const review = host === 'cursor'
       ? runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
       : runClaude({ model: model ?? CLAUDE_MODEL, target, resolve: resolve ?? resolveClaude, run, output })
-    if (output === undefined && !missingTarget(target)) {
-      recordReview(repo, { host, model: review.model ?? model, effort: null, ...scopeRange(repo, scope), status: review.status, findings: review.findings.length })
+    if (range) {
+      recordReview(repo, { host, model: review.model ?? model, effort: null, ...range, status: review.status, findings: review.findings.length })
     }
     return review
   }
@@ -280,7 +283,8 @@ function runCursor({ model, target, resolve, run, output }) {
 
 // `--safe-mode` loads no hooks, plugins or CLAUDE.md, so no Stop hook can continue the reviewer's turn; `dontAsk` denies
 // whatever the allowlist does not name (measured 2026-10-15, Claude Code 2.1.300: a `touch` was denied). The answer is the
-// envelope's `result`, and an error envelope is not a review whatever its text says.
+// envelope's `result`, and an error envelope is not a review whatever its text says. Not a sandbox: `git diff`, `show` and
+// `log` take `--output=<file>`, which the prefix allowlist lets through (the recorded review of 18879680..8892eb9c).
 function runClaude({ model, target, resolve, run, output }) {
   if (output !== undefined) return reviewFromOutput(output, { host: 'claude', model, effort: null })
   const bin = resolve()

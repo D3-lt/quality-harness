@@ -146,8 +146,9 @@ function listStatus(text, depth) {
     const own = commands[i].ended === '&' || (PIPED.has(joiner) && passThroughSink(commands[i])) ? { status: 'zero' } : commandStatus(commands[i], depth)
     // `exit` before the end stops the list on the paths that reach it; the others go
     // on, so only a path every run takes is known. As the LAST command it is simply
-    // the list's status, combined like any other (`test -f F || exit 0` is 0).
-    if (own.exits && i < commands.length - 1) {
+    // the list's status, combined like any other (`test -f F || exit 0` is 0). Inside a
+    // pipeline it runs in a subshell and stops nothing (sh, bash, dash; zsh runs no check).
+    if (own.exits && i < commands.length - 1 && !PIPED.has(joiner) && !PIPED.has(commands[i].ended)) {
       if (joiner === '&&' ? status === 'zero' : joiner === '||' ? status === 'nonzero' : true) return own.status
       return 'either'
     }

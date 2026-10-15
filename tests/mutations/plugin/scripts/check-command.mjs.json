@@ -165,8 +165,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (own.exits && i < commands.length - 1) {",
-      "to": "    if (own.exits) {",
+      "from": "    if (own.exits && i < commands.length - 1 && !PIPED.has(joiner)",
+      "to": "    if (own.exits && !PIPED.has(joiner)",
       "only": "a check whose exit status the text fixes is refused"
     },
     {
@@ -258,6 +258,26 @@
       "from": "  if (c.substitutions.length || c.dynamic.length) return false",
       "to": "  if (c.substitutions.length) return false",
       "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
+    },
+    {
+      "label": "check-command: an exit piped onward stops nothing",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " && !PIPED.has(joiner) && !PIPED.has(commands[i].ended)) {",
+      "to": " && !PIPED.has(joiner)) {",
+      "only": "^(?:an exit inside a pipeline does not end the list)$"
+    },
+    {
+      "label": "check-command: an exit a pipe feeds stops nothing",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " && !PIPED.has(joiner) && !PIPED.has(commands[i].ended)) {",
+      "to": " && !PIPED.has(commands[i].ended)) {",
+      "only": "^(?:an exit inside a pipeline does not end the list)$"
     }
   ]
 }

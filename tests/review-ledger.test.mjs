@@ -282,3 +282,23 @@ test('a headless Claude review is read-only, unwraps its result, and leaves one 
     assert.equal(absent.status, 'unavailable')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// The recorded Claude review of 18879680..8892eb9c (blocking): the Cursor and Claude rows resolved HEAD after the run, so a
+// commit that landed while the reviewer read the diff was recorded as reviewed, and release-evidence cleared it.
+test('a Cursor or Claude review records the HEAD it was shown, not the one after it', () => {
+  const dir = scratch()
+  try {
+    const base = commit(dir, 'plugin/a.mjs', 'one\n')
+    commit(dir, 'plugin/a.mjs', 'two\n')
+    const clean = JSON.stringify({ type: 'result', is_error: false, result: JSON.stringify({ status: 'clean', findings: [] }) })
+    for (const host of ['claude', 'cursor']) {
+      const shown = git(dir, 'rev-parse', 'HEAD')
+      let landed = null
+      const run = () => { landed = commit(dir, 'plugin/a.mjs', `${host}\n`); return { status: 0, stdout: clean } }
+      hostReview({ host, repo: dir, scope: `base ${base}`, resolve: () => host, run })
+      const row = rows(dir).at(-1)
+      assert.ok(landed && landed !== shown, 'a commit landed during the run')
+      assert.deepEqual([row.host, row.head], [host, shown], `${host}: the commit made during the run is not in the reviewed range`)
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

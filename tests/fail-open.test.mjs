@@ -591,3 +591,15 @@ test('a check piped into a pass-through sink without pipefail cannot fail', () =
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })
+
+// The recorded Claude review of 18879680..8892eb9c (advisory, pre-existing): an `exit` inside a pipeline runs in a subshell,
+// so it neither ends the list nor fixes the pipeline's status. `exit 1 | tee log` exits 0 under sh, bash and dash
+// (measured 2026-10-15) and was read as nonzero, which accepted it as a real check. zsh runs the last stage in the shell
+// itself, but a check is run with /bin/sh or Git Bash, never zsh.
+test('an exit inside a pipeline does not end the list', () => {
+  const constant = ['exit 1 | tee log', 'exit 1 | cat; true', 'npm test | exit 1; true']
+  // DIRTY twins: an exit outside a pipeline still ends the list, and a pipeline that ends in it is its status.
+  const real = ['exit 1; true', 'npm test | exit 1', 'exit 1 | grep -q x', 'npm test | exit 0; npm test']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})

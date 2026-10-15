@@ -28,7 +28,7 @@ test('naming picks the processes whose arguments name the directory, never itsel
 
 test('a detached process naming the directory is named and killed; none named exits 0', { skip: process.platform === 'win32' && 'selftest.sh owns no run directory on Windows' }, async () => {
   const dir = mkdtempSync(join(top, 'run-'))
-  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)', dir], { detached: true, stdio: 'ignore', windowsHide: true })
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)', dir], { detached: true, stdio: 'ignore', timeout: 60_000, windowsHide: true })
   child.unref()
   for (let i = 0; i < 50 && !alive(child.pid); i++) await new Promise(r => setTimeout(r, 20))
   const found = spawnSync(process.execPath, [script, dir, '--grace-ms', '200', '--kill'], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
@@ -44,7 +44,7 @@ test('a detached process naming the directory is named and killed; none named ex
 
 test('a process that ends inside the grace is not a leak', { skip: process.platform === 'win32' && 'selftest.sh owns no run directory on Windows' }, () => {
   const dir = mkdtempSync(join(top, 'run-'))
-  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 300)', dir], { detached: true, stdio: 'ignore', windowsHide: true })
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 300)', dir], { detached: true, stdio: 'ignore', timeout: 60_000, windowsHide: true })
   child.unref()
   const found = spawnSync(process.execPath, [script, dir, '--grace-ms', '5000'], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
   assert.equal(found.status, 0, found.stderr)

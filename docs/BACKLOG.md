@@ -3621,6 +3621,8 @@ Reported, with three consecutive outputs, by a peer session on a repository with
 
 Measured in this session: with no `qh-check` passed on the tree, `git init … && git commit` inside a scratch repository under the session's temp directory was refused ("names commit or push"). The command publishes nothing from this repository. A false refusal (CLAUDE.md §16; the owner: fixed now). Class: a publish command whose working directory is not the repository (a `cd` into another repository, `git -C <elsewhere>`, a `GIT_DIR`). Not built; start from `publishCommandIn` and the commit-only proof in `lifecycle.mjs`.
 
+2026-10-15: observed again in this repository on a fast-pass tree (`git -C <scratchpad fixture> -c user.email=… commit -qm base; echo "commit exit $?"`, refused as "not proven to be one commit"). ADR-104 (Proposed) records the decision for the literal `-C` form, with the twin rows measured on git 2.56.0. Left here, deferred by ADR-104: `cd <literal> && git commit`, and a fixture built in the same command as its commit.
+
 ## 368. OPEN 2026-10-09 — `subagent.ended` outnumbers `subagent.started` 692 to 30 in one session log
 
 One session log (a week of events) holds 774 `subagent.ended` rows over 692 distinct agent ids and 46 `subagent.started` over 30; 722 of the ended rows carry an empty `agentType`. `SubagentStop` has no matcher in `plugin/hooks/hooks.json`, so it fires for every stop. Source not traced: workflow or teammate agents that never fire a start are the lead. Costs one `lifecycle.mjs` run each (timeout 120).

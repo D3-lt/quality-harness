@@ -15,7 +15,7 @@ import { isMainModule } from './main-module.mjs'
 import { firstMentionHere } from './session-notes.mjs'
 import { projectConfigProblem, proseSpecs } from './project-config.mjs'
 import { checkCommandOrigin, fastCheckCommand } from './check-command.mjs'
-import { checkEventName, latestFastPass, passedAlready } from './check-ledger.mjs'
+import { checkEventName, latestFastPass, passedAlready, slowRunLineAfter } from './check-ledger.mjs'
 import { observe, observeBudgetMs } from './tree-facts.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
@@ -166,6 +166,9 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     stderr.write(`qh-check: ${PROSE_HINT}\n`)
   }
   stderr.write(`qh-check: ${loadLine(before.load, after.load, loadAtStart.cores)}\n`)
+  // ADR-103 T2: a full run that took half again this command's own median says so; a --fast run never does.
+  const slow = fast ? null : slowRunLineAfter(root, record)
+  if (slow) stderr.write(`qh-check: ${slow}\n`)
   if (ended.error) {
     stderr.write(`qh-check: the check could not start (${ended.error.code ?? ended.error.message}).\n`)
     return 127

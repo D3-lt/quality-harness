@@ -164,6 +164,36 @@ export function checkEventName(record) {
 }
 
 /**
+ * ADR-103 T2. The line a full run says when it took at least 1.5 times the median of this command's own last 20 full passes,
+ * given at least five, or null. `records` are the ledger rows BEFORE this run's own. A pass is a row `checkEventName` grades
+ * `check.passed` and no reuse (`reusedFrom`, ADR-094): a reused row carries another run's times, so counting it would count
+ * one measurement twice. A run's time is its window, `after.at` less `before.at`; the median of an even count is the lower
+ * middle. The load and the checks beside the run are said on lines qh-check already prints (ADR-075, ADR-077), so not here.
+ */
+export function slowRunLine(records, command, ms) {
+  const times = records
+    .filter(record => record?.command === command && record.reusedFrom === undefined && checkEventName(record) === 'check.passed')
+    .slice(-20)
+    .map(record => Date.parse(record.after?.at) - Date.parse(record.before?.at))
+    .filter(Number.isFinite)
+  if (times.length < 5 || !Number.isFinite(ms)) return null
+  const median = [...times].sort((a, b) => a - b)[Math.floor((times.length - 1) / 2)]
+  if (!(median > 0) || ms < 1.5 * median) return null
+  const seconds = value => `${(value / 1000).toFixed(1)} s`
+  return `this run took ${seconds(ms)}, ${(ms / median).toFixed(1)}x the median ${seconds(median)} of its last ${times.length} passes`
+}
+
+/** `slowRunLine` for the full run `record` qh-check just wrote: the rows of `checks.jsonl` other than its own. */
+export function slowRunLineAfter(root, record) {
+  let text
+  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
+  const earlier = text.split('\n').flatMap(line => {
+    try { const row = JSON.parse(line); return row?.id === record.id ? [] : [row] } catch { return [] }
+  })
+  return slowRunLine(earlier, record.command, Date.parse(record.after?.at) - Date.parse(record.before?.at))
+}
+
+/**
  * Import what `qh-check` wrote, and say whether the source could be read WHOLE.
  *
  * ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. `readEvents` was taught that

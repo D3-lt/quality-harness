@@ -19,4 +19,4 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | a fast check is named where the runner offers one that can pass | pending | none — no spec | `node --test tests/fast-check-hint.test.mjs` (named tests pass, nothing skipped) |
-| T2 | a slow run is said against its own history | pending | none — no spec | `node --test tests/slow-run.test.mjs` (named tests pass, nothing skipped) |
+| T2 | a slow run is said against its own history | done | none — no spec | `node --test tests/slow-run.test.mjs` (named tests pass, nothing skipped) |

@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "ADR-103 T2: five earlier passes are the floor for a slow-run line",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/slow-run.test.mjs"],
+      "from": "  if (times.length < 5 || !Number.isFinite(ms)) return null",
+      "to": "  if (times.length < 4 || !Number.isFinite(ms)) return null",
+      "only": "^(?:a run within its history, or with too little of it, says nothing)$"
+    },
+    {
+      "label": "ADR-103 T2: only passes make the median",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/slow-run.test.mjs"],
+      "from": " && record.reusedFrom === undefined && checkEventName(record) === 'check.passed')",
+      "to": " && record.reusedFrom === undefined)",
+      "only": "^(?:only this command's own recent full passes make the median)$"
+    },
+    {
+      "label": "ADR-103 T2: a row reused from another run is not a run",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/slow-run.test.mjs"],
+      "from": "record?.command === command && record.reusedFrom === undefined && checkEventName",
+      "to": "record?.command === command && checkEventName",
+      "only": "^(?:only this command's own recent full passes make the median)$"
+    },
+    {
+      "label": "ADR-103 T2: only this command's passes make its median",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/slow-run.test.mjs"],
+      "from": "    .filter(record => record?.command === command && record.reusedFrom",
+      "to": "    .filter(record => record && record.reusedFrom",
+      "only": "^(?:only this command's own recent full passes make the median)$"
+    },
+    {
+      "label": "ADR-103 T2: the median is over the last 20 passes",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/slow-run.test.mjs"],
+      "from": "    .slice(-20)\n",
+      "to": "",
+      "only": "^(?:only this command's own recent full passes make the median)$"
+    },
+    {
       "label": "observe: a write behind an in-tree link to an outside file is not observable",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [

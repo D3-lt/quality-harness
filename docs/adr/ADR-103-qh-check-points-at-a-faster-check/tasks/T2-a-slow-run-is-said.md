@@ -58,6 +58,7 @@ out=$(node --test --test-reporter=tap tests/slow-run.test.mjs 2>&1) \
 | 4 — it is used | the outside runs in ADR-103's Follow-ups |
 
 ## Mutation Log
+- 2026-10-15 · e9ab9bbf* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · four passes would be enough history to call a run slow · acceptance-sha256:63cc8d3cc72c5f5a9e7543e4cfada0b37dbf07d78c22f958d1991ee2e0b1fa7c
 
 ## Invariants
 
@@ -77,3 +78,7 @@ Stop and ask if a reused row cannot be told from a run.
 - Per-file times inside an adopter's run (permanent: boundary: the ledger holds the run's window, not its files, ADR-103)
 
 ## Verification Log
+- 2026-10-15 · e9ab9bbf* · exit 1 · `out=$(node --test --test-reporter=tap tests/slow-run.test.mjs 2>&1) \ …` · acceptance-sha256:63cc8d3cc72c5f5a9e7543e4cfada0b37dbf07d78c22f958d1991ee2e0b1fa7c · ms:241 · test-lock-sha256:919438992c054b453f0df9c9f60ba4820d6ba8cf0d15358a79bcd68687363bf7 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc2xvdy1ydW4udGVzdC5tanMJYSBydW4gaGFsZiBhZ2FpbiBpdHMgb3duIG1lZGlhbiBpcyBzYWlkCWY5NjJlMWY2MmQ1YzZjNGM0ZGFhNGJiOGRjMzdiMDk0OTZlZDhmN2ZkYjQ3M2M5MDIzOWNkODMwYWRhMjgxMDIKYm9keQl0ZXN0cy9zbG93LXJ1bi50ZXN0Lm1qcwlhIHJ1biB3aXRoaW4gaXRzIGhpc3RvcnksIG9yIHdpdGggdG9vIGxpdHRsZSBvZiBpdCwgc2F5cyBub3RoaW5nCWE4YmRlMzliMWQwMDlmMGU3NWE5NmI2Zjk5NWNhNDI0Nzc4MjE0YzRiYTQzYWM3NmViMmJmZjRiMDkwZjFmNjkKYm9keQl0ZXN0cy9zbG93LXJ1bi50ZXN0Lm1qcwlvbmx5IHRoaXMgY29tbWFuZCdzIG93biByZWNlbnQgZnVsbCBwYXNzZXMgbWFrZSB0aGUgbWVkaWFuCTQ4NTQ4OGRkMDlkZDk1NjA0OTAwOTkzYWE2M2MwY2YxZmUzNThjY2ZlZjZkNmExOWY5YmE2OGNjMjY2ZjdlOWE
+  ```
+  ```
+- 2026-10-15 · e9ab9bbf* · exit 0 · `out=$(node --test --test-reporter=tap tests/slow-run.test.mjs 2>&1) \ …` · acceptance-sha256:63cc8d3cc72c5f5a9e7543e4cfada0b37dbf07d78c22f958d1991ee2e0b1fa7c · ms:7819

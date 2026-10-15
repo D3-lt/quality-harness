@@ -104,3 +104,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-100](ADR-100-a-repeated-procedure-is-one-command.md) | A procedure the agent repeats is one command | Accepted |
 | [ADR-101](ADR-101-one-reader-per-check-ledger.md) | One reader per check ledger | Accepted |
 | [ADR-102](ADR-102-a-syntax-finding-at-the-edit-reaches-the-agent.md) | A syntax finding at the edit reaches the agent | Accepted |
+| [ADR-103](ADR-103-qh-check-points-at-a-faster-check.md) | qh-check points at a faster check, and says when a run was slow for its history | Accepted |

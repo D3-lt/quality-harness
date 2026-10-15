@@ -21,8 +21,8 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:JSONC is read as TypeScript reads it)$",
-      "from": "\\/\\/[^\\r\\n]*",
-      "to": "\\/\\/[^\\n]*"
+      "from": "\\/\\/[^\\r\\n\\u2028\\u2029]*",
+      "to": "\\/\\/[^\\n\\u2028\\u2029]*"
     },
     {
       "label": "ADR-102 T6: a removed comment cannot join two halves of a token",
@@ -243,6 +243,26 @@
       "only": "edits do not launch project-wide",
       "from": "  *.ts|*.tsx|*.rs|*.go)\n    ;;",
       "to": "  *.ts|*.tsx|*.rs|*.go)\n    npx --no-install tsc --noEmit\n    ;;"
+    },
+    {
+      "label": "post-edit: a line comment ends at U+2028 and U+2029",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "only": "^a line comment ends at U\\+2028 and U\\+2029, as TypeScript reads one$",
+      "from": "\\/\\/[^\\r\\n\\u2028\\u2029]*",
+      "to": "\\/\\/[^\\r\\n]*"
+    },
+    {
+      "label": "post-edit: a bare U+2028 or U+2029 is whitespace",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "only": "^a line comment ends at U\\+2028 and U\\+2029, as TypeScript reads one$",
+      "from": "|\\/\\*[\\s\\S]*?\\*\\/|[\\u2028\\u2029]/g",
+      "to": "|\\/\\*[\\s\\S]*?\\*\\//g"
     }
   ]
 }

@@ -589,3 +589,24 @@ test('an UNRUN line names node, not the file, as what failed', () => {
     assert.doesNotMatch(out, /could not read/, `${file}: the file is not blamed: ${out}`)
   }
 })
+
+// BACKLOG §381, item 5 (the scoped review of ADR-102 T7, Codex, 2026-10-14): the fallback ended a line comment at CR
+// or LF only, so a comment ending at U+2028 swallowed the code after it and `{"a":1,//c<U+2028> "b": <LF>}`, which
+// TypeScript refuses, read as valid. TypeScript ends the comment there and reads the separator as whitespace.
+test('a line comment ends at U+2028 and U+2029, as TypeScript reads one', () => {
+  const dir = scratch()
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = run('Edit', target)
+    assert.equal(got.status, 0)
+    return `${got.stdout}`.trim()
+  }
+  for (const separator of [' ', ' ']) {
+    const name = `sep-${separator.charCodeAt(0).toString(16)}`
+    // DIRTY: the code after the separator is read, and it is broken.
+    assert.match(said(`${name}-broken.json`, `{"a":1,//c${separator} "b": \n}\n`), new RegExp(`${name}-broken\\.json: jq: parse error`))
+    // CLEAN twin: a comment ended by the separator, with valid code around it, is valid JSONC.
+    assert.equal(said(`${name}-valid.json`, `{"a":1 //c${separator}}\n`), '', `${name}: a separator is whitespace, as TypeScript reads it`)
+  }
+})

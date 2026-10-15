@@ -29,14 +29,36 @@ function packageNames(root) {
 
 // ADR-103 T3: a dependency is a declaration with exactly that name, never a mention. A `#` comment is dropped first (a `#` inside
 // a quoted value is rare, and dropping it errs toward naming nothing); then a TOML string that IS the name with an optional
-// version, a TOML key that is the name (Poetry's tables), or a requirements line naming it. A description, a comment and
-// `pytest-testmon-helper` each read as testmon before (the Codex review of T1).
+// version, a Poetry key that is the name, or a requirements line naming it. A description, a comment and `pytest-testmon-helper`
+// each read as testmon before (the Codex review of T1).
 const uncommented = text => text.split('\n').map(line => line.replace(/(^|\s)#.*$/, '$1')).join('\n')
-const TOML_DECLARED = [/["']pytest-testmon\s*(?:[<>=!~;[][^"'\n]*)?["']/, /^\s*pytest-testmon\s*=/m]
+const DECLARED_STRING = /["']pytest-testmon\s*(?:[<>=!~;[][^"'\n]*)?["']/
+const POETRY_KEY = /^\s*["']?pytest-testmon["']?\s*=/
 const REQUIREMENT = /^\s*pytest-testmon\s*(?:[<>=!~;[]|$)/m
+const POETRY_TABLE = /^tool\.poetry\.(?:dependencies|dev-dependencies|group\.[^.\]]+\.dependencies)$/
+
+// ADR-103 T4: and only in a dependency position, read by table (the verification review of T3 found `description =
+// "pytest-testmon"` and a `[tool.custom]` key read as declarations): a string in `[project]`'s `dependencies` array or in an array
+// of `[project.optional-dependencies]` or `[dependency-groups]`, or a key in a Poetry dependency table. No full TOML parser: an
+// array is read from its opening line to the line that closes it, outside quotes.
+function tomlDeclaresTestmon(text) {
+  let table = ''
+  let inArray = false
+  for (const line of uncommented(text).split('\n')) {
+    const header = line.match(/^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*$/)
+    if (header) { table = header[1].replace(/\s+/g, ''); inArray = false; continue }
+    if (POETRY_TABLE.test(table) && POETRY_KEY.test(line)) return true
+    const opens = (table === 'project' && /^\s*dependencies\s*=\s*\[/.test(line))
+      || ((table === 'project.optional-dependencies' || table === 'dependency-groups') && /^\s*["']?[\w.-]+["']?\s*=\s*\[/.test(line))
+    if (!inArray && opens) inArray = true
+    if (inArray && DECLARED_STRING.test(line)) return true
+    if (inArray && line.replace(/["'][^"']*["']/g, '').includes(']')) inArray = false
+  }
+  return false
+}
+
 function testmonFile(root) {
-  const toml = uncommented(read(path.join(root, 'pyproject.toml')) ?? '')
-  if (TOML_DECLARED.some(declared => declared.test(toml))) return 'pyproject.toml'
+  if (tomlDeclaresTestmon(read(path.join(root, 'pyproject.toml')) ?? '')) return 'pyproject.toml'
   let names = []
   try { names = readdirSync(root).filter(name => /^requirements.*\.txt$/.test(name)).sort() } catch { names = [] }
   return names.find(name => REQUIREMENT.test(uncommented(read(path.join(root, name)) ?? ''))) ?? null

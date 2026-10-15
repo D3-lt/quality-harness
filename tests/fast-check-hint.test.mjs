@@ -118,3 +118,24 @@ test('a dependency is a declaration of that name, not a mention', () => {
     assert.doesNotMatch(hint({ 'README.md': 'x\n' }), /minute|second|took/, 'the hint claims no duration')
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+
+// ADR-103 T4, from the verification review of T3 (Codex, 2026-10-15): exact-name text outside a dependency position still read as
+// a declaration.
+test('only a dependency position declares a dependency', () => {
+  const top = sandbox()
+  try {
+    const hint = toml => fastCheckHint(project(top, `p${Math.random().toString(36).slice(2)}`, { 'pyproject.toml': toml }))
+    for (const toml of [
+      '[project]\nname = "fx"\ndescription = "pytest-testmon"\n',
+      '[tool.custom]\npytest-testmon = false\n',
+      '[project]\ndependencies = ["pytest"]\n[tool.notes]\nlist = ["pytest-testmon"]\n',
+    ]) assert.doesNotMatch(hint(toml), COMMAND_IN_HINT, toml)
+    // CLEAN twins: each dependency position names it.
+    for (const toml of [
+      '[project]\nname = "fx"\ndependencies = [\n  "pytest",\n  "pytest-testmon>=2",\n]\n',
+      '[project.optional-dependencies]\ndev = ["pytest-testmon"]\n',
+      '[dependency-groups]\ntest = [\n  "pytest-testmon",\n]\n',
+      '[tool.poetry.group.dev.dependencies]\npytest-testmon = "^2"\n',
+    ]) assert.match(hint(toml), /`pytest --testmon`/, toml)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

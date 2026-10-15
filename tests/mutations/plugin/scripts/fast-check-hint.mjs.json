@@ -4,17 +4,33 @@
       "label": "ADR-103 T3: a declared name is exactly pytest-testmon, with an optional version",
       "file": "plugin/scripts/fast-check-hint.mjs",
       "tests": ["tests/fast-check-hint.test.mjs"],
-      "from": "const TOML_DECLARED = [/[\"']pytest-testmon\\s*(?:[<>=!~;[][^\"'\\n]*)?[\"']/,",
-      "to": "const TOML_DECLARED = [/[\"']pytest-testmon[^\"'\\n]*[\"']/,",
+      "from": "const DECLARED_STRING = /[\"']pytest-testmon\\s*(?:[<>=!~;[][^\"'\\n]*)?[\"']/",
+      "to": "const DECLARED_STRING = /[\"']pytest-testmon[^\"'\\n]*[\"']/",
       "only": "^(?:a dependency is a declaration of that name, not a mention)$"
     },
     {
       "label": "ADR-103 T3: a commented declaration is not a declaration",
       "file": "plugin/scripts/fast-check-hint.mjs",
       "tests": ["tests/fast-check-hint.test.mjs"],
-      "from": "  const toml = uncommented(read(path.join(root, 'pyproject.toml')) ?? '')",
-      "to": "  const toml = read(path.join(root, 'pyproject.toml')) ?? ''",
+      "from": "  for (const line of uncommented(text).split('\\n')) {",
+      "to": "  for (const line of text.split('\\n')) {",
       "only": "^(?:a dependency is a declaration of that name, not a mention)$"
+    },
+    {
+      "label": "ADR-103 T4: a key names a dependency only in a Poetry dependency table",
+      "file": "plugin/scripts/fast-check-hint.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "    if (POETRY_TABLE.test(table) && POETRY_KEY.test(line)) return true",
+      "to": "    if (POETRY_KEY.test(line)) return true",
+      "only": "^(?:only a dependency position declares a dependency)$"
+    },
+    {
+      "label": "ADR-103 T4: a string names a dependency only inside a dependency array",
+      "file": "plugin/scripts/fast-check-hint.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "    if (inArray && DECLARED_STRING.test(line)) return true",
+      "to": "    if (DECLARED_STRING.test(line)) return true",
+      "only": "^(?:only a dependency position declares a dependency)$"
     },
     {
       "label": "ADR-103 T1: a runner is read from the dependency fields only, not from scripts",

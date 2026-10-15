@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "ADR-103 T1: a project that declares a fastCheck is not told to declare one",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "    && !fastCheckCommand(root)) {\n    const hint = fastCheckHint(root)",
+      "to": "    ) {\n    const hint = fastCheckHint(root)",
+      "only": "^(?:a slow pass with no fastCheck hears it once, and nothing else hears it)$"
+    },
+    {
+      "label": "ADR-103 T1: a pass under the duration is not told",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "  if (!fast && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)\n    && !fastCheckCommand(root)) {",
+      "to": "  if (!fast && checkEventName(record) === 'check.passed'\n    && !fastCheckCommand(root)) {",
+      "only": "^(?:a slow pass with no fastCheck hears it once, and nothing else hears it)$"
+    },
+    {
+      "label": "ADR-103 T1: a run that is not said the hint never uses it up",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "  if (!fast && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)\n    && !fastCheckCommand(root)) {",
+      "to": "  if (firstMentionHere(root, fastCheckHint(root)) && !fast && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)\n    && !fastCheckCommand(root)) {",
+      "only": "^(?:a slow pass with no fastCheck hears it once, and nothing else hears it)$"
+    },
+    {
       "label": "ADR-103 T2: a --fast run never says the slow-run line",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": ["tests/slow-run.test.mjs"],

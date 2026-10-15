@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-103 T1: a runner is read from the dependency fields only, not from scripts",
+      "file": "plugin/scripts/fast-check-hint.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "    return new Set([...Object.keys(manifest?.dependencies ?? {}), ...Object.keys(manifest?.devDependencies ?? {})])",
+      "to": "    return new Set([...Object.keys(manifest?.dependencies ?? {}), ...Object.keys(manifest?.devDependencies ?? {}), ...Object.values(manifest?.scripts ?? {})])",
+      "only": "^(?:a runner's own fast check is named from its manifest)$"
+    },
+    {
+      "label": "ADR-103 T1: pytest-testmon is named with the data file to ignore",
+      "file": "plugin/scripts/fast-check-hint.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "(pytest-testmon, in ${testmon}), with \\`.testmondata*\\` in .gitignore, `",
+      "to": "(pytest-testmon, in ${testmon}), `",
+      "only": "^(?:a runner's own fast check is named from its manifest)$"
+    }
+  ]
+}

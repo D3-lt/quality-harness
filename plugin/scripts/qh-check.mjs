@@ -21,6 +21,7 @@ import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 import { PROSE_HINT, onlyTextChangedSince, previousPassHead, proseHintMs } from './prose-hint.mjs'
+import { fastCheckHint } from './fast-check-hint.mjs'
 import { checkTimeoutMs, runLaunched } from './check-child.mjs'
 import { takeTurn } from './check-lease.mjs'
 import { classifyRun, recordRun, recordSkip, reuseByProse, runRecord } from './check-record.mjs'
@@ -164,6 +165,13 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)
     && onlyTextChangedSince(root, previousHead) && firstMentionHere(root, PROSE_HINT)) {
     stderr.write(`qh-check: ${PROSE_HINT}\n`)
+  }
+  // ADR-103 T1: a passing full run that took a while, in a project with no fastCheck, names the fast check its runner offers.
+  // firstMentionHere is asked last, since asking it writes its marker: a run that is not said the hint never uses it up.
+  if (!fast && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)
+    && !fastCheckCommand(root)) {
+    const hint = fastCheckHint(root)
+    if (firstMentionHere(root, hint)) stderr.write(`qh-check: ${hint}\n`)
   }
   stderr.write(`qh-check: ${loadLine(before.load, after.load, loadAtStart.cores)}\n`)
   // ADR-103 T2: a full run that took half again this command's own median says so; a --fast run never does.

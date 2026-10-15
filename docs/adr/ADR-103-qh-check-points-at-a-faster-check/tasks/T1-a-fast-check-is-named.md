@@ -63,6 +63,7 @@ out=$(node --test --test-reporter=tap tests/fast-check-hint.test.mjs 2>&1) \
 | 4 — it is used | the outside runs in ADR-103's Follow-ups |
 
 ## Mutation Log
+- 2026-10-15 · 7c1ff0b2* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · a project that already declares a fastCheck would be told to declare one · acceptance-sha256:d1ac0c0caa5676e4058ee1fa004cac0a29767d0393cb9edb9acf4c303fad9b1e
 
 ## Invariants
 
@@ -81,3 +82,8 @@ Stop and ask if no candidate can yield `check.passed` through `qh-check` on a ch
 - Writing the declaration (permanent: boundary: which tests may stand in for the suite is the owner's call, ADR-103)
 
 ## Verification Log
+- 2026-10-15 · 7c1ff0b2* · exit 1 · `out=$(node --test --test-reporter=tap tests/fast-check-hint.test.mjs 2>&1) \ …` · acceptance-sha256:d1ac0c0caa5676e4058ee1fa004cac0a29767d0393cb9edb9acf4c303fad9b1e · ms:232 · test-lock-sha256:0a1dbe0cbcb103b430cc2cbc8f3146a0f060ffab31658c6a1f22452ac09e546f · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvZmFzdC1jaGVjay1oaW50LnRlc3QubWpzCWEgcnVubmVyJ3Mgb3duIGZhc3QgY2hlY2sgaXMgbmFtZWQgZnJvbSBpdHMgbWFuaWZlc3QJNTFkMmQ3ZmYwMmI3NzdjMzBiNjgwNjE4NzA2NzViZjU2ODI0YzNhOTdjNDlmNWY3MTgyNjliZDhjZjNiZGY2Mgpib2R5CXRlc3RzL2Zhc3QtY2hlY2staGludC50ZXN0Lm1qcwlhIHNsb3cgcGFzcyB3aXRoIG5vIGZhc3RDaGVjayBoZWFycyBpdCBvbmNlLCBhbmQgbm90aGluZyBlbHNlIGhlYXJzIGl0CWIwNzM3ZjZhZWM5YjllNjUwYmVlMWVjODRkMDY1NzEwZWY5MWJkZGE2ZWI4MGU4MDUzYjc1Mjg4MDFiZWJlZjYKYm9keQl0ZXN0cy9mYXN0LWNoZWNrLWhpbnQudGVzdC5tanMJdGhlIGhpbnQgc2F5cyB3aGF0IGEgZmFzdCBwYXNzIGlzLCBhbmQgd3JpdGVzIG5vdGhpbmcJYThlOTUwZjE5MjkyNjJjZmMzOTEwZmYwNjI5OThjNzg5MGE5N2M1MTRiMjFkZTM4M2NiY2I3ZWNiYzYzYmM1MA
+  ```
+  ```
+- 2026-10-15 · 7c1ff0b2* · exit 0 · `out=$(node --test --test-reporter=tap tests/fast-check-hint.test.mjs 2>&1) \ …` · acceptance-sha256:d1ac0c0caa5676e4058ee1fa004cac0a29767d0393cb9edb9acf4c303fad9b1e · ms:2115
+- 2026-10-15 · human-observed · observed 2026-10-15, S2 measured through qh-check --fast in scratch fixtures (change a test covers, then one none covers): vitest 5.0.4 'npx vitest run --changed' check.passed both; jest 30.5.2 'npx jest --onlyChanged' passed then no-work ('No tests found related to files changed since last commit'), with or without --passWithNoTests, so jest is not named; pytest 9.1.1 + pytest-testmon 2.2.0 'pytest --testmon' check.passed both with .testmondata* in .gitignore, and not a pass without it (the tree changed under the run)

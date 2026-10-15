@@ -15,18 +15,25 @@ import path from 'node:path'
 
 // node names a test file in the form it reached it, so the root is tried as given and as the filesystem names it: a root reached
 // through a symlink (macOS's /var → /private/var) is named by its real path, and a Windows short name (CI's RUNNER~1) by the
-// form given, which realpath would lengthen (Windows CI, 2026-10-15). A file inside neither keeps its own path.
+// form given, which realpath would lengthen (Windows CI, 2026-10-15). A file inside neither is tried as the filesystem names it
+// too: on Windows CI node also named a file by the link's target as written (`RUNNER~1\…\real`), which is under neither root
+// form until both are canonical. A file still inside neither keeps its own path.
 const realRoot = root => { try { return realpathSync.native(root) } catch { return root } }
 
 export default async function* fileTiming(source) {
   const given = process.env.QH_SELFTEST_ROOT || process.cwd()
   const roots = [...new Set([realRoot(given), given])]
-  const nameOf = file => {
+  const named = new Map()
+  const inRoot = file => {
     for (const root of roots) {
       const relative = path.relative(root, file)
       if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) return relative.split(path.sep).join('/')
     }
-    return file.split(path.sep).join('/')
+    return null
+  }
+  const nameOf = file => {
+    if (!named.has(file)) named.set(file, inRoot(file) ?? inRoot(realRoot(file)) ?? file.split(path.sep).join('/'))
+    return named.get(file)
   }
   const files = new Map()
   for await (const event of source) {

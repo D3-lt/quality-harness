@@ -59,8 +59,9 @@ test('the reporter writes one row naming each file, the time its tests took, its
   assert.equal(file('broken.test.mjs').tests, 0, 'a file that did not load ran no test')
 })
 
-// Windows CI, 2026-10-15: node named one file in two forms, the root as given and as the filesystem names it, and the row read
-// `tests: 0` for a file whose two tests passed. Driven through the reporter with events in both forms, in both orders.
+// Windows CI, 2026-10-15: node named one file in more than one form, and the row read `tests: 0` for a file whose two tests
+// passed. The runner's printed rows showed the third form: the link's target as written (`RUNNER~1\…\real`), which is neither the
+// root as given (the link) nor as the filesystem names it (the long form). macOS's /var → /private/var is the same shape here.
 test('a file node names in two path forms is one row, holding all its tests', async () => {
   const { default: fileTiming } = await import(reporter)
   const parent = mkdtempSync(path.join(os.tmpdir(), 'qh-file-timing-forms-'))
@@ -71,22 +72,25 @@ test('a file node names in two path forms is one row, holding all its tests', as
     const link = path.join(parent, 'link')
     try { symlinkSync(real, link, 'dir') } catch { return }
     const linkFile = path.join(link, 'slow.test.mjs')
-    const realFile = path.join(realpathSync.native(real), 'slow.test.mjs')
+    writeFileSync(path.join(real, 'slow.test.mjs'), '')
     const own = (type, file) => ({ type, data: { file, nesting: 0, name: file } })
-    const one = (type, name, ms) => ({ type, data: { file: realFile, nesting: 0, name, details: { duration_ms: ms } } })
     const rowOf = async events => {
       process.env.QH_SELFTEST_ROOT = link
       let out = ''
       for await (const chunk of fileTiming((async function* () { yield* events })())) out += chunk
       return JSON.parse(out).files
     }
-    const tests = [one('test:pass', 'one', 300), one('test:pass', 'two', 100)]
-    // CLEAN: the file's own event first, in the given form; its tests in the real form.
-    assert.deepEqual(await rowOf([own('test:enqueue', linkFile), ...tests, own('test:pass', linkFile)]),
-      [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 0 }])
-    // DIRTY twin: its tests come first, and the file's own event that ends it fails (a file that did not finish loading).
-    assert.deepEqual(await rowOf([...tests, own('test:fail', linkFile)]),
-      [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 1 }])
+    // Its tests named by the real path as the filesystem names it, and as the link's target was written.
+    for (const testsFile of [path.join(realpathSync.native(real), 'slow.test.mjs'), path.join(real, 'slow.test.mjs')]) {
+      const one = (type, name, ms) => ({ type, data: { file: testsFile, nesting: 0, name, details: { duration_ms: ms } } })
+      const tests = [one('test:pass', 'one', 300), one('test:pass', 'two', 100)]
+      // CLEAN: the file's own event first, in the given form; its tests in another.
+      assert.deepEqual(await rowOf([own('test:enqueue', linkFile), ...tests, own('test:pass', linkFile)]),
+        [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 0 }], testsFile)
+      // DIRTY twin: its tests come first, and the file's own event that ends it fails (a file that did not finish loading).
+      assert.deepEqual(await rowOf([...tests, own('test:fail', linkFile)]),
+        [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 1 }], testsFile)
+    }
   } finally {
     if (saved === undefined) delete process.env.QH_SELFTEST_ROOT
     else process.env.QH_SELFTEST_ROOT = saved

@@ -39,6 +39,14 @@
       "from": "    const key = nameOf(path.resolve(file))",
       "to": "    const key = path.resolve(file)",
       "only": "^(?:a file node names in two path forms is one row, holding all its tests)$"
+    },
+    {
+      "label": "file-timing: a file under neither root form is tried as the filesystem names it",
+      "file": "scripts/file-timing-reporter.mjs",
+      "tests": ["tests/file-timing.test.mjs"],
+      "from": "inRoot(file) ?? inRoot(realRoot(file)) ?? ",
+      "to": "inRoot(file) ?? ",
+      "only": "^(?:a file node names in two path forms is one row, holding all its tests)$"
     }
   ]
 }

@@ -567,6 +567,16 @@
       "from": "    warned: refusable && setting.warn,",
       "to": "    warned: setting.warn,",
       "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
+    },
+    {
+      "label": "ADR-081: a fast-passed commit is the fast pass's, warn or not",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  if (refusable && commitOnly) {",
+      "to": "  if (deny && commitOnly) {",
+      "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
     }
   ]
 }

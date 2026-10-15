@@ -21,7 +21,12 @@ const alive = pid => { try { process.kill(pid, 0); return true } catch { return 
 
 test('naming picks the processes whose arguments name the directory, never itself', () => {
   const ps = ` 10 1 node -e x /run/qh-selftest.AB12/leases\n 11 1 node -e y /run/qh-selftest.AB123/other\n 12 1 bash scripts/selftest.sh\n 13 12 node scripts/run-orphans.mjs /run/qh-selftest.AB12\n`
-  assert.deepEqual(naming(ps, '/run/qh-selftest.AB12', 13).map(row => row.pid), [10])
+    // Codex review of 921330b9..976aa281, P2: the lease holders that started this had the path inside a quoted
+    // string of their `node -e` source, so a boundary of whitespace alone missed them.
+    + ` 14 1 node -e const file = path.join("/run/qh-selftest.AB12/leases", "holder.json")\n`
+    + ` 15 1 node -e const file = path.join("/run/qh-selftest.AB123/leases", "holder.json")\n`
+    + ` 16 1 node -e x --dir='/run/qh-selftest.AB12'\n`
+  assert.deepEqual(naming(ps, '/run/qh-selftest.AB12', 13).map(row => row.pid), [10, 14, 16])
   // CLEAN twin: nothing names it.
   assert.deepEqual(naming(ps, '/run/qh-selftest.ZZ99', 13), [])
 })

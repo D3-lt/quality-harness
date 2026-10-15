@@ -408,7 +408,7 @@ test("a torn log tail does not swallow the hook's own record", { skip: needsConf
 // saw only the script's name. The opt-out turns a refusal into a warning, never into silence.
 test('under "publish": "warn" the git hook warns at the event and lets the commit through', { skip: needsConfigHooks }, () => {
   const dir = repository('warned-')
-  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', publish: 'warn' }))
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', fastCheck: 'sh check.sh', publish: 'warn' }))
   git(dir, 'commit', '-qam', 'warn')
   const session = `hook-warned-${process.pid}`
   startSession(dir, session)
@@ -425,6 +425,13 @@ test('under "publish": "warn" the git hook warns at the event and lets the commi
   const partial = shell(dir, `python3 ${quoted(qhCheck)} >/dev/null && git add a.md && git commit -qm partial\n`, session)
   assert.equal(partial.status, 0, partial.stderr)
   assert.doesNotMatch(partial.stderr, /warned, not refused/, `only what would be refused is warned about: ${partial.stderr}`)
+  // Codex review of 921330b9..976aa281, P2: one commit on a fast-passed tree is let through by the fast pass, as it is
+  // without the opt-out (ADR-081), and is told so; it is not "warned" with text that says it is not one commit.
+  writeFileSync(path.join(dir, 'a.md'), 'fast\n')
+  const fast = shell(dir, `python3 ${quoted(qhCheck)} --fast >/dev/null && git commit -qam fast\n`, session)
+  assert.equal(fast.status, 0, fast.stderr)
+  assert.match(fast.stderr, /a fast check .* passed on this tree/, `the fast pass is what let it through: ${fast.stderr}`)
+  assert.doesNotMatch(fast.stderr, /warned, not refused|not proven to be one/, `and nothing else is claimed: ${fast.stderr}`)
   // And a checked tree commits in silence.
   writeFileSync(path.join(dir, 'a.md'), 'checked again\n')
   const checked = shell(dir, `python3 ${quoted(qhCheck)} >/dev/null && git commit -qam checked\n`, session)

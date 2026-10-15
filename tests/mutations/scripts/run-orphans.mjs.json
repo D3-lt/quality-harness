@@ -6,8 +6,18 @@
       "tests": [
         "tests/run-orphans.test.mjs"
       ],
-      "from": "(?:/|\\\\s|$)`)",
+      "from": "(?:[/\\\\s\"']|$)`)",
       "to": "`)",
+      "only": "^(?:naming picks the processes whose arguments name the directory, never itself)$"
+    },
+    {
+      "label": "run-orphans: a path quoted inside a script is named",
+      "file": "scripts/run-orphans.mjs",
+      "tests": [
+        "tests/run-orphans.test.mjs"
+      ],
+      "from": "(?:^|[\\\\s\"'=])",
+      "to": "(?:^|\\\\s)",
       "only": "^(?:naming picks the processes whose arguments name the directory, never itself)$"
     },
     {

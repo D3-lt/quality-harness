@@ -277,7 +277,9 @@ export function publishJudgement(facts, { invoked, commitOnly = false }) {
   // check passed, is told rather than refused. Its key carries the fast records, so a
   // commit refused before the fast pass is told after it. Anything that pushes, and
   // any form not proven, still needs the full check.
-  if (deny && commitOnly) {
+  // Before the opt-out: a fast-passed commit is let through by the fast pass, warn or not, and is
+  // told so, never "warned" (Codex review of 921330b9..976aa281, P2).
+  if (refusable && commitOnly) {
     const fastPass = facts.fastPass(now.tree)
     if (fastPass) {
       // The fast check ran on the working tree; the commit records the index. A partial

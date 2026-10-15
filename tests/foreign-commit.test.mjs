@@ -238,6 +238,10 @@ test('literal data is not arithmetic, and an expansion of it still is', () => {
     `((a['$(git -C ${here} push)']=0)); git -C ${F} commit -m x`,
     `git -C ${F} commit -F - <<EOF\n$((a['$(git -C ${here} push)']))\nEOF`,
     `git -C ${F} commit -m x; echo 'a' "$((1))"`,
+    // Codex review of 921330b9..976aa281, P1: an arithmetic COMMAND after the here-document, spelled as its body.
+    // shellWords lists no command for it, so only the scan sees it, and removing every copy of the body hid it.
+    `git -C ${F} commit -F - <<'EOF'\n((a['$(git -C ${here} push)']=1))\nEOF\n((a['$(git -C ${here} push)']=1))\n`,
+    `git -C ${F} commit -m x; echo '((a[1]=1))'\n((a[1]=1))\n`,
   ]) {
     assert.equal(foreignCommitPath(command, {}, process.platform), null, command)
     assert.equal(unarmed.tell(command).decision, 'deny', command)

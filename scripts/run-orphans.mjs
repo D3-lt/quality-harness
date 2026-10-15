@@ -13,9 +13,14 @@
 import { spawnSync } from 'node:child_process'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
-/** The rows of `ps -Ao pid=,ppid=,args=` whose arguments name `dir` as a path, `self` excluded. */
+/**
+ * The rows of `ps -Ao pid=,ppid=,args=` whose arguments name `dir` as a path, `self` excluded. A path
+ * ends at `/`, whitespace, a quote or the end, and starts after whitespace, a quote or `=`: a holder
+ * that quotes it inside its `node -e` source is named too (Codex review of 921330b9..976aa281, P2),
+ * and a sibling directory whose name only starts the same is not.
+ */
 export function naming(psOutput, dir, self) {
-  const named = new RegExp(`(?:^|\\s)${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/|\\s|$)`)
+  const named = new RegExp(`(?:^|[\\s"'=])${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[/\\s"']|$)`)
   return psOutput.split('\n').map(line => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)).filter(Boolean)
     .map(([, pid, ppid, args]) => ({ pid: Number(pid), ppid: Number(ppid), args }))
     .filter(row => row.pid !== self && named.test(row.args))

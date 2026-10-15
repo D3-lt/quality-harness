@@ -162,12 +162,13 @@ export function foreignCommitPath(command, env = process.env, platform = process
 // (the proof below admits only a quoted one), and an `echo` or `true` argument spelled in single
 // quotes, or in double quotes with no `$`, backtick or backslash. `((1))` in a message and
 // `echo 'let x=1'` are data; a double-quoted `$((…))` expands, so it stays
-// (BACKLOG §381, item 4; the Codex scoped review of 12cbbadb). Every occurrence of a spelling goes:
-// any other place it could stand is a step the proof below already refuses.
+// (BACKLOG §381, item 4; the Codex scoped review of 12cbbadb). A spelling is taken out only where it
+// occurs once: an arithmetic COMMAND spelled like a here-document's body is listed by no shellWords
+// command, so only this scan sees it (Codex review of 921330b9..976aa281, P1).
 function withoutData(text) {
   const { commands, complete } = shellWords(text)
   if (!complete) return text
-  const once = (from, spelling) => from.split(spelling).join('')
+  const once = (from, spelling) => (from.split(spelling).length === 2 ? from.split(spelling).join('') : from)
   let out = text
   for (const step of commands) {
     // Any here-document: the commit-only proof below admits only a quoted one and refuses the rest.

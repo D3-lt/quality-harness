@@ -1462,6 +1462,16 @@
       "from": "      if (!/[\"\\\\$`]/.test(value)) out = once(out, `\"${value}\"`)",
       "to": "      if (false) out = once(out, `\"${value}\"`)",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104: data is taken out only where its spelling occurs once",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "(from.split(spelling).length === 2 ? from.split(spelling).join('') : from)",
+      "to": "from.split(spelling).join('')",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     }
   ]
 }

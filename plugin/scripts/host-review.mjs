@@ -159,7 +159,9 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
       return { reason: `codex was killed at its budget of ${CODEX_TIMEOUT_MS / 1000} s` }
     }
     if (child?.signal) return { reason: `codex was stopped by ${child.signal} before it finished` }
-    if (!child || child.error || child.status !== 0) return { reason: child?.error?.message ?? `codex exited ${child?.status}` }
+    // Its own last stderr line says why: a bare exit status told a quota from a dropped stream from a bad contract by nothing.
+    const said = String(child?.stderr ?? '').trim().split('\n').at(-1)?.trim().slice(0, 300)
+    if (!child || child.error || child.status !== 0) return { reason: child?.error?.message ?? `codex exited ${child?.status}${said ? `: ${said}` : ''}` }
     let text = ''
     try { text = readFileSync(path.join(directory, 'last-message.txt'), 'utf8') } catch { /* an older build: stdout carries it */ }
     return { text: text.trim() ? text : String(child.stdout ?? '') }

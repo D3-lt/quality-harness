@@ -158,3 +158,15 @@ test('a skill that builds its own codex exec command is found in any spelling', 
   for (const argv of ["['exec', '-s', 'read-only']", "['exec', '--ephemeral', x]", "['exec', ...flags]"]) assert.match(argv, builder, argv)
   assert.doesNotMatch("new Set(['set', 'shopt', 'trap', 'exec', 'source'])", builder, 'a list of shell words is not a builder')
 })
+
+// 2026-10-15: three review runs in a row ended "unavailable — codex exited 1" and nothing more, so whether the cause was
+// a quota, the network or the contract could not be told; the run's own stderr was dropped. Its last line is the reason.
+test('a Codex run that exits non-zero says why, from its own last stderr line', () => {
+  const runs = fake({ error: null, signal: null, status: 1, stdout: '', stderr: 'thinking...\nERROR: stream disconnected before completion\n' })
+  const result = hostReview({ ...review, run: runs.run })
+  assert.equal(result.status, 'unavailable')
+  assert.match(result.reason, /codex exited 1: ERROR: stream disconnected before completion/)
+  // CLEAN twin: a run with nothing on stderr still says only its exit.
+  const quiet = hostReview({ ...review, run: fake({ error: null, signal: null, status: 1, stdout: '', stderr: '' }).run })
+  assert.equal(quiet.reason.trim().endsWith('codex exited 1'), true, quiet.reason)
+})

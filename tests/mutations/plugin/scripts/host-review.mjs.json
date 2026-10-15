@@ -146,6 +146,16 @@
       "from": "  try { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-')) } catch (error) {",
       "to": "  { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-')) } if (false) { const error = {}",
       "only": "^a temporary directory that cannot be made is unavailable, not a throw$"
+    },
+    {
+      "label": "host-review: a failed Codex run names its own last stderr line",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "`codex exited ${child?.status}${said ? `: ${said}` : ''}`",
+      "to": "`codex exited ${child?.status}`",
+      "only": "^(?:a Codex run that exits non-zero says why, from its own last stderr line)$"
     }
   ]
 }

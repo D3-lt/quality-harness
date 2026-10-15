@@ -14,12 +14,17 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import test, { after } from 'node:test'
+import nodeTest, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
 import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
 import { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
+import { sharded } from './helpers/shard.mjs'
+
+// Run as three processes by the gate and the fast check (QH_TEST_SHARDED=1, with publish-command.shard-1 and -2.test.mjs),
+// since this file alone bounded the per-commit check; run directly, it runs every test (tests/helpers/shard.mjs).
+const test = sharded(nodeTest, { of: 3 })
 
 // Invocations a session could publish with. Each must be refused on an
 // unchecked tree and denied to a read-only role.

@@ -21,6 +21,16 @@
       "only": "^(?:the gate keeps its per-file times beside the check ledger, and says where)$"
     },
     {
+      "label": "selftest: the gate runs sharded files as their slices",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/shard.test.mjs"
+      ],
+      "from": "QH_TEST_SHARDED=1 QH_SELFTEST_ROOT=\"$REPO\"",
+      "to": "QH_SELFTEST_ROOT=\"$REPO\"",
+      "only": "^(?:every command that turns sharding on runs every shard file)$"
+    },
+    {
       "label": "selftest: an order is named longest first only when the ordering said it read the times",
       "file": "scripts/selftest.sh",
       "tests": [

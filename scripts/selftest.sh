@@ -184,7 +184,9 @@ if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
 fi
 # The suite's status is read, not left to set -e, so a red run's times are kept before the script exits with it.
 tests_status=0
-QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
+# QH_TEST_SHARDED=1: a file cut into slices (tests/helpers/shard.mjs) runs each slice as its own process; the glob holds every
+# shard file, so no slice goes unrun.
+QH_TEST_SHARDED=1 QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
   node "$REPO/scripts/run-tests.mjs" ${runner_args[@]+"${runner_args[@]}"} -- "${test_files[@]}" || tests_status=$?
 if [ -n "$timing_rows" ]; then
   if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$timing_ledger")" && cat "$timing_rows" >>"$timing_ledger"; then :

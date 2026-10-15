@@ -256,11 +256,14 @@ function runCursor({ model, target, resolve, run, output }) {
   if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)
   const missing = missingTarget(target)
   if (missing) return unavailable('cursor', null, missing, model)
-  const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--sandbox', 'enabled', reviewPrompt(target)]
+  // `--trust`: headless, the agent refuses a workspace nobody has trusted (measured 2026-10-15); it stays ask-mode and sandboxed.
+  const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--sandbox', 'enabled', '--trust', reviewPrompt(target)]
   if (typeof model === 'string' && model.trim()) args.splice(args.length - 1, 0, '--model', model.trim())
   const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, cwd: target.repo, windowsHide: true })
   if (!child || child.error || child.status !== 0) {
-    return unavailable('cursor', null, child?.error?.message ?? `agent exited ${child?.status}`, model)
+    // Its own last line says why; the agent writes its refusals to stdout.
+    const said = `${child?.stderr ?? ''}\n${child?.stdout ?? ''}`.trim().split('\n').map(line => line.trim()).filter(Boolean).at(-1)?.slice(0, 300)
+    return unavailable('cursor', null, child?.error?.message ?? `agent exited ${child?.status}${said ? `: ${said}` : ''}`, model)
   }
   return reviewFromOutput(child.stdout, { host: 'cursor', model, effort: null })
 }

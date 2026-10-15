@@ -234,3 +234,20 @@ test('a Cursor review the launcher runs leaves one review row too', () => {
     assert.equal(rows(dir).length, 1)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// The first real Cursor review (2026-10-15) ended "agent exited 1": the headless agent refuses a workspace nobody has
+// trusted, and says so on its output, which the launcher dropped. It is passed `--trust` (still `--mode ask`, sandboxed),
+// and a failed run names its own last line.
+test('a Cursor review trusts the workspace it is asked about, and a failed one says why', () => {
+  const dir = scratch()
+  try {
+    const base = commit(dir, 'plugin/a.mjs', 'one\n')
+    commit(dir, 'plugin/a.mjs', 'two\n')
+    const seen = []
+    hostReview({ host: 'cursor', model: 'm', repo: dir, scope: `base ${base}`, resolve: () => 'agent', run: (bin, args) => { seen.push(args); return { status: 0, stdout: '' } } })
+    assert.ok(seen[0].includes('--trust'), JSON.stringify(seen[0]))
+    assert.deepEqual(seen[0].slice(seen[0].indexOf('--mode'), seen[0].indexOf('--mode') + 2), ['--mode', 'ask'])
+    const failed = hostReview({ host: 'cursor', model: 'm', repo: dir, scope: `base ${base}`, resolve: () => 'agent', run: () => ({ status: 1, stdout: 'Workspace Trust Required\n  Pass --trust\n', stderr: '' }) })
+    assert.match(failed.reason, /agent exited 1: Pass --trust/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

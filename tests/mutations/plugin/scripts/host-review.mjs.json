@@ -176,6 +176,26 @@
       "from": "    if (output === undefined && !missingTarget(target)) {",
       "to": "    if (false) {",
       "only": "^(?:a Cursor review the launcher runs leaves one review row too)$"
+    },
+    {
+      "label": "host-review: a Cursor review trusts its workspace",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "'--sandbox', 'enabled', '--trust', reviewPrompt(target)]",
+      "to": "'--sandbox', 'enabled', reviewPrompt(target)]",
+      "only": "^(?:a Cursor review trusts the workspace it is asked about, and a failed one says why)$"
+    },
+    {
+      "label": "host-review: a failed Cursor review names its last line",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "`agent exited ${child?.status}${said ? `: ${said}` : ''}`",
+      "to": "`agent exited ${child?.status}`",
+      "only": "^(?:a Cursor review trusts the workspace it is asked about, and a failed one says why)$"
     }
   ]
 }

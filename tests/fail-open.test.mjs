@@ -645,7 +645,10 @@ test('a negated group of one pipeline is that pipeline negated', () => {
 // `;`. `! { true; } &`, `{ false; } &` and `{ true; } || npm test` each exit 0 (bash 3.2 and /bin/sh, measured) and were
 // accepted as real checks.
 test('the operator after a group joins the group', () => {
-  const constant = ['! { true; } &', '{ false; } &', '{ true; } || npm test', '! { true; } || true']
+  const constant = ['! { true; } &', '{ false; } &', '{ true; } || npm test', '! { true; } || true',
+    // The verification of a44173e1: a function body's `}` ends a definition, which exits 0 and runs nothing, and a body
+    // that ends in `&` keeps it (each exits 0 under bash 3.2 and /bin/sh, measured).
+    'function f { npm test; } && true', '{ npm test & } && true']
   // DIRTY twins: a group the tests decide is still a check, whatever joins it.
   const real = ['{ npm test; } && true', '{ false; } || npm test', '! { npm test; } || false']
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)

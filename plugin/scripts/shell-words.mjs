@@ -34,6 +34,7 @@ export function shellWords(text) {
   let naming = false
   const groups = []
   let closedGroup = false
+  let defining = false
   let i = 0
 
   function fresh() {
@@ -50,7 +51,7 @@ export function shellWords(text) {
     const raw = w.chars.map(x => x.c).join('')
     // `function NAME` opens a definition, as `NAME()` does: neither word is a command,
     // and the body's commands are read as commands (ADR-090 T2).
-    if (naming) { naming = false; return }
+    if (naming) { naming = false; defining = true; return }
     if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }
     if (leading && isAssignment(w.chars)) {
       command.assignments.push(raw)
@@ -61,13 +62,15 @@ export function shellWords(text) {
     // negates the whole group: one holding a single pipeline is that pipeline negated, and one of several commands is not
     // folded here, so it is `unknown` (BACKLOG §381).
     if (leading && !w.quoted && raw === '!') { command.negated = command.negated ? 'unknown' : true; return }
-    if (leading && !w.quoted && raw === '{') { groups.push({ negated: command.negated, start: commands.length }); delete command.negated; return }
+    if (leading && !w.quoted && raw === '{') { groups.push({ negated: command.negated, start: commands.length, definition: defining }); delete command.negated; defining = false; return }
     if (leading && !w.quoted && raw === '}') {
       const group = groups.pop()
       const body = group?.negated ? commands.slice(group.start) : []
       const single = body.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') && !body[0]?.negated
       for (const c of single ? body.slice(0, 1) : body) c.negated = single ? group.negated : 'unknown'
-      closedGroup = true
+      // A function body's `}` ends a definition, which exits 0 and runs nothing: what follows joins the definition, not
+      // the body (the verification of a44173e1).
+      closedGroup = !group?.definition
       return
     }
     for (const expanded of braces(w.chars)) {
@@ -89,8 +92,10 @@ export function shellWords(text) {
       && command.substitutions.length === 0
     // The operator after a group's `}` joins the group, so its last command takes it: `{ …; } &` runs in the background
     // and `{ …; } || x` decides `x` (the verification of 0b9b528a). Before, it was dropped and the command kept its `;`.
-    if (empty && closedGroup && commands.length && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator
+    // A body that ends in `&` keeps it: that `&` decides the group's status.
+    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator
     closedGroup = false
+    defining = false
     if (!empty) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
       command.ended = operator

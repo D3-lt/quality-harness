@@ -216,8 +216,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "groups.push({ negated: command.negated, start: commands.length })",
-      "to": "groups.push({ negated: false, start: commands.length })",
+      "from": "groups.push({ negated: command.negated, start: commands.length, definition: defining })",
+      "to": "groups.push({ negated: false, start: commands.length, definition: defining })",
       "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
     },
     {
@@ -256,7 +256,7 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (empty && closedGroup && commands.length && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator",
+      "from": "    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator",
       "to": "    if (false) commands.at(-1).ended = operator",
       "only": "^(?:the operator after a group joins the group)$"
     },
@@ -266,8 +266,38 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "      closedGroup = true\n",
+      "from": "      closedGroup = !group?.definition\n",
       "to": "      closedGroup = false\n",
+      "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "shell-words: a function body's brace ends a definition, not a group",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "      closedGroup = !group?.definition\n",
+      "to": "      closedGroup = true\n",
+      "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "shell-words: a function name marks the next group a definition",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "if (naming) { naming = false; defining = true; return }",
+      "to": "if (naming) { naming = false; defining = false; return }",
+      "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "shell-words: a body that ends in & keeps it",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " && commands.at(-1).ended !== '&' && ['&', '&&', '||']",
+      "to": " && ['&', '&&', '||']",
       "only": "^(?:the operator after a group joins the group)$"
     }
   ]

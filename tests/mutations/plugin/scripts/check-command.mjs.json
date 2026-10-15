@@ -125,7 +125,7 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "c => c.redirects > 0 || c.ended",
+      "from": "c => (c.redirects > 0 && !PIPED.has(c.ended)) || c.ended",
       "to": "c => c.ended",
       "only": "a check whose exit status the text fixes is refused"
     },
@@ -155,8 +155,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "const own = commands[i].ended === '&' ? { status: 'zero' } : commandStatus(commands[i], depth)",
-      "to": "const own = commandStatus(commands[i], depth)",
+      "from": "const own = commands[i].ended === '&' || (PIPED.has(joiner)",
+      "to": "const own = false || (PIPED.has(joiner)",
       "only": "a check whose exit status the text fixes is refused"
     },
     {
@@ -208,6 +208,56 @@
       "from": "    : ['bun.lock', 'bun.lockb'].some(file => existsSync(path.join(directory, file))) ? 'bun'",
       "to": "    : ['bun.lockb'].some(file => existsSync(path.join(directory, file))) ? 'bun'",
       "only": "^(?:the inferred package check runs the script through `run`, for every package manager)$"
+    },
+    {
+      "label": "checks: a pass-through sink after a pipe makes the pipeline constant",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "commands[i].ended === '&' || (PIPED.has(joiner) && passThroughSink(commands[i]))",
+      "to": "commands[i].ended === '&'",
+      "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
+    },
+    {
+      "label": "checks: a redirect on a piped stage does not unfix the pipeline",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "(c.redirects > 0 && !PIPED.has(c.ended))",
+      "to": "c.redirects > 0",
+      "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
+    },
+    {
+      "label": "checks: a cat that reads a file is not a pass-through sink",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "args.length === 0 || (args.length === 1 && args[0] === '-')",
+      "to": "true",
+      "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
+    },
+    {
+      "label": "checks: a head or tail that reads a file is not a pass-through sink",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "args.every(arg => /^-/.test(arg) || /^\\d+$/.test(arg))",
+      "to": "true",
+      "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
+    },
+    {
+      "label": "checks: a sink with an expansion is not known",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (c.substitutions.length || c.dynamic.length) return false",
+      "to": "  if (c.substitutions.length) return false",
+      "only": "^(?:a check piped into a pass-through sink without pipefail cannot fail)$"
     }
   ]
 }

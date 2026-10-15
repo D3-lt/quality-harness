@@ -563,10 +563,10 @@ test('a publish through the PowerShell tool is refused, and denied to a read-onl
 // above, because its body is pinned by ADR-066 T1.
 test('a check whose exit status the text fixes is refused, whatever it is spelled', () => {
   const constant = ['test 1', '/usr/bin/true', 'echo ok', 'true || false', 'true # just check', '[ 1 ]',
-    'npm test || true', 'npm test; echo done', 'bash -c "npm test || :"', 'test -f x || exit 0', 'npm test &']
+    'npm test || true', 'npm test; echo done', 'bash -c "npm test || :"', 'test -f x || exit 0', 'npm test &', 'npm test | tee log']
   // Codex review of this batch: each of these exits 0 with the file present and 1 without
   // it, under bash and zsh, and each was read as constant, which refuses a real check.
-  const real = ['npm test && true', 'false', 'true && false', 'test -f x', 'test "$X"', 'exit 1', 'npm test | tee log',
+  const real = ['npm test && true', 'false', 'true && false', 'test -f x', 'test "$X"', 'exit 1',
     'set -e; test -f x; echo done', 'set -o pipefail; test -f x | true', '(exit 0); test -f x', 'true < x', 'sh -ec "test -f x; echo done"']
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
@@ -576,4 +576,18 @@ test('a check whose exit status the text fixes is refused, whatever it is spelle
   assert.deepEqual(lifecycle.checkCommandOrigin(dir), { command: null, origin: 'refused' })
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'npm test && true' }))
   assert.equal(lifecycle.checkCommandOrigin(dir).command, 'npm test && true')
+})
+
+// BACKLOG §381, item 1 (§307, "named, not fixed"): without `pipefail` a pipeline's status is its last command's, so a
+// check piped into a pass-through sink exits 0 whatever the tests did, and its pass unlocked a commit. The owner chose,
+// 2026-10-15, to refuse it, which moved `npm test | tee log` in the locked test above (ADR-088 T2, relocked).
+test('a check piped into a pass-through sink without pipefail cannot fail', () => {
+  const constant = ['npm test | tee log', 'npm test 2>&1 | tee log', 'npm test |& tee -a log', 'npm test | cat',
+    'npm test | tail -n 50', 'npm test 2>&1 | head -20', 'pytest | tee out.txt | tail -5']
+  // DIRTY twins: whatever lets the tests' status through, or a sink whose own status depends on the tree, stays a check.
+  const real = ['set -o pipefail; npm test | tee log', "bash -o pipefail -c 'npm test | tee log'", 'npm test | grep -q passed',
+    'npm test | tail -n 5 log.txt', 'npm test | cat summary.txt', 'npm test | tee log > /dev/null', 'npm test | tee "$LOG"',
+    'npm test | tee log && grep -q ok log', 'tee log | npm test']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })

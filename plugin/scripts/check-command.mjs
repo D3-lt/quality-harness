@@ -120,15 +120,30 @@ export function constantSuccessCheck(command) {
 // `true < F` were each read as constant and depend on the tree).
 const LIST_CONTROL = new Set(['set', 'shopt', 'trap', 'exec', 'source', '.', 'eval', 'return', 'alias', 'unalias', 'builtin', 'enable'])
 
+// A pass-through sink after a pipe: its status, not the check's, is the pipeline's without `pipefail`, and it does
+// not depend on what came through (BACKLOG §381, item 1; the owner, 2026-10-15). `tee` to literal files, a bare
+// `cat`, and `head`/`tail` with options only; one that reads a file of its own depends on the tree.
+const PIPED = new Set(['|', '|&'])
+function passThroughSink(c) {
+  if (c.substitutions.length || c.dynamic.length) return false
+  const [program, ...args] = c.argv
+  const name = programName(program ?? '')
+  if (name === 'tee') return true
+  if (name === 'cat') return args.length === 0 || (args.length === 1 && args[0] === '-')
+  if (name === 'head' || name === 'tail') return args.every(arg => /^-/.test(arg) || /^\d+$/.test(arg))
+  return false
+}
+
 function listStatus(text, depth) {
   const { commands, complete } = shellWords(text)
   if (!complete || commands.length === 0 || depth > 3) return 'either'
-  if (commands.some(c => c.redirects > 0 || c.ended === '(' || c.ended === ')' || LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'
+  // A redirection can fail on its own, unless the command's status is thrown away by the pipe after it.
+  if (commands.some(c => (c.redirects > 0 && !PIPED.has(c.ended)) || c.ended === '(' || c.ended === ')' || LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'
   const merge = (a, b) => (a === b ? a : 'either')
   let status = 'zero'
   for (let i = 0; i < commands.length; i++) {
     const joiner = i === 0 ? ';' : commands[i - 1].ended
-    const own = commands[i].ended === '&' ? { status: 'zero' } : commandStatus(commands[i], depth)
+    const own = commands[i].ended === '&' || (PIPED.has(joiner) && passThroughSink(commands[i])) ? { status: 'zero' } : commandStatus(commands[i], depth)
     // `exit` before the end stops the list on the paths that reach it; the others go
     // on, so only a path every run takes is known. As the LAST command it is simply
     // the list's status, combined like any other (`test -f F || exit 0` is 0).

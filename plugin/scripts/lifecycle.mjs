@@ -2,6 +2,7 @@
 
 import { isMainModule } from './main-module.mjs'
 import path from 'node:path'
+import { existsSync } from 'node:fs'
 import os from 'node:os'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -217,9 +218,15 @@ export async function handleHook(input) {
 function endsBehind(input) {
   const setting = process.env.QUALITY_HARNESS_SESSION_END_RUNNER
   if (setting === 'inline' || !process.env.CLAUDE_PLUGIN_DATA) return false
+  const runner = setting || fileURLToPath(import.meta.url)
+  // node returns a pid for a script that does not exist, and the copy then dies unheard (Codex review of 6b1879c7).
+  if (!existsSync(runner)) {
+    process.stderr.write(`[quality-harness] the SessionEnd runner ${path.basename(runner)} does not exist; the session's end is recorded here.\n`)
+    return false
+  }
   try {
     // untimed-spawn: detached on purpose — the host has exited; every git call the copy makes carries its own timeout
-    const child = spawn(process.execPath, [setting || fileURLToPath(import.meta.url), '--session-end'], {
+    const child = spawn(process.execPath, [runner, '--session-end'], {
       // The temp directory, not the session's: on Windows a live process's working directory cannot be deleted.
       cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true,
       env: { ...process.env, QUALITY_HARNESS_HOOK_INPUT: JSON.stringify({ ...input, cwd: input.cwd ?? process.cwd() }) },

@@ -67,18 +67,34 @@ test('SessionEnd returns before its work, and hands its input to a detached copy
 })
 
 test('the detached copy writes the session row, and inline or with no data home the hook writes it itself', async () => {
-  const { end, rows, clean } = box('real')
+  const { top, end, rows, clean } = box('real')
   try {
     const run = end('behind-real')
     assert.equal(run.status, 0, run.stderr)
     const row = await until(() => rows().find(entry => entry.session === 'behind-real'), 'the row the detached copy writes')
     assert.equal(row.reason, 'prompt_input_exit')
-    // DIRTY twins: inline, the row is there when the hook returns; with no data home it is said here, not in a copy nobody reads.
-    const inline = end('behind-inline', { QUALITY_HARNESS_SESSION_END_RUNNER: 'inline' })
+    // DIRTY twins: inline, the hook's own stderr is where a failure is said (a data home that is a file cannot be written,
+    // and only a hook that did the work itself can say so); with no data home it is said here, not in a copy nobody reads.
+    const blocked = path.join(top, 'data-is-a-file')
+    writeFileSync(blocked, '')
+    const inline = end('behind-inline', { QUALITY_HARNESS_SESSION_END_RUNNER: 'inline', CLAUDE_PLUGIN_DATA: blocked })
     assert.equal(inline.status, 0, inline.stderr)
-    assert.ok(rows().some(entry => entry.session === 'behind-inline'))
+    assert.match(inline.stderr, /could not append to the sessions ledger/)
+    assert.doesNotMatch(inline.stderr, /does not exist/, 'inline is a setting, not a runner that is missing')
     const homeless = end('behind-homeless', { CLAUDE_PLUGIN_DATA: '' })
     assert.equal(homeless.status, 0)
     assert.match(homeless.stderr, /CLAUDE_PLUGIN_DATA is not set/)
+  } finally { clean() }
+})
+
+test('a runner that does not exist is said, and the hook records the end itself', () => {
+  // Codex review of 6b1879c7: node returns a pid for a script that does not exist, so the hook gave its work to a copy that
+  // died at once, and no row and no word were left.
+  const { top, end, rows, clean } = box('missing')
+  try {
+    const run = end('behind-missing', { QUALITY_HARNESS_SESSION_END_RUNNER: path.join(top, 'no-such-runner.mjs') })
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stderr, /no-such-runner\.mjs does not exist/)
+    assert.ok(rows().some(entry => entry.session === 'behind-missing'), 'the row is written by the hook when it returns')
   } finally { clean() }
 })

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "SessionEnd: a runner that does not exist is said, and the hook records the end itself",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/session-end-behind.test.mjs"],
+      "only": "^a runner that does not exist",
+      "from": "  if (!existsSync(runner)) {",
+      "to": "  if (false) {"
+    },
+    {
       "label": "SessionEnd: the hook hands its work to a detached copy and returns",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/session-end-behind.test.mjs"],

@@ -214,3 +214,23 @@ test('a review range from a dotted release tag is read, and a three-dot range is
     assert.equal(rows(dir).length, 1, 'the refused range ran nothing and recorded nothing')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// 2026-10-15: Codex refused to review this repository (its provider's cybersecurity filter, set off by the test strings),
+// and the owner chose a recorded Claude review in its place. The Cursor host runs one (a Claude model through
+// `agent --model`), and its run was recorded nowhere, so release-evidence could not see it.
+test('a Cursor review the launcher runs leaves one review row too', () => {
+  const dir = scratch()
+  try {
+    const base = commit(dir, 'plugin/a.mjs', 'one\n')
+    const head = commit(dir, 'plugin/a.mjs', 'two\n')
+    const clean = JSON.stringify({ result: JSON.stringify({ status: 'clean', findings: [] }) })
+    const result = hostReview({ host: 'cursor', model: 'claude-opus-5-thinking-high', repo: dir, scope: `base ${base}`, resolve: () => 'agent', run: () => ({ status: 0, stdout: clean }) })
+    const [row] = rows(dir)
+    assert.equal(rows(dir).length, 1, JSON.stringify(result))
+    assert.deepEqual([row.host, row.model, row.base, row.head], ['cursor', 'claude-opus-5-thinking-high', base, head])
+    assert.equal(row.status, result.status)
+    // CLEAN twin: a review handed its output runs nothing and records nothing.
+    hostReview({ host: 'cursor', model: 'm', output: clean })
+    assert.equal(rows(dir).length, 1)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

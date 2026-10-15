@@ -221,7 +221,15 @@ export function recordReview(repo, row) {
 export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
   const target = { repo, scope, requirements, evidence }
-  if (host === 'cursor') return runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
+  if (host === 'cursor') {
+    // Recorded as a Codex run is, so release-evidence sees it: on 2026-10-15 Codex refused this repository and the owner
+    // chose a Claude review through Cursor in its place. A review handed its output ran nothing and records nothing.
+    const review = runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
+    if (output === undefined && !missingTarget(target)) {
+      recordReview(repo, { host: 'cursor', model: review.model ?? model, effort: null, ...scopeRange(repo, scope), status: review.status, findings: review.findings.length })
+    }
+    return review
+  }
   if (host !== 'codex') return unavailable(host ?? null, null, 'unknown host')
   if (!EFFORTS.has(effort)) return unavailable('codex', effort, `effort is not one of ${[...EFFORTS].join(', ')}`, CODEX_MODEL)
   if (output !== undefined) return reviewFromOutput(output, { host: 'codex', model: CODEX_MODEL, effort })

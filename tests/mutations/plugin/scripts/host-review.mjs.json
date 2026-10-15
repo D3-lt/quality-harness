@@ -166,6 +166,16 @@
       "from": ".filter(line => line && !/^(?:tokens used|[\\d,]+)$/.test(line))",
       "to": ".filter(line => line)",
       "only": "^(?:the token footer codex ends its stderr with is not the reason)$"
+    },
+    {
+      "label": "host-review: a Cursor review is recorded",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "    if (output === undefined && !missingTarget(target)) {",
+      "to": "    if (false) {",
+      "only": "^(?:a Cursor review the launcher runs leaves one review row too)$"
     }
   ]
 }

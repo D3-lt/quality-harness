@@ -170,3 +170,8 @@ test('a Codex run that exits non-zero says why, from its own last stderr line', 
   const quiet = hostReview({ ...review, run: fake({ error: null, signal: null, status: 1, stdout: '', stderr: '' }).run })
   assert.equal(quiet.reason.trim().endsWith('codex exited 1'), true, quiet.reason)
 })
+
+test('the token footer codex ends its stderr with is not the reason', () => {
+  const result = hostReview({ ...review, run: fake({ error: null, signal: null, status: 1, stdout: '', stderr: 'ERROR: quota exceeded\ntokens used\n71,953\n' }).run })
+  assert.match(result.reason, /codex exited 1: ERROR: quota exceeded$/)
+})

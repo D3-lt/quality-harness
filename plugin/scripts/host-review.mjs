@@ -160,7 +160,9 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
     }
     if (child?.signal) return { reason: `codex was stopped by ${child.signal} before it finished` }
     // Its own last stderr line says why: a bare exit status told a quota from a dropped stream from a bad contract by nothing.
-    const said = String(child?.stderr ?? '').trim().split('\n').at(-1)?.trim().slice(0, 300)
+    // codex ends stderr with a "tokens used" footer, which is not a reason, so that is skipped (measured 2026-10-15).
+    const lines = String(child?.stderr ?? '').trim().split('\n').map(line => line.trim()).filter(line => line && !/^(?:tokens used|[\d,]+)$/.test(line))
+    const said = lines.at(-1)?.slice(0, 300)
     if (!child || child.error || child.status !== 0) return { reason: child?.error?.message ?? `codex exited ${child?.status}${said ? `: ${said}` : ''}` }
     let text = ''
     try { text = readFileSync(path.join(directory, 'last-message.txt'), 'utf8') } catch { /* an older build: stdout carries it */ }

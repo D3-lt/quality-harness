@@ -156,6 +156,16 @@
       "from": "`codex exited ${child?.status}${said ? `: ${said}` : ''}`",
       "to": "`codex exited ${child?.status}`",
       "only": "^(?:a Codex run that exits non-zero says why, from its own last stderr line)$"
+    },
+    {
+      "label": "host-review: the token footer is not the reason",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": ".filter(line => line && !/^(?:tokens used|[\\d,]+)$/.test(line))",
+      "to": ".filter(line => line)",
+      "only": "^(?:the token footer codex ends its stderr with is not the reason)$"
     }
   ]
 }

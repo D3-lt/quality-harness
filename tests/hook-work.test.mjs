@@ -549,7 +549,8 @@ test('an output limit terminates the noisy child and reports cleanup separately 
   let run
   try {
     run = await runWithTimeout(process.execPath, ['-e',
-      "process.stdout.write('x'.repeat(10000)); setInterval(() => {}, 1000)"], {
+      // Its own exit too, so a test process that dies first cannot orphan it (BACKLOG §381).
+      "process.stdout.write('x'.repeat(10000)); setInterval(() => {}, 1000); setTimeout(() => process.exit(0), 60000)"], {
       timeoutMs: 5000, maxOutputBytes: 1024,
     })
     assert.equal(run.outputLimitExceeded, true)

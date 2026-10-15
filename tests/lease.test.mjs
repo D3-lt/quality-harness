@@ -71,7 +71,11 @@ async function holder(leases, { command = 'node scripts/mutate.mjs --case x', ro
     const file = path.join(${JSON.stringify(leases)}, process.pid + '-holder.json')
     fs.writeFileSync(file + '.tmp', JSON.stringify({ pid: process.pid, command: ${JSON.stringify(command)}, root: ${JSON.stringify(root)}, start: new Date().toISOString(), state: 'running' }))
     fs.renameSync(file + '.tmp', file)
+    // Its own bound: spawn's timeout is a timer in the parent, so a parent that dies early left
+    // holders polling for hours (five found 2026-10-15, 8 h 51 min old, their directory gone).
+    const deadline = Date.now() + 120_000
     const poll = setInterval(() => {
+      if (Date.now() > deadline || !fs.existsSync(${JSON.stringify(leases)})) process.exit(0)
       if (!fs.existsSync(${JSON.stringify(release)})) return
       fs.writeFileSync(${JSON.stringify(released)}, String(Date.now()))
       fs.rmSync(file, { force: true })

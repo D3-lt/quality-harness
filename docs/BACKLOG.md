@@ -3625,6 +3625,8 @@ Measured in this session: with no `qh-check` passed on the tree, `git init … &
 
 Correction, 2026-10-15: of the two items above, only `cd <literal> && git commit` is deferred by ADR-104. A fixture built in the same command as its commit is a permanent boundary there (Out of Scope: a program or a second git step before the commit can re-point `L`), so it is not open work.
 
+2026-10-15, Codex scoped verification of 99a574c1..12cbbadb (ADR-104): the arithmetic guard added in 12cbbadb also refuses literal data, so these stay refused on an unchecked unarmed tree although they commit only into the other repository: `git -C /foreign commit -F - <<'EOF'` with a body line `Document ((1)) as literal text`, and `git -C /foreign commit -m x; echo 'let x=1'`. `maskedMessages` masks commit argument values but not a quoted heredoc body or an `echo` argument. Refusal direction (a false refusal, not a fail-open), filed under the one-verification-round rule. Fix: scan `ARITHMETIC` over the text with quoted heredoc bodies and single-quoted `echo` arguments removed, keeping a twin where a double-quoted `$((…))` still refuses.
+
 ## 368. OPEN 2026-10-09 — `subagent.ended` outnumbers `subagent.started` 692 to 30 in one session log
 
 One session log (a week of events) holds 774 `subagent.ended` rows over 692 distinct agent ids and 46 `subagent.started` over 30; 722 of the ended rows carry an empty `agentType`. `SubagentStop` has no matcher in `plugin/hooks/hooks.json`, so it fires for every stop. Source not traced: workflow or teammate agents that never fire a start are the lead. Costs one `lifecycle.mjs` run each (timeout 120).

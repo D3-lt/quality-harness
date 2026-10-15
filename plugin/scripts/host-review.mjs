@@ -5,6 +5,7 @@
 // Every Codex run the plugin starts is built here, by `codexInvocation` (ADR-098 T1): the codex-review and
 // codex-advise skills launch through the `--prompt-file` form below rather than writing their own command.
 // Pi stays unavailable until a command that prints its interface has been run; nothing here guesses argv.
+// Claude's host is a fresh headless `claude -p` (2026-10-15): read-only tools, git reads only, recorded like the others.
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -19,6 +20,8 @@ export const CODEX_MODEL = 'gpt-6.1-sol'
 export const EFFORTS = new Set(['high', 'xhigh', 'max', 'ultra'])
 // One budget for every Codex run, and the run is killed at it: a review that outlives it is unavailable, never clean.
 export const CODEX_TIMEOUT_MS = 600_000
+// The Claude reviewer's pinned model: `claude -p --model` takes the full name (Claude Code 2.1.300, 2026-10-15).
+export const CLAUDE_MODEL = 'claude-opus-5-5'
 export const REVIEW_STATUS = new Set(['clean', 'blocking', 'evidence-limited', 'unavailable'])
 // Measured 2026-09-22: `command -v pi` printed nothing.
 export const PI_UNMEASURED = 'pi invocation was not measured'
@@ -92,6 +95,10 @@ function commandWhich(name) {
 
 export function resolveCursorAgent(which = commandWhich) {
   return which('agent')
+}
+
+export function resolveClaude(which = commandWhich) {
+  return which('claude')
 }
 
 // The review skill's `## Blocking findings` block, for a host that can load no skill (ADR-098 T2). A mirror, held equal to that
@@ -221,12 +228,15 @@ export function recordReview(repo, row) {
 export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
   const target = { repo, scope, requirements, evidence }
-  if (host === 'cursor') {
+  if (host === 'cursor' || host === 'claude') {
     // Recorded as a Codex run is, so release-evidence sees it: on 2026-10-15 Codex refused this repository and the owner
-    // chose a Claude review through Cursor in its place. A review handed its output ran nothing and records nothing.
-    const review = runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
+    // chose a recorded Claude review in its place, through Cursor first; on the owner's plan Cursor runs no named model
+    // ("Free plans can only use Auto"), so through `claude -p`. A review handed its output ran nothing and records nothing.
+    const review = host === 'cursor'
+      ? runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
+      : runClaude({ model: model ?? CLAUDE_MODEL, target, resolve: resolve ?? resolveClaude, run, output })
     if (output === undefined && !missingTarget(target)) {
-      recordReview(repo, { host: 'cursor', model: review.model ?? model, effort: null, ...scopeRange(repo, scope), status: review.status, findings: review.findings.length })
+      recordReview(repo, { host, model: review.model ?? model, effort: null, ...scopeRange(repo, scope), status: review.status, findings: review.findings.length })
     }
     return review
   }
@@ -266,6 +276,34 @@ function runCursor({ model, target, resolve, run, output }) {
     return unavailable('cursor', null, child?.error?.message ?? `agent exited ${child?.status}${said ? `: ${said}` : ''}`, model)
   }
   return reviewFromOutput(child.stdout, { host: 'cursor', model, effort: null })
+}
+
+// `--safe-mode` loads no hooks, plugins or CLAUDE.md, so no Stop hook can continue the reviewer's turn; `dontAsk` denies
+// whatever the allowlist does not name (measured 2026-10-15, Claude Code 2.1.300: a `touch` was denied). The answer is the
+// envelope's `result`, and an error envelope is not a review whatever its text says.
+function runClaude({ model, target, resolve, run, output }) {
+  if (output !== undefined) return reviewFromOutput(output, { host: 'claude', model, effort: null })
+  const bin = resolve()
+  if (!bin) return unavailable('claude', null, 'claude binary is absent', model)
+  const missing = missingTarget(target)
+  if (missing) return unavailable('claude', null, missing, model)
+  const args = ['-p', '--output-format', 'json', '--safe-mode', '--no-session-persistence', '--strict-mcp-config',
+    '--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', 'Read,Grep,Glob,Bash',
+    '--allowedTools', 'Bash(git diff:*)', 'Bash(git show:*)', 'Bash(git log:*)', 'Bash(git status:*)',
+    '--model', model, reviewPrompt(target)]
+  const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, killSignal: 'SIGKILL', cwd: target.repo, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  if (child?.error?.code === 'ETIMEDOUT') return unavailable('claude', null, 'claude was killed at its budget of 600 s', model)
+  if (!child || child.error || child.status !== 0) {
+    const said = `${child?.stderr ?? ''}\n${child?.stdout ?? ''}`.trim().split('\n').map(line => line.trim()).filter(Boolean).at(-1)?.slice(0, 300)
+    return unavailable('claude', null, child?.error?.message ?? `claude exited ${child?.status}${said ? `: ${said}` : ''}`, model)
+  }
+  let envelope = null
+  try { envelope = JSON.parse(child.stdout) } catch { /* not an envelope: nothing to read */ }
+  if (!envelope || envelope.is_error !== false || typeof envelope.result !== 'string') {
+    return unavailable('claude', null, `claude did not finish a review${envelope?.subtype ? ` (${envelope.subtype})` : ''}`, model)
+  }
+  // A fenced object is still the object.
+  return reviewFromOutput(envelope.result.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''), { host: 'claude', model, effort: null })
 }
 
 function arg(name, argv = process.argv) {

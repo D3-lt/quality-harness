@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { CODEX_MODEL, hostReview, promptFileReview, verdictStatus } from '../plugin/scripts/host-review.mjs'
+import { CLAUDE_MODEL, CODEX_MODEL, hostReview, promptFileReview, verdictStatus } from '../plugin/scripts/host-review.mjs'
 import { main, reviewEvidence } from '../scripts/release-evidence.mjs'
 
 const git = (cwd, ...args) => {
@@ -249,5 +249,36 @@ test('a Cursor review trusts the workspace it is asked about, and a failed one s
     assert.deepEqual(seen[0].slice(seen[0].indexOf('--mode'), seen[0].indexOf('--mode') + 2), ['--mode', 'ask'])
     const failed = hostReview({ host: 'cursor', model: 'm', repo: dir, scope: `base ${base}`, resolve: () => 'agent', run: () => ({ status: 1, stdout: 'Workspace Trust Required\n  Pass --trust\n', stderr: '' }) })
     assert.match(failed.reason, /agent exited 1: Pass --trust/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+  
+// 2026-10-15: Cursor could not run a named model on the owner's plan ("Free plans can only use Auto"), so the recorded
+// Claude review the owner chose runs as `claude -p`: fresh context, read-only tools, git reads only, its run recorded.
+test('a headless Claude review is read-only, unwraps its result, and leaves one review row', () => {
+  const dir = scratch()
+  try {
+    const base = commit(dir, 'plugin/a.mjs', 'one\n')
+    const head = commit(dir, 'plugin/a.mjs', 'two\n')
+    const seen = []
+    const envelope = result => JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result })
+    const run = answer => (bin, args, options) => { seen.push({ bin, args, options }); return { status: 0, stdout: envelope(answer) } }
+    const blocking = JSON.stringify({ status: 'blocking', findings: [{ file: 'plugin/a.mjs', line: 1, problem: 'p', impact: 'i', evidence: 'e', minimal_fix: 'f', severity: 'blocking' }] })
+    const result = hostReview({ host: 'claude', repo: dir, scope: `base ${base}`, resolve: () => 'claude', run: run(blocking) })
+    assert.equal(result.status, 'blocking', JSON.stringify(result))
+    const { args, options } = seen[0]
+    for (const flag of ['-p', '--safe-mode', '--no-session-persistence', '--strict-mcp-config']) assert.ok(args.includes(flag), flag)
+    assert.equal(args[args.indexOf('--permission-mode') + 1], 'dontAsk')
+    assert.equal(args[args.indexOf('--tools') + 1], 'Read,Grep,Glob,Bash')
+    assert.ok(!args.some(arg => /Edit|Write|Bash\(\*|Bash\(git (?:commit|push|add)/.test(arg)), JSON.stringify(args))
+    assert.ok(options.timeout > 0 && options.windowsHide)
+    const [row] = rows(dir)
+    assert.deepEqual([row.host, row.model, row.base, row.head, row.status, row.findings], ['claude', CLAUDE_MODEL, base, head, 'blocking', 1])
+    // DIRTY twin: an error envelope is not a review, even when its text holds a clean object.
+    const failed = hostReview({ host: 'claude', repo: dir, scope: `base ${base}`, resolve: () => 'claude',
+      run: () => ({ status: 0, stdout: JSON.stringify({ subtype: 'error_max_turns', is_error: true, result: JSON.stringify({ status: 'clean', findings: [] }) }) }) })
+    assert.equal(failed.status, 'unavailable')
+    assert.equal(rows(dir).at(-1).status, 'unavailable')
+    const absent = hostReview({ host: 'claude', repo: dir, scope: `base ${base}`, resolve: () => null, run: () => assert.fail('nothing to run') })
+    assert.equal(absent.status, 'unavailable')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

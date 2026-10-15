@@ -196,6 +196,56 @@
       "from": "`agent exited ${child?.status}${said ? `: ${said}` : ''}`",
       "to": "`agent exited ${child?.status}`",
       "only": "^(?:a Cursor review trusts the workspace it is asked about, and a failed one says why)$"
+    },
+    {
+      "label": "host-review: the Claude host is selected",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "  if (host === 'cursor' || host === 'claude') {",
+      "to": "  if (host === 'cursor') {",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: the Claude reviewer cannot be asked to allow a write",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "'--permission-mode', 'dontAsk',",
+      "to": "'--permission-mode', 'acceptEdits',",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: the Claude reviewer loads no hooks",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "'--output-format', 'json', '--safe-mode', '--no-session-persistence',",
+      "to": "'--output-format', 'json', '--no-session-persistence',",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: a Claude error envelope is not a review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "  if (!envelope || envelope.is_error !== false || typeof envelope.result !== 'string') {",
+      "to": "  if (!envelope || typeof envelope.result !== 'string') {",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "host-review: a Claude review is recorded under its own host",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "      recordReview(repo, { host, model: review.model ?? model,",
+      "to": "      recordReview(repo, { host: 'cursor', model: review.model ?? model,",
+      "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
     }
   ]
 }

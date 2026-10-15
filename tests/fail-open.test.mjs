@@ -619,9 +619,13 @@ test('a pipeline is joined to the list as one unit', () => {
 // status, but it was dropped as syntax, so `! false` (0 under sh, bash and dash, measured 2026-10-15) read nonzero and was
 // accepted as a real check.
 test('a negated pipeline has the inverse status', () => {
-  const constant = ['! false', 'npm test || ! false | false', '! false && true', 'true || ! npm test']
-  // DIRTY twins: a negated check still depends on the tree, and `! true` is constant failure, not success.
-  const real = ['! npm test', '! true', 'false || ! npm test | grep -q x', '! false && npm test']
+  const constant = ['! false', 'npm test || ! false | false', '! false && true', 'true || ! npm test',
+    // The verification of ee074441: an `exit` ending a pipeline only sets its status, and a bare `! exit 0` exits 0
+    // before any inversion (bash 3.2 and /bin/sh, measured).
+    '! npm test | exit 1', '! exit 0']
+  // DIRTY twins: a negated check still depends on the tree, and `! true` is constant failure, not success. A doubled `!`
+  // is unknown: bash 3.2 and /bin/sh here reject it (exit 2), while bash 5's grammar may toggle it, which is not measured.
+  const real = ['! npm test', '! true', 'false || ! npm test | grep -q x', '! false && npm test', '! npm test | exit 0', '! ! true', '! ! false']
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })

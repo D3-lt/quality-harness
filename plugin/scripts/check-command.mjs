@@ -149,9 +149,10 @@ function listStatus(text, depth) {
     let end = i
     while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end++
     let own = commands[end].ended === '&' || (end > i && passThroughSink(commands[end])) ? { status: 'zero' } : commandStatus(commands[end], depth)
-    // A leading `!` inverts the pipeline's status (sh, bash, dash, BACKLOG §381), except in the background; an `exit`
-    // under it is not read.
-    if (commands[i].negated && commands[end].ended !== '&') own = { status: own.exits ? 'either' : NEGATED[own.status] }
+    // A leading `!` inverts the pipeline's status (sh, bash, dash, BACKLOG §381), except in the background. A bare `exit`
+    // leaves before the inversion and keeps its own reading; one ending a pipeline only sets the status it inverts.
+    if (commands[i].negated === 'twice') own = { status: 'either' }
+    else if (commands[i].negated && commands[end].ended !== '&' && !(own.exits && end === i)) own = { status: NEGATED[own.status] }
     // `exit` before the end stops the list on the paths that reach it; the others go
     // on, so only a path every run takes is known. As the LAST command it is simply
     // the list's status, combined like any other (`test -f F || exit 0` is 0). Inside a

@@ -206,7 +206,7 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "raw === '!') { command.negated = true; return }",
+      "from": "raw === '!') { command.negated = command.negated ? 'twice' : true; return }",
       "to": "raw === '!') { return }",
       "only": "^(?:a negated pipeline has the inverse status)$"
     }

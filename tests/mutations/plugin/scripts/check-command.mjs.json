@@ -305,8 +305,38 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (commands[i].negated && commands[end].ended !== '&') own =",
-      "to": "    if (false) own =",
+      "from": "    else if (commands[i].negated && commands[end].ended !== '&' && !(own.exits && end === i)) own =",
+      "to": "    else if (false) own =",
+      "only": "^(?:a negated pipeline has the inverse status)$"
+    },
+    {
+      "label": "check-command: a doubled ! is unknown",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (commands[i].negated === 'twice') own = { status: 'either' }",
+      "to": "    if (false) own = { status: 'either' }",
+      "only": "^(?:a negated pipeline has the inverse status)$"
+    },
+    {
+      "label": "check-command: a bare exit under ! keeps its own reading",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " && !(own.exits && end === i)) own =",
+      "to": ") own =",
+      "only": "^(?:a negated pipeline has the inverse status)$"
+    },
+    {
+      "label": "check-command: an exit ending a negated pipeline is inverted",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " && !(own.exits && end === i)) own =",
+      "to": " && !own.exits) own =",
       "only": "^(?:a negated pipeline has the inverse status)$"
     }
   ]

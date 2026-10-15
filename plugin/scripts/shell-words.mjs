@@ -55,8 +55,11 @@ export function shellWords(text) {
       return
     }
     // Shell syntax, not a program: a group's braces and a pipeline's `!`, which inverts its status and is kept as `negated`.
-    if (leading && !w.quoted && raw === '!') { command.negated = true; return }
-    if (leading && !w.quoted && (raw === '{' || raw === '}')) return
+    // A second `!` is `twice`: bash 3.2 and /bin/sh reject it, and bash 5 may toggle it, so it is read as unknown. A `!`
+    // before a group negates the whole group, which is not folded here: the group reads as it did without it (BACKLOG §381).
+    if (leading && !w.quoted && raw === '!') { command.negated = command.negated ? 'twice' : true; return }
+    if (leading && !w.quoted && raw === '{') { delete command.negated; return }
+    if (leading && !w.quoted && raw === '}') return
     for (const expanded of braces(w.chars)) {
       const value = expanded.map(x => x.c).join('')
       const ranged = /\{[^{}]*\.\.[^{}]*\}/.test(value) && expanded.some(x => !x.q && x.c === '{')

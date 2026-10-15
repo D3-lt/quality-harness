@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-15",
+  "at": "f1c3c7c1dfda560c3441aabf6882f71775cb4481",
+  "plugin": "3.8.30",
+  "kind": "probe",
+  "probeSha256": "86e9da6dc59a49b296f8c5f3456031cf0789f7c6a16b0f8bd42cf6292627c21e",
+  "readers": "5620ac0431667fd5ad1e1652d0f0583c79bda8512045c22fdd014b8d1616e086",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.8",
+  "corpus": {
+    "records": 72,
+    "undecided": 5,
+    "tasks": 209,
+    "taskDirectories": 19
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 77,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "wcag-adr",
+  "found": ""
+}

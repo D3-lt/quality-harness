@@ -1,6 +1,38 @@
 {
   "mutations": [
     {
+      "label": "SessionEnd: the hook hands its work to a detached copy and returns",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/session-end-behind.test.mjs"],
+      "only": "^SessionEnd returns before its work",
+      "from": "  if (input.hook_event_name === 'SessionEnd' && argv[0] !== '--session-end' && endsBehind(input)) return",
+      "to": "  if (input.hook_event_name === 'SessionEnd' && argv[0] !== '--session-end' && false) return"
+    },
+    {
+      "label": "SessionEnd: the detached copy reads its input from the hook, not from stdin",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/session-end-behind.test.mjs"],
+      "only": "^the detached copy writes the session row",
+      "from": "    raw = argv[0] === '--session-end' ? String(process.env.QUALITY_HARNESS_HOOK_INPUT ?? '') : await readStdin()",
+      "to": "    raw = await readStdin()"
+    },
+    {
+      "label": "SessionEnd: with no data home the hook runs here and says so",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/session-end-behind.test.mjs"],
+      "only": "^the detached copy writes the session row",
+      "from": "  if (setting === 'inline' || !process.env.CLAUDE_PLUGIN_DATA) return false",
+      "to": "  if (setting === 'inline') return false"
+    },
+    {
+      "label": "SessionEnd: inline runs the work in the hook",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/session-end-behind.test.mjs"],
+      "only": "^the detached copy writes the session row",
+      "from": "  if (setting === 'inline' || !process.env.CLAUDE_PLUGIN_DATA) return false",
+      "to": "  if (!process.env.CLAUDE_PLUGIN_DATA) return false"
+    },
+    {
       "label": "§355: a hook payload holding NUL bytes names UTF-16 as the likely cause",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

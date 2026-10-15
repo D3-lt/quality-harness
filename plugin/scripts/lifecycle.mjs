@@ -2,6 +2,9 @@
 
 import { isMainModule } from './main-module.mjs'
 import path from 'node:path'
+import os from 'node:os'
+import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { appendEvent, nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryRoot, rememberStatus } from './tree-facts.mjs'
 import { emitJson, peekOutput, pendingActions, queueAction, takeOutput } from './hook-queue.mjs'
@@ -204,6 +207,32 @@ export async function handleHook(input) {
   if (handler) await handler(input, recorded)
 }
 
+// SessionEnd runs under one budget the host gives every SessionEnd hook together, 1.5 s by default, and a plugin's own
+// `timeout` does not raise it (Claude Code's hooks reference). The tree observation this hook makes (ADR-060 T6) is git over
+// the whole tree, which on a loaded machine took longer: the host cancelled the hook and no row was written (reproduced
+// 2026-10-15 on Claude Code 2.1.300, a pty session exited with Ctrl+C and a slowed git; the owner's sessions.jsonl held no row
+// for a day). So the hook hands its input to a detached copy of itself and returns, and the copy observes the tree and writes
+// the row; a detached child outlived the host's exit in the same reproduction. With no data home the hook runs here, so the
+// missing home is said where it can be read. `QUALITY_HARNESS_SESSION_END_RUNNER` is `inline`, or another runner to start.
+function endsBehind(input) {
+  const setting = process.env.QUALITY_HARNESS_SESSION_END_RUNNER
+  if (setting === 'inline' || !process.env.CLAUDE_PLUGIN_DATA) return false
+  try {
+    // untimed-spawn: detached on purpose — the host has exited; every git call the copy makes carries its own timeout
+    const child = spawn(process.execPath, [setting || fileURLToPath(import.meta.url), '--session-end'], {
+      // The temp directory, not the session's: on Windows a live process's working directory cannot be deleted.
+      cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true,
+      env: { ...process.env, QUALITY_HARNESS_HOOK_INPUT: JSON.stringify({ ...input, cwd: input.cwd ?? process.cwd() }) },
+    })
+    child.on('error', () => {})
+    if (!child.pid) return false
+    child.unref()
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function readStdin() {
   let raw = ''
   for await (const chunk of process.stdin) raw += chunk
@@ -231,7 +260,7 @@ async function main() {
     // illegal escape and spent a round trip on "stdin is broken" (2026-09-23); one
     // stderr line names the real cause. A leading BOM is stripped too, since
     // PowerShell's `>` writes one. A hook that read nothing has observed nothing.
-    raw = await readStdin()
+    raw = argv[0] === '--session-end' ? String(process.env.QUALITY_HARNESS_HOOK_INPUT ?? '') : await readStdin()
     input = JSON.parse(raw.replace(/^﻿/, ''))
   } catch {
     // UTF-16 read as UTF-8 is JSON with a NUL after every ASCII character, so a payload holding NUL
@@ -248,6 +277,7 @@ async function main() {
     process.stderr.write('[quality-harness] the hook payload was not an object with a string cwd; nothing was read and nothing is said.\n')
     return
   }
+  if (input.hook_event_name === 'SessionEnd' && argv[0] !== '--session-end' && endsBehind(input)) return
   try {
     await handleHook(input)
   } finally {

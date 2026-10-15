@@ -27,7 +27,9 @@ export async function onSessionEnd(input, recorded) {
     return
   }
   // SessionEnd runs under the host's own short budget, so nothing here spawns
-  // a gate: the row is the log's reading and the location key, no more.
+  // a gate: the row is the log's reading and the location key, no more. The
+  // tree's observation still outlasts that budget on a loaded machine, so this
+  // runs in a detached copy of the hook (lifecycle.mjs `endsBehind`).
   const home = process.env.CLAUDE_PLUGIN_DATA
   if (!home) {
     process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded.\n')

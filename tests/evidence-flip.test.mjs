@@ -325,7 +325,7 @@ test('a really torn log, read by the real hooks, does not persist a verified row
       const label = torn ? 'torn' : 'whole'
       const dir = join(top, label)
       const data = join(top, `${label}-data`)
-      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: data, TMPDIR: top, TMP: top, TEMP: top }
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: data, TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SESSION_END_RUNNER: 'inline' }
       const run = (command, args, options = {}) => {
         const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
         assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
@@ -395,7 +395,7 @@ test('at every hook boundary a torn log is never quieter than a whole one, howev
     const said = (boundary, tear) => {
       const label = `s${count++}`
       const dir = join(top, label)
-      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SESSION_END_RUNNER: 'inline' }
       const run = (command, args, options = {}) => {
         const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
         assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)

@@ -118,7 +118,7 @@ test('a state note that could not be removed is not reported as removed', () => 
 
 function fixture(top, label) {
   const repo = join(top, label)
-  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
+  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SESSION_END_RUNNER: 'inline' }
   const run = (command, args, options = {}) => {
     const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
     assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
@@ -378,7 +378,7 @@ test('an UNKNOWN previous session still says what was independently known to be 
     const place = join(top, 'plain')
     mkdirSync(place, { recursive: true })
     writeFileSync(join(place, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
-    const env = { ...process.env, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
+    const env = { ...process.env, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SESSION_END_RUNNER: 'inline' }
     const hook = (session, payload) => {
       const out = spawnSync(process.execPath, [lifecycleScript], { cwd: top, encoding: 'utf8', timeout: 120_000, env,
         input: JSON.stringify({ ...payload, session_id: session, cwd: place }) })

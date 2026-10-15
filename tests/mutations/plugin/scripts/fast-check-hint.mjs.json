@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-103: the hint says a fastCheck is one shell command run from the repository root",
+      "file": "plugin/scripts/fast-check-hint.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "declares no \"fastCheck\" (one shell command, run from the repository root). With one, '",
+      "to": "declares no \"fastCheck\". With one, '",
+      "only": "^(?:the hint says what a fastCheck is: one shell command from the repository root)$"
+    },
+    {
       "label": "ADR-103 T3: a declared name is exactly pytest-testmon, with an optional version",
       "file": "plugin/scripts/fast-check-hint.mjs",
       "tests": ["tests/fast-check-hint.test.mjs"],

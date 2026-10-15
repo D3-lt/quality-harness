@@ -139,3 +139,11 @@ test('only a dependency position declares a dependency', () => {
     ]) assert.match(hint(toml), /`pytest --testmon`/, toml)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+
+// From a peer's probe of 6e056260 on a pnpm monorepo (2026-10-15): where a fastCheck runs from decides its form there.
+test('the hint says what a fastCheck is: one shell command from the repository root', () => {
+  const top = sandbox()
+  try {
+    assert.match(fastCheckHint(project(top, 'plain', { 'README.md': 'x\n' })), /one shell command, run from the repository root/)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

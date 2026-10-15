@@ -12,9 +12,11 @@ import path from 'node:path'
 
 // No duration in the text: the threshold is configurable (QUALITY_HARNESS_PROSE_HINT_MS), and "a minute or more" said under a
 // threshold of 0 was a claim nothing measured (the Codex review of T1, ADR-103 T3).
-const LEVER = '.quality-harness.json declares no "fastCheck". With one, `qh-check --commit` runs it '
-  + 'and commits on its pass; a push still needs the full check (ADR-081, ADR-100). Which tests may stand in for the suite is the '
-  + 'project owner\'s call.'
+// What a fastCheck IS is said too: in a monorepo it decides between a runner that is only in a workspace and a command that
+// reaches it (a peer's probe of 6e056260 on a pnpm monorepo, 2026-10-15).
+const LEVER = '.quality-harness.json declares no "fastCheck" (one shell command, run from the repository root). With one, '
+  + '`qh-check --commit` runs it and commits on its pass; a push still needs the full check (ADR-081, ADR-100). Which tests may '
+  + 'stand in for the suite is the project owner\'s call.'
 
 const read = file => { try { return readFileSync(file, 'utf8') } catch { return null } }
 

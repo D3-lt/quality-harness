@@ -7,9 +7,11 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { testBash } from './helpers/bash.mjs'
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const script = path.join(repoRoot, 'scripts', 'selftest.sh')
-const bash = process.platform === 'win32' ? (process.env.CLAUDE_CODE_GIT_BASH_PATH || 'bash') : 'bash'
+const bash = testBash()
 const dry = (env = {}) => spawnSync(bash, [script], { encoding: 'utf8', timeout: 60_000, windowsHide: true,
   env: { ...process.env, QH_SELFTEST_DRY: '1', QH_SELFTEST_CONCURRENCY: '', QH_SELFTEST_LOAD: '', ...env } })
 

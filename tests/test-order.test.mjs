@@ -9,6 +9,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { latestTimes, order } from '../scripts/test-order.mjs'
+import { testBash } from './helpers/bash.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const row = files => ({ at: '2026-10-14T10:00:00.000Z', files })
@@ -53,11 +54,14 @@ test('the script reorders real paths by their names inside the root, and keeps t
 })
 
 test('the gate runs its files in that order, and in glob order when it cannot', () => {
-  const bash = process.platform === 'win32' ? (process.env.CLAUDE_CODE_GIT_BASH_PATH || 'bash') : 'bash'
+  const bash = testBash()
   const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-test-order-gate-'))
   const dry = env => spawnSync(bash, [path.join(repoRoot, 'scripts', 'selftest.sh')], { encoding: 'utf8', timeout: 60_000, windowsHide: true,
     env: { ...process.env, QH_SELFTEST_DRY: '1', QH_SELFTEST_ORDER: '', ...env } })
-  const first = run => run.stdout.match(/^selftest: test files run (.*); first: (.*)$/m)
+  const first = run => {
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    return run.stdout.match(/^selftest: test files run (.*); first: (.*)$/m)
+  }
   try {
     const times = path.join(dir, 'times.jsonl')
     writeFileSync(times, `${JSON.stringify(row([

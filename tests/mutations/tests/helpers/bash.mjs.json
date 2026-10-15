@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "test bash: a test spawns the bash the product resolves, not the first bash on PATH",
+      "file": "tests/helpers/bash.mjs",
+      "tests": ["tests/test-bash.test.mjs"],
+      "from": "  resolveBashExecutable(platform, env, exists) ?? 'bash'",
+      "to": "  (platform === 'win32' ? (env.CLAUDE_CODE_GIT_BASH_PATH || 'bash') : 'bash')",
+      "only": "^(?:a test spawns the Git bash the product resolves, never the WSL stub ahead of it on PATH)$"
+    }
+  ]
+}

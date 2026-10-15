@@ -9,6 +9,8 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { testBash } from './helpers/bash.mjs'
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // A file URL: on Windows node's loader reads a bare `C:\…` as a URL with the scheme `c:` and exits 7 (a Windows run, 2026-10-15).
 const reporter = pathToFileURL(path.join(repoRoot, 'scripts', 'file-timing-reporter.mjs')).href
@@ -58,7 +60,7 @@ test('the reporter writes one row naming each file, the time its tests took, its
 })
 
 test('the gate keeps its per-file times beside the check ledger, and says where', () => {
-  const bash = process.platform === 'win32' ? (process.env.CLAUDE_CODE_GIT_BASH_PATH || 'bash') : 'bash'
+  const bash = testBash()
   const run = spawnSync(bash, [path.join(repoRoot, 'scripts', 'selftest.sh')], { encoding: 'utf8', timeout: 60_000, windowsHide: true,
     env: { ...process.env, QH_SELFTEST_DRY: '1' } })
   assert.equal(run.status, 0, run.stdout + run.stderr)

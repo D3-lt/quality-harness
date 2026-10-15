@@ -95,6 +95,36 @@
       "from": "{ once: input.source === 'startup' || input.source === 'resume' || input.source === undefined }",
       "to": "{ once: true }",
       "only": "^compaction and clear say every paragraph again$"
+    },
+    {
+      "label": "on-session-start: a session git could not arm is told",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/unarmed-said.test.mjs"
+      ],
+      "from": "    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) sections.push(note)",
+      "to": "    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) void note",
+      "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
+    },
+    {
+      "label": "on-session-start: the unarmed note is said once per repository and reason",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/unarmed-said.test.mjs"
+      ],
+      "from": "    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) sections.push(note)",
+      "to": "    if (true) sections.push(note)",
+      "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
+    },
+    {
+      "label": "on-session-start: a host with no env file is not told it is unarmed",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/unarmed-said.test.mjs"
+      ],
+      "from": "  if (offer?.event === 'publish.unarmed' && offer.reason !== 'CLAUDE_ENV_FILE is not set') {",
+      "to": "  if (offer?.event === 'publish.unarmed') {",
+      "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
     }
   ]
 }

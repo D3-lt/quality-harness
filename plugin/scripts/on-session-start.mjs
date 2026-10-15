@@ -13,6 +13,12 @@ import { emitJson } from './hook-queue.mjs'
 const ARMING_NOTE = "quality-harness: git's own refusal of an unchecked commit or push has not run yet in this "
   + 'session: it takes effect from the next prompt, and until then the text refusal applies (ADR-068).'
 
+// BACKLOG §381 (from §370): an offer git could not take was recorded and never said, so a session
+// on git below 2.54 believed a commit inside a script was refused at the event, as in an armed one.
+const unarmedNote = reason => "quality-harness: git's own refusal of an unchecked commit or push is not armed in this "
+  + `session (${reason}). A commit or push this hook reads in a command is still refused; one made inside a script or a `
+  + 'tool the command runs is not, so run `qh-check` before running one (ADR-066).'
+
 export function onSessionStart(input, recorded) {
   // After compaction the session has none of the context the once-per-session
   // markers gated; a new generation makes every first mention first again.
@@ -28,6 +34,14 @@ export function onSessionStart(input, recorded) {
   const sections = []
   const orientation = sessionOrientation(input.cwd, { once: input.source === 'startup' || input.source === 'resume' || input.source === undefined })
   if (orientation) sections.push(orientation)
+  // Said once per repository and reason: a standing fact, not news on every start (CLAUDE.md §19).
+  const offer = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'publish.offered' || entry.event === 'publish.unarmed').at(-1)
+  // A host that offers no env file at all is not a failure to arm: there is no Bash environment to
+  // arm, and every session there would carry the note (the goldens and the corpus matrix run so).
+  if (offer?.event === 'publish.unarmed' && offer.reason !== 'CLAUDE_ENV_FILE is not set') {
+    const note = unarmedNote(offer.reason ?? 'no reason recorded')
+    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) sections.push(note)
+  }
   // ADR-068 T2: after a compaction or resume, the Bash tool picks up the exports only
   // from the next user prompt (measured 2026-09-26). While no hook run follows the
   // latest offer, say which refusal is in force; it changes no verdict.

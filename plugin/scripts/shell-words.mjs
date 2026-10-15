@@ -32,6 +32,7 @@ export function shellWords(text) {
   let pending = []
   let pipeNext = false
   let naming = false
+  const groups = []
   let i = 0
 
   function fresh() {
@@ -55,11 +56,18 @@ export function shellWords(text) {
       return
     }
     // Shell syntax, not a program: a group's braces and a pipeline's `!`, which inverts its status and is kept as `negated`.
-    // A second `!` is `twice`: bash 3.2 and /bin/sh reject it, and bash 5 may toggle it, so it is read as unknown. A `!`
-    // before a group negates the whole group, which is not folded here: the group reads as it did without it (BACKLOG §381).
-    if (leading && !w.quoted && raw === '!') { command.negated = command.negated ? 'twice' : true; return }
-    if (leading && !w.quoted && raw === '{') { delete command.negated; return }
-    if (leading && !w.quoted && raw === '}') return
+    // A second `!` is `unknown`: bash 3.2 and /bin/sh reject it, and bash 5 may toggle it. A `!` before a `{ …; }` group
+    // negates the whole group: one holding a single pipeline is that pipeline negated, and one of several commands is not
+    // folded here, so it is `unknown` (BACKLOG §381).
+    if (leading && !w.quoted && raw === '!') { command.negated = command.negated ? 'unknown' : true; return }
+    if (leading && !w.quoted && raw === '{') { groups.push({ negated: command.negated, start: commands.length }); delete command.negated; return }
+    if (leading && !w.quoted && raw === '}') {
+      const group = groups.pop()
+      const body = group?.negated ? commands.slice(group.start) : []
+      const single = body.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') && !body[0]?.negated
+      for (const c of single ? body.slice(0, 1) : body) c.negated = single ? group.negated : 'unknown'
+      return
+    }
     for (const expanded of braces(w.chars)) {
       const value = expanded.map(x => x.c).join('')
       const ranged = /\{[^{}]*\.\.[^{}]*\}/.test(value) && expanded.some(x => !x.q && x.c === '{')

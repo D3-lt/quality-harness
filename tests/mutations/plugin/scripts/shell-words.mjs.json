@@ -206,9 +206,49 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "raw === '!') { command.negated = command.negated ? 'twice' : true; return }",
+      "from": "raw === '!') { command.negated = command.negated ? 'unknown' : true; return }",
       "to": "raw === '!') { return }",
       "only": "^(?:a negated pipeline has the inverse status)$"
+    },
+    {
+      "label": "shell-words: a group keeps the ! in front of it",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "groups.push({ negated: command.negated, start: commands.length })",
+      "to": "groups.push({ negated: false, start: commands.length })",
+      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+    },
+    {
+      "label": "shell-words: only a group of one pipeline is folded",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "const single = body.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') && !body[0]?.negated",
+      "to": "const single = !body[0]?.negated",
+      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+    },
+    {
+      "label": "shell-words: a negated pipeline inside a negated group is unknown",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " && !body[0]?.negated\n",
+      "to": "\n",
+      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+    },
+    {
+      "label": "shell-words: every command of a several-command negated group is unknown",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "for (const c of single ? body.slice(0, 1) : body)",
+      "to": "for (const c of body.slice(0, 1))",
+      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
     }
   ]
 }

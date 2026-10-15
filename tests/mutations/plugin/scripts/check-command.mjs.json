@@ -315,7 +315,7 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (commands[i].negated === 'twice') own = { status: 'either' }",
+      "from": "    if (commands[i].negated === 'unknown') own = { status: 'either' }",
       "to": "    if (false) own = { status: 'either' }",
       "only": "^(?:a negated pipeline has the inverse status)$"
     },

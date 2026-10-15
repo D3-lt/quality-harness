@@ -629,3 +629,14 @@ test('a negated pipeline has the inverse status', () => {
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })
+
+// The recorded review of ee074441..e4002cca (blocking): dropping the `!` at a group's `{` turned `! { false; }` (0 under
+// bash 3.2 and /bin/sh, measured) from refused into accepted. A negated group holding one pipeline is that pipeline
+// negated; a negated group of several commands is not folded here and reads as unknown (BACKLOG §381).
+test('a negated group of one pipeline is that pipeline negated', () => {
+  const constant = ['! { false; }', '! { npm test | false; }', '! { false; } && echo ok']
+  // DIRTY twins: the group's pipeline still decides where it depends on the tree, and `! { true; }` exits 1.
+  const real = ['! { npm test; }', '! { true; }', '! { false; npm test; }', '! { ! false; }', '! { false; true; }']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})

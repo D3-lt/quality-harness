@@ -61,7 +61,8 @@ test('the reporter writes one row naming each file, the time its tests took, its
 
 // Windows CI, 2026-10-15: node named one file in more than one form, and the row read `tests: 0` for a file whose two tests
 // passed. The runner's printed rows showed the third form: the link's target as written (`RUNNER~1\…\real`), which is neither the
-// root as given (the link) nor as the filesystem names it (the long form). macOS's /var → /private/var is the same shape here.
+// root as given (the link) nor as the filesystem names it (the long form). Here the link's target is written through a second
+// link, so that form is not canonical on any platform: on Linux CI /tmp already was, and a test of it there could not fail.
 test('a file node names in two path forms is one row, holding all its tests', async () => {
   const { default: fileTiming } = await import(reporter)
   const parent = mkdtempSync(path.join(os.tmpdir(), 'qh-file-timing-forms-'))
@@ -69,8 +70,10 @@ test('a file node names in two path forms is one row, holding all its tests', as
   try {
     const real = path.join(parent, 'real')
     mkdirSync(real)
+    const alias = path.join(parent, 'alias')
+    const asWritten = path.join(alias, 'real')
     const link = path.join(parent, 'link')
-    try { symlinkSync(real, link, 'dir') } catch { return }
+    try { symlinkSync(parent, alias, 'dir'); symlinkSync(asWritten, link, 'dir') } catch { return }
     const linkFile = path.join(link, 'slow.test.mjs')
     writeFileSync(path.join(real, 'slow.test.mjs'), '')
     const own = (type, file) => ({ type, data: { file, nesting: 0, name: file } })
@@ -81,7 +84,7 @@ test('a file node names in two path forms is one row, holding all its tests', as
       return JSON.parse(out).files
     }
     // Its tests named by the real path as the filesystem names it, and as the link's target was written.
-    for (const testsFile of [path.join(realpathSync.native(real), 'slow.test.mjs'), path.join(real, 'slow.test.mjs')]) {
+    for (const testsFile of [path.join(realpathSync.native(real), 'slow.test.mjs'), path.join(asWritten, 'slow.test.mjs')]) {
       const one = (type, name, ms) => ({ type, data: { file: testsFile, nesting: 0, name, details: { duration_ms: ms } } })
       const tests = [one('test:pass', 'one', 300), one('test:pass', 'two', 100)]
       // CLEAN: the file's own event first, in the given form; its tests in another.

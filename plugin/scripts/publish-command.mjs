@@ -158,28 +158,43 @@ export function foreignCommitPath(command, env = process.env, platform = process
   return after.every(data) ? target : null
 }
 
-// The text the shell never evaluates, taken out before the arithmetic scan: a here-document's body
-// (the proof below admits only a quoted one), and an `echo` or `true` argument spelled in single
-// quotes, or in double quotes with no `$`, backtick or backslash. `((1))` in a message and
-// `echo 'let x=1'` are data; a double-quoted `$((…))` expands, so it stays
-// (BACKLOG §381, item 4; the Codex scoped review of 12cbbadb). A spelling is taken out only where it
-// occurs once: an arithmetic COMMAND spelled like a here-document's body is listed by no shellWords
-// command, so only this scan sees it (Codex review of 921330b9..976aa281, P1).
+// The text the shell never evaluates, taken out before the arithmetic scan: a quoted here-document's
+// body, and an `echo` or `true` argument spelled in single quotes, or in double quotes with no `$`,
+// backtick or backslash. `((1))` in a message and `echo 'let x=1'` are data; a double-quoted `$((…))`
+// expands, so it stays (BACKLOG §381, item 4; the Codex scoped review of 12cbbadb).
+// ⚠ A SPELLING IS ONLY A GUESS AT WHERE THE DATA STANDS. An arithmetic command is listed by no
+// shellWords command, so only this scan sees it, and three spellings that read as data stood in
+// code instead: a body repeated as a command after the here-document, an ANSI-C `$'…'` echo whose
+// value is spelled across a closing quote and an arithmetic command, and a `<<-` body whose tabs the
+// lexer strips (Codex reviews of 921330b9..976aa281 and 976aa281..18879680). So, as maskedMessages
+// does, a spelling that occurs once is swapped for a marker, and kept out only when the text read
+// again holds the marker in exactly the slot the data came from.
+const DATA_MARK = 'qhdata'
+
 function withoutData(text) {
   const { commands, complete } = shellWords(text)
   if (!complete) return text
-  const once = (from, spelling) => (from.split(spelling).length === 2 ? from.split(spelling).join('') : from)
   let out = text
-  for (const step of commands) {
-    // Any here-document: the commit-only proof below admits only a quoted one and refuses the rest.
-    for (const document of step.heredocs) if (document.body) out = once(out, document.body)
-    if (step.argv[0] !== 'echo' && step.argv[0] !== 'true') continue
+  const take = (spelling, mark, stands) => {
+    if (out.split(spelling).length !== 2) return
+    const next = out.split(spelling).join(mark)
+    const again = shellWords(next)
+    if (again.complete && stands(again.commands)) out = next
+  }
+  commands.forEach((step, n) => {
+    step.heredocs.forEach((document, j) => {
+      // A body keeps its line ending, or the delimiter line after it would join the marker.
+      if (document.quoted && document.delimiter !== null && document.body.endsWith('\n')) {
+        take(document.body, `${DATA_MARK}\n`, read => read[n]?.heredocs[j]?.body === `${DATA_MARK}\n`)
+      }
+    })
+    if (step.argv[0] !== 'echo' && step.argv[0] !== 'true') return
     for (let k = 1; k < step.argv.length; k += 1) {
       const value = step.argv[k]
-      if (!value.includes("'")) out = once(out, `'${value}'`)
-      if (!/["\\$`]/.test(value)) out = once(out, `"${value}"`)
+      if (!value.includes("'")) take(`'${value}'`, DATA_MARK, read => read[n]?.argv[k] === DATA_MARK)
+      if (!/["\\$`]/.test(value)) take(`"${value}"`, DATA_MARK, read => read[n]?.argv[k] === DATA_MARK)
     }
-  }
+  })
   return out
 }
 

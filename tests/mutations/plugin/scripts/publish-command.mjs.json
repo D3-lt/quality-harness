@@ -1439,8 +1439,8 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "    for (const document of step.heredocs) if (document.body) out = once(out, document.body)",
-      "to": "    for (const document of []) if (document.body) out = once(out, document.body)",
+      "from": "        take(document.body, `${DATA_MARK}\\n`, read => read[n]?.heredocs[j]?.body === `${DATA_MARK}\\n`)",
+      "to": "        void read",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     },
     {
@@ -1449,7 +1449,7 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "      if (!value.includes(\"'\")) out = once(out, `'${value}'`)",
+      "from": "      if (!value.includes(\"'\")) take(`'${value}'`, DATA_MARK, read => read[n]?.argv[k] === DATA_MARK)",
       "to": "      void value",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     },
@@ -1459,8 +1459,18 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "      if (!/[\"\\\\$`]/.test(value)) out = once(out, `\"${value}\"`)",
-      "to": "      if (false) out = once(out, `\"${value}\"`)",
+      "from": "      if (!/[\"\\\\$`]/.test(value)) take(`\"${value}\"`, DATA_MARK, read => read[n]?.argv[k] === DATA_MARK)",
+      "to": "      if (false) take(`\"${value}\"`, DATA_MARK, read => read[n]?.argv[k] === DATA_MARK)",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104: a spelling is data only where the text read again holds it in its slot",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "    if (again.complete && stands(again.commands)) out = next",
+      "to": "    out = next",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     },
     {
@@ -1469,8 +1479,18 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "(from.split(spelling).length === 2 ? from.split(spelling).join('') : from)",
-      "to": "from.split(spelling).join('')",
+      "from": "    if (out.split(spelling).length !== 2) return",
+      "to": "    void spelling",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104: the marker must stand in the data's own slot",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "again.complete && stands(again.commands)) out = next",
+      "to": "again.complete) out = next",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     }
   ]

@@ -242,6 +242,11 @@ test('literal data is not arithmetic, and an expansion of it still is', () => {
     // shellWords lists no command for it, so only the scan sees it, and removing every copy of the body hid it.
     `git -C ${F} commit -F - <<'EOF'\n((a['$(git -C ${here} push)']=1))\nEOF\n((a['$(git -C ${here} push)']=1))\n`,
     `git -C ${F} commit -m x; echo '((a[1]=1))'\n((a[1]=1))\n`,
+    // The verification of that fix (Codex, 976aa281..18879680, P1): a spelling that occurs once can still be code.
+    // An ANSI-C echo whose decoded value is spelled across a closing quote and an arithmetic command:
+    `git -C ${F} commit -m x\necho x''\n((\na['$(git -C ${here} push)']=1\n))\necho $'\\n\\x28\\x28\\na['\n`,
+    // A tab-stripped `<<-` body that occurs, untabbed, only inside the arithmetic command after it:
+    `git -C ${F} commit -F - <<-'EOF'\n\t(\n\ta['$(git -C ${here} push)']=1\nEOF\n((\na['$(git -C ${here} push)']=1\n))\n`,
   ]) {
     assert.equal(foreignCommitPath(command, {}, process.platform), null, command)
     assert.equal(unarmed.tell(command).decision, 'deny', command)

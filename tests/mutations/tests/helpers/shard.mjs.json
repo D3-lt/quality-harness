@@ -1,7 +1,7 @@
 {
   "mutations": [
     {
-      "label": "shard: each slice registers its own tests, not the first slice's",
+      "label": "test slices: each slice registers its own tests, not the first slice's",
       "file": "tests/helpers/shard.mjs",
       "tests": ["tests/shard.test.mjs"],
       "from": "  const slice = (...args) => (index++ % of === shard ? test(...args) : undefined)",
@@ -9,7 +9,7 @@
       "only": "^(?:sharded, every top-level test is registered by exactly one shard)$"
     },
     {
-      "label": "shard: unsharded, the file is plain test and registers every test",
+      "label": "test slices: unsharded, the file is plain test and registers every test",
       "file": "tests/helpers/shard.mjs",
       "tests": ["tests/shard.test.mjs"],
       "from": "  if (env.QH_TEST_SHARDED !== '1') return test",

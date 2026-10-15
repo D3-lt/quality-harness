@@ -138,7 +138,7 @@ export function foreignCommitPath(command, env = process.env, platform = process
   // Arithmetic runs what its index holds, and shellWords reads no command in it:
   // `((a['$(git push)']=0))` before the commit or `echo $((…))` after it pushes here
   // (Codex review of 99a574c1, P1). A quoted message is masked first, as ADR-086 does.
-  if (ARITHMETIC.test(maskedMessages(command))) return null
+  if (ARITHMETIC.test(withoutData(maskedMessages(command)))) return null
   const { commands, complete } = shellWords(command.replace(/\n$/, ''))
   if (!complete || commands.length === 0) return null
   const [commit, ...after] = commands
@@ -156,6 +156,30 @@ export function foreignCommitPath(command, env = process.env, platform = process
   if (commit.argv[at] !== 'commit' || !plainGitArguments('commit', commit.argv.slice(at + 1))) return null
   const data = step => plain(step) && !step.heredocs.length && (step.argv[0] === 'echo' || step.argv[0] === 'true') && !step.dynamic.includes(0)
   return after.every(data) ? target : null
+}
+
+// The text the shell never evaluates, taken out before the arithmetic scan: a here-document's body
+// (the proof below admits only a quoted one), and an `echo` or `true` argument spelled in single
+// quotes, or in double quotes with no `$`, backtick or backslash. `((1))` in a message and
+// `echo 'let x=1'` are data; a double-quoted `$((…))` expands, so it stays
+// (BACKLOG §381, item 4; the Codex scoped review of 12cbbadb). Every occurrence of a spelling goes:
+// any other place it could stand is a step the proof below already refuses.
+function withoutData(text) {
+  const { commands, complete } = shellWords(text)
+  if (!complete) return text
+  const once = (from, spelling) => from.split(spelling).join('')
+  let out = text
+  for (const step of commands) {
+    // Any here-document: the commit-only proof below admits only a quoted one and refuses the rest.
+    for (const document of step.heredocs) if (document.body) out = once(out, document.body)
+    if (step.argv[0] !== 'echo' && step.argv[0] !== 'true') continue
+    for (let k = 1; k < step.argv.length; k += 1) {
+      const value = step.argv[k]
+      if (!value.includes("'")) out = once(out, `'${value}'`)
+      if (!/["\\$`]/.test(value)) out = once(out, `"${value}"`)
+    }
+  }
+  return out
 }
 
 // Shells whose `-c` string runs, each executed with `-c` on 2026-09-26 (§296).

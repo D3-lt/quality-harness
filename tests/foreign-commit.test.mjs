@@ -211,3 +211,35 @@ test('arithmetic, a here-string and a command before the commit keep the refusal
   // CLEAN twin: a real quoted here-document is still a message.
   assert.equal(foreignCommitPath(`git -C ${F} commit -F - <<'EOF'\nm\nEOF`, {}, process.platform), F)
 })
+
+// BACKLOG §381, item 4(a) (Codex scoped review of 99a574c1..12cbbadb): the arithmetic guard read
+// literal data as arithmetic, so a message line `((1))` in a quoted here-document, or an `echo`
+// of `'let x=1'`, kept a commit into another repository refused. Data, as the shell reads it, is
+// left out of that scan; anything the shell expands is still read. A new test beside the locked ones.
+test('literal data is not arithmetic, and an expansion of it still is', () => {
+  const unarmed = session()
+  const F = slashed(foreign)
+  const here = slashed(unarmed.dir)
+  for (const command of [
+    `git -C ${F} commit -F - <<'EOF'\nDocument ((1)) as literal text\nEOF`,
+    `git -C ${F} commit -m x; echo 'let x=1'`,
+    `git -C ${F} commit -m x; echo "let x=1"`,
+  ]) {
+    assert.equal(foreignCommitPath(command, {}, process.platform), F, command)
+    // One session per row: the advice is said once per tree.
+    const said = session().tell(command)
+    assert.notEqual(said.decision, 'deny', `${command}\n${said.text}`)
+    assert.match(said.text, ADVICE, command)
+  }
+  // DIRTY twins: what the shell evaluates keeps the refusal (CLAUDE.md §16).
+  for (const command of [
+    `git -C ${F} commit -m x; echo "$((a['$(git -C ${here} push)']))"`,
+    `git -C ${F} commit -m x; echo $((a['$(git -C ${here} push)']))`,
+    `((a['$(git -C ${here} push)']=0)); git -C ${F} commit -m x`,
+    `git -C ${F} commit -F - <<EOF\n$((a['$(git -C ${here} push)']))\nEOF`,
+    `git -C ${F} commit -m x; echo 'a' "$((1))"`,
+  ]) {
+    assert.equal(foreignCommitPath(command, {}, process.platform), null, command)
+    assert.equal(unarmed.tell(command).decision, 'deny', command)
+  }
+})

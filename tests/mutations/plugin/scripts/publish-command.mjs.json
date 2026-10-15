@@ -33,7 +33,7 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "  if (ARITHMETIC.test(maskedMessages(command))) return null",
+      "from": "  if (ARITHMETIC.test(withoutData(maskedMessages(command)))) return null",
       "to": "  if (false) return null"
     },
     {
@@ -1422,6 +1422,46 @@
       "from": "function freshDirectoryVariables(commands, text = '') {\n  if (namesShellSpecial(text)) return NO_FRESH_DIRECTORIES",
       "to": "function freshDirectoryVariables(commands, text = '') {",
       "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-104: the arithmetic scan reads data out first",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "  if (ARITHMETIC.test(withoutData(maskedMessages(command)))) return null",
+      "to": "  if (ARITHMETIC.test(maskedMessages(command))) return null",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104: a here-document's body is data to the arithmetic scan",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "    for (const document of step.heredocs) if (document.body) out = once(out, document.body)",
+      "to": "    for (const document of []) if (document.body) out = once(out, document.body)",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104: a single-quoted echo argument is data to the arithmetic scan",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "      if (!value.includes(\"'\")) out = once(out, `'${value}'`)",
+      "to": "      void value",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+    },
+    {
+      "label": "ADR-104: a double-quoted echo argument with no expansion is data",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "      if (!/[\"\\\\$`]/.test(value)) out = once(out, `\"${value}\"`)",
+      "to": "      if (false) out = once(out, `\"${value}\"`)",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     }
   ]
 }

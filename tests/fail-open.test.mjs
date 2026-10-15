@@ -614,3 +614,14 @@ test('a pipeline is joined to the list as one unit', () => {
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })
+
+// The recorded Claude review of 2a50071a..6c30eba6 (advisory, older than the range): a pipeline's leading `!` inverts its
+// status, but it was dropped as syntax, so `! false` (0 under sh, bash and dash, measured 2026-10-15) read nonzero and was
+// accepted as a real check.
+test('a negated pipeline has the inverse status', () => {
+  const constant = ['! false', 'npm test || ! false | false', '! false && true', 'true || ! npm test']
+  // DIRTY twins: a negated check still depends on the tree, and `! true` is constant failure, not success.
+  const real = ['! npm test', '! true', 'false || ! npm test | grep -q x', '! false && npm test']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})

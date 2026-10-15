@@ -124,6 +124,7 @@ const LIST_CONTROL = new Set(['set', 'shopt', 'trap', 'exec', 'source', '.', 'ev
 // not depend on what came through (BACKLOG §381, item 1; the owner, 2026-10-15). `tee` to literal files, a bare
 // `cat`, and `head`/`tail` with options only; one that reads a file of its own depends on the tree.
 const PIPED = new Set(['|', '|&'])
+const NEGATED = { zero: 'nonzero', nonzero: 'zero', either: 'either' }
 function passThroughSink(c) {
   if (c.substitutions.length || c.dynamic.length) return false
   const [program, ...args] = c.argv
@@ -147,7 +148,10 @@ function listStatus(text, depth) {
     // and dash, BACKLOG §381). Without pipefail (`set` is refused above) its status is its last stage's.
     let end = i
     while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end++
-    const own = commands[end].ended === '&' || (end > i && passThroughSink(commands[end])) ? { status: 'zero' } : commandStatus(commands[end], depth)
+    let own = commands[end].ended === '&' || (end > i && passThroughSink(commands[end])) ? { status: 'zero' } : commandStatus(commands[end], depth)
+    // A leading `!` inverts the pipeline's status (sh, bash, dash, BACKLOG §381), except in the background; an `exit`
+    // under it is not read.
+    if (commands[i].negated && commands[end].ended !== '&') own = { status: own.exits ? 'either' : NEGATED[own.status] }
     // `exit` before the end stops the list on the paths that reach it; the others go
     // on, so only a path every run takes is known. As the LAST command it is simply
     // the list's status, combined like any other (`test -f F || exit 0` is 0). Inside a

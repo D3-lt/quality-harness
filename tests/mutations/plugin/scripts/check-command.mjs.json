@@ -155,8 +155,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "const own = commands[end].ended === '&' || (end > i",
-      "to": "const own = false || (end > i",
+      "from": "let own = commands[end].ended === '&' || (end > i",
+      "to": "let own = false || (end > i",
       "only": "a check whose exit status the text fixes is refused"
     },
     {
@@ -298,6 +298,16 @@
       "from": "    i = end\n",
       "to": "    void end\n",
       "only": "^(?:a pipeline is joined to the list as one unit)$"
+    },
+    {
+      "label": "check-command: a negated pipeline has the inverse status",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (commands[i].negated && commands[end].ended !== '&') own =",
+      "to": "    if (false) own =",
+      "only": "^(?:a negated pipeline has the inverse status)$"
     }
   ]
 }

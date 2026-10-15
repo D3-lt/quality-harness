@@ -199,6 +199,16 @@
       "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
       "from": "    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }",
       "to": "    if (false) { naming = true; return }"
+    },
+    {
+      "label": "shell-words: a pipeline's leading ! is kept as negated",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "raw === '!') { command.negated = true; return }",
+      "to": "raw === '!') { return }",
+      "only": "^(?:a negated pipeline has the inverse status)$"
     }
   ]
 }

@@ -54,8 +54,9 @@ export function shellWords(text) {
       command.assignments.push(raw)
       return
     }
-    // Shell syntax, not a program: a group's braces and a pipeline's `!`.
-    if (leading && !w.quoted && (raw === '{' || raw === '}' || raw === '!')) return
+    // Shell syntax, not a program: a group's braces and a pipeline's `!`, which inverts its status and is kept as `negated`.
+    if (leading && !w.quoted && raw === '!') { command.negated = true; return }
+    if (leading && !w.quoted && (raw === '{' || raw === '}')) return
     for (const expanded of braces(w.chars)) {
       const value = expanded.map(x => x.c).join('')
       const ranged = /\{[^{}]*\.\.[^{}]*\}/.test(value) && expanded.some(x => !x.q && x.c === '{')

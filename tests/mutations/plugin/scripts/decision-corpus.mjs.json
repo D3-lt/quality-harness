@@ -1570,17 +1570,41 @@
       "label": "§381 item 14: none, unchanged and no change are read-only words too",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)",
-      "to": "const READ_ONLY_CHANGE = /^(?:read)",
+      "from": "const READ_ONLY_WORD = '(?:read|none|unchanged|no change|read[- ]only)'",
+      "to": "const READ_ONLY_WORD = '(?:read)'",
       "only": "^a file a task only reads is not one its record governs$"
     },
     {
-      "label": "§381 item 14 review: a read-only word is the whole cell or followed by an explanation",
+      "label": "Codex review of v3.8.36..v3.8.38: only a read-only word in parentheses keeps the cell read-only",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "no change)\\s*(?:[(—–:;.]|$)/i",
-      "to": "no change)\\b/i",
-      "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
+      "from": "\\\\(\\\\s*${READ_ONLY_WORD}\\\\s*\\\\)",
+      "to": "\\\\(.*\\\\)",
+      "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
+    },
+    {
+      "label": "Codex review of v3.8.36..v3.8.38: only a reason after a dash may follow a read-only word",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "(?:\\\\s+[—–]\\\\s+\\\\S.*)?$",
+      "to": "(?:\\\\W.*)?$",
+      "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
+    },
+    {
+      "label": "Codex review of v3.8.36..v3.8.38: an escaped pipe does not split a cell",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "if (text[i] === '\\\\' && text[i + 1] === '|')",
+      "to": "if (false)",
+      "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
+    },
+    {
+      "label": "Codex review of v3.8.36..v3.8.38: a trailing pipe ends the row and adds no cell",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "  if (!ended) cells.push(cell.trim())",
+      "to": "  cells.push(cell.trim())",
+      "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
     },
     {
       "label": "§381 item 14 review: a table ends at its first non-table line",
@@ -1596,7 +1620,7 @@
       "tests": ["tests/named-not-dropped.test.mjs"],
       "from": "    if (cells.length === headerCells && READ_ONLY_CHANGE.test(",
       "to": "    if (READ_ONLY_CHANGE.test(",
-      "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
+      "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
     }
   ]
 }

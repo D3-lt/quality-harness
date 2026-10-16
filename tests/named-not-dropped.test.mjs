@@ -132,6 +132,28 @@ test('a Change cell that goes on to describe an edit still governs, and each tab
     ['src/a.js'])
 })
 
+// The Codex review of v3.8.36..v3.8.38 (two fail-opens): cells were counted by raw `|`, so an escaped pipe plus a row that
+// leaves off its optional trailing pipe matched the header's count and the wrong cell was read as Change; and a read-only
+// word followed by any punctuation (`unchanged (except the import)`, `read; then add the guard`) was read as read-only.
+test('a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only', () => {
+  const governs = (name, body) => {
+    const files = { 'docs/adr/ADR-001-a.md': ACCEPTED(1), 'docs/adr/ADR-001-a/tasks/T1-x.md': body }
+    return [...adrCorpus(tree(name, files), { tracked: Object.keys(files) })[0].governs].sort()
+  }
+  const header = '# Task T1\n\n## Affected Files\n\n| File | Why | Change |\n|---|---|---|\n'
+  // DIRTY: the escaped pipe and the missing trailing pipe cancel in a raw count. CLEAN twin: the same shape whose Change
+  // is `read` is still read-only, so the row is read by its real cells rather than kept whatever it says.
+  assert.deepEqual(governs('escaped-no-trailing', header + '| `src/a.js` | x \\| none | edit\n| `src/b.js` | x \\| y | read\n'), ['src/a.js'])
+  // GFM splits at a pipe inside a code span too, so this row has one cell more than its header and its cell 2 reads
+  // `none`: a row whose count is not its header's cannot say which cell is its Change, and keeps its path.
+  assert.deepEqual(governs('code-span-pipe', header + '| `src/c.js` | `x|none` | edit |\n'), ['src/c.js'])
+  const row = (file, change) => `| \`${file}\` | ${change} | x |\n`
+  assert.deepEqual(governs('word-then-punctuation', '# Task T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
+    + row('src/a.js', 'unchanged (except the import)') + row('src/b.js', 'read; then add the guard') + row('src/c.js', 'none: adds a flag')
+    + row('src/d.js', 'Read (unchanged)') + row('src/e.js', 'none — already correct') + row('src/f.js', 'read.')),
+    ['src/a.js', 'src/b.js', 'src/c.js'])
+})
+
 test('corpus-report counts a record named in lower case', () => {
   const entry = name => ({ name, isFile: () => true })
   assert.equal(recordCount('x', () => [entry('ADR-001-a.md'), entry('adr-002-b.md'), entry('notes.md')]), 2)

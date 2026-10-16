@@ -884,13 +884,35 @@ function declaredGoverns(text) {
 // this resolves on records nobody has touched for this feature. A row whose Change
 // cell says the task only reads the file governs nothing (BACKLOG §381 item 14: ADR-098
 // governed four files its tasks only read). The words are the ones this corpus writes
-// for that, measured 2026-10-16: `read`, `none`, `unchanged`, `no change`, the whole
-// cell or followed by an explanation (`none — already correct`, `Read (unchanged)`); a
-// cell that goes on to describe an edit (`read-only guard added`) still governs. Each
+// for that: `read`, `none`, `unchanged`, `no change`, the whole cell, or followed only by a
+// read-only word in parentheses (`Read (unchanged)`) or by a reason after a dash (`none —
+// already correct`). Anything else after the word — `read-only guard added`, `unchanged
+// (except the import)`, `read; then add the guard` — still governs (the Codex review of
+// v3.8.36..v3.8.38). Measured 2026-10-16 over the 307 task files this repository tracks:
+// `read` 9, `none` 3, `none — already correct` 1, and no other read-only cell. Each
 // table's Change column is its own header's, read at its separator row, and a table with
 // none keeps every row (the recorded review of v3.8.36..1721d2e6).
-const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)\s*(?:[(—–:;.]|$)/i
+const READ_ONLY_WORD = '(?:read|none|unchanged|no change|read[- ]only)'
+const READ_ONLY_CHANGE = new RegExp(`^${READ_ONLY_WORD}\\.?(?:\\s*\\(\\s*${READ_ONLY_WORD}\\s*\\)\\.?)?(?:\\s+[—–]\\s+\\S.*)?$`, 'i')
 const SEPARATOR_ROW = /^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/
+// A row's cells as GFM splits them: at every pipe a backslash does not escape, the leading and trailing pipes optional.
+// Splitting at every raw `|` let an escaped pipe and a missing trailing pipe cancel, so the count matched the header's
+// and the wrong cell was read as Change (the Codex review of v3.8.36..v3.8.38).
+function tableCells(line) {
+  const text = line.trim()
+  const cells = []
+  let cell = ''
+  let ended = false
+  for (let i = 0; i < text.length; i++) {
+    ended = false
+    if (text[i] === '\\' && text[i + 1] === '|') { cell += '\\|'; i++; continue }
+    if (text[i] === '|') { cells.push(cell.trim()); cell = ''; ended = true; continue }
+    cell += text[i]
+  }
+  if (!ended) cells.push(cell.trim())
+  if (text.startsWith('|')) cells.shift()
+  return cells
+}
 function affectedFiles(text) {
   const section = markdownSection(text, 'Affected Files')
   if (!section) return []
@@ -900,7 +922,7 @@ function affectedFiles(text) {
   let previous = []
   for (const line of section.split('\n')) {
     if (!line.trim().startsWith('|')) { changeColumn = -1; headerCells = 0; previous = []; continue }
-    const cells = line.split('|').slice(1).map(cell => cell.trim())
+    const cells = tableCells(line)
     if (SEPARATOR_ROW.test(line.trim())) {
       changeColumn = previous.findIndex(header => /^change$/i.test(header))
       headerCells = previous.length
@@ -914,8 +936,8 @@ function affectedFiles(text) {
     // `(T3's two tests)`, `(compile)` and `! rg -iq 'MCP stdio' README.md`, every
     // one reported as a governed path. A cell with a space in it is a sentence.
     if (/\s/.test(cell) || !/[./\\]/.test(cell)) continue
-    // A row with more or fewer cells than its header (an escaped `\|`, a pipe in a code span) cannot say which cell is its
-    // Change, so it keeps its path (the verification of 271a698b).
+    // A row with more or fewer cells than its header cannot say which cell is its Change, so it keeps its path (the
+    // verification of 271a698b).
     if (cells.length === headerCells && READ_ONLY_CHANGE.test((cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim())) continue
     paths.push(cell)
   }

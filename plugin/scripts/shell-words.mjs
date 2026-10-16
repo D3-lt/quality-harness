@@ -95,7 +95,8 @@ export function shellWords(text) {
     // A body that ends in `&` keeps it: that `&` decides the group's status.
     if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator
     closedGroup = false
-    defining = false
+    // `function NAME ()` and a newline before the body still open the definition: those empty commands keep it.
+    if (!['(', ')', '\n'].includes(operator)) defining = false
     if (!empty) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
       command.ended = operator

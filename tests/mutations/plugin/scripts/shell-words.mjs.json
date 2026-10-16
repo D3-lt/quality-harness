@@ -299,6 +299,16 @@
       "from": " && commands.at(-1).ended !== '&' && ['&', '&&', '||']",
       "to": " && ['&', '&&', '||']",
       "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "shell-words: a definition survives the () and newline before its body",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (!['(', ')', '\\n'].includes(operator)) defining = false",
+      "to": "    defining = false",
+      "only": "^(?:the operator after a group joins the group)$"
     }
   ]
 }

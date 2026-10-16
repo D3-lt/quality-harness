@@ -1599,6 +1599,22 @@ test('a green run with skipped jobs says they were skipped', () => {
   assert.match(render(collect(runner([...GIT_CLEAN, listing([green(10, 'selftest')])]), () => {}, () => 0), { brief: true }), /feed123: every job concluded success/)
 })
 
+// The recorded review of v3.8.35..e957da1e (advisory b): a listing cut off at this commit is already COULD NOT LOOK, and its
+// green runs' jobs were still viewed, a `gh run view` each for an answer nobody reads.
+test('an incomplete listing views no green job', () => {
+  const green = databaseId => ({ headSha: 'feed1234', event: 'push', status: 'completed', conclusion: 'success', databaseId, workflowName: `w${databaseId}` })
+  const rows = Array.from({ length: 20 }, (_, k) => green(k + 1))
+  const calls = []
+  const counted = table => argv => { calls.push(argv.join(' ')); return runner(table)(argv) }
+  const state = collect(counted([...GIT_CLEAN, listing(rows)]), () => {}, () => 0)
+  assert.match(render(state, { brief: true }), /COULD NOT LOOK/)
+  assert.equal(calls.filter(call => call.startsWith('gh run view')).length, 0, calls.join(' | '))
+  // CLEAN twin: a complete green listing still views its jobs.
+  calls.length = 0
+  collect(counted([...GIT_CLEAN, listing(rows.slice(0, 1)), jobsOf(1, [])]), () => {}, () => 0)
+  assert.equal(calls.filter(call => call.startsWith('gh run view')).length, 1, calls.join(' | '))
+})
+
 // The push run of e2e210ed: the prompt's `said` stamp and the refresher it started both
 // rewrote the snapshot in place, and the file came out as one write's head over the other's
 // tail. Each writer must REPLACE the file, which a write in place never does: the path names

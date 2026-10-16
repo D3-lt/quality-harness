@@ -761,7 +761,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      if (!failing.length && !running) {\n        const skipped = []",
+      "from": "      if (ci.looked && !failing.length && !running) {\n        const skipped = []",
       "to": "      if (false) {\n        const skipped = []",
       "only": "^a green run with skipped jobs says they were skipped$"
     },
@@ -784,6 +784,14 @@
       "from": "    ci = state.ci.skipped?.length\n",
       "to": "    ci = false\n",
       "only": "^a green run with skipped jobs says they were skipped$"
+    },
+    {
+      "label": "§381 advisory (b): an incomplete listing views no green job",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "      if (ci.looked && !failing.length && !running) {",
+      "to": "      if (!failing.length && !running) {",
+      "only": "^an incomplete listing views no green job$"
     }
   ]
 }

@@ -310,8 +310,9 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
         } catch { /* an unreadable job list names no job; the verdict stands */ }
       }
       // A green answer's jobs, read within the same budget (the first always): a run whose jobs were skipped is not
-      // "every job concluded success" (BACKLOG §381 item 8). A view that fails or is past the budget adds nothing.
-      if (!failing.length && !running) {
+      // "every job concluded success" (BACKLOG §381 item 8). A view that fails or is past the budget adds nothing, and a
+      // listing already cut off at this commit is COULD NOT LOOK, so its jobs are not viewed (the review of v3.8.35..e957da1e).
+      if (ci.looked && !failing.length && !running) {
         const skipped = []
         for (const [index, good] of answering.entries()) {
           if (index > 0 && clock() - viewing >= JOB_VIEW_BUDGET_MS) break

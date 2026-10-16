@@ -89,6 +89,25 @@ test('a CR-only task file loses none of its Affected Files', () => {
   assert.deepEqual(governs('crlf', task.replaceAll('\n', '\r\n')), lf)
 })
 
+// BACKLOG §381 item 14, from the cold review of ADR-098 (2026-10-14): every Affected Files row counted, whatever its Change
+// column said, so ADR-098 governed four files its tasks only read. A row the column marks as read or unchanged — the words this
+// corpus writes for one: `read`, `none`, `unchanged`, `no change` — governs nothing; a table with no Change column keeps all.
+test('a file a task only reads is not one its record governs', () => {
+  const row = (file, change) => `| \`${file}\` | ${change} | x |\n`
+  const task = '# Task T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
+    + row('src/a.js', 'edit') + row('src/b.js', 'read') + row('src/c.js', '**none**') + row('src/d.js', 'none — already correct')
+    + row('src/e.js', 'no change — discovered from the tree') + row('src/f.js', 'Read (unchanged)') + row('src/g.js', 'add')
+    + row('src/h.js', 'new read-only entry point')
+  const governs = (name, body) => {
+    const files = { 'docs/adr/ADR-001-a.md': ACCEPTED(1), 'docs/adr/ADR-001-a/tasks/T1-x.md': body }
+    return [...adrCorpus(tree(name, files), { tracked: Object.keys(files) })[0].governs].sort()
+  }
+  assert.deepEqual(governs('change-column', task), ['src/a.js', 'src/g.js', 'src/h.js'])
+  // CLEAN twin: with no Change column there is nothing to read the row by, and every path stays.
+  assert.deepEqual(governs('no-change-column', '# Task T1\n\n## Affected Files\n\n| File | Why |\n|---|---|\n| `src/a.js` | x |\n| `src/b.js` | read |\n'),
+    ['src/a.js', 'src/b.js'])
+})
+
 test('corpus-report counts a record named in lower case', () => {
   const entry = name => ({ name, isFile: () => true })
   assert.equal(recordCount('x', () => [entry('ADR-001-a.md'), entry('adr-002-b.md'), entry('notes.md')]), 2)

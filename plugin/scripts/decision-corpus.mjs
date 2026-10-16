@@ -881,20 +881,29 @@ function declaredGoverns(text) {
 }
 
 // Cell 0 of every `## Affected Files` row. The table is required by adr-lint, so
-// this resolves on records nobody has touched for this feature.
+// this resolves on records nobody has touched for this feature. A row whose Change
+// cell says the task only reads the file governs nothing (BACKLOG §381 item 14: ADR-098
+// governed four files its tasks only read). The words are the ones this corpus writes
+// for that, measured 2026-10-16: `read`, `none`, `unchanged`, `no change`, read as the
+// cell's first words. A table with no Change column keeps every row.
+const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)\b/i
 function affectedFiles(text) {
   const section = markdownSection(text, 'Affected Files')
   if (!section) return []
   const paths = []
+  let changeColumn = null
   for (const line of section.split('\n')) {
     if (!line.trim().startsWith('|')) continue
-    const first = line.split('|')[1]?.trim() ?? ''
+    const cells = line.split('|').slice(1).map(cell => cell.trim())
+    const first = cells[0] ?? ''
     const cell = first.match(/`([^`]+)`/)?.[1] ?? first
-    if (!cell || /^-+$/.test(cell) || /^file$/i.test(cell) || /^</.test(cell)) continue
+    if (/^file$/i.test(cell)) { changeColumn = cells.findIndex(header => /^change$/i.test(header)); continue }
+    if (!cell || /^-+$/.test(cell) || /^</.test(cell)) continue
     // A path, not prose. On a real corpus, cell 0 of neighbouring tables produced
     // `(T3's two tests)`, `(compile)` and `! rg -iq 'MCP stdio' README.md`, every
     // one reported as a governed path. A cell with a space in it is a sentence.
     if (/\s/.test(cell) || !/[./\\]/.test(cell)) continue
+    if (READ_ONLY_CHANGE.test((cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim())) continue
     paths.push(cell)
   }
   return paths

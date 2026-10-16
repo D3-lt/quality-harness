@@ -1541,6 +1541,38 @@
       "from": "const files = [file, canonicalFile(file)]",
       "to": "const files = [canonical(file)]",
       "only": "^a relative or unplaceable write path is still counted as unseen$"
+    },
+    {
+      "label": "§381 item 14: a row the Change column marks as only read governs nothing",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (READ_ONLY_CHANGE.test((cells[changeColumn]",
+      "to": "    if (false && READ_ONLY_CHANGE.test((cells[changeColumn]",
+      "only": "^a file a task only reads is not one its record governs$"
+    },
+    {
+      "label": "§381 item 14: the Change column is found from the table's header",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "changeColumn = cells.findIndex(header => /^change$/i.test(header))",
+      "to": "changeColumn = -1",
+      "only": "^a file a task only reads is not one its record governs$"
+    },
+    {
+      "label": "§381 item 14: emphasis around a Change word is read through",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "(cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim()",
+      "to": "(cells[changeColumn] ?? '').trim()",
+      "only": "^a file a task only reads is not one its record governs$"
+    },
+    {
+      "label": "§381 item 14: none, unchanged and no change are read-only words too",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)\\b/i",
+      "to": "const READ_ONLY_CHANGE = /^(?:read)\\b/i",
+      "only": "^a file a task only reads is not one its record governs$"
     }
   ]
 }

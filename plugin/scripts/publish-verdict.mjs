@@ -378,7 +378,9 @@ export function publishUnchecked(input, requested, env = process.env) {
         ...verdict, deny: false, key: `${verdict.key}:foreign`,
         // It still says what the command names: ADR-060 T4's locked test asserts that a commit
         // into another repository is warned of as naming commit or push, and it is one.
-        text: `quality-harness: the command about to run names commit or push (\`${publishCommandIn(input.tool_input?.command)}\`), and it lands in a repository other than this checkout — git keeps it in a different git directory — so this checkout's state does not refuse it (ADR-104). If the commit was meant for this checkout, run \`qh-check\` first.`,
+        // The reason leads: the person sees only the first sentence, cut at 140 characters, and a -C path of ordinary
+        // length cut "(ADR-104)" off when it came after the command (BACKLOG §381 item 11). ADR-060 T4's phrase stays.
+        text: `quality-harness: a commit into another repository is advised, not refused (ADR-104): the command about to run names commit or push (\`${publishCommandIn(input.tool_input?.command)}\`), and it lands in a repository other than this checkout — git keeps it in a different git directory — so this checkout's state does not refuse it. If the commit was meant for this checkout, run \`qh-check\` first.`,
       }
     }
   }

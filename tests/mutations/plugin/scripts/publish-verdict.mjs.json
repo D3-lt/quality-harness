@@ -597,6 +597,16 @@
       "from": "    stagesFirst: stagesBeforeCommit(input.tool_input?.command),\n",
       "to": "",
       "only": "^a command that stages before it commits hears its index is not known yet$"
+    },
+    {
+      "label": "§381 item 11: the ADR-104 advice leads with its reason",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "quality-harness: a commit into another repository is advised, not refused (ADR-104): the command about to run",
+      "to": "quality-harness: the command about to run",
+      "only": "^the person told of a commit into another repository is told why it was allowed$"
     }
   ]
 }

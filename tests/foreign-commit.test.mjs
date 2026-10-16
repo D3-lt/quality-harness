@@ -289,3 +289,13 @@ test('a literal cd into another repository, then one commit, is advised, and eve
     assert.doesNotMatch(said.text, ADVICE, command)
   }
 })
+
+// BACKLOG §381 item 11 (an outside run of v3.8.32): the person sees the advice's first sentence, cut at 140 characters,
+// and the reason "(ADR-104)" came after the command, so a -C path of ordinary length cut it off. The reason leads now.
+test('the person told of a commit into another repository is told why it was allowed', () => {
+  const said = session().tell(`git -C ${slashed(foreign)} commit -m x`)
+  assert.notEqual(said.decision, 'deny', said.text)
+  const headline = JSON.parse(said.text).systemMessage ?? ''
+  assert.match(headline, /ADR-104/, headline)
+  assert.match(said.text, /names commit or push/, 'the agent text still says what the command does')
+})

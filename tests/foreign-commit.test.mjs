@@ -49,7 +49,9 @@ function session({ armed = false, fast = false } = {}) {
   writeFileSync(join(dir, 'notes.txt'), 'a\n')
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', 'base')
-  const hookEnv = { ...env, QUALITY_HARNESS_LEASE_DIR: join(top, 'leases') }
+  // The observe budget is the test's (CLAUDE.md §7): past the 5s default the hook advises rather than
+  // refuses, and a Windows runner took 12.8s on these rows (campaign 38864976223, 2026-10-16).
+  const hookEnv = { ...env, QUALITY_HARNESS_LEASE_DIR: join(top, 'leases'), QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' }
   const said = payload => {
     const run = spawnSync(process.execPath, [join(plugin, 'scripts', 'lifecycle.mjs')], {
       cwd: dir, env: hookEnv, encoding: 'utf8', timeout: 120_000, windowsHide: true,

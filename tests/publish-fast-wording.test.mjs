@@ -23,7 +23,8 @@ function repository() {
   spawnSync('git', ['init', '-q', dir], { timeout: 10_000, windowsHide: true })
   writeFileSync(join(dir, '.quality-harness.json'), `${JSON.stringify({ check: 'test -f notes.txt', fastCheck: 'test -f notes.txt' })}\n`)
   writeFileSync(join(dir, 'notes.txt'), 'the session changed something\n')
-  return { top, dir, env: { ...baseEnv, CLAUDE_PLUGIN_ROOT: plugin, QUALITY_HARNESS_LEASE_DIR: join(top, 'leases') } }
+  // The observe budget is the test's (CLAUDE.md §7): past the 5s default the hook advises rather than refuses.
+  return { top, dir, env: { ...baseEnv, CLAUDE_PLUGIN_ROOT: plugin, QUALITY_HARNESS_LEASE_DIR: join(top, 'leases'), QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' } }
 }
 const reason = (fixture, command) => {
   const run = spawnSync(process.execPath, [lifecycle], {

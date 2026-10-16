@@ -3314,6 +3314,26 @@
       "from": "    done = claimed_done_ids(readme_text, infos)\n    if not done or tracked_text is None:",
       "to": "    done = list(done_task_ids(readme_text)) if readme_text else []\n    if not done or tracked_text is None:",
       "only": "^a task file's own done claim is read by the filter and Produces checks too$"
+    },
+    {
+      "label": "§381 item 10: a second file with a task's id is named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if tid in infos:\n                    errors.append(f\"could not tell which file is",
+      "to": "                if False:\n                    errors.append(f\"could not tell which file is",
+      "only": "^two task files declaring one id are named, and neither silently replaces the other$"
+    },
+    {
+      "label": "§381 item 10: a duplicate id is evidence, never demoted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "f\"declare it; give one of them its own id\", evidence=True)",
+      "to": "f\"declare it; give one of them its own id\")",
+      "only": "^two task files declaring one id are named, and neither silently replaces the other$"
     }
   ]
 }

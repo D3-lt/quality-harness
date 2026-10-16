@@ -1974,6 +1974,18 @@ test("a task file's own done claim needs an Accepted record, whatever the README
   assert.match(said(), /Status is 'Proposed' but T1 is marked done/)
 })
 
+// BACKLOG §381 item 10: two task files with one id, and adr-lint kept only the second, so the first was judged by
+// nothing and nothing named it. adr-next stops on the same corpus; adr-lint says it in adr-next's words.
+test('two task files declaring one id are named, and neither silently replaces the other', () => {
+  const aged = agedCorpus('qh-dup-task-', '{"strictFrom":"ADR-0012"}\n')
+  const one = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  assert.doesNotMatch(`${one.stdout}${one.stderr}`, /both declare it/, 'one file, one id: nothing to say')
+  cpSync(join(aged.tasks, 'T1-fixture.md'), join(aged.tasks, 'T1-copy.md'))
+  const two = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  expectExit(two, 1, 'a duplicate id is not demoted by strictFrom')
+  assert.match(`${two.stdout}${two.stderr}`, /could not tell which file is T1: T1-copy\.md and T1-fixture\.md both declare it; give one of them its own id/)
+})
+
 // A Windows chaos round of 916b515 (scalable-badger C-5): a task file another record
 // owns, locked, made adr-lint crash with a traceback while linting a record that never
 // named it, and the probe read the exit as a verdict with no reason. A directory named

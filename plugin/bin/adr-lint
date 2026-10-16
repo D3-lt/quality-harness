@@ -6829,7 +6829,14 @@ def main():
                 continue  # a task nobody could read: its NUL finding is the one thing said about it
             m = re.match(r"(T\d+)(?!\d)", p.stem, re.I)
             if m:
-                infos[m.group(1).upper()] = info
+                tid = m.group(1).upper()
+                # Two files, one id: the second replaced the first, which was then judged by nothing and named by
+                # nothing (BACKLOG §381 item 10). Said in adr-next's words; the first stays the one read.
+                if tid in infos:
+                    errors.append(f"could not tell which file is {tid}: {infos[tid]['path'].name} and {p.name} both "
+                                  f"declare it; give one of them its own id", evidence=True)
+                    continue
+                infos[tid] = info
         readme = tasks_dir / "README.md"
         if not readme.exists():
             # On a case-sensitive file system `readme.md` is not `README.md`, and was read as no

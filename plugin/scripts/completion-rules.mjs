@@ -6,7 +6,7 @@ import path from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents } from './event-log.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
-import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
+import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
@@ -608,6 +608,13 @@ export function completionFacts(input, ended) {
   const commits = observation?.ok !== true ? []
     : !found.ok ? mark([], false, found.reason)
     : sessionCommits(log, root, observation.head)
+  // ADR-105: a commit whose tree the declared fast check passed on was checked by the command the project declares for
+  // commits (ADR-081), so R2 leaves it out. Read here, once per tree, so the judgement reaches no file.
+  const fastPassed = new Map()
+  for (const commit of commits) {
+    if (!fastPassed.has(commit.tree)) fastPassed.set(commit.tree, root !== null && latestFastPass(input.cwd, commit.tree, root) !== null)
+    commit.fastPassed = fastPassed.get(commit.tree)
+  }
   return {
     log, observation, check, root, baseline, writes, status, commits,
     sentence: once(() => runTheCheckSentence(input.cwd)),
@@ -657,6 +664,7 @@ export function completionJudgement(facts, input) {
   const unchecked = commits.filter(commit => {
     // The observed working tree is R1's to speak for, and a tree P has already
     // named at this revision has been said once.
+    if (commit.fastPassed) return false
     if (checkStanding(log, commit.tree) === 'passed') return false
     if (observation?.ok === true && commit.tree === observation.tree) return false
     const commitRevision = checkRevision(log, commit.tree)

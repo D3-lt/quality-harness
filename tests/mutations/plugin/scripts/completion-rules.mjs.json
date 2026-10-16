@@ -449,6 +449,22 @@
       "from": "if (nudge && !emittedFor(log, 'N', observation.tree, channel, recipient))",
       "to": "if (nudge)",
       "only": "^the\\ task\\-evidence\\ nudge\\ has\\ an\\ identity\\ and\\ is\\ said\\ once\\ per\\ tree$"
+    },
+    {
+      "label": "ADR-105 T1: R2 leaves out a commit its declared fast check passed on",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/observed-events.test.mjs"],
+      "from": "    if (commit.fastPassed) return false",
+      "to": "    if (false) return false",
+      "only": "^a commit its fast check passed on is not named at turn end, and every other commit still is$"
+    },
+    {
+      "label": "ADR-105 T1: the turn-end facts carry each commit's fast pass",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/observed-events.test.mjs"],
+      "from": "    commit.fastPassed = fastPassed.get(commit.tree)",
+      "to": "    commit.fastPassed = false",
+      "only": "^a commit its fast check passed on is not named at turn end, and every other commit still is$"
     }
   ]
 }

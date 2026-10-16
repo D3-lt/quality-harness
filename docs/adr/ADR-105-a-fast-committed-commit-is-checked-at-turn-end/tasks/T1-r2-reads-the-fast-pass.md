@@ -1,0 +1,83 @@
+# Task ADR-105-T1: R2 leaves out a commit its fast check passed on
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** S (one fact read once per tree, one filter arm, one test)
+**Owner:** unassigned
+**Produces:** `fastPassed` on each commit in `completionFacts`
+**Consumes:** none
+**Proof map:** v1
+
+## Goal
+
+At turn end, rule R2 does not name a newly reachable commit whose tree the project's declared fast check passed on, and still
+names every other unchecked commit (ADR-105, Decisions 1 and 2).
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `plugin/scripts/completion-rules.mjs` | edit | `completionFacts` marks each commit `fastPassed` from `latestFastPass`, read once per tree; R2's filter (`:657-665`) leaves those out |
+| `plugin/scripts/check-ledger.mjs` | read | `latestFastPass`, reused unchanged |
+| `tests/observed-events.test.mjs` | edit | the test below, beside "many unchecked commits are one finding" |
+| `tests/mutations/plugin/scripts/completion-rules.mjs.json` | edit | the catalogue mutants for both mechanisms |
+
+## Ordered Steps
+
+1. [S1] Add the test below and record the red run (TDD red: R2 names the fast-passed commit).
+2. [S2] In `completionFacts`, mark each commit `fastPassed` from `latestFastPass(input.cwd, commit.tree, root)`, one read per
+   distinct tree, `false` when the repository was not found.
+3. [S3] In `completionJudgement`'s commit filter, return false for a `fastPassed` commit, before the full-pass arm.
+4. [S4] Add the catalogue mutants (the read removed; the filter arm removed) and record a killed mutant. [proof: mutation]
+
+## Acceptance
+
+```bash
+out=$(node --test --test-reporter=tap tests/observed-events.test.mjs 2>&1) \
+  && test "$(printf '%s\n' "$out" | grep -cxE "ok [0-9]+ - a commit its fast check passed on is not named at turn end, and every other commit still is")" = 1 \
+  && ! printf '%s\n' "$out" | grep -q '# SKIP'
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `a commit its fast check passed on is not named at turn end, and every other commit still is` | `tests/observed-events.test.mjs` | through the real Stop hook, in a repository with a declared `check` and `fastCheck`: a commit made after a passing `qh-check --fast` on its tree is not named by R2; DIRTY twins in the same turn: a commit with no fast record, one whose fast record failed, and one committed from a partial stage (its fast pass was on another tree) are named; the turn's claim `evidence` is what it was without the fast pass | — | S1, S2, S3 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | `fastPassed` on each commit in the facts |
+| 2 — something selects it | R2's commit filter in `completionJudgement` |
+| 3 — the caller can discover it | the Stop hook's finding no longer lists the commit |
+| 4 — it is used | through the real Stop hook in the test |
+
+## Mutation Log
+- 2026-10-16 · a901b286* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · R2 would name a commit its declared fast check passed on · acceptance-sha256:b9b1d77642fa0231e79350d58d5f4dfd4a54c0518f173a896c5f5795433a483e
+- 2026-10-16 · a901b286* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · the facts would never carry a fast pass, so R2 would name every fast-committed commit · acceptance-sha256:b9b1d77642fa0231e79350d58d5f4dfd4a54c0518f173a896c5f5795433a483e
+
+## Invariants
+
+- `completionJudgement` reaches no file (`tests/pure-judges.test.mjs` stays green).
+- No reader that grants a publish, a skip or a release reads `fast-checks.jsonl` where it did not before.
+
+## Risks
+
+- None beyond ADR-105's.
+
+## Stop Condition
+
+Stop and ask if `latestFastPass` cannot tell a commit's tree from the working tree it was run on (a fast record whose
+`after.tree` is not the committed tree for a commit made with everything staged).
+
+## Out of Scope
+
+- R1, the nudge and the claim's evidence (permanent: boundary: ADR-105 Out of Scope)
+
+## Verification Log
+- 2026-10-16 · a901b286* · exit 1 · `out=$(node --test --test-reporter=tap tests/observed-events.test.mjs 2>&1) \ …` · acceptance-sha256:b9b1d77642fa0231e79350d58d5f4dfd4a54c0518f173a896c5f5795433a483e · ms:50027 · test-lock-sha256:361bbb2ccdbead449c45a3e49e914f196ba6d264f1e4766e3a50ab204cd15521 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY2hlY2sgYSBzaWduYWwgZW5kZWQgcmVjb3JkcyBubyB2ZXJkaWN0LCBhbmQgc2F5cyBzbwkzOTE1YWU4YTQ4YmFmZjlmODVjZmQ1NWFmYTFiYTljZmY0ZWZlYjY5MTU2MTg5NzJhYzU5NWI2ZjI2ZjE2NzNlCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY2hlY2sgZXZlbnQgaXMgd3JpdHRlbiBieSBxaC1jaGVjawlmODAzOTliYzFjYTJlOWQwMjkxNGNhYzY0OWQ3NjA1YTMzOWNlNThhNjQxMWQ0NmI4ZTQxZGQ5ZmI0YjVlNzhjCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY2hlY2sgdGhhdCBmaW5pc2hlcyBpbiBhIGxhdGVyIHR1cm4gY2xlYXJzIHRoZSBmaW5kaW5nIHRoZW4JYjdlN2ZjOWU5OWQ4MGExODhjZGQ1OTgxZWQwMWVkZTQ1ZGI0MTcwYzEyNzBjYzg3ZTllNTg5YjJmYzE5YTM4MQpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNoZWNrIHRoYXQgcGFzc2VkIG9uIGEgRElGRkVSRU5UIHRyZWUgY2VydGlmaWVzIG5vdGhpbmcgaGVyZQk3OTM1OGMxM2NiZjc5MjNjMzU5ZTM0ZDk3YzM3Mzg5NGI4YWNkNjVmNjk0OTllOTQ5Mjk2YzQ1OWUxYWY5OWZiCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY29tbWFuZCBuYW1pbmcgY29tbWl0IG9yIHB1c2ggaXMgd2FybmVkIGJlZm9yZSBpdCBydW5zCTY5YjdlNzRmYjlmMjk2MGMwNzczYjRkOGFhODY3OWZkMjQxMmVhNTQ0YzFiNzM1ZGY2ZjFkODA0MGY5MGQ5NDcKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSBjb21taXQgaXRzIGZhc3QgY2hlY2sgcGFzc2VkIG9uIGlzIG5vdCBuYW1lZCBhdCB0dXJuIGVuZCwgYW5kIGV2ZXJ5IG90aGVyIGNvbW1pdCBzdGlsbCBpcwllYzA2OGU2NTg0ODhiNzM0OWE1M2NjYmU5N2VjNzEwMTkxNzVjYjE2NWQyMzI2MmZmMWE0MWUzOWEwYTY5YTE2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY29tbWl0dGVkIGFydGlmYWN0IGlzIHN0aWxsIHZhbGlkYXRlZAk0OTgyZWRkZTZlZDM0MDYwNDJhODZlMmZlMjUyYWQxNjRkYzZhNDQ1OGY1MjUzYmZkZDA1MDQyNWUyNDQ1OTg4CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY29tcGFjdGlvbiBub3RlIHNlZXMgdGhlIGxhdGVzdCBlZGl0CTJiNTZiMDQxYTc3ZDExODE0YjBmMWFjOWQ0NzM1NzViNzAyOGI1NzNlMTdhNzJkZGI3MDA3N2M0MGMzYThjYTMKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSBmaWxlIGVkaXRlZCB3aGlsZSBpdHMgZ2F0ZSByYW4gaXMgbm90IHJlY29yZGVkIGFzIGFuc3dlcmVkCWUzY2Q5NjU3N2EwZTRkNzAzNWM0NzQyN2JkMDk4YjQ3YTAzODk1OGI1MzIzNzRkZjZiMmFmYTFjMmJlOTAyZDEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSBmaWxlIGVkaXRlZCB3aGlsZSB0aGUgQkFUQ0ggZ2F0ZWQgaXQgaXMgbm90IHJlY29yZGVkIGFzIGFuc3dlcmVkIGVpdGhlcgk5YjkxYTMzMTcwODc0ZGI1YjM0ZTVhNjY2NWJhZGUzOGI4MDRiNTA5NzhlNjYyMjRmNDI3NDBhNTE1OWM1MWE0CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgZ2l0IHF1ZXJ5IHRoYXQgRkFJTEVEIGlzIG5vdCBhIGdpdCBxdWVyeSB0aGF0IGZvdW5kIG5vdGhpbmcJZWViNTRhNDNhN2I0YzgxMjczOWIyNDYzMTAxYWU5NWVlZmFkZDFmYmJmNTM5MGNmODhiYTdjZjZjMTQ3NmVkNgpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGxvZyB0aGF0IGNvdWxkIG5vdCBiZSByZWFkIHdob2xlIGNhbm5vdCBzdXBwbHkgYSBwYXNzaW5nIHZlcmRpY3QJZmYwZTk5YTFlYjllMWYxOTg0ODZhNDU2ZGY4OTdjZGJmYjc2MmVkYmE0YWI2MzJkNDQ4Mzk0ZDM1MzQ0MDQ3Mwpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIHJlYWQtb25seSByb2xlIGNhbm5vdCBjb21taXQgb3IgcHVzaCBhbmQgaXRzIG90aGVyIGNoYW5nZXMgYXJlIHJlcG9ydGVkCTllYjY2ZmU5ZmI2YTVmYmI0OWIxODA1ODgxM2E3ZjQ0Y2FhNDg4NmQyZjFiMjY0YWRkNWIzMjIxMjZmNDQxNWEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSByZXBvc2l0b3J5IHdpdGhvdXQgYSBjaGVjayBoZWFycyBubyBjb21wbGV0aW9uIGFkdmlzb3J5CTZiYWMxNTE1ODUyYzkzMDY3MGQ2ZDM3YzdlZmM4OTg3MGI2MDczODRkNDMwNTM4NTJmNzZiMGQ3YzM2ODUxNzYKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSBzZXNzaW9uIG5vdGUgbmV2ZXIgaW52ZW50cyBhIGNoZWNrLCBhbmQgbmV2ZXIgcmVwb3J0cyBzaWxlbmNlIGFzIHN0aWxsbmVzcwk3OGMzMjMxYjViODkzMmEwZmMwM2U0NjVkYzY2MGY4NzY0NWE1OGY5MTM5NmEwMjM4NWNhNDk2M2FhMGFmNDBjCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgc2Vzc2lvbiB0aGF0IGJlZ2FuIGJlZm9yZSB0aGUgZmlyc3QgY29tbWl0IHN0aWxsIHNlZXMgdGhlIGNvbW1pdHMgaXQgZ2FpbmVkCThiZTgzOWFhNjYyNTkxZWQyM2EyN2I1MmE2OTM4MjkyODk4MjMwOGQ2NzVmMzAwYWE2NDczMWZiOWYzNmFhOTQKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSB0b3JuIGNoZWNrcy5qc29ubCBjYW5ub3QgbGVhdmUgYW4gb2xkZXIgcGFzcyBzdGFuZGluZyBhcyB0aGUgdmVyZGljdAlkZTE2NDdkODlmNGE5MjMzODNjYTdjOTczYTgwM2UyYjhkNDg4NjI0MDg3Y2E4Y2M1ZWMwY2QxOGNlOTM5YWE2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgdHJlZSB0aGUgcHVibGlzaCB3YXJuaW5nIG5hbWVkIHN0aWxsIHJlY29yZHMgdW52ZXJpZmllZAk5NWJhMDhkNmNlODE1ZTQ0ZTA2YTYxNGE3ZjlkMWFjZTVjYzQ3YWY2YjFmYmJmZjY5YWM2ZWI5OThkOTdjOGVkCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgdHVybiBlbmQgb2JzZXJ2ZXMgdGhlIHRyZWUgd2l0aG91dCByZWFkaW5nIGFueSBjb21tYW5kCWQ3OGQ0MmNjMGY4YmFjN2FmZGI4MWJhNzdjNTM5ZDJmNGFmYzhlYWQxZDk1NzA2Y2JmMmM0M2NiMTdlODNmZmEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSB0dXJuIHRoYXQgZW5kZWQgaW4gYSBjb21taXQgbmFtZXMgdGhlIGNvbW1pdCwgbm90IGEgY2hhbmdlIHRoYXQgaXMgbm90IHRoZXJlCTk4NmY5ODhhYTdkNmIzMDA2ODY3OTI4Y2EyYTFmMzIxZWJiNjUyZmEwOGZmMzVjMzFiODc1YmIzODVjNGEwYjgKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSB3cml0ZSB0aHJvdWdoIGFuIGluLXJlcG9zaXRvcnkgbGluayB0byBhbiBvdXRzaWRlIGZpbGUgaXMgbm90IG9ic2VydmFibGUJOTMwZGI5Njc2NGM4YTlkN2ExZWVhYjQxODQ3N2ZhNTNiMTVkNjE2MGRhM2VkZmNmNWRkZWM5ZTFkYjAwZjA0NQpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhbiB1bmNoZWNrZWQgY29tbWl0IGlzIG5hbWVkIGV2ZW4gd2hlbiBpdHMgdHJlZSBlcXVhbHMgdGhlIHNlc3Npb24gc3RhcnQJZjM2NzYzOGFiMWY3ODg0NGQxZmZkZTdhMzNmM2Q5NTBlZjU0YmI4ZmI4YzA1NmMyMjk1MmNlZTdkYWYwY2YzNgpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhbiB1bmtub3duIGNvbnRlbnQgaWRlbnRpdHkgbWF0Y2hlcyBub3RoaW5nLCBpbmNsdWRpbmcgYW5vdGhlciB1bmtub3duCTRjZjJiYzZhYzg5MmU2N2E0ZjFhMDE0N2E0NTgxOGIyZmZkMjQ2NGI3N2QyOTExZTEyMTJkMmNjN2FkNzU1YjUKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYW4gdW50cmFja2VkIGRpcmVjdG9yeSBpcyBnYXRlZCBieSB0aGUgZmlsZXMgaW4gaXQsIG5ldmVyIGFzIGEgZGlyZWN0b3J5CTM2OGRjOTYyZTAwYWM5ZGI4Y2Q0YzQ2NGMxNDY1ZWI2ZDNlMDBjNzE4MTRhZWJmYzM1NTZkOWQ2MTAyODJhYWIKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJY29udGVudCB0aGF0IHJldHVybnMgdG8gYSBibG9iIGFscmVhZHkgZ2F0ZWQgY29tcGxldGUgaXMgdGhhdCBhbnN3ZXIgYWdhaW4JY2Q4NzI1YTJkNDk1NGE0YTZmMDI0NWJhOThlNmVhZGNkOGZjOGU0Y2IwMzA5M2IyNzJiNmZiMWY4MWUzZmNmMQpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwltYW55IHVuY2hlY2tlZCBjb21taXRzIGFyZSBvbmUgZmluZGluZwliNDQwODdhZGFmYWRiMTQ0NTlkODBmOGIzNWVkZWFiMWIyOTc5YTY0NTAyYWM4MDk2Y2JkMTUyYjNmOGRmMmYxCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCW9ic2VydmluZyB3cml0ZXMgbm90aGluZyBpbnRvIHRoZSByZXBvc2l0b3J5CWQ2NWUyZjQ2NzQzNzI0ODNmZmYwMzhkNGZlYmFlYTJkODJhYTczNDA0YTJkNWFmOWEyMTBlZDhiMDMxMmY2YmEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJb25lIGhvb2sgZGVsaXZlcnMgZXZlcnkgYWN0aW9uIGl0IHJlY29yZHMJMjVmYjdkN2NlM2MwMzlkNGJmZjIwNjc5NWM0YmE3NmQ5MWEzMGE3OTYxOWFhYzU0MWE5YWYxM2FmZjg5MTMzYgpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwl0aGUgY29tbWFuZCBjbGFzc2lmaWVycyBhcmUgZ29uZQlmZDlhZWNmOTIzMmE2YmFlZTkwNDBmMTRmY2IwM2ZkY2FmZjk0OWVkMDUyNTRmODIzZjE3OGQyYzZmYjMyZjdlCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCXRoZSBoYXJuZXNzIGRvZXMgbm90IG9ic2VydmUgaXRzIG93biBsZWRnZXIJMzcwOWNkZTVjZDE4NWQ4ODNiYmVlZDlhNTcwZDExMzljNDU4YTc4NTRkYjg4OGY1MTZkNjQ0MzRjMTUzMmJlZApib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwl0aGUga2V5IGEgcGVyLWVkaXQgZ2F0ZSBwZXJzaXN0cyBpcyB0aGUgb25lIHJ1bGUgQSBsb29rcyB1cCwgb24gZWl0aGVyIHBsYXRmb3JtCWM2MDY1YTk1ZGMzODRmNDlmNjU5Y2Y1MWRlM2UxNzk3Y2ZiOThkODFiZWM0YmY1YjdkYWEyODU5ZDllNTU1MGIKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJdGhlIHNjcmlwdGVkIHNlc3Npb24gYWR2aXNlcyBhcyBpdHMgc3RlcCB0YWJsZSBsaXN0cwkyNmZjOGI5Nzg5OWJiMjMyYjczMjcyMDljODBhZDMzYWM5OGViM2VlZjk0NDIyMjM4YjJjMTdiMWQ3YmYxYTY2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCXRoZSBzZXNzaW9uIG5vdGUgZG9lcyBub3QgY3JlZGl0IGEgc3RhbGUgcmUtaW1wb3J0ZWQgcGFzcwlhOGJmNzkzZjJmNzM5OWMwMTE1NzIwZDQyNGQ0MjZhNzQ1NDBkMjc5YmQwOTIzY2JlNDg1OTM2M2Q4MzYxNGQ2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCXRoZSBzdGF0dXMgbGluZSBkb2VzIG5vdCByZWFkIGNoZWNrZWQgZnJvbSBhIHN0YWxlIHJlLWltcG9ydGVkIHBhc3MJMWJhNzY0MGY5ZDZjNDUwMGU5M2U1OTczOTZhMjkxMjM4NmI3NzliMDNmYmU1MjhjODMyZmMxMjVkNzM0MmQ1Mwpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwl3aGljaCBjaGVjayBpcyBsYXRlc3QgaXMgZGVjaWRlZCBieSB3aGVuIGl0IFJBTiwgbm90IGJ5IHdoZXJlIGl0IGxhbmRlZCBpbiB0aGUgbG9nCTkxNzMxMmYyNWY2ODhmZDg2MjQyNjZkYjRlZWRmZGVlNjg1MDBkNWZkYWNlMDE2OGNmMDk4YWY5N2EzMzRjNDAKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJd3JpdGVzIHRoZSB0cmVlIGNhbm5vdCBzZWUgcmUtb3BlbiB0aGUgZmluZGluZwliM2U1Mzg5NDIxOTQ5MWNmODA0N2RhNDc5M2ZlODY3ZTk1NzQ1MmRkZDY3MjAyMDIzZmU5ZTU0MTQ5YTEzNmI4
+  ```
+  ```
+- 2026-10-16 · a901b286* · exit 0 · `out=$(node --test --test-reporter=tap tests/observed-events.test.mjs 2>&1) \ …` · acceptance-sha256:b9b1d77642fa0231e79350d58d5f4dfd4a54c0518f173a896c5f5795433a483e · ms:64729
+- 2026-10-16 · a901b286* · exit 0 · `out=$(node --test --test-reporter=tap tests/observed-events.test.mjs 2>&1) \ …` · acceptance-sha256:b9b1d77642fa0231e79350d58d5f4dfd4a54c0518f173a896c5f5795433a483e · ms:53389

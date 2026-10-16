@@ -715,6 +715,43 @@ test('many unchecked commits are one finding', () => {
   assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
 })
 
+// ADR-105 T1: a commit made the sanctioned way, `qh-check --fast` then `git commit`, was named at turn end as unchecked,
+// because R2 read full passes only (2026-10-16, four commits of this repository). Its fast record now speaks for it; every
+// other unchecked commit is still named, and the claim's evidence still reads full passes only.
+test('a commit its fast check passed on is not named at turn end, and every other commit still is', () => {
+  const dir = repository('t105-')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', fastCheck: 'sh check.sh' }))
+  writeFileSync(path.join(dir, 'check.sh'), CHECK_SCRIPT)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('fast-committed')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  const fast = mode => {
+    const run = spawnSync('python3', [qhCheck, '--fast'], { cwd: dir, encoding: 'utf8', timeout: 60_000, env: { ...HOOK_ENV, QH_PROBE_MODE: mode } })
+    assert.equal(run.status, mode === 'fail' ? 1 : 0, `qh-check --fast (${mode}): ${run.stdout}${run.stderr}`)
+  }
+  const commit = (subject, files, mode = null, staged = files) => {
+    for (const file of files) writeFileSync(path.join(dir, file), `${file}\n`)
+    if (mode) fast(mode)
+    git(dir, 'add', ...staged)
+    git(dir, 'commit', '-q', '-m', subject)
+  }
+  commit('fast passed', ['fa.md'], 'pass')
+  commit('no fast record', ['fb.md'])
+  commit('fast failed', ['fc.md'], 'fail')
+  // The fast check ran on fd.md and fe.md; the commit records fd.md alone, a tree nothing checked.
+  commit('partial stage', ['fd.md', 'fe.md'], 'pass', ['fd.md'])
+  const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
+  const r2 = named(eventsIn(state, session), 'action.emitted').filter(entry => entry.rule === 'R2')
+  assert.equal(r2.length, 1, ended.stdout)
+  assert.ok(ended.stdout.includes('3 newly reachable commits'), ended.stdout)
+  for (const subject of ['no fast record', 'fast failed', 'partial stage']) assert.ok(ended.stdout.includes(subject), `${subject}: ${ended.stdout}`)
+  assert.equal(ended.stdout.includes('fast passed'), false, ended.stdout)
+  // The claim's evidence reads full passes only (ADR-035): no full check ran, so it is unverified.
+  assert.equal(claimRows(session).at(-1)?.evidence, 'unverified')
+})
+
 function waitFor(predicate, what) {
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {

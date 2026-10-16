@@ -29,7 +29,7 @@
       "file": "plugin/scripts/post-edit-check.sh",
       "tests": ["tests/post-edit-check.test.mjs"],
       "only": "^(?:JSONC is read as TypeScript reads it)$",
-      "from": "(m, s) => s ?? \" \")",
+      "from": "(m, s) => s ?? m.replace(/[^\\r\\n]/g, \" \"))",
       "to": "(m, s) => s ?? \"\")"
     },
     {
@@ -263,6 +263,30 @@
       "only": "^a line comment ends at U\\+2028 and U\\+2029, as TypeScript reads one$",
       "from": "|\\/\\*[\\s\\S]*?\\*\\/|[\\u2028\\u2029]/g",
       "to": "|\\/\\*[\\s\\S]*?\\*\\//g"
+    },
+    {
+      "label": "BACKLOG §381 item 16: a comment is blanked to its own length, so node's line and column are the file's",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^a JSON finding from node names the file's line and column$",
+      "from": "(m, s) => s ?? m.replace(/[^\\r\\n]/g, \" \"))",
+      "to": "(m, s) => s ?? \" \")"
+    },
+    {
+      "label": "BACKLOG §381 item 16: a blanked comment keeps its line breaks",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^a JSON finding from node names the file's line and column$",
+      "from": "m.replace(/[^\\r\\n]/g, \" \")",
+      "to": "m.replace(/[\\s\\S]/g, \" \")"
+    },
+    {
+      "label": "BACKLOG §381 item 16: a trailing comma becomes a space, so the columns after it stay the file's",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^a JSON finding from node names the file's line and column$",
+      "from": "(m, s) => s ?? \" \"); if",
+      "to": "(m, s) => s ?? \"\"); if"
     }
   ]
 }

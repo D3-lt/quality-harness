@@ -114,12 +114,13 @@ PARSE_OUT
     ;;
   *.json)
     # Read as TypeScript's parser reads JSONC: a leading BOM is dropped, a line comment ends at CR, LF, U+2028 or U+2029,
-    # a comment becomes a space (so it cannot join two halves of a token), and so does a bare U+2028 or U+2029, which
-    # TypeScript reads as a line break and JSON.parse refuses (BACKLOG §381); then trailing commas go, and the rest must
-    # parse (ADR-102 T3, T6). It prints the parse error alone, after a marker, on one line (node quotes the file's text
-    # with its newlines, ADR-102 T13), and exits 1 on one. A file with nothing but whitespace and comments is valid, as
-    # `jq empty` reads it (ADR-102 T14).
-    jsonc='try { const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n\u2028\u2029]*|\/\*[\s\S]*?\*\/|[\u2028\u2029]/g, (m, s) => s ?? " ").replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? ""); if (t.trim()) JSON.parse(t) } catch (error) { console.log("QH-JSONC-ERROR " + error.message.replace(/\s*\n\s*/g, " ")); process.exit(1) }'
+    # a comment becomes spaces (so it cannot join two halves of a token), and so does a bare U+2028 or U+2029, which
+    # TypeScript reads as a line break and JSON.parse refuses (BACKLOG §381); then trailing commas become a space, and the
+    # rest must parse (ADR-102 T3, T6). Each is blanked to its own length with its line breaks kept, so the line and column
+    # node reports are the file's: a comment collapsed to one space placed an error on line 6 at line 4 (§381 item 16). It
+    # prints the parse error alone, after a marker, on one line (node quotes the file's text with its newlines, ADR-102 T13),
+    # and exits 1 on one. A file with nothing but whitespace and comments is valid, as `jq empty` reads it (ADR-102 T14).
+    jsonc='try { const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n\u2028\u2029]*|\/\*[\s\S]*?\*\/|[\u2028\u2029]/g, (m, s) => s ?? m.replace(/[^\r\n]/g, " ")).replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? " "); if (t.trim()) JSON.parse(t) } catch (error) { console.log("QH-JSONC-ERROR " + error.message.replace(/\s*\n\s*/g, " ")); process.exit(1) }'
     # The jq to use; a test names one that is not installed, as on a host without it (ADR-102 T10).
     jq_cmd=${QUALITY_HARNESS_JQ:-jq}
     if command -v "$jq_cmd" >/dev/null 2>&1; then

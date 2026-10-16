@@ -538,6 +538,31 @@ test('a JSON finding from node is one line', () => {
   }
 })
 
+// BACKLOG §381 item 16, from an outside run at bb8e7acb (2026-10-14): node's finding named no line. Where its message carries
+// a position, it is the file's: a comment collapsed to one space put an error on line 6 at line 4 (measured 2026-10-16, node
+// 24.11.1). The `path: ` form stays, as ADR-102 T14's test holds it.
+test("a JSON finding from node names the file's line and column", () => {
+  const dir = scratch()
+  const said = (file, text) => {
+    const target = join(dir, file)
+    writeFileSync(target, text)
+    const got = spawnSync('bash', [hook, 'Edit', target], { encoding: 'utf8', env: { ...process.env, QUALITY_HARNESS_JQ: 'qh-no-such-jq', TMPDIR: scratch() }, timeout: 60_000 })
+    assert.equal(got.status, 0)
+    return { text: `${got.stdout}${got.stderr}`.trim(), target }
+  }
+  for (const [file, text, where] of [
+    ['block.json', '{\n  /* one\n     two\n     three */\n  "a": 1\n  "b": 2\n}\n', '(line 6 column 3)'],
+    ['line.json', '{\n  "a": [1,], /* c */ "b": 1 "c": 2\n}\n', '(line 2 column 29)'],
+    ['crlf.json', '{\r\n  // c\r\n  "a": 1\r\n  "b": 2\r\n}\r\n', '(line 4 column 3)'],
+  ]) {
+    const { text: out, target } = said(file, text)
+    assert.ok(out.startsWith(`${target}: `) && out.endsWith(where), `${file} is placed at ${where}: ${out}`)
+  }
+  // A message with no position (`Unexpected token`) is said as before, unplaced.
+  const { text: out, target } = said('token.json', '{"a": tru}\n')
+  assert.ok(out.startsWith(`${target}: Unexpected token`), out)
+})
+
 // ADR-102 T14, from an outside run of the 3.8.28 candidate on Windows (2026-10-14): a .mcp.json holding one newline was
 // named by node, while `jq empty` accepts it, so the same file was silent wherever jq is installed.
 test('a JSON file with nothing in it reads the same with and without jq', () => {

@@ -1554,7 +1554,7 @@
       "label": "§381 item 14: the Change column is found from the table's header",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "changeColumn = cells.findIndex(header => /^change$/i.test(header))",
+      "from": "changeColumn = previous.findIndex(header => /^change$/i.test(header))",
       "to": "changeColumn = -1",
       "only": "^a file a task only reads is not one its record governs$"
     },
@@ -1570,9 +1570,25 @@
       "label": "§381 item 14: none, unchanged and no change are read-only words too",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)\\b/i",
-      "to": "const READ_ONLY_CHANGE = /^(?:read)\\b/i",
+      "from": "const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)",
+      "to": "const READ_ONLY_CHANGE = /^(?:read)",
       "only": "^a file a task only reads is not one its record governs$"
+    },
+    {
+      "label": "§381 item 14 review: a read-only word is the whole cell or followed by an explanation",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "no change)\\s*(?:[(—–:;.]|$)/i",
+      "to": "no change)\\b/i",
+      "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
+    },
+    {
+      "label": "§381 item 14 review: a table ends at its first non-table line",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "{ changeColumn = -1; previous = []; continue }",
+      "to": "continue",
+      "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
     }
   ]
 }

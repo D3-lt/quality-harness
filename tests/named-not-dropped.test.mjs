@@ -108,6 +108,26 @@ test('a file a task only reads is not one its record governs', () => {
     ['src/a.js', 'src/b.js'])
 })
 
+// The recorded review of v3.8.36..1721d2e6 (two advisories, fixed as fail-opens): a Change cell that begins with one of the
+// words and goes on to describe an edit was dropped (`\b` matches before `-`, `/` and a space), and a second table in the
+// same section was read by the first table's Change column.
+test('a Change cell that goes on to describe an edit still governs, and each table has its own Change column', () => {
+  const governs = (name, body) => {
+    const files = { 'docs/adr/ADR-001-a.md': ACCEPTED(1), 'docs/adr/ADR-001-a/tasks/T1-x.md': body }
+    return [...adrCorpus(tree(name, files), { tracked: Object.keys(files) })[0].governs].sort()
+  }
+  const row = (file, change) => `| \`${file}\` | ${change} | x |\n`
+  assert.deepEqual(governs('words-then-edit', '# Task T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
+    + row('src/a.js', 'read-only guard added') + row('src/b.js', 'read/write split') + row('src/c.js', 'unchanged except the import')
+    + row('src/d.js', 'read') + row('src/e.js', 'none.')), ['src/a.js', 'src/b.js', 'src/c.js'])
+  // A second table, its Change column elsewhere: read by its own header.
+  assert.deepEqual(governs('two-tables', '# Task T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n' + row('src/a.js', 'edit')
+    + '\n| Path | Why | Change |\n|---|---|---|\n| `src/f.js` | edit | read |\n| `src/g.js` | read | edit |\n'), ['src/a.js', 'src/g.js'])
+  // A table ends at its first non-table line: rows after it, with no header of their own, have no Change column.
+  assert.deepEqual(governs('table-ends', '# Task T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n' + row('src/a.js', 'edit')
+    + '\n' + row('src/h.js', 'read')), ['src/a.js', 'src/h.js'])
+})
+
 test('corpus-report counts a record named in lower case', () => {
   const entry = name => ({ name, isFile: () => true })
   assert.equal(recordCount('x', () => [entry('ADR-001-a.md'), entry('adr-002-b.md'), entry('notes.md')]), 2)

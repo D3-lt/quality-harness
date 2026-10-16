@@ -884,21 +884,27 @@ function declaredGoverns(text) {
 // this resolves on records nobody has touched for this feature. A row whose Change
 // cell says the task only reads the file governs nothing (BACKLOG §381 item 14: ADR-098
 // governed four files its tasks only read). The words are the ones this corpus writes
-// for that, measured 2026-10-16: `read`, `none`, `unchanged`, `no change`, read as the
-// cell's first words. A table with no Change column keeps every row.
-const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)\b/i
+// for that, measured 2026-10-16: `read`, `none`, `unchanged`, `no change`, the whole
+// cell or followed by an explanation (`none — already correct`, `Read (unchanged)`); a
+// cell that goes on to describe an edit (`read-only guard added`) still governs. Each
+// table's Change column is its own header's, read at its separator row, and a table with
+// none keeps every row (the recorded review of v3.8.36..1721d2e6).
+const READ_ONLY_CHANGE = /^(?:read|none|unchanged|no change)\s*(?:[(—–:;.]|$)/i
+const SEPARATOR_ROW = /^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/
 function affectedFiles(text) {
   const section = markdownSection(text, 'Affected Files')
   if (!section) return []
   const paths = []
-  let changeColumn = null
+  let changeColumn = -1
+  let previous = []
   for (const line of section.split('\n')) {
-    if (!line.trim().startsWith('|')) continue
+    if (!line.trim().startsWith('|')) { changeColumn = -1; previous = []; continue }
     const cells = line.split('|').slice(1).map(cell => cell.trim())
+    if (SEPARATOR_ROW.test(line.trim())) { changeColumn = previous.findIndex(header => /^change$/i.test(header)); continue }
+    previous = cells
     const first = cells[0] ?? ''
     const cell = first.match(/`([^`]+)`/)?.[1] ?? first
-    if (/^file$/i.test(cell)) { changeColumn = cells.findIndex(header => /^change$/i.test(header)); continue }
-    if (!cell || /^-+$/.test(cell) || /^</.test(cell)) continue
+    if (!cell || /^-+$/.test(cell) || /^file$/i.test(cell) || /^</.test(cell)) continue
     // A path, not prose. On a real corpus, cell 0 of neighbouring tables produced
     // `(T3's two tests)`, `(compile)` and `! rg -iq 'MCP stdio' README.md`, every
     // one reported as a governed path. A cell with a space in it is a sentence.

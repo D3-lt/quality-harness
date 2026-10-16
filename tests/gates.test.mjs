@@ -974,6 +974,27 @@ test('a legacy record is not routed as a task and told its own ADR is missing', 
   rmSync(temp, { recursive: true, force: true })
 })
 
+// BACKLOG §381 item 12 (from §365): the title route excluded a task only by `-T<n>`, so a non-record titled
+// `# ADR-051 T7 …`, the task id spelled with a space, was handed to adr-lint and answered UNPROVEN.
+test('a title naming a task with a space is not routed to adr-lint, and a record still is', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-spaced-task-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  writeFileSync(join(adrDir, 'notes.md'), '# ADR-051 T7 follow-up notes\n\nSome notes.\n')
+  // Must-still-route twins: a record's title, with a colon or a space, whose next word only begins with T.
+  writeFileSync(join(adrDir, 'colon.md'), '# ADR-051: Title of a record\n\n**Status:** Accepted\n')
+  writeFileSync(join(adrDir, 'spaced.md'), '# ADR-051 Title of a record\n\n**Status:** Accepted\n')
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+  const said = file => {
+    const r = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), join(adrDir, file)], temp, undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+    return `${r.stdout}${r.stderr}`
+  }
+  try {
+    assert.doesNotMatch(said('notes.md'), /adr-lint/, 'a task title is not a record')
+    for (const file of ['colon.md', 'spaced.md']) assert.match(said(file), /adr-lint/, file)
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
 test('a file nested below a tasks/ directory is not a task', () => {
   // An outside report (a Go CLI repository, 2026-10-14): `bench/tasks/<fixture>/base/guide.md` was routed as an ADR task,
   // because bash's `*` in `*/tasks/*.md` crosses `/`, and told its owning ADR was missing. A task file lives in `tasks/`

@@ -350,7 +350,7 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
 # failure, which is the worse direction. `is_adr` requires a section half of any
 # older corpus predates, and those corpora also name records without the `ADR-`
 # prefix, so neither existing arm sees them. The title does — with the same
-# `-T<n>` discriminator §185 used, so a task is still a task.
+# `-T<n>` discriminator §185 used, so a task is still a task — or ` T<n>`, the id spelled with a space (BACKLOG §381 item 12).
 # ⚠ NOT A TASKS INDEX. `tasks/README.md` is titled `# ADR-064 tasks`, which the
 # title test below reads as a record, so adr-lint was handed the index itself and
 # answered not-recognised as UNPROVEN on every commit that touched one (BACKLOG
@@ -359,7 +359,7 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
 elif [ "$tasks_index" = 0 ] \
     && { [[ "$base" == ADR-*.md ]] || is_adr "$f" \
     || { grep -qE '^# ADR-[0-9]' <<< "$structure" \
-         && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< "$structure"; }; }; then
+         && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*[- ]T[0-9]+' <<< "$structure"; }; }; then
   gate="adr-lint"
   out=$(run_adr_lint "$f" 2>&1); rc=$?
 # A TASK, and the `Task ` prefix is the signal — it used to be parsed and thrown

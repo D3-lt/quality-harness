@@ -309,6 +309,20 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
             .map(job => `${where}${job.name}: ${job.conclusion}`))
         } catch { /* an unreadable job list names no job; the verdict stands */ }
       }
+      // A green answer's jobs, read within the same budget (the first always): a run whose jobs were skipped is not
+      // "every job concluded success" (BACKLOG §381 item 8). A view that fails or is past the budget adds nothing.
+      if (!failing.length && !running) {
+        const skipped = []
+        for (const [index, good] of answering.entries()) {
+          if (index > 0 && clock() - viewing >= JOB_VIEW_BUDGET_MS) break
+          const jobs = run(['gh', 'run', 'view', String(good.databaseId), '--json', 'jobs'])
+          if (!jobs.ok) continue
+          try {
+            skipped.push(...JSON.parse(jobs.out).jobs.filter(job => job.conclusion === 'skipped').map(job => job.name))
+          } catch { /* an unreadable job list names no job */ }
+        }
+        if (skipped.length) ci.skipped = skipped
+      }
     } else if (rows.length) {
       const shas = [...new Set(rows.filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
         .map(r => String(r.headSha).slice(0, 7)))]
@@ -484,7 +498,9 @@ export function render(state, { brief = false } = {}) {
   } else if (state.ci.status !== 'completed') {
     ci = `${named}: still running. Not finished is not green (§13).`
   } else if (state.ci.conclusion === 'success') {
-    ci = `${named}: every job concluded success.`
+    ci = state.ci.skipped?.length
+      ? `${named}: succeeded; ${state.ci.skipped.length} job(s) skipped — ${brief ? cappedNames(state.ci.skipped) : state.ci.skipped.join(', ')}.`
+      : `${named}: every job concluded success.`
   } else {
     ci = `${named}: ${String(state.ci.conclusion).toUpperCase()}`
       + `${state.ci.failed.length ? ` — ${brief ? cappedNames(state.ci.failed) : state.ci.failed.join(', ')}` : ''}`

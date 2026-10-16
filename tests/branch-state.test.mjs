@@ -1584,6 +1584,21 @@ test('job views stop at their budget, and the release half is read before gh', (
   assert.equal(saved.shippedSinceTag, 0, 'GIT_CLEAN names no changed plugin file')
 })
 
+// BACKLOG §381 item 8: a green run's jobs were never read, so a run whose jobs were skipped was said as "every job
+// concluded success". They are read within the same job-view budget; a view that fails says what it said before.
+test('a green run with skipped jobs says they were skipped', () => {
+  const green = (databaseId, workflowName) => ({ headSha: 'feed1234', event: 'push', status: 'completed', conclusion: 'success', databaseId, workflowName })
+  const table = [...GIT_CLEAN, listing([green(10, 'selftest')]),
+    jobsOf(10, [{ name: 'selftest (ubuntu-latest)', conclusion: 'success' }, { name: 'mutations 1/48', conclusion: 'skipped' }, { name: 'coverage floor', conclusion: 'skipped' }])]
+  const out = render(collect(runner(table), () => {}, () => 0), { brief: true })
+  assert.match(out, /feed123: succeeded; 2 job\(s\) skipped — mutations 1\/48, coverage floor/, out)
+  assert.doesNotMatch(out, /every job concluded success/, out)
+  // CLEAN twins: every job ran, or the jobs could not be read, and the sentence is as it was.
+  const ran = [...GIT_CLEAN, listing([green(10, 'selftest')]), jobsOf(10, [{ name: 'selftest (ubuntu-latest)', conclusion: 'success' }])]
+  assert.match(render(collect(runner(ran), () => {}, () => 0), { brief: true }), /feed123: every job concluded success/)
+  assert.match(render(collect(runner([...GIT_CLEAN, listing([green(10, 'selftest')])]), () => {}, () => 0), { brief: true }), /feed123: every job concluded success/)
+})
+
 // The push run of e2e210ed: the prompt's `said` stamp and the refresher it started both
 // rewrote the snapshot in place, and the file came out as one write's head over the other's
 // tail. Each writer must REPLACE the file, which a write in place never does: the path names

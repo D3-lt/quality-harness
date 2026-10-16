@@ -754,6 +754,36 @@
       "from": "  if (refreshing) return null",
       "to": "  if (refreshing) return 'branch-state: refreshing.'",
       "only": "^a snapshot past the cap says nothing, and a refresh that could not start says so once$"
+    },
+    {
+      "label": "§381 item 8: a green run's jobs are read",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      if (!failing.length && !running) {\n        const skipped = []",
+      "to": "      if (false) {\n        const skipped = []",
+      "only": "^a green run with skipped jobs says they were skipped$"
+    },
+    {
+      "label": "§381 item 8: a skipped job is named",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": ".jobs.filter(job => job.conclusion === 'skipped')",
+      "to": ".jobs.filter(job => false)",
+      "only": "^a green run with skipped jobs says they were skipped$"
+    },
+    {
+      "label": "§381 item 8: the brief says the skipped jobs",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    ci = state.ci.skipped?.length\n",
+      "to": "    ci = false\n",
+      "only": "^a green run with skipped jobs says they were skipped$"
     }
   ]
 }

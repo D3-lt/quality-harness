@@ -651,7 +651,9 @@ test('the operator after a group joins the group', () => {
     'function f { npm test; } && true', '{ npm test & } && true',
     // The last verification of 8a85130c, a regression against 3.8.33: `()` or a newline between the name and the body
     // still makes a definition (each exits 0 under bash 3.2 and /bin/sh, measured).
-    'function f() { npm test; } && true', 'function f ( ) { npm test; } && true', 'function f\n{ npm test; } && true']
+    'function f() { npm test; } && true', 'function f ( ) { npm test; } && true', 'function f\n{ npm test; } && true',
+    // ...and a body that is not a brace group ends the definition, so a later group is a group again (each exits 0).
+    'function f() if true\nthen :\nfi\n{ true; } || npm test', 'function f() (( 1 ))\n{ true; } || npm test', 'function f() [[ x ]]\n{ true; } || npm test']
   // DIRTY twins: a group the tests decide is still a check, whatever joins it.
   const real = ['{ npm test; } && true', '{ false; } || npm test', '! { npm test; } || false']
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)

@@ -306,8 +306,28 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (!['(', ')', '\\n'].includes(operator)) defining = false",
-      "to": "    defining = false",
+      "from": "    if (!empty || !['(', ')', '\\n'].includes(operator)) defining = false",
+      "to": "    if (true) defining = false",
+      "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "shell-words: any command that runs ends a definition",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (!empty || !['(', ')', '\\n'].includes(operator)) defining = false",
+      "to": "    if (!['(', ')', '\\n'].includes(operator)) defining = false",
+      "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "shell-words: an arithmetic command ends a definition",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "      defining = false\n      i = end\n",
+      "to": "      i = end\n",
       "only": "^(?:the operator after a group joins the group)$"
     }
   ]

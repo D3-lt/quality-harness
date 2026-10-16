@@ -1539,8 +1539,40 @@
       "tests": [
         "tests/publish-judgement.test.mjs"
       ],
-      "from": "return staged || step.argv.slice(at + 1).some(",
-      "to": "return staged || [].some(",
+      "from": "return staged || commitStagesAll(step.argv.slice(at + 1))",
+      "to": "return staged",
+      "only": "^an index the command stages before committing is not known yet, never unchecked$"
+    },
+    {
+      "label": "§381 advisory (a): a letter that takes a value ends the cluster",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-judgement.test.mjs"],
+      "from": "      if (COMMIT_VALUE_LETTERS.has(word[i])) {",
+      "to": "      if (false) {",
+      "only": "^a commit's -a is a flag, never a letter inside an option's value$"
+    },
+    {
+      "label": "§381 advisory (a): a value-taking letter at a cluster's end takes the next word",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-judgement.test.mjs"],
+      "from": "        if (i === word.length - 1 && word[i] !== 'u' && word[i] !== 'S') k += 1",
+      "to": "        if (false) k += 1",
+      "only": "^a commit's -a is a flag, never a letter inside an option's value$"
+    },
+    {
+      "label": "§381 advisory (a): -u and -S take only an attached value",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-judgement.test.mjs"],
+      "from": "        if (i === word.length - 1 && word[i] !== 'u' && word[i] !== 'S') k += 1",
+      "to": "        if (i === word.length - 1) k += 1",
+      "only": "^a commit's -a is a flag, never a letter inside an option's value$"
+    },
+    {
+      "label": "§381 advisory (a): --all stages",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-judgement.test.mjs"],
+      "from": "    if (word === '--all') return true",
+      "to": "    if (false) return true",
       "only": "^an index the command stages before committing is not known yet, never unchecked$"
     }
   ]

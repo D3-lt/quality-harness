@@ -125,7 +125,28 @@ export function stagesBeforeCommit(command) {
     let at = 1
     while (step.argv[at] === '-c' || step.argv[at] === '-C') at += 2
     if (step.argv[at] === 'add' || step.argv[at] === 'stage') staged = true
-    if (step.argv[at] === 'commit') return staged || step.argv.slice(at + 1).some(word => word === '--all' || /^-[A-Za-z]*a[A-Za-z]*$/.test(word))
+    if (step.argv[at] === 'commit') return staged || commitStagesAll(step.argv.slice(at + 1))
+  }
+  return false
+}
+
+// A commit's own `-a`: `--all`, or an `a` in a short cluster before any letter that takes a value, which ends the cluster
+// and, at its end, takes the next word. `-uall`, `-Sabc` and `-m -a` stage nothing (the review of v3.8.35..e957da1e).
+const COMMIT_VALUE_LETTERS = new Set(['u', 'S', 'm', 'F', 'c', 'C', 't'])
+function commitStagesAll(words) {
+  for (let k = 0; k < words.length; k += 1) {
+    const word = words[k]
+    if (word === '--') return false
+    if (word === '--all') return true
+    if (!/^-[A-Za-z]/.test(word)) continue
+    for (let i = 1; i < word.length; i += 1) {
+      if (word[i] === 'a') return true
+      if (COMMIT_VALUE_LETTERS.has(word[i])) {
+        // `-u` and `-S` take only an attached value; the others take the next word when nothing is attached.
+        if (i === word.length - 1 && word[i] !== 'u' && word[i] !== 'S') k += 1
+        break
+      }
+    }
   }
   return false
 }

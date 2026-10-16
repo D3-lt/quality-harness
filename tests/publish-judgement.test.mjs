@@ -159,3 +159,15 @@ test('an index the command stages before committing is not known yet, never unch
   for (const command of ['git commit -m "a fix"', 'git commit --amend -m x', 'git commit -m x && git add y', 'echo git add; git commit -m x'])
     assert.equal(stagesBeforeCommit(command), false, command)
 })
+
+// The recorded review of v3.8.35..e957da1e (advisory a): the `-a` test matched any short cluster holding an `a`, an attached
+// value included, so `-uall` and `-Sabc` read as staging. A cluster is read letter by letter, and a letter that takes a value
+// ends it (u, S, m, F, c, C, t); a value-taking letter at its end takes the next word as its value.
+test("a commit's -a is a flag, never a letter inside an option's value", () => {
+  for (const command of ['git commit -uall -m x', 'git commit -Sabc -m x', 'git commit -mall', 'git commit -m -a', 'git commit -F - -m x', 'git commit -t -a -m x'])
+    assert.equal(stagesBeforeCommit(command), false, command)
+  // CLEAN twins: the flag, alone or clustered before a value-taking letter, or after `-u` or `-S`, whose values are attached
+  // only, still stages (each measured against git 2.56.0, 2026-10-16).
+  for (const command of ['git commit -am "x"', 'git commit -qa -m x', 'git commit -m x -a', 'git commit -vam x', 'git commit -u -a -m x', 'git commit -S -a -m x'])
+    assert.equal(stagesBeforeCommit(command), true, command)
+})

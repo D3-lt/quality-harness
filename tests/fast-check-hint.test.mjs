@@ -147,3 +147,14 @@ test('the hint says what a fastCheck is: one shell command from the repository r
     assert.match(fastCheckHint(project(top, 'plain', { 'README.md': 'x\n' })), /one shell command, run from the repository root/)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+// BACKLOG §381 item 15 (the verification review of ADR-103 T4): an inline table in a dependency array names a group, not a
+// package, so `{include-group = "pytest-testmon"}` declares nothing.
+test('an inline table in a dependency array is not a declaration', () => {
+  const top = sandbox()
+  try {
+    const hint = toml => fastCheckHint(project(top, `p${Math.random().toString(36).slice(2)}`, { 'pyproject.toml': toml }))
+    assert.doesNotMatch(hint('[dependency-groups]\ndev = [{include-group = "pytest-testmon"}]\n'), COMMAND_IN_HINT)
+    // CLEAN twin: a real declaration after an include on the same line still names it.
+    assert.match(hint('[dependency-groups]\ndev = [{include-group = "x"}, "pytest-testmon"]\n'), /`pytest --testmon`/)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

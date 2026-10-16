@@ -53,7 +53,8 @@ function tomlDeclaresTestmon(text) {
     const opens = (table === 'project' && /^\s*dependencies\s*=\s*\[/.test(line))
       || ((table === 'project.optional-dependencies' || table === 'dependency-groups') && /^\s*["']?[\w.-]+["']?\s*=\s*\[/.test(line))
     if (!inArray && opens) inArray = true
-    if (inArray && DECLARED_STRING.test(line)) return true
+    // An inline table names a group or a path, not a package: `{include-group = "pytest-testmon"}` (BACKLOG §381 item 15).
+    if (inArray && DECLARED_STRING.test(line.replace(/\{[^{}]*\}/g, ''))) return true
     if (inArray && line.replace(/["'][^"']*["']/g, '').includes(']')) inArray = false
   }
   return false

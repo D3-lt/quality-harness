@@ -36,8 +36,8 @@
       "label": "ADR-103 T4: a string names a dependency only inside a dependency array",
       "file": "plugin/scripts/fast-check-hint.mjs",
       "tests": ["tests/fast-check-hint.test.mjs"],
-      "from": "    if (inArray && DECLARED_STRING.test(line)) return true",
-      "to": "    if (DECLARED_STRING.test(line)) return true",
+      "from": "    if (inArray && DECLARED_STRING.test(line.replace(/\\{[^{}]*\\}/g, ''))) return true",
+      "to": "    if (DECLARED_STRING.test(line.replace(/\\{[^{}]*\\}/g, ''))) return true",
       "only": "^(?:only a dependency position declares a dependency)$"
     },
     {
@@ -55,6 +55,14 @@
       "from": "(pytest-testmon, in ${testmon}), with \\`.testmondata*\\` in .gitignore, `",
       "to": "(pytest-testmon, in ${testmon}), `",
       "only": "^(?:a runner's own fast check is named from its manifest)$"
+    },
+    {
+      "label": "BACKLOG §381 item 15: an inline table in a dependency array is not a declaration",
+      "file": "plugin/scripts/fast-check-hint.mjs",
+      "tests": ["tests/fast-check-hint.test.mjs"],
+      "from": "    if (inArray && DECLARED_STRING.test(line.replace(/\\{[^{}]*\\}/g, ''))) return true",
+      "to": "    if (inArray && DECLARED_STRING.test(line)) return true",
+      "only": "^(?:an inline table in a dependency array is not a declaration)$"
     }
   ]
 }

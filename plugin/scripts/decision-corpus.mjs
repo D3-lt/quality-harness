@@ -896,11 +896,16 @@ function affectedFiles(text) {
   if (!section) return []
   const paths = []
   let changeColumn = -1
+  let headerCells = 0
   let previous = []
   for (const line of section.split('\n')) {
-    if (!line.trim().startsWith('|')) { changeColumn = -1; previous = []; continue }
+    if (!line.trim().startsWith('|')) { changeColumn = -1; headerCells = 0; previous = []; continue }
     const cells = line.split('|').slice(1).map(cell => cell.trim())
-    if (SEPARATOR_ROW.test(line.trim())) { changeColumn = previous.findIndex(header => /^change$/i.test(header)); continue }
+    if (SEPARATOR_ROW.test(line.trim())) {
+      changeColumn = previous.findIndex(header => /^change$/i.test(header))
+      headerCells = previous.length
+      continue
+    }
     previous = cells
     const first = cells[0] ?? ''
     const cell = first.match(/`([^`]+)`/)?.[1] ?? first
@@ -909,7 +914,9 @@ function affectedFiles(text) {
     // `(T3's two tests)`, `(compile)` and `! rg -iq 'MCP stdio' README.md`, every
     // one reported as a governed path. A cell with a space in it is a sentence.
     if (/\s/.test(cell) || !/[./\\]/.test(cell)) continue
-    if (READ_ONLY_CHANGE.test((cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim())) continue
+    // A row with more or fewer cells than its header (an escaped `\|`, a pipe in a code span) cannot say which cell is its
+    // Change, so it keeps its path (the verification of 271a698b).
+    if (cells.length === headerCells && READ_ONLY_CHANGE.test((cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim())) continue
     paths.push(cell)
   }
   return paths

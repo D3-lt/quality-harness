@@ -1546,8 +1546,8 @@
       "label": "§381 item 14: a row the Change column marks as only read governs nothing",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (READ_ONLY_CHANGE.test((cells[changeColumn]",
-      "to": "    if (false && READ_ONLY_CHANGE.test((cells[changeColumn]",
+      "from": "    if (cells.length === headerCells && READ_ONLY_CHANGE.test(",
+      "to": "    if (false && READ_ONLY_CHANGE.test(",
       "only": "^a file a task only reads is not one its record governs$"
     },
     {
@@ -1586,8 +1586,16 @@
       "label": "§381 item 14 review: a table ends at its first non-table line",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "{ changeColumn = -1; previous = []; continue }",
+      "from": "{ changeColumn = -1; headerCells = 0; previous = []; continue }",
       "to": "continue",
+      "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
+    },
+    {
+      "label": "§381 item 14 verification: a row whose cell count is not its header's keeps its path",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (cells.length === headerCells && READ_ONLY_CHANGE.test(",
+      "to": "    if (READ_ONLY_CHANGE.test(",
       "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
     }
   ]

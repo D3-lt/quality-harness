@@ -126,6 +126,10 @@ test('a Change cell that goes on to describe an edit still governs, and each tab
   // A table ends at its first non-table line: rows after it, with no header of their own, have no Change column.
   assert.deepEqual(governs('table-ends', '# Task T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n' + row('src/a.js', 'edit')
     + '\n' + row('src/h.js', 'read')), ['src/a.js', 'src/h.js'])
+  // The verification of 271a698b: an escaped pipe moves every later cell, so the Change lookup read the wrong one. A row
+  // whose cell count is not its header's keeps its path.
+  assert.deepEqual(governs('escaped-pipe', '# Task T1\n\n## Affected Files\n\n| File | Why | Change |\n|---|---|---|\n| `src/a.js` | x \\| none | edit |\n'),
+    ['src/a.js'])
 })
 
 test('corpus-report counts a record named in lower case', () => {

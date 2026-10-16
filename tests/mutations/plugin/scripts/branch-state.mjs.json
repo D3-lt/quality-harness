@@ -792,6 +792,45 @@
       "from": "      if (ci.looked && !failing.length && !running) {",
       "to": "      if (!failing.length && !running) {",
       "only": "^an incomplete listing views no green job$"
+    },
+    {
+      "label": "§381 item 13: an unchanged unknown clause is one word on the head's line",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "  if (unknown !== null && saidKey(previous?.said) === unknown) {",
+      "to": "  if (false) {",
+      "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
+    },
+    {
+      "label": "§381 item 13: the unknown key leaves out the head",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "  return render(state, { brief: true }).slice(headOf(state).length)",
+      "to": "  return render(state, { brief: true })",
+      "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
+    },
+    {
+      "label": "§381 item 13: the short line stamps the full text, so the next unchanged prompt is silent",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "COULD NOT LOOK, unchanged\\n`)\n    stampBriefSaid(store, text, key)\n",
+      "to": "COULD NOT LOOK, unchanged\\n`)\n",
+      "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
+    },
+    {
+      "label": "§381 item 13: the previous key is the said text after its head",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "said.includes(' · ') ? said.slice(said.indexOf(' · ')) : null)",
+      "to": "said.includes(' · ') ? said : null)",
+      "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
+    },
+    {
+      "label": "§381 item 13: a CI that looked has no unknown key",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "  if (!state.ci || typeof state.ci !== 'object' || state.ci.looked) return null",
+      "to": "  if (!state.ci || typeof state.ci !== 'object') return null"
     }
   ]
 }

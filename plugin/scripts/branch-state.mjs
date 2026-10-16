@@ -482,12 +482,13 @@ function drift({ ahead, behind }) {
   const said = [ahead ? `${ahead} ahead` : '', behind ? `${behind} behind` : ''].filter(Boolean)
   return said.length === 0 ? '' : `, ${said.join(' and ')}${behind ? '' : ' of'} origin`
 }
+const headOf = state => `branch-state: ${state.branch} @ ${state.head}`
+  + `${state.dirty === null ? ', cleanliness COULD NOT LOOK'
+    : state.dirty ? `, ${state.dirty} uncommitted path(s)` : ', clean'}`
+  + drift(state)
 export function render(state, { brief = false } = {}) {
   if (!state.looked) return `branch-state: COULD NOT LOOK — ${state.note}. This says nothing about the branch.`
-  const head = `branch-state: ${state.branch} @ ${state.head}`
-    + `${state.dirty === null ? ', cleanliness COULD NOT LOOK'
-      : state.dirty ? `, ${state.dirty} uncommitted path(s)` : ', clean'}`
-    + drift(state)
+  const head = headOf(state)
 
   // A tip's answer is the pushed commit's as this clone last fetched it, not HEAD's.
   const named = state.ci.sha
@@ -784,6 +785,17 @@ export function replaceFile(file, text, fs = { readdirSync, renameSync, statSync
   } catch { /* a directory that cannot be listed keeps what it holds */ }
 }
 
+// BACKLOG §381 item 13 (from §366): an unknown CI is said once per change, but its brief shares a line with HEAD and the
+// dirty count, so every edit reprinted the unknown clause and the alarm line under it. Its key is the brief after the head,
+// so it moves only when the clause, the release clause or the alarm does; unchanged, the head's line says one word for it.
+// The previous key is read from `said`, which a refresh keeps: a head holds no ` · `, so the first one ends it.
+export function unknownKey(state) {
+  if (!state || typeof state !== 'object' || !state.looked) return null
+  if (!state.ci || typeof state.ci !== 'object' || state.ci.looked) return null
+  return render(state, { brief: true }).slice(headOf(state).length)
+}
+const saidKey = said => (typeof said === 'string' && said.includes(' · ') ? said.slice(said.indexOf(' · ')) : null)
+
 function stampBriefSaid(store, said, redKeyNow) {
   if (!store) return
   try {
@@ -875,6 +887,14 @@ function emitCachedBranchState(state, { brief, age, previous, store, refreshing 
   // ADR-094 T1: the same red run, already said in full, is one line. It is never stored.
   if (key !== null && previous?.redKey === key) {
     process.stdout.write(`${redLine(state)}\n`)
+    return true
+  }
+  // §381 item 13: the same unknown, already said in full, is the head's line and one word. `said` becomes the full text, so
+  // the next unchanged prompt says nothing.
+  const unknown = brief ? unknownKey(state) : null
+  if (unknown !== null && saidKey(previous?.said) === unknown) {
+    process.stdout.write(`${headOf(state)} · ⚠ CI COULD NOT LOOK, unchanged\n`)
+    stampBriefSaid(store, text, key)
     return true
   }
   const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''

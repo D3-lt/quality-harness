@@ -1051,6 +1051,30 @@ test('a red CI whose failing jobs change past the third name is said in full aga
   assert.equal(short, '⚠ CI abc1234: CANCELLED, unchanged\n', short)
 })
 
+// BACKLOG §381 item 13 (from §366): an unknown CI is said once per change, but its text shares the brief with HEAD and the
+// dirty count, so every edit reprinted the whole unknown clause and the alarm line beside it. The clause is now its own check:
+// unchanged, it is one word on the head's line, as ADR-094 shortens an unchanged red run.
+test('an unknown CI whose clause is unchanged is not said again when only HEAD moves', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-unknown-clause-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const unknown = dirty => ({ ...greenState, dirty, ci: { looked: false, note: 'gh: command not found' } })
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: unknown(0) }))
+  const first = briefIn(project).stdout
+  assert.match(first, /COULD NOT LOOK — gh: command not found/, first)
+  assert.match(first, /A LOCAL GREEN GATE DOES NOT ANSWER THIS/, first)
+  const stored = JSON.parse(readFileSync(cache, 'utf8'))
+  writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 1000, state: unknown(2) }))
+  const moved = briefIn(project).stdout
+  assert.equal(moved, 'branch-state: main @ abc1234, 2 uncommitted path(s) · ⚠ CI COULD NOT LOOK, unchanged\n', moved)
+  assert.equal(briefIn(project).stdout, '', 'and an unchanged prompt says nothing')
+  // DIRTY twin: a changed clause is said in full again.
+  const kept = JSON.parse(readFileSync(cache, 'utf8'))
+  writeFileSync(cache, JSON.stringify({ ...kept, at: Date.now() - 1000, state: { ...unknown(2), ci: { looked: false, note: 'gh: not logged in' } } }))
+  const changed = briefIn(project).stdout
+  assert.match(changed, /COULD NOT LOOK — gh: not logged in/, changed)
+  assert.match(changed, /A LOCAL GREEN GATE DOES NOT ANSWER THIS/, changed)
+})
+
 test('a snapshot past the cap says nothing, and a refresh that could not start says so once', t => {
   const { project, gitDir } = keyedRepository(t, 'qh-cap-silent-')
   const cache = path.join(gitDir, 'qh-branch-state.json')

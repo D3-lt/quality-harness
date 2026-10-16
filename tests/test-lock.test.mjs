@@ -331,6 +331,65 @@ test('rewriting a locked assertion refuses done', () => {
   }
 })
 
+// BACKLOG §381 item 6: the lock check read only the README's done claim, so a task whose own file says done, beside a
+// README saying pending or with no README at all, passed with its locked test rewritten. The task files win (§10).
+test("a task file's own done claim keeps its locks, whatever the README says", () => {
+  const dir = tmpRepo()
+  try {
+    const row = redRow(dir)
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(1, 2)\n'
+      + '})\n')
+    const infos = status => ({ T1: { human: false, path: join(dir, 'T1.md'), tests: NAMED, vlog: [row], text: `# Task T1\n\n**Status:** ${status}\n` } })
+    for (const readme of ['| T1 | lock | pending |', '']) {
+      const linted = lintOp({ root: dir, readme, infos: infos('done') })
+      assert.equal(linted.status, 0, linted.stderr)
+      const out = JSON.parse(linted.stdout)
+      assert.ok(out.errors.some(e => e.includes('locked dirty') && e.includes('hash moved')), `${JSON.stringify(readme)}: ${out.errors.join('\n')}`)
+    }
+    // CLEAN twin: a task nobody claims done is not judged.
+    const quiet = JSON.parse(lintOp({ root: dir, readme: '| T1 | lock | pending |', infos: infos('pending') }).stdout)
+    assert.deepEqual(quiet.errors, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// The same gap at the two other done-only checks: a Tests row the fence's filter never selects, and a Produces symbol
+// the tree lacks, were said only for a task the README called done.
+test("a task file's own done claim is read by the filter and Produces checks too", () => {
+  const src = `
+import importlib.machinery, importlib.util, json
+from pathlib import Path
+p = Path(${JSON.stringify(join(bin, 'adr-lint'))})
+loader = importlib.machinery.SourceFileLoader("adr_lint_own_done", str(p))
+mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+loader.exec_module(mod)
+out = {}
+for status in ("done", "pending"):
+    infos = {"T1": {"human": False, "path": Path("T1.md"), "acc_all": "go test -run TestA ./...",
+                    "tests": [["TestB", "b_test.go"]], "text": f"# Task T1\\n\\n**Status:** {status}\\n**Produces:** \`absentSymbol\`\\n"},
+             # Beside it, a task still pending: what it Produces is not yet expected to exist.
+             "T2": {"human": False, "path": Path("T2.md"), "text": "# Task T2\\n\\n**Status:** pending\\n**Produces:** \`pendingSymbol\`\\n"}}
+    errors = mod.Findings()
+    mod.check_named_tests_are_run(infos, "| T1 | x | pending |", errors)
+    mod.check_produced_symbols(infos, "| T1 | x | pending |", errors, "nothing here")
+    out[status] = {"errors": list(errors), "advice": list(errors.advice)}
+print(json.dumps(out))
+`
+  const r = python(src, '')
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.ok(out.done.errors.some(e => e.includes('`TestB`') && e.includes('does not select it')), JSON.stringify(out.done))
+  assert.ok(out.done.advice.some(a => a.includes('`absentSymbol`')), JSON.stringify(out.done))
+  assert.ok(!out.done.advice.some(a => a.includes('pendingSymbol')), 'a pending task is never asked for what it will produce')
+  // CLEAN twin: pending everywhere, nothing is said.
+  assert.deepEqual([out.pending.errors, out.pending.advice.filter(a => a.includes('absentSymbol'))], [[], []])
+})
+
 test('a brace inside a string does not keep the first-red hash after the assertion moves', () => {
   // arch-lint already paid for this class: raw `{`/`}` counting treats `}` in a
   // string as the closer and hashes a prefix. Changing the omitted assertion

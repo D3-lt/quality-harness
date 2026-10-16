@@ -2639,6 +2639,15 @@ def own_done_claims(infos):
             if OWN_DONE_RE.search((inf.get("text") or "").split("\n## ", 1)[0])]
 
 
+def claimed_done_ids(readme_text, infos):
+    """Every task claimed done: the README's rows, then any task whose own file says so (BACKLOG §381 item 6).
+
+    The task files win (CLAUDE.md §10), so a check that read only the README let a task marked done in its own file,
+    beside a README saying pending or no README at all, past the lock, Status, filter and Produces checks."""
+    readme_done = list(done_task_ids(readme_text)) if readme_text else []
+    return readme_done + [t for t in own_done_claims(infos or {}) if t not in readme_done]
+
+
 def check_verification(infos, readme_text, errors, committed=committed_lines):
     """A `done` claim, the README's or the task file's own, requires tool-written passing evidence in the task's log."""
     readme_done = list(done_task_ids(readme_text)) if readme_text else []
@@ -2837,10 +2846,11 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
     A FROZEN record's lock findings are advice: tests are deleted after a record
     is retired, so a vanished or moved lock there is history, and "done is
     refused" spoke as if it were still work (BACKLOG §281 item 6)."""
-    if not readme_text:
+    done = claimed_done_ids(readme_text, infos)
+    if not done:
         return
     frozen = record is not None and record_is_frozen(record, root, tracked)
-    for tid in done_task_ids(readme_text):
+    for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
             continue
@@ -2861,7 +2871,7 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
 
 
 
-def check_status_allows_execution(adr_path, readme_text, errors):
+def check_status_allows_execution(adr_path, readme_text, errors, infos=None):
     """A task cannot be `done` while its own ADR still says `Proposed`.
 
     /adr-execute's stated precondition is Status `Accepted`, and every other gate
@@ -2874,9 +2884,7 @@ def check_status_allows_execution(adr_path, readme_text, errors):
     Statuses other than Proposed/Draft/Rejected are allowed, because an ADR that
     was accepted and later superseded or deprecated was legitimately executed.
     """
-    if not readme_text:
-        return
-    done = done_task_ids(readme_text)
+    done = claimed_done_ids(readme_text, infos)
     if not done:
         return
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
@@ -5980,7 +5988,8 @@ def check_named_tests_are_run(infos, readme_text, errors):
     A fence with no narrowing flag runs everything and satisfies this trivially,
     which is correct rather than a loophole.
     """
-    if not readme_text:
+    done = claimed_done_ids(readme_text, infos)
+    if not done:
         return
     # Only flags selected_by_filter can actually PARSE count as narrowing. `-k`
     # was in this list and not in the parser, so every pytest fence reported every
@@ -5990,7 +5999,7 @@ def check_named_tests_are_run(infos, readme_text, errors):
     # and read as a name filter it blocked every row outside the binary's name
     # (reported from outside, 2026-09-26). No runner measured takes it as a name.
     narrowing = re.compile(r"(-run|--filter|-k|--name)\b")
-    for tid in done_task_ids(readme_text):
+    for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
             continue
@@ -6051,10 +6060,11 @@ def check_produced_symbols(infos, readme_text, errors, tracked_text):
     can legitimately be renamed away, and blocking on a name is how a gate gets
     routed around.
     """
-    if not readme_text or tracked_text is None:
+    done = claimed_done_ids(readme_text, infos)
+    if not done or tracked_text is None:
         return
     ident = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\(\))?$")
-    for tid in done_task_ids(readme_text):
+    for tid in done:
         inf = infos.get(tid)
         if inf is None:
             continue
@@ -6849,7 +6859,7 @@ def main():
             check_test_lock(infos, readme_text, errors, root, adr, tracked)
             check_task_status_vocabulary(infos, readme_text, errors)
 
-            check_status_allows_execution(adr, readme_text, errors)
+            check_status_allows_execution(adr, readme_text, errors, infos)
             check_tests_exist(infos, readme_text, errors, root, tracked, adr)
             check_tests_can_fail(infos, readme_text, errors, root, tracked, adr)
             check_mutation_evidence(infos, readme_text, errors)

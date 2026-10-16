@@ -1962,6 +1962,18 @@ test("a task file's own done claim needs evidence, whatever the README says", ()
   }
 })
 
+// BACKLOG §381 item 6, at the Status check: a task whose own file says done, under a record still Proposed, was not
+// refused, because only the README's done rows were read.
+test("a task file's own done claim needs an Accepted record, whatever the README says", () => {
+  const aged = agedCorpus('qh-own-done-proposed-', '{"strictFrom":"ADR-0012"}\n')
+  const taskFile = join(aged.tasks, 'T1-fixture.md')
+  writeFileSync(aged.adr, readFileSync(aged.adr, 'utf8').replace('**Status:** Accepted', '**Status:** Proposed'))
+  const said = () => { const r = run('adr-lint', [aged.adr, aged.tasks], aged.repo); return `${r.stdout}${r.stderr}` }
+  assert.doesNotMatch(said(), /Status is 'Proposed' but T1 is marked done/, 'no claim, nothing refused')
+  writeFileSync(taskFile, readFileSync(taskFile, 'utf8').replace('**Depends-on:** none', '**Status:** done\n**Depends-on:** none'))
+  assert.match(said(), /Status is 'Proposed' but T1 is marked done/)
+})
+
 // A Windows chaos round of 916b515 (scalable-badger C-5): a task file another record
 // owns, locked, made adr-lint crash with a traceback while linting a record that never
 // named it, and the probe read the exit as a verdict with no reason. A directory named

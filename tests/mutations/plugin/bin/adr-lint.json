@@ -1298,11 +1298,12 @@
       "label": "lint: a pending task's Produces is not yet expected to exist",
       "file": "plugin/bin/adr-lint",
       "tests": [
-        "tests/gates.test.mjs"
+        "tests/gates.test.mjs",
+        "tests/test-lock.test.mjs"
       ],
-      "from": "    for tid in done_task_ids(readme_text):\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\"",
+      "from": "    for tid in done:\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\"",
       "to": "    for tid in infos:\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\"",
-      "only": "^(?:focused false-green regressions remain closed)$"
+      "only": "^(?:focused false-green regressions remain closed|a task file's own done claim is read by the filter and Produces checks too)$"
     },
     {
       "label": "lint: a Produces sentence is not read as a symbol",
@@ -3263,6 +3264,56 @@
       "from": "        for rel in sorted(p for p in listed if p.startswith(\"tests/mutations/\") and p.endswith(\".json\")):",
       "to": "        for rel in []:",
       "only": "^adr-lint (resolves an Enforced-by label from a per-source catalogue file|says UNPROVEN and names the per-source file that is not a catalogue)$"
+    },
+    {
+      "label": "§381 item 6: a task file's own done claim is a claim",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return readme_done + [t for t in own_done_claims(infos or {}) if t not in readme_done]",
+      "to": "    return readme_done",
+      "only": "^a task file's own done claim keeps its locks, whatever the README says$"
+    },
+    {
+      "label": "§381 item 6: the lock check reads the task files' done claims",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    done = claimed_done_ids(readme_text, infos)\n    if not done:\n        return\n    frozen =",
+      "to": "    done = list(done_task_ids(readme_text)) if readme_text else []\n    if not done:\n        return\n    frozen =",
+      "only": "^a task file's own done claim keeps its locks, whatever the README says$"
+    },
+    {
+      "label": "§381 item 6: the Status check reads the task files' done claims",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            check_status_allows_execution(adr, readme_text, errors, infos)",
+      "to": "            check_status_allows_execution(adr, readme_text, errors)",
+      "only": "^a task file's own done claim needs an Accepted record, whatever the README says$"
+    },
+    {
+      "label": "§381 item 6: the filter check reads the task files' done claims",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    done = claimed_done_ids(readme_text, infos)\n    if not done:\n        return\n    # Only flags",
+      "to": "    done = list(done_task_ids(readme_text)) if readme_text else []\n    if not done:\n        return\n    # Only flags",
+      "only": "^a task file's own done claim is read by the filter and Produces checks too$"
+    },
+    {
+      "label": "§381 item 6: the Produces check reads the task files' done claims",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    done = claimed_done_ids(readme_text, infos)\n    if not done or tracked_text is None:",
+      "to": "    done = list(done_task_ids(readme_text)) if readme_text else []\n    if not done or tracked_text is None:",
+      "only": "^a task file's own done claim is read by the filter and Produces checks too$"
     }
   ]
 }

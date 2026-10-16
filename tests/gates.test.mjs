@@ -995,6 +995,26 @@ test('a title naming a task with a space is not routed to adr-lint, and a record
   } finally { rmSync(temp, { recursive: true, force: true }) }
 })
 
+// The recorded review of v3.8.35..e957da1e (advisory c): item 12 kept a space-form task title from the record arm, but the task
+// arm still matched only `-T<n>`, so `# ADR-001 T1 …` outside a `tasks/` directory reached neither and was not checked.
+test('a task titled with a space outside tasks/ is still checked as a task', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-spaced-loose-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  writeFileSync(join(adrDir, 'loose-spaced.md'), '# ADR-001 T1 a task named with a space\n\n**Depends-on:** none\n')
+  // CLEAN twin: a record titled with a space is a record, never asked which ADR owns it.
+  writeFileSync(join(adrDir, 'spaced.md'), '# ADR-001 Title of a record\n\n**Status:** Accepted\n')
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+  const said = file => {
+    const r = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), join(adrDir, file)], temp, undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+    return `${r.stdout}${r.stderr}`
+  }
+  try {
+    assert.match(said('loose-spaced.md'), /ADR ownership/, 'a space-form task id is checked as a task')
+    assert.doesNotMatch(said('spaced.md'), /ADR ownership/, 'a record is not a task')
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
 test('a file nested below a tasks/ directory is not a task', () => {
   // An outside report (a Go CLI repository, 2026-10-14): `bench/tasks/<fixture>/base/guide.md` was routed as an ADR task,
   // because bash's `*` in `*/tasks/*.md` crosses `/`, and told its owning ADR was missing. A task file lives in `tasks/`

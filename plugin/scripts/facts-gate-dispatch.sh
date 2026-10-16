@@ -373,9 +373,10 @@ elif [ "$tasks_index" = 0 ] \
 # has no slash before `tasks/`, and excluding it above sent it nowhere.
 # A file in `tasks/` ITSELF, never one nested below it: bash's `*` crosses `/`, so `*/tasks/*.md` claimed
 # `bench/tasks/<fixture>/base/guide.md` and said its owning ADR was missing (an outside report, 2026-10-14; work-next
-# learned the same about Ansible's `roles/*/tasks/files/notes.md`, ADR-099). A task title still claims a file anywhere.
+# learned the same about Ansible's `roles/*/tasks/files/notes.md`, ADR-099). A task title still claims a file anywhere,
+# its id spelled `-T<n>` or ` T<n>`, as the record arm above excludes both (the review of v3.8.35..e957da1e).
 elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' <<< "$structure" \
-    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< "$structure"; then
+    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*[- ]T[0-9]+' <<< "$structure"; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.
   tdir=$parent_dir; parent=$(dirname "$tdir")

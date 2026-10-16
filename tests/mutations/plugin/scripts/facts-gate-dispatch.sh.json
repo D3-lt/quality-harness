@@ -508,6 +508,16 @@
       "from": "ADR-[A-Za-z0-9._-]*[- ]T[0-9]+' <<< \"$structure\"; }; }; then",
       "to": "ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< \"$structure\"; }; }; then",
       "only": "^a title naming a task with a space is not routed to adr-lint, and a record still is$"
+    },
+    {
+      "label": "§381 advisory (c): a task id spelled with a space is still a task",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*[- ]T[0-9]+' <<< \"$structure\"; then",
+      "to": "    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< \"$structure\"; then",
+      "only": "^a task titled with a space outside tasks/ is still checked as a task$"
     }
   ]
 }

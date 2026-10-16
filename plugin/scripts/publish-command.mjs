@@ -114,6 +114,22 @@ export function freshRepositoryCommit(command, env = process.env) {
   })
 }
 
+// The command stages before it commits: an earlier `git add` or `git stage`, or the commit's own `-a`/`--all`. The index is
+// observed before the command runs, so it is not the one the commit records (BACKLOG §381 item 9). Read for wording only:
+// it moves no verdict, so it needs no stronger proof than the words.
+export function stagesBeforeCommit(command) {
+  if (typeof command !== 'string') return false
+  let staged = false
+  for (const step of shellWords(command).commands) {
+    if (step.argv[0] !== 'git') continue
+    let at = 1
+    while (step.argv[at] === '-c' || step.argv[at] === '-C') at += 2
+    if (step.argv[at] === 'add' || step.argv[at] === 'stage') staged = true
+    if (step.argv[at] === 'commit') return staged || step.argv.slice(at + 1).some(word => word === '--all' || /^-[A-Za-z]*a[A-Za-z]*$/.test(word))
+  }
+  return false
+}
+
 // ADR-104: what is absolute where the hook runs. On POSIX only a leading `/`: `\B` and `C:/B`
 // are relative there, and the hook's cwd is not proven to be the shell's. On Windows only a
 // drive and a separator; an MSYS `/c/x` is Git Bash's to translate, so it is not read here.

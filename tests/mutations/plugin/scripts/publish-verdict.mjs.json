@@ -577,6 +577,26 @@
       "from": "  if (refusable && commitOnly) {",
       "to": "  if (deny && commitOnly) {",
       "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
+    },
+    {
+      "label": "§381 item 9: an index the command stages first is not known yet",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && stagesFirst\n",
+      "to": "            : false\n",
+      "only": "^an index the command stages before committing is not known yet, never unchecked$"
+    },
+    {
+      "label": "§381 item 9: PreToolUse reads whether the command stages first",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    stagesFirst: stagesBeforeCommit(input.tool_input?.command),\n",
+      "to": "",
+      "only": "^a command that stages before it commits hears its index is not known yet$"
     }
   ]
 }

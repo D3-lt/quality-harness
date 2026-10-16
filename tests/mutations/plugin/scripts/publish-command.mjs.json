@@ -1522,6 +1522,26 @@
       "from": "  if (moved && !plain(commands[0])) return null",
       "to": "  if (false) return null",
       "only": "^(?:a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal)$"
+    },
+    {
+      "label": "§381 item 9: an earlier git add stages",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "    if (step.argv[at] === 'add' || step.argv[at] === 'stage') staged = true",
+      "to": "    if (false) staged = true",
+      "only": "^an index the command stages before committing is not known yet, never unchecked$"
+    },
+    {
+      "label": "§381 item 9: a commit's own -a stages",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "return staged || step.argv.slice(at + 1).some(",
+      "to": "return staged || [].some(",
+      "only": "^an index the command stages before committing is not known yet, never unchecked$"
     }
   ]
 }

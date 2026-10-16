@@ -380,6 +380,28 @@ test('an unchecked index warning does not invent a passing check', () => {
   assert.doesNotMatch(said, /passed on the working tree/)
 })
 
+// BACKLOG §381 item 9, through the hook: the same moved index, but the command stages before it commits, so the index
+// read before it runs is not the one it records. Said as not known yet, never unchecked, and still not refused.
+test('a command that stages before it commits hears its index is not known yet', () => {
+  const dir = repository('stages-first-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  writeFileSync(path.join(dir, 'a.md'), 'staged first\n')
+  const session = 'fail-open-stages-first-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  git(dir, 'add', 'a.md')
+  const run = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'git add -A && git commit -m staged' },
+  })
+  assert.notEqual(decision(run), 'deny', run.stdout)
+  const said = hookSaid(run.stdout, run.stderr).text
+  assert.match(said, /the index this commit records is not known yet/, said)
+  assert.doesNotMatch(said, /index is unchecked/, said)
+})
+
 test('a write stays outstanding by log order, not by its timestamp', () => {
   const laterInTheLog = whole([
     { event: 'check.passed', startedAt: '2026-01-02T00:00:00.000Z' },

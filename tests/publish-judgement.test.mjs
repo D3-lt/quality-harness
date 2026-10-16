@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { publishJudgement } from '../plugin/scripts/publish-verdict.mjs'
+import { stagesBeforeCommit } from '../plugin/scripts/publish-command.mjs'
 
 const T = 'tree-now'
 const I = 'index-now'
@@ -135,4 +136,26 @@ test('rule P: each property fails on a judgement that breaks it', () => {
   assert.ok(walk(denyMentions).broken['a mention is never refused'].length > 0, 'a judgement that refuses a mention is caught')
   assert.ok(walk(ignoreOptOut).broken['an opt-out is a warning'].length > 0, 'a judgement that ignores the opt-out is caught')
   assert.ok(walk(trustCutLog).broken['a log or ledger not read whole never refuses, and is said'].length > 0, 'a judgement that reads a cut log as whole is caught')
+})
+
+// BACKLOG §381 item 9: the index is observed before the command runs, so a command that stages and then commits was told
+// its staged index is "unchecked", a claim about an index the commit will not record. It is said as not known yet, and the
+// verdict is unchanged: only the tree can refuse.
+test('an index the command stages before committing is not known yet, never unchecked', () => {
+  const facts = {
+    observation: observations['index differs'], origin: () => origins.declared, setting: () => settings.refuses,
+    ledger: () => ({ log: Object.assign([...treeChecks.passed], { complete: true }), dropped: 0, torn: false }),
+    caveat: () => '', lateBaselineAllowed: () => false, fastPass: () => null,
+  }
+  const staged = publishJudgement(facts, { invoked: 'git commit', stagesFirst: true })
+  assert.match(staged.text, /the index this commit records is not known yet/, staged.text)
+  assert.doesNotMatch(staged.text, /index is unchecked/, staged.text)
+  // DIRTY twin: a commit that stages nothing of its own still hears that its staged index is unchecked.
+  const plain = publishJudgement(facts, { invoked: 'git commit' })
+  assert.match(plain.text, /the staged index is unchecked/, plain.text)
+  assert.equal(staged.deny, plain.deny, 'wording only: the verdict does not move')
+  for (const command of ['git add -A && git commit -F -', 'git -C repo add x; git -C repo commit -m "x"', 'git stage x && git commit', 'git commit -am "x"', 'git commit --all -m x'])
+    assert.equal(stagesBeforeCommit(command), true, command)
+  for (const command of ['git commit -m "a fix"', 'git commit --amend -m x', 'git commit -m x && git add y', 'echo git add; git commit -m x'])
+    assert.equal(stagesBeforeCommit(command), false, command)
 })

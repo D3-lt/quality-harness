@@ -2,7 +2,7 @@
 // tree (ADR-061, ADR-081), the reviewer guard for a role spawned read-only (ADR-060), and the offer of git's own hook
 // (ADR-066). Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A refusal needs evidence; a command
 // that is only mentioned is warned about, never refused (CLAUDE.md section 3).
-import { commitOnlyCommand, decodedPowerShell, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from './publish-command.mjs'
+import { commitOnlyCommand, decodedPowerShell, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit } from './publish-command.mjs'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { appendEvent, nearestExistingDirectory, readEvents } from './event-log.mjs'
@@ -165,8 +165,8 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
  * event — and null for a mention, which is never refused. Returns null when there
  * is nothing to say, else `{ deny, key, detail, text }`.
  */
-export function publishVerdict({ cwd, session, observation, invoked, commitOnly = false }) {
-  return publishJudgement(publishFacts({ cwd, session, observation }), { invoked, commitOnly })
+export function publishVerdict({ cwd, session, observation, invoked, commitOnly = false, stagesFirst = false }) {
+  return publishJudgement(publishFacts({ cwd, session, observation }), { invoked, commitOnly, stagesFirst })
 }
 
 /**
@@ -202,7 +202,7 @@ export function publishFacts({ cwd, session, observation }) {
  * clock or environment of its own (tests/pure-judges.test.mjs holds that), so what it may refuse is a table over facts and
  * tests/publish-judgement.test.mjs walks that table.
  */
-export function publishJudgement(facts, { invoked, commitOnly = false }) {
+export function publishJudgement(facts, { invoked, commitOnly = false, stagesFirst = false }) {
   const origin = facts.origin()
   if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return null
   const observation = facts.observation
@@ -315,6 +315,8 @@ export function publishJudgement(facts, { invoked, commitOnly = false }) {
           ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
           : origin.origin === 'refused'
             ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
+            : !treeUnchecked && stagesFirst
+              ? 'quality-harness: the index this commit records is not known yet — the command stages files (`git add`, or the commit\'s own `-a`) before it commits, and the index was read before it runs — and the command '
             : !treeUnchecked && indexUnknown && treeStanding === 'passed'
               ? 'quality-harness: the staged index is not known to be checked — `qh-check` passed on the working tree, but the index holds different content and whether a check passed on it cannot be established — and the command '
             : !treeUnchecked && treeStanding === 'passed'
@@ -342,6 +344,7 @@ export function publishUnchecked(input, requested, env = process.env) {
     // evidence than advice). A command that merely mentions the words is warned.
     invoked: publishCommandIn(input.tool_input?.command),
     commitOnly: commitOnlyCommand(input.tool_input?.command),
+    stagesFirst: stagesBeforeCommit(input.tool_input?.command),
   })
   if (!verdict) return
   // ADR-066 T3: in a Bash session where git's own hook has RUN, a plain invocation

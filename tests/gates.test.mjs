@@ -1872,6 +1872,9 @@ test('a pipe-less Affected Files row is a row: a second add still collides, and 
   assert.match(lintWith(adds, 'File | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'Change in the third column')
   assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<!-- between -->\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'an HTML block ends a table')
   assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<https://example.com>\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | add | read\n'), collides, 'an autolink is a row of the table')
+  assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<div>\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'a block-level tag ends a table')
+  // Case folds as JavaScript's `/i` does: `ſ` is not `s`, so `<ſcript>` is inline and the table goes on (re.A).
+  assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<ſcript>\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | add | y\n'), collides, 'a long s does not fold to s')
   // A pipe-less table has data rows, and an empty one still has none.
   const noRows = /T2-twin\.md: Affected Files table has no data rows/
   assert.doesNotMatch(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/b.js` | edit | y\n'), noRows)

@@ -3416,6 +3416,14 @@
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
+      "label": "adr-lint, Claude review of b78a75dc: the HTML block start folds case as JavaScript does",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "track|ul)(?:\\s|/?>|$))\", re.I | re.A)",
+      "to": "track|ul)(?:\\s|/?>|$))\", re.I)",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
       "label": "adr-lint, Codex review of v3.8.39..1d991b64: an add is read from the header's Change column",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],

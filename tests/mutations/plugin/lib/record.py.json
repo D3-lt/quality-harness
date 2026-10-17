@@ -2810,6 +2810,48 @@
       "from": "        if _UNESCAPED_PIPE.search(stripped) and (found is not None or stripped.startswith(\"|\")):",
       "to": "        if _UNESCAPED_PIPE.search(stripped) and stripped.startswith(\"|\"):",
       "only": "^a Tests row without its leading pipe is a row check_tests_exist reads$"
+    },
+    {
+      "label": "arch-lint, BACKLOG §381: a rule row needs no leading pipe",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/arch-lint.test.mjs"],
+      "from": "    rows = gfm_rows(lines)\n",
+      "to": "    rows = [row for row in gfm_rows(lines) if row.line.strip().startswith(\"|\")]\n",
+      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
+    },
+    {
+      "label": "arch-lint, BACKLOG §381: a header without its leading pipe is still the header",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/arch-lint.test.mjs"],
+      "from": "    if not any(row.header for row in rows):\n        data = data[1:]\n",
+      "to": "    data = data[1:]\n",
+      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
+    },
+    {
+      "label": "arch-lint, BACKLOG §381: a table's header is no data row",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/arch-lint.test.mjs"],
+      "from": "    data = [row for row in rows if not row.delimiter and not row.header]\n",
+      "to": "    data = [row for row in rows if not row.delimiter]\n",
+      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
+    },
+    {
+      "label": "arch-lint, BACKLOG §381: the delimiter under a header is no data row",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/arch-lint.test.mjs"],
+      "from": "    data = [row for row in rows if not row.delimiter and not row.header]\n",
+      "to": "    data = [row for row in rows if not row.header]\n",
+      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
+    },
+    {
+      "label": "§321 b9: an empty cell written as || is not counted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "    if len(cells) > 1 and stripped.endswith(\"|\") and not stripped.endswith(\"\\\\|\"):\n        cells.pop()",
+      "to": "    while len(cells) > 1 and cells[-1] == \"\":\n        cells.pop()"
     }
   ]
 }

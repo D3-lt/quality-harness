@@ -85,6 +85,7 @@ __all__ = [
     "TEST_LOCK_FIELD_ANON",
     "tests_table_rows",
     "gfm_table_scan",
+    "gfm_data_rows",
     "gfm_rows",
     "GfmRow",
     "gfm_table_cells",
@@ -1315,6 +1316,20 @@ def gfm_rows(lines):
             rows.append(GfmRow(index, line, gfm_table_cells(stripped), found, header,
                                bool(_DELIMITER_ROW.match(stripped))))
     return rows
+
+
+def gfm_data_rows(lines):
+    """The rows of a section's table that carry data: not the header the table opened at, nor the delimiter under it.
+
+    A row as GFM reads one (`gfm_rows`), so a row written without its leading pipe is a row, and a header written
+    without it is still the header (BACKLOG §381). Lines that open no table keep the older reading, where the first
+    row is the header.
+    """
+    rows = gfm_rows(lines)
+    data = [row for row in rows if not row.delimiter and not row.header]
+    if not any(row.header for row in rows):
+        data = data[1:]
+    return data
 
 
 def tests_table_rows(text):

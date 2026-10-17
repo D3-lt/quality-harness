@@ -186,38 +186,6 @@
       "tests": ["tests/git-optional-locks.test.mjs"],
       "from": "capture_output=True, timeout=30, env=git_read_env(), **NO_WINDOW)",
       "to": "capture_output=True, timeout=30, **NO_WINDOW)"
-    },
-    {
-      "label": "arch-lint, BACKLOG §381: a rule row needs no leading pipe",
-      "file": "plugin/bin/arch-lint",
-      "tests": ["tests/arch-lint.test.mjs"],
-      "from": "    rows = gfm_rows(lines)\n",
-      "to": "    rows = [row for row in gfm_rows(lines) if row.line.strip().startswith(\"|\")]\n",
-      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
-    },
-    {
-      "label": "arch-lint, BACKLOG §381: a header without its leading pipe is still the header",
-      "file": "plugin/bin/arch-lint",
-      "tests": ["tests/arch-lint.test.mjs"],
-      "from": "    if not any(row.header for row in rows):\n        data = data[1:]\n",
-      "to": "    data = data[1:]\n",
-      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
-    },
-    {
-      "label": "arch-lint, BACKLOG §381: a table's header is no data row",
-      "file": "plugin/bin/arch-lint",
-      "tests": ["tests/arch-lint.test.mjs"],
-      "from": "    data = [row for row in rows if not row.delimiter and not row.header]\n",
-      "to": "    data = [row for row in rows if not row.delimiter]\n",
-      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
-    },
-    {
-      "label": "arch-lint, BACKLOG §381: the delimiter under a header is no data row",
-      "file": "plugin/bin/arch-lint",
-      "tests": ["tests/arch-lint.test.mjs"],
-      "from": "    data = [row for row in rows if not row.delimiter and not row.header]\n",
-      "to": "    data = [row for row in rows if not row.header]\n",
-      "only": "^arch-lint reads a rule row and a Module Map row without their leading pipe$"
     }
   ]
 }

@@ -2766,16 +2766,6 @@
       "to": "            errors.append(f\"README.md: row `{line}` has {len(cells)} cell(s) under the \""
     },
     {
-      "label": "§321 b9: an empty cell written as || is not counted",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/chaos-315-b9.test.mjs"
-      ],
-      "only": "an Execution Order row with its Depends-on cell dropped",
-      "from": "        inner = line[1:-1] if len(line) > 1 and line.endswith(\"|\") and not line.endswith(\"\\\\|\") else line[1:]",
-      "to": "        inner = line.strip(\"|\")"
-    },
-    {
       "label": "§321 b9: a README table's header outlives the table",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -3422,6 +3412,62 @@
       "from": "c in (\"@spec\", \"@implemented\") for c in row.cells[1:]",
       "to": "c == \"@spec\" for c in row.cells[1:]",
       "only": "^a @spec fact in a row without its leading pipe must be covered by a task$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: an Inter-task Contracts row needs no leading pipe to be checked",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "    for row in gfm_data_rows(secs.get(\"Inter-task Contracts\", [])):",
+      "to": "    for row in [r for r in gfm_data_rows(secs.get(\"Inter-task Contracts\", [])) if r.line.strip().startswith(\"|\")]:",
+      "only": "^an Inter-task Contracts row without its leading pipe is a contract adr-lint checks$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a body row without its leading pipe does not end the order table",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "            if row.index != previous + 1:\n                break",
+      "to": "            if not row.line.strip().startswith(\"|\"):\n                break",
+      "only": "^an order table written without its leading pipes still orders the tasks$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: an order table's header needs no leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if head.cells[0].lower() not in (\"wave\", \"order\"):",
+      "to": "        if not head.line.strip().startswith(\"|\") or head.cells[0].lower() not in (\"wave\", \"order\"):",
+      "only": "^an order table written without its leading pipes still orders the tasks$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a position row needs no leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "            if re.fullmatch(r\"\\d+\", row.cells[0]) and len(row.cells) > 1:",
+      "to": "            if re.fullmatch(r\"\\d+\", row.cells[0]) and len(row.cells) > 1 and row.line.strip().startswith(\"|\"):",
+      "only": "^an order table written without its leading pipes still orders the tasks$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a README listing needs no leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "    for row in rows:\n        listed |= set(",
+      "to": "    for row in [r for r in rows if r.line.strip().startswith(\"|\")]:\n        listed |= set(",
+      "only": "^a README row without its leading pipe is a listing adr-lint checks$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a wave table needs no leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "not any(cell.lower() == \"wave\" for row in rows for cell in row.cells)",
+      "to": "\"| Wave |\" not in text",
+      "only": "^a wave table written without its leading pipes is a wave table$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a README row's width is checked without its leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "    rows = {row.index: row for row in gfm_rows(lines)}",
+      "to": "    rows = {row.index: row for row in gfm_rows(lines) if row.line.startswith(\"|\")}",
+      "only": "^a README row without its leading pipe has its width checked$"
     }
   ]
 }

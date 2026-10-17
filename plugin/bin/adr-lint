@@ -128,7 +128,7 @@ from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E
 from record import git_read_env  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
-from record import gfm_table_cells, gfm_table_rows, gfm_rows  # noqa: E402
+from record import gfm_table_cells, gfm_table_rows, gfm_rows, gfm_data_rows  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
@@ -2165,20 +2165,23 @@ def find_cycle(edges, nodes):
 
 
 def parse_positions(text):
-    """Map task-id → wave/order number from the README's Wave or Order table."""
-    lines = text.splitlines()
-    for i, ln in enumerate(lines):
-        m = re.match(r"^\|\s*(Wave|Order)\s*\|", ln, re.I)
-        if not m:
+    """Map task-id → wave/order number from the README's Wave or Order table.
+
+    Rows are read as GFM reads them, so neither the header nor a body row needs its leading pipe, and the table runs
+    to the first line that is not a row (BACKLOG §381).
+    """
+    rows = gfm_rows(text.splitlines())
+    for at, head in enumerate(rows):
+        if head.cells[0].lower() not in ("wave", "order"):
             continue
-        mode, pos = m.group(1).lower(), {}
-        for row in lines[i + 1:]:
-            if not row.strip().startswith("|"):
+        mode, pos, previous = head.cells[0].lower(), {}, head.index
+        for row in rows[at + 1:]:
+            if row.index != previous + 1:
                 break
-            rm = re.match(r"^\|\s*(\d+)\s*\|([^|]*)\|", row)
-            if rm:
-                for tid in re.findall(r"(?<!\w)T\d+(?!\w)", rm.group(2).upper()):
-                    pos[tid] = int(rm.group(1))
+            previous = row.index
+            if re.fullmatch(r"\d+", row.cells[0]) and len(row.cells) > 1:
+                for tid in re.findall(r"(?<!\w)T\d+(?!\w)", row.cells[1].upper()):
+                    pos[tid] = int(row.cells[0])
         return mode, pos
     return None, {}
 
@@ -2339,11 +2342,10 @@ def check_file_collisions(infos, errors):
 def check_contract_table(adr_path, stems, errors):
     """Every Inter-task Contracts row names a producing T-id that has a task file."""
     secs = sections_of(adr_path.read_text(errors="replace", encoding="utf-8"))
-    rows = [ln for ln in secs.get("Inter-task Contracts", []) if ln.strip().startswith("|")]
-    for r in rows[1:]:
-        if re.match(r"^\|[\s\-|:]+\|?$", r.strip()) or "<" in r:
+    for row in gfm_data_rows(secs.get("Inter-task Contracts", [])):
+        if "<" in row.line:
             continue
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", r.strip().strip("|"))]
+        cells = row.cells
         if len(cells) < 3 or cells[0].lower() in ("", "none"):
             continue
         prod_ids = re.findall(r"(?<!\w)T\d+(?!\w)", cells[1])
@@ -6081,10 +6083,10 @@ def check_produced_symbols(infos, readme_text, errors, tracked_text):
 
 def check_readme(readme, task_stems, errors):
     text = readme.read_text(errors="replace", encoding="utf-8")
+    rows = gfm_rows(text.splitlines())
     listed = set()
-    for ln in text.splitlines():
-        if ln.strip().startswith("|"):
-            listed |= set(re.findall(r"(?<!\w)T\d+(?!\w)", ln))
+    for row in rows:
+        listed |= set(re.findall(r"(?<!\w)T\d+(?!\w)", row.line))
     for tid in listed:
         if not any(id_matches(tid, s) for s in task_stems):
             errors.append(f"README.md: lists '{tid}' but no task file matches it "
@@ -6093,7 +6095,7 @@ def check_readme(readme, task_stems, errors):
         if not any(id_matches(tid, stem) for tid in listed) and \
            stem.lower() not in text.lower():
             errors.advise(f"README.md: task file '{stem}.md' not listed in the index")
-    if len(task_stems) > 5 and "| Wave |" not in text:
+    if len(task_stems) > 5 and not any(cell.lower() == "wave" for row in rows for cell in row.cells):
         errors.advise(f"README.md: {len(task_stems)} tasks (>5) requires a wave table")
 
 
@@ -6144,17 +6146,17 @@ def check_readme_row_widths(text, errors):
         if was_fenced or not re.match(r"^ {0,3}`{3,}(?!`)[^`]*`", raw):
             fence, fence_line = markdown_fence_state(raw, fence)
         lines.append("" if was_fenced or fence_line else raw.strip())
-    separator = re.compile(r"^\|[\s:|-]+\|?$")
+    rows = {row.index: row for row in gfm_rows(lines)}
     header = None
     for i, line in enumerate(lines):
-        if not line.startswith("|"):
+        row = rows.get(i)
+        if row is None:
             header = None
             continue
-        if separator.match(line):
+        if row.delimiter:
             continue
-        inner = line[1:-1] if len(line) > 1 and line.endswith("|") and not line.endswith("\\|") else line[1:]
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", inner)]
-        if i + 1 < len(lines) and separator.match(lines[i + 1]):
+        cells = row.cells
+        if i + 1 in rows and rows[i + 1].delimiter:
             header = cells
             continue
         if header is not None and len(cells) < len(header):

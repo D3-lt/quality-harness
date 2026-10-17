@@ -71,7 +71,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, NO_WINDOW, git_read_env, walk, gfm_rows, gfm_table_cells  # noqa: E402
+from record import sections_of, NO_WINDOW, git_read_env, walk, gfm_data_rows, gfm_table_cells  # noqa: E402
 from record import clipped, os_reason, read_regular  # noqa: E402
 
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
@@ -82,17 +82,8 @@ SYNC_PROSE = re.compile(r"keep.{0,12}sync|manually|by review|remember|be careful
 
 
 def data_rows(lines):
-    """Table data rows: not the header, not the delimiter under it.
-
-    A row as GFM reads one, so a row written without its leading pipe is a row, and a header written without it is
-    still the header (BACKLOG §381). Lines that open no table keep the older reading, where the first piped line is
-    the header.
-    """
-    rows = gfm_rows(lines)
-    data = [row for row in rows if not row.delimiter and not row.header]
-    if not any(row.header for row in rows):
-        data = data[1:]
-    return [row.line for row in data]
+    """Table data rows: not the header, not the delimiter under it (record.gfm_data_rows)."""
+    return [row.line for row in gfm_data_rows(lines)]
 
 
 def is_none_section(lines):

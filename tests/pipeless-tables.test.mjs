@@ -237,3 +237,86 @@ test('a @spec fact in a row without its leading pipe must be covered by a task',
   const covered = specCorpus('F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @draft | ')
   assert.doesNotMatch(said(lint(covered)), /spec coverage/, 'and a @draft fact is not owed by any task')
 })
+
+// An ADR's Inter-task Contracts table and a task README's tables (the order or wave table, the task index), read by
+// adr-lint. The same finding must follow a row whichever way it is written.
+const withContracts = table => {
+  const copy = corpus()
+  const adr = join(copy, 'ADR-001-selftest.md')
+  const before = readFileSync(adr, 'utf8')
+  const after = before.replace('## Inter-task Contracts\n\nNone\n', `## Inter-task Contracts\n\n${table}\n`)
+  assert.notEqual(after, before, 'the fixture\'s contracts section moved')
+  writeFileSync(adr, after)
+  return said(lint(copy))
+}
+
+test('an Inter-task Contracts row without its leading pipe is a contract adr-lint checks', () => {
+  const ORPHAN = /Inter-task Contracts row 'widget' names no producing T-id/
+  const UNKNOWN = /Inter-task Contracts row 'gadget' names producing task T9 but no task file matches it/
+  const header = '| Contract | Producer | Consumer |\n|---|---|---|\n'
+  assert.match(withContracts(header + '| widget | nothing yet | T1 |'), ORPHAN, 'the control: a piped orphaned contract is reported')
+  assert.match(withContracts(header + '| gadget | T9 | T1 |'), UNKNOWN, 'the control: a piped unknown producer is reported')
+  assert.match(withContracts(header + 'widget | nothing yet | T1'), ORPHAN, 'an orphaned contract without its leading pipe is reported')
+  assert.match(withContracts(header + 'gadget | T9 | T1'), UNKNOWN, 'so is an unknown producer')
+  assert.match(withContracts('Contract | Producer | Consumer\n---|---|---\nwidget | nothing yet | T1'), ORPHAN, 'and a table without any edge pipe')
+  const bareHeader = withContracts('Contract | Producer | Consumer\n---|---|---\n| widget | nothing yet | T1 |')
+  assert.match(bareHeader, ORPHAN, 'a header without its leading pipe is the header, not a row dropped as one')
+  assert.doesNotMatch(withContracts(header + 'widget | T1 | T1'), /Inter-task Contracts row/, 'a contract that is whole draws no finding')
+})
+
+// Two tasks, T2 depending on T1; the README orders them so that T2 lands first, which the order table must be refused for.
+function orderCorpus(table, { tasks = 2 } = {}) {
+  const copy = corpus()
+  const t1 = readFileSync(taskPath(copy), 'utf8')
+  for (let n = 2; n <= tasks; n++) {
+    const body = t1.replace('**Depends-on:** none', `**Depends-on:** ${n === 2 && tasks === 2 ? 'T1' : 'none'}`)
+      .replaceAll('T1-fixture.md', `T${n}-fixture.md`)
+    writeFileSync(join(copy, 'tasks', `T${n}-fixture.md`), body)
+  }
+  const readme = join(copy, 'tasks', 'README.md')
+  writeFileSync(readme, `# ADR-001 Tasks\n\nDerived index — task files are the source of truth.\n\n${table}\n`)
+  return said(lint(copy))
+}
+const ORDER_HEAD = '| Order | Task | Scope | Depends-on | Status |\n|---|---|---|---|---|\n'
+const ROW_T2_FIRST = '| 1 | [T2-fixture](T2-fixture.md) | S | T1 | pending |\n| 2 | [T1-fixture](T1-fixture.md) | S | none | pending |'
+const WRONG_ORDER = /must land in a strictly earlier order/
+
+test('an order table written without its leading pipes still orders the tasks', () => {
+  assert.match(orderCorpus(ORDER_HEAD + ROW_T2_FIRST), WRONG_ORDER, 'the control: a piped table that lands T2 before T1 is refused')
+  const bareRows = '1 | [T2-fixture](T2-fixture.md) | S | T1 | pending\n2 | [T1-fixture](T1-fixture.md) | S | none | pending'
+  assert.match(orderCorpus(ORDER_HEAD + bareRows), WRONG_ORDER, 'rows without their leading pipe are positions')
+  assert.match(orderCorpus('Order | Task | Scope | Depends-on | Status\n---|---|---|---|---\n' + ROW_T2_FIRST), WRONG_ORDER,
+    'a header without its leading pipe is the order table\'s header')
+  const mixed = orderCorpus(ORDER_HEAD + '1 | [T2-fixture](T2-fixture.md) | S | T1 | pending\n| 2 | [T1-fixture](T1-fixture.md) | S | none | pending |')
+  assert.match(mixed, WRONG_ORDER, 'a bare row does not end the table before the rows under it')
+  assert.doesNotMatch(orderCorpus(ORDER_HEAD + '| 1 | [T1-fixture](T1-fixture.md) | S | none | pending |\n| 2 | [T2-fixture](T2-fixture.md) | S | T1 | pending |'),
+    WRONG_ORDER, 'and the right order draws nothing')
+})
+
+test('a README row without its leading pipe is a listing adr-lint checks', () => {
+  const GHOST = /README\.md: lists 'T9' but no task file matches it/
+  const base = ORDER_HEAD + '| 1 | [T1-fixture](T1-fixture.md) | S | none | pending |\n'
+  assert.match(orderCorpus(base + '| 2 | [T9-ghost](T9-ghost.md) | S | none | pending |', { tasks: 1 }), GHOST, 'the control: a piped ghost row blocks')
+  assert.match(orderCorpus(base + '2 | [T9-ghost](T9-ghost.md) | S | none | pending', { tasks: 1 }), GHOST, 'a ghost row without its leading pipe blocks too')
+  assert.doesNotMatch(orderCorpus(base + '\nsee T9 | in the notes', { tasks: 1 }), GHOST, 'prose with a pipe outside a table is not a listing')
+})
+
+test('a wave table written without its leading pipes is a wave table', () => {
+  const NEEDS_WAVE = /requires a wave table/
+  const six = Array.from({ length: 6 }, (_, i) => `| ${i + 1} | [T${i + 1}-fixture](T${i + 1}-fixture.md) | S | none | pending |`).join('\n')
+  const order = ORDER_HEAD + six + '\n'
+  assert.match(orderCorpus(order, { tasks: 6 }), NEEDS_WAVE, 'the control: six tasks and no wave table are advised')
+  assert.doesNotMatch(orderCorpus(order + '\n| Wave | Tasks |\n|---|---|\n| 1 | T1, T2, T3, T4, T5, T6 |', { tasks: 6 }), NEEDS_WAVE, 'a piped wave table is one')
+  assert.doesNotMatch(orderCorpus(order + '\nWave | Tasks\n---|---\n1 | T1, T2, T3, T4, T5, T6', { tasks: 6 }), NEEDS_WAVE,
+    'so is one written without a leading pipe')
+})
+
+test('a README row without its leading pipe has its width checked', () => {
+  const SHORT = /README\.md: row `[^`]*` has 3 cell\(s\) under the 5-column header/
+  const head = ORDER_HEAD
+  assert.match(orderCorpus(head + '| 1 | [T1-fixture](T1-fixture.md) | S', { tasks: 1 }), SHORT, 'the control: a short piped row is advised')
+  assert.match(orderCorpus(head + '1 | [T1-fixture](T1-fixture.md) | S', { tasks: 1 }), SHORT, 'a short row without its leading pipe is advised')
+  assert.match(orderCorpus('Order | Task | Scope | Depends-on | Status\n---|---|---|---|---\n1 | [T1-fixture](T1-fixture.md) | S', { tasks: 1 }), SHORT,
+    'and one in a table written without any edge pipe')
+  assert.doesNotMatch(orderCorpus(head + '1 | [T1-fixture](T1-fixture.md) | S | none | pending', { tasks: 1 }), SHORT, 'a whole row is not')
+})

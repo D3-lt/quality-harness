@@ -298,6 +298,22 @@
       "from": "    problem = regular_file_problem(path)\n    if problem:\n        return None, f\"could not check '{name}': {path.name} is {problem}",
       "to": "    problem = None\n    if problem:\n        return None, f\"could not check '{name}': {path.name} is {problem}",
       "only": "^a Cargo binding to a test file that is not a regular file is could-not-check, not missing$"
+    },
+    {
+      "label": "spec-verify, BACKLOG §381: a fact row needs no leading pipe to be checked",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if FACT_ID.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1:",
+      "to": "        if FACT_ID.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1 and line.strip().startswith(\"|\"):",
+      "only": "^a spec fact and a grill row without their leading pipe are rows spec-verify checks$"
+    },
+    {
+      "label": "spec-verify, BACKLOG §381: a grill row needs no leading pipe to be checked",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if GRILL_NUMBER.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1:",
+      "to": "        if GRILL_NUMBER.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1 and line.strip().startswith(\"|\"):",
+      "only": "^a spec fact and a grill row without their leading pipe are rows spec-verify checks$"
     }
   ]
 }

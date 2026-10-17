@@ -3406,6 +3406,22 @@
       "from": "        if \"|\" in line and f\"`{name}`\" in line and f\"`{rel}`\" in line:",
       "to": "        if line.lstrip().startswith(\"|\") and f\"`{name}`\" in line and f\"`{rel}`\" in line:",
       "only": "^a Tests row without its leading pipe is a row check_tests_exist reads$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a @spec fact needs no leading pipe to be owed a task's Covers",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if re.fullmatch(r\"F-\\d+\", row.cells[0]) and any(",
+      "to": "        if row.line.strip().startswith(\"|\") and re.fullmatch(r\"F-\\d+\", row.cells[0]) and any(",
+      "only": "^a @spec fact in a row without its leading pipe must be covered by a task$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: an @implemented fact is owed a task's Covers as a @spec one is",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "c in (\"@spec\", \"@implemented\") for c in row.cells[1:]",
+      "to": "c == \"@spec\" for c in row.cells[1:]",
+      "only": "^a @spec fact in a row without its leading pipe must be covered by a task$"
     }
   ]
 }

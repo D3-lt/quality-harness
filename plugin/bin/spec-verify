@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, walk  # noqa: E402
 from record import os_reason, regular_file_problem  # noqa: E402
-from record import git_read_env  # noqa: E402
+from record import gfm_rows, git_read_env  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -112,8 +112,10 @@ UC_RE = re.compile(r"^### UC-(\d+):")
 SCEN_RE = re.compile(r"^### UC(\d+)-S(\d+) \[(happy|failure)\] (.+?) \[@(draft|spec|implemented)\]"
                      r" (?:→|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\s*$")
 SCEN_HEAD_RE = re.compile(r"^### UC\d+-S\d+")
-FACT_RE = re.compile(r"^\|\s*(F-\d+)\s*\|(.+)$")
-GRILL_RE = re.compile(r"^\|\s*\d+\s*\|(.+)$")
+# A fact row's first cell and a grill row's: the row is read by GFM (record.gfm_rows), so a row written without its
+# leading pipe is still one (BACKLOG §381).
+FACT_ID = re.compile(r"F-\d+")
+GRILL_NUMBER = re.compile(r"\d+")
 UNBOUND_RE = re.compile(r"[—–-]\s*to bind")
 
 
@@ -754,9 +756,9 @@ def check_spec(path, mode, root_override, collect):
             errors.advise(f"UC-{uc} has no [happy] scenario")
 
     facts = []
-    for line in secs.get("Facts", []):
-        m = FACT_RE.match(line)
-        if m:
+    for table_row in gfm_rows(secs.get("Facts", [])):
+        line = table_row.line
+        if FACT_ID.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1:
             row = cells(line)
             if len(row) < 4:
                 errors.advise(f"fact row too short (need ID|Assertion|Test|Tag): {line.strip()}")
@@ -780,9 +782,9 @@ def check_spec(path, mode, root_override, collect):
         errors.append("Facts table has no F-n rows")
 
     fact_ids = {f["id"] for f in facts}
-    for line in secs.get("Grill Log (appendix)", secs.get("Grill Log", [])):
-        m = GRILL_RE.match(line)
-        if m:
+    for table_row in gfm_rows(secs.get("Grill Log (appendix)", secs.get("Grill Log", []))):
+        line = table_row.line
+        if GRILL_NUMBER.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1:
             row = cells(line)
             if len(row) < 3:
                 continue

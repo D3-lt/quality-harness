@@ -190,3 +190,50 @@ test('a Proof map step proved by a Tests row without its leading pipe is referen
   assert.doesNotMatch(proofMapLint(PM_HEADER + '| `adr-lint-positive` | `selftest.sh` | the gate | — | S1 |\nA note straight under the table.'),
     /Tests data row|five cells/, 'a line with no pipe is not a row of the table, as before')
 })
+
+// A spec's Facts and Grill Log tables, read by spec-verify (its own checks on each row) and by adr-lint (every
+// @spec fact a task must cover).
+const SPEC_FACT_ANCHOR = '| F-2 | A placeholder-filled artifact never exits 0 | `test_selftest_fixture.py::test_gates_reject_malformed` | @spec | |'
+function specCorpus(factRow, grillRow = null) {
+  const copy = corpus()
+  const specPath = join(copy, 'spec-selftest.md')
+  let spec = readFileSync(specPath, 'utf8')
+  assert.ok(spec.includes(SPEC_FACT_ANCHOR), 'the fixture\'s Facts table moved')
+  spec = spec.replace(SPEC_FACT_ANCHOR, `${SPEC_FACT_ANCHOR}\n${factRow}`)
+  if (grillRow !== null) {
+    const grillAnchor = '| 2 | Where do fixtures live? | non-behavioral | `fixtures/ok/` next to the installer |'
+    assert.ok(spec.includes(grillAnchor), 'the fixture\'s Grill Log moved')
+    spec = spec.replace(grillAnchor, `${grillAnchor}\n${grillRow}`)
+  }
+  writeFileSync(specPath, spec)
+  return copy
+}
+
+test('a spec fact and a grill row without their leading pipe are rows spec-verify checks', () => {
+  const BAD_TAG = /F-3: bad tag '@oops'/
+  const piped = run('spec-verify', ['--spec', 'spec-selftest.md'], specCorpus('| F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @oops | |'))
+  assert.equal(piped.status, 1, `the control: a piped fact with a bad tag blocks\n${said(piped)}`)
+  assert.match(said(piped), BAD_TAG)
+  const bare = run('spec-verify', ['--spec', 'spec-selftest.md'], specCorpus('F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @oops | '))
+  assert.equal(bare.status, 1, `a fact written without its leading pipe blocks the same way\n${said(bare)}`)
+  assert.match(said(bare), BAD_TAG)
+
+  const NO_FACT = /Grill Log row 3: Fact cell 'F-99' cites no known Fact ID/
+  const grillPiped = run('spec-verify', ['--spec', 'spec-selftest.md'], specCorpus('| F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @spec | |', '| 3 | Is it real? | F-99 | no |'))
+  assert.match(said(grillPiped), NO_FACT, 'the control: a piped grill row citing no fact blocks')
+  const grillBare = run('spec-verify', ['--spec', 'spec-selftest.md'], specCorpus('| F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @spec | |', '3 | Is it real? | F-99 | no'))
+  assert.match(said(grillBare), NO_FACT, 'and so does one written without its leading pipe')
+})
+
+test('a @spec fact in a row without its leading pipe must be covered by a task', () => {
+  const UNCOVERED = /spec coverage: no task Covers these @spec\/@implemented IDs: F-3/
+  for (const [label, row] of [['piped', '| F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @spec | |'],
+    ['without its leading pipe', 'F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @spec | '],
+    ['without either edge pipe', 'F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @implemented']]) {
+    const out = lint(specCorpus(row))
+    assert.equal(out.status, 1, `${label}\n${said(out)}`)
+    assert.match(said(out), UNCOVERED, label)
+  }
+  const covered = specCorpus('F-3 | claim | `test_selftest_fixture.py::test_gates_run` | @draft | ')
+  assert.doesNotMatch(said(lint(covered)), /spec coverage/, 'and a @draft fact is not owed by any task')
+})

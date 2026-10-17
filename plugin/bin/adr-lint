@@ -652,9 +652,11 @@ def spec_ids(spec_path):
     refuse_special(spec_path)
     text = Path(spec_path).read_text(errors="replace", encoding="utf-8")
     ids = set()
-    for m in re.finditer(r"^\|\s*(F-\d+)\s*\|.*\|\s*(@spec|@implemented)\s*(?:\|.*)?$",
-                         text, re.M):
-        ids.add(m.group(1))
+    # A fact row as GFM reads one: its leading pipe is optional, so a @spec fact written without it is still owed a
+    # task's Covers (BACKLOG §381).
+    for row in gfm_rows(text.splitlines()):
+        if re.fullmatch(r"F-\d+", row.cells[0]) and any(c in ("@spec", "@implemented") for c in row.cells[1:]):
+            ids.add(row.cells[0])
     for m in re.finditer(r"^### (UC\d+-S\d+) \[(?:happy|failure)\] .+ \[@(spec|implemented)\]",
                          text, re.M):
         ids.add(m.group(1))

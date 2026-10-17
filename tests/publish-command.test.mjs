@@ -1564,12 +1564,20 @@ test('a hook run before the latest offer does not arm the session', () => {
 // body handed to `mrw write`, `cat` or `tee`, and none preceded a publish the precise arm missed. Each program
 // below was run under bash, zsh and sh with a stand-in for the verb on PATH: the body of a quoted heredoc to
 // cat or tee is never run, but `cat <<'EOF' | sh` and an unquoted delimiter's `$(…)` are.
+// Each of these ran the written file under bash, zsh and sh on 2026-10-17 with a stand-in for the verb in the body.
+const RUN_WRITTEN_FILE = [
+  "cat > r.sh <<'EOF' && sh r.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; bash r.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; . ./r.sh\ngit push\nEOF",
+  "cat > r.sh <<'EOF'; source r.sh\ngit push\nEOF", "tee r.sh <<'EOF'; bash r.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; chmod +x r.sh; ./r.sh\ngit push\nEOF",
+]
 const SINK_BODIES = [
   "mrw write <<'EOF'\n@@ docs/x.md 1 insert-after\ngit push\nEOF",
   "cat > notes.md <<'EOF'\nrun git commit -m x\nEOF",
   "cat <<\"EOF\"\n$(git push)\nEOF",
   "tee out.txt <<'EOF'\ngit push\nEOF",
   "/bin/cat > f <<'EOF'\ngit push\nEOF",
+  // Read back, listed or searched afterwards, a written file is still only data.
+  "cat > notes.md <<'EOF' && cat notes.md\ngit push\nEOF", "tee notes.md <<'EOF'; ls\ngit push\nEOF", "cat > notes.md <<'EOF' && grep -c git notes.md\ngit push\nEOF",
+  "mrw write <<'EOF'; git status\ngit push\nEOF",
 ]
 const SINK_BODIES_THAT_STAY_MENTIONS = [
   "sh <<'EOF'\ngit push\nEOF", "bash <<'EOF'\ngit push\nEOF", "node - <<'EOF'\nrun('git push')\nEOF", "python3 - <<'EOF'\nprint('git push')\nEOF",
@@ -1577,6 +1585,11 @@ const SINK_BODIES_THAT_STAY_MENTIONS = [
   "cat <<'EOF' | sh\ngit push\nEOF", "cat <<'EOF' | mrw write\ngit push\nEOF",
   "mrw read <<'EOF'\ngit push\nEOF", "cat $(echo x) <<'EOF'\ngit push\nEOF", "tee >(sh) <<'EOF'\ngit push\nEOF",
   "cat $F <<'EOF'\ngit push\nEOF", "cat \"a;b\" <<'EOF'\ngit push\nEOF", "cat > \"$(sh)\" <<'EOF'\ngit push\nEOF", "echo 'git push'",
+  // A body written to a file is code again when the same command text runs that file (run in a shell: RUN_WRITTEN_FILE).
+  ...RUN_WRITTEN_FILE, "cat > r.sh <<'EOF'; zsh r.sh\ngit push\nEOF", "tee r.sh <<'EOF'; zsh r.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; dash r.sh\ngit push\nEOF",
+  "cat > r.sh <<'EOF'; ./r.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; mv r.sh q.sh; sh q.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; sh $F\ngit push\nEOF",
+  "mrw write <<'EOF'; sh plan.sh\ngit push\nEOF", "cat > r.sh <<'EOF'\ngit push\nEOF\nsh r.sh",
+  "cat > job <<'EOF'; env ./job\ngit push\nEOF", "mrw write <<'EOF'; ./plan\ngit push\nEOF", "mrw write <<'EOF'; plan.sh\ngit push\nEOF", "mrw write <<'EOF'; $RUN\ngit push\nEOF",
   // The words outside the body count, whatever the body holds.
   "cat <<'EOF'\nx\nEOF\ngit push", "echo push; cat <<'EOF'\nx\nEOF", "cat <<'EOF' # push\nx\nEOF",
 ]
@@ -1617,6 +1630,8 @@ test('a stand-in for the verb is never run by a sink body', { skip: FRESH_BASH ?
     return readFileSync(record, 'utf8')
   }
   for (const command of SINK_BODIES.filter(row => !row.startsWith('mrw'))) assert.equal(run(command), '', command)
+  // DIRTY twin: a file the sink wrote is run by the same command text.
+  for (const command of RUN_WRITTEN_FILE) assert.notEqual(run(command), '', command)
   // DIRTY twin: the rows that stay mentions can run it.
   for (const command of ["sh <<'EOF'\ngit push\nEOF", 'cat <<EOF | sh\n$(git push)\nEOF', "cat <<'EOF' | sh\ngit push\nEOF"]) assert.notEqual(run(command), '', command)
 })

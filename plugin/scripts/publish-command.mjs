@@ -229,7 +229,7 @@ function withoutData(text, { owns = () => true, echoes = true } = {}) {
   commands.forEach((step, n) => {
     step.heredocs.forEach((document, j) => {
       // A body keeps its line ending, or the delimiter line after it would join the marker.
-      if (document.quoted && document.delimiter !== null && document.body.endsWith('\n') && owns(step)) {
+      if (document.quoted && document.delimiter !== null && document.body.endsWith('\n') && owns(step, n, commands, text)) {
         take(document.body, `${DATA_MARK}\n`, read => read[n]?.heredocs[j]?.body === `${DATA_MARK}\n`)
       }
     })
@@ -248,10 +248,38 @@ function withoutData(text, { owns = () => true, echoes = true } = {}) {
 // piped on (`cat <<'EOF' | sh`) is that program's input, and an argument or a substitution is something else to run,
 // so only a command that is plain and last in its pipeline is a sink; an interpreter, `eval` and `source` are not.
 const DATA_SINKS = new Set(['cat', 'tee'])
-function readsItsBodyAsData(step) {
-  if (step.pipeTo !== null || step.substitutions.length || step.dynamic.some(Boolean) || step.code.some(Boolean)) return false
+// ⚠ A BODY WRITTEN TO A FILE IS CODE AGAIN WHEN THE SAME COMMAND TEXT RUNS THAT FILE (CLAUDE.md §16's twin). Run under
+// bash, zsh and sh: `cat > r.sh <<'EOF' … EOF` then `sh r.sh`, `bash`, `zsh`, `dash`, `. ./r.sh`, `source r.sh`, and
+// `chmod +x r.sh; ./r.sh` all ran it, while `cat r.sh` did not. Across separate commands it stays the accepted gap:
+// git's own hook (ADR-066) is the guard there. So a sink that writes keeps its body counted when a later command is
+// not a plain reader and either names what was written, runs a file, or has a word it cannot read.
+const FILE_READERS = new Set(['cat', 'head', 'tail', 'wc', 'ls', 'less', 'more', 'grep', 'rg', 'diff', 'stat', 'file', 'echo', 'rm'])
+const SCRIPT_RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'source', '.'])
+const OUTPUT_REDIRECT = /\d*>>?[|&]?\s*(?:"([^"]*)"|'([^']*)'|([^\s;&|<>()]+))/g
+const sameFile = word => String(word).replace(/^\.\//, '')
+function writtenFiles(step, text) {
+  const files = new Set()
+  if (programName(step.argv[0] ?? '') === 'tee') step.argv.slice(1).filter(word => !word.startsWith('-')).forEach(word => files.add(sameFile(word)))
+  for (const [, double, single, bare] of text.matchAll(OUTPUT_REDIRECT)) files.add(sameFile(double ?? single ?? bare))
+  return files
+}
+function runsWhatItWrote(step, n, commands, text) {
   const program = programName(step.argv[0] ?? '')
-  return DATA_SINKS.has(program) || (program === 'mrw' && step.argv[1] === 'write')
+  const writes = program === 'mrw' || step.redirects > step.heredocs.length || (program === 'tee' && step.argv.length > 1)
+  if (!writes) return false
+  const files = writtenFiles(step, text)
+  return commands.slice(n + 1).some(later => {
+    const name = programName(later.argv[0] ?? '')
+    if (!later.argv.length || (FILE_READERS.has(name) && !later.dynamic.includes(0))) return false
+    return later.dynamic.length > 0 || later.argv[0].includes('/') || later.argv[0].endsWith('.sh')
+      || (SCRIPT_RUNNERS.has(name) && later.argv.length > 1) || later.argv.some(word => files.has(sameFile(word)))
+  })
+}
+function readsItsBodyAsData(step, n, commands, text) {
+  if (step.pipeTo !== null || step.substitutions.length || step.dynamic.length || step.code.some(Boolean)) return false
+  const program = programName(step.argv[0] ?? '')
+  if (!DATA_SINKS.has(program) && !(program === 'mrw' && step.argv[1] === 'write')) return false
+  return !runsWhatItWrote(step, n, commands, text)
 }
 
 // The text with those bodies taken out, for the advisory arm. Everything else stays as it was, so a word beside the

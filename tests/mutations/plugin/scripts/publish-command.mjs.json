@@ -1595,7 +1595,7 @@
       "label": "§381 sink: a dynamic word is not a sink",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
-      "from": "|| step.dynamic.some(Boolean) ||",
+      "from": "|| step.dynamic.length ||",
       "to": "||",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
@@ -1627,7 +1627,7 @@
       "label": "§381 sink: the advisory mask is owned by sinks only",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
-      "from": "document.body.endsWith('\\n') && owns(step)) {",
+      "from": "document.body.endsWith('\\n') && owns(step, n, commands, text)) {",
       "to": "document.body.endsWith('\\n')) {",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
@@ -1637,6 +1637,70 @@
       "tests": ["tests/publish-command.test.mjs"],
       "from": "{ owns: readsItsBodyAsData, echoes: false }",
       "to": "{ owns: readsItsBodyAsData, echoes: true }",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a sink that writes keeps its body when the same text runs what it wrote",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "  if (!writes) return false\n",
+      "to": "  return false\n",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a redirect is a write",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "step.redirects > step.heredocs.length || ",
+      "to": "",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a later command naming the written file is not a reader of it",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "|| later.argv.some(word => files.has(sameFile(word)))",
+      "to": "",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a plain reader of the file leaves it data",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "(FILE_READERS.has(name) && !later.dynamic.includes(0))",
+      "to": "false",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a script runner with an operand runs a file",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "|| (SCRIPT_RUNNERS.has(name) && later.argv.length > 1)",
+      "to": "",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a command word with a slash runs a file",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "later.argv[0].includes('/') || ",
+      "to": "",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a .sh command word runs a file",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "|| later.argv[0].endsWith('.sh')",
+      "to": "",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a word it cannot read may be the file",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "return later.dynamic.length > 0 || ",
+      "to": "return ",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     }
   ]

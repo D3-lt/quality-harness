@@ -1610,7 +1610,7 @@
       "label": "§381 item 14 review: a table ends at a blank line or another block",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (table && (!line || BLOCK_START.test(line))) table = null",
+      "from": "    if (table && (!line || BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null",
       "to": "    if (false) table = null",
       "only": "^(?:a Change cell that goes on to describe an edit still governs, and each table has its own Change column|a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe)$"
     },
@@ -1658,16 +1658,16 @@
       "label": "Codex review of the 3.8.40 plan: a blank line ends a table",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (table && (!line || BLOCK_START.test(line))) table = null",
-      "to": "    if (table && BLOCK_START.test(line)) table = null",
+      "from": "    if (table && (!line || BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null",
+      "to": "    if (table && (BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null",
       "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
     },
     {
       "label": "Codex review of the 3.8.40 plan: another block ends a table",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (table && (!line || BLOCK_START.test(line))) table = null",
-      "to": "    if (table && !line) table = null",
+      "from": "    if (table && (!line || BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null",
+      "to": "    if (table && (!line || HTML_BLOCK_START.test(line))) table = null",
       "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
     },
     {
@@ -1730,8 +1730,16 @@
       "label": "Codex review of v3.8.39..1d991b64: an HTML block ends a table",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "const BLOCK_START = /^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$|<[A-Za-z!?/])/",
-      "to": "const BLOCK_START = /^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$)/",
+      "from": "    if (table && (!line || BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null",
+      "to": "    if (table && (!line || BLOCK_START.test(line))) table = null",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex verification of c54110cb: only an HTML block that can interrupt a table ends one",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "const HTML_BLOCK_START = /^<(?:(?:script|pre|style|textarea)",
+      "to": "const HTML_BLOCK_START = /^<(?:[A-Za-z!?/]|(?:script|pre|style|textarea)",
       "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
     }
   ]

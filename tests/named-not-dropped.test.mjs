@@ -182,6 +182,12 @@ test('a table is one header, the delimiter under it and its rows to a blank line
   // So does an HTML block: the second table's Change is its own third column, not the first table's second (the Codex
   // review of v3.8.39..1d991b64).
   assert.deepEqual(governedBy('html-ends', piped + '| `src/a.js` | read | x |\n<!-- between tables -->\nFile | Why | Change\n--- | --- | ---\n| `src/new.js` | read | edit |\n'), ['src/new.js'])
+  // Only an HTML block that can interrupt a table ends one (GFM types 1 to 6): an autolink and inline HTML are rows of
+  // the table, so the header-shaped rows under them are data and the one-cell path under them keeps its path (the Codex
+  // verification of c54110cb).
+  assert.deepEqual(governedBy('autolink-stays', piped + '| `src/a.js` | edit | x |\n<https://example.com>\nFile | Why | Change\n--- | --- | ---\n`src/new.js` | edit | read\n'), ['src/a.js', 'src/new.js'])
+  assert.deepEqual(governedBy('inline-html-stays', piped + '| `src/a.js` | read | x |\n<span>note</span>\n`src/b.js`\n'), ['src/b.js'])
+  assert.deepEqual(governedBy('div-ends', piped + '| `src/a.js` | read | x |\n<div>\nFile | Why | Change\n--- | --- | ---\n| `src/new.js` | read | edit |\n'), ['src/new.js'])
 })
 
 test('a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing', () => {

@@ -899,10 +899,13 @@ const READ_ONLY_WORD = '(?:read|none|unchanged|no change|read[- ]only)'
 const READ_ONLY_CHANGE = new RegExp(`^${READ_ONLY_WORD}\\.?(?:\\s*\\(\\s*${READ_ONLY_WORD}\\s*\\)\\.?)?(?:\\s+[—–]\\s+\\S.*)?$`, 'i')
 const SEPARATOR_ROW = /^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/
 const UNESCAPED_PIPE = /(?<!\\)\|/
-// What begins another block, and so ends a table: a block quote, a list item, a thematic break, an HTML block. Without
-// the last, a comment between two tables kept the first table's Change column for the second (the Codex review of
-// v3.8.39..1d991b64).
-const BLOCK_START = /^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$|<[A-Za-z!?/])/
+// What begins another block, and so ends a table: a block quote, a list item, a thematic break, or an HTML block of a
+// kind that can interrupt one (GFM HTML block types 1 to 6). Without the last, a comment between two tables kept the
+// first table's Change column for the second (the Codex review of v3.8.39..1d991b64); with any `<` instead, an
+// autolink or inline HTML, which GFM keeps as a row, ended the table and the rows under it lost their paths (the Codex
+// verification of c54110cb).
+const BLOCK_START = /^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)/
+const HTML_BLOCK_START = /^<(?:(?:script|pre|style|textarea)(?:\s|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\s|\/?>|$))/i
 // A row's cells as GFM splits them: at every pipe a backslash does not escape, the leading and trailing pipes optional.
 // Splitting at every raw `|` let an escaped pipe and a missing trailing pipe cancel, so the count matched the header's
 // and the wrong cell was read as Change (the Codex review of v3.8.36..v3.8.38).
@@ -944,7 +947,7 @@ function affectedFiles(text) {
   let table = null
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
-    if (table && (!line || BLOCK_START.test(line))) table = null
+    if (table && (!line || BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null
     if (!table && !UNESCAPED_PIPE.test(line)) continue
     const cells = tableCells(line)
     let change = -1

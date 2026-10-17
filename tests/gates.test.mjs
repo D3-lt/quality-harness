@@ -1871,6 +1871,7 @@ test('a pipe-less Affected Files row is a row: a second add still collides, and 
   // ends a table, so a second table reads its own header.
   assert.match(lintWith(adds, 'File | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'Change in the third column')
   assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<!-- between -->\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'an HTML block ends a table')
+  assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<https://example.com>\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | add | read\n'), collides, 'an autolink is a row of the table')
   // A pipe-less table has data rows, and an empty one still has none.
   const noRows = /T2-twin\.md: Affected Files table has no data rows/
   assert.doesNotMatch(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/b.js` | edit | y\n'), noRows)
@@ -1891,6 +1892,7 @@ test('a pipe-less Affected Files row is a row: a second add still collides, and 
   assert.doesNotMatch(ignoredWith(piped + '| `kept.go` | edit | w |\n- `cmd/thing/main.go`\n'), named, 'a list item under the table is not a row of it')
   assert.doesNotMatch(ignoredWith('| File | Change |\n|---|---|---|\n| `kept.go` | edit |\n`cmd/thing/main.go`\n'), named, 'a delimiter of another count opens no table')
   assert.match(ignoredWith('| File | Change | Why |\n--- | --- | ---\n| `kept.go` | edit | w |\n`cmd/thing/main.go`\n'), named, 'a trailing pipe adds no cell')
+  assert.match(ignoredWith(piped + '| `kept.go` | edit | w |\n<span>note</span>\n`cmd/thing/main.go`\n'), named, 'inline HTML is a row of the table')
 })
 
 // A task path that would break a default Windows clone is advised at authoring

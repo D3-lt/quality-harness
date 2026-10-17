@@ -3363,16 +3363,16 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: a blank line ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped)):",
-      "to": "        if change is not None and _BLOCK_START.match(stripped):",
+      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if change is not None and (_BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
       "label": "adr-lint, Codex review of the 3.8.40 plan: another block ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped)):",
-      "to": "        if change is not None and not stripped:",
+      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if change is not None and (not stripped or _HTML_BLOCK_START.match(stripped)):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
@@ -3403,8 +3403,16 @@
       "label": "adr-lint, Codex review of v3.8.39..1d991b64: an HTML block ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "_BLOCK_START = re.compile(r\"^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$|<[A-Za-z!?/])\")",
-      "to": "_BLOCK_START = re.compile(r\"^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$)\")",
+      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if change is not None and (not stripped or _BLOCK_START.match(stripped)):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex verification of c54110cb: only an HTML block that can interrupt a table ends one",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    r\"^<(?:(?:script|pre|style|textarea)",
+      "to": "    r\"^<(?:[A-Za-z!?/]|(?:script|pre|style|textarea)",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {

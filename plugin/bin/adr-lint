@@ -544,8 +544,15 @@ def markdown_table_cells(line, *, backslash_parity=False):
 
 _UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 _DELIMITER_ROW = re.compile(r"^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$")
-# What begins another block, and so ends a table: a block quote, a list item, a thematic break, an HTML block.
-_BLOCK_START = re.compile(r"^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$|<[A-Za-z!?/])")
+# What begins another block, and so ends a table: a block quote, a list item, a thematic break, or an HTML block of a
+# kind that can interrupt one (GFM HTML block types 1 to 6), as decision-corpus's BLOCK_START and HTML_BLOCK_START.
+# An autolink or inline HTML is a row of the table (the Codex verification of c54110cb).
+_BLOCK_START = re.compile(r"^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)")
+_HTML_BLOCK_START = re.compile(
+    r"^<(?:(?:script|pre|style|textarea)(?:\s|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|/?(?:address|article|aside|base|basefont|"
+    r"blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|"
+    r"form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|"
+    r"option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\s|/?>|$))", re.I)
 
 
 def gfm_table_cells(line):
@@ -572,7 +579,7 @@ def gfm_table_rows(lines):
     rows, change = [], None
     for index, line in enumerate(lines):
         stripped = line.strip()
-        if change is not None and (not stripped or _BLOCK_START.match(stripped)):
+        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):
             change = None
         if change is None:
             if not _UNESCAPED_PIPE.search(stripped):

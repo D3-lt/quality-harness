@@ -828,7 +828,7 @@
       ],
       "from": "      return readFileSync(file, 'utf8').replace(/\\r(?!\\n)/g, '\\n')",
       "to": "      return readFileSync(file, 'utf8')",
-      "only": "^(?:a CR-only task file loses none of its Affected Files)$"
+      "only": "^(?:a CR-only task file loses none of its Affected Files|a CR-only archive README still freezes the records it retires)$"
     },
     {
       "label": "§351: work-next reads a non-regular task entry",

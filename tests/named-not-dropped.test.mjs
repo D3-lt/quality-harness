@@ -89,6 +89,23 @@ test('a CR-only task file loses none of its Affected Files', () => {
   assert.deepEqual(governs('crlf', task.replaceAll('\n', '\r\n')), lf)
 })
 
+// The task file above no longer proves the reader's CR rule: since 3.8.40 the Affected Files section is cut by the fence
+// walk, which ends a line at a lone CR itself, and the campaign showed the mutant surviving. The archive README is still
+// split on LF alone, so a CR-only one turned a withdrawn record back into a governing one.
+test('a CR-only archive README still freezes the records it retires', () => {
+  const readme = ['# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
+    '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
+    '|-----|-------|-----------------|---------|--------|-------------|---------|',
+    '| [ADR-012](ADR-012-old.md) | old | withdrawn | 2026-08-29 | history | none | - |', '']
+  const status = (name, eol) => {
+    const files = { 'docs/adr-archive/ADR-012-old.md': ACCEPTED(12), 'docs/adr-archive/README.md': readme.join(eol) }
+    const [record] = adrCorpus(tree(name, files), { tracked: Object.keys(files) })
+    return [record.status, record.kind]
+  }
+  assert.deepEqual(status('archive-lf', '\n'), ['withdrawn', 'graveyard'])
+  assert.deepEqual(status('archive-cr', '\r'), ['withdrawn', 'graveyard'])
+})
+
 // BACKLOG §381 item 14, from the cold review of ADR-098 (2026-10-14): every Affected Files row counted, whatever its Change
 // column said, so ADR-098 governed four files its tasks only read. A row the column marks as read or unchanged — the words this
 // corpus writes for one: `read`, `none`, `unchanged`, `no change` — governs nothing; a table with no Change column keeps all.

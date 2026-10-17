@@ -1,6 +1,7 @@
-// Families not yet ported. Each says nothing, which is not what the Node path says: the goldens that reach them are red.
+// What is not ported yet, and says nothing where the Node path may say something.
 package hooks
 
-func (h *hookRun) onPreToolUse(rec *recorded) {}
-func containsCommitOrPush(command any) bool   { return false }
-func mentionsCommitOrPush(command any) bool   { return false }
+// decisionContext is decision-corpus.mjs's decisionContext over adrCorpus: the governing and killed decisions for a path. It
+// is not ported (ADR-110 T1's divergences): the core hands over no decision context. No golden scenario has a record that
+// governs the file it edits, so the goldens cannot see this.
+func decisionContext(file, root string) string { return "" }

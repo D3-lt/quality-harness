@@ -26,8 +26,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 // spelling, which is the whole point here.
 const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-main-module-'))
 after(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))
+// A Windows account without the symlink privilege (no Developer Mode, not elevated) cannot build this fixture: measured
+// 2026-10-17 on a peer's Windows 11 machine, symlinkSync threw EPERM. CLAUDE.md §7: a fixture a platform cannot build is
+// skipped with the reason, once a log shows it. Asked of the platform, not assumed from it.
+const symlinkSkip = (() => {
+  try { symlinkSync(path.join(scratch, 'probe-target'), path.join(scratch, 'probe-link')); rmSync(path.join(scratch, 'probe-link')); return false }
+  catch (error) { return error.code === 'EPERM' && 'this account cannot create symlinks (EPERM): Windows without Developer Mode or elevation' }
+})()
 
-test('isMainModule resolves symlinks on both sides, and says no without an entry', () => {
+test('isMainModule resolves symlinks on both sides, and says no without an entry', { skip: symlinkSkip }, () => {
   const real = path.join(scratch, 'real.mjs')
   writeFileSync(real, 'export {}\n')
   const link = path.join(scratch, 'link.mjs')

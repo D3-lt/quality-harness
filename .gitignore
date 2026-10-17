@@ -35,3 +35,6 @@ __pycache__/
 # design — a verdict depends on the interpreter and toolchain, which the key
 # does not cover, so one from another machine imports an unchecked assumption.
 .mutation-cache.json
+# A running campaign's lock (scripts/mutate.mjs, campaignPaths): it made every tree look dirty while a campaign ran, so
+# `qh-check --commit` refused, rightly, for a file that is never committed (found 2026-10-17).
+.mutate-lock

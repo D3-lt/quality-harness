@@ -1,0 +1,501 @@
+// Which command is this project's check and how it came to be named (plugin/scripts/check-command.mjs), what the project says
+// in .quality-harness.json (project-config.mjs), and how text from outside is made safe to say (corpus-text.mjs).
+package hooks
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+var projectChecks = []struct{ file, command string }{
+	{"scripts/selftest.sh", "bash scripts/selftest.sh"},
+	{"selftest.sh", "bash selftest.sh"},
+	{"scripts/verify.sh", "bash scripts/verify.sh"},
+	{"verify.sh", "bash verify.sh"},
+	{"Cargo.toml", "cargo test"},
+	{"go.mod", "go test ./..."},
+	{"pytest.ini", "pytest"},
+	{"tox.ini", "pytest"},
+	{"phpunit.xml", "php vendor/bin/phpunit"},
+	{"phpunit.xml.dist", "php vendor/bin/phpunit"},
+}
+
+// readConfig is JSON.parse of .quality-harness.json, or nil when it cannot be read or parsed.
+func readConfig(root string) any {
+	text, err := os.ReadFile(filepath.Join(root, ".quality-harness.json"))
+	if err != nil {
+		return nil
+	}
+	v, err := parseJSON(string(text))
+	if err != nil {
+		return nil
+	}
+	return v
+}
+
+func exists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+func declaredCheckCommand(directory string) string {
+	check, ok := get(readConfig(directory), "check").(string)
+	if ok && strings.TrimSpace(check) != "" {
+		return jsTrim(check)
+	}
+	return ""
+}
+
+// jsTrim is String.prototype.trim.
+func jsTrim(s string) string {
+	return strings.TrimFunc(s, func(r rune) bool {
+		switch r {
+		case ' ', '\t', '\n', '\v', '\f', '\r', 0xa0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
+			return true
+		}
+		return r >= 0x2000 && r <= 0x200a
+	})
+}
+
+type publishSettingResult struct{ warn, ignored, unknown bool }
+
+func publishSetting(cwd string, found *lookup) publishSettingResult {
+	directory := nearestExistingDirectory(resolvePath(cwd))
+	if directory == "" {
+		return publishSettingResult{unknown: true}
+	}
+	if found == nil {
+		l := gitRepositoryLookup(directory)
+		found = &l
+	}
+	if !found.ok {
+		return publishSettingResult{unknown: true}
+	}
+	root := found.root
+	if root == "" {
+		root = directory
+	}
+	config, ok := readConfig(root).(*Obj)
+	if !ok || !config.Has("publish") {
+		return publishSettingResult{}
+	}
+	if strict(config.Get("publish"), "warn") {
+		return publishSettingResult{warn: true}
+	}
+	return publishSettingResult{ignored: true}
+}
+
+func publishSettingNote(s publishSettingResult) string {
+	if s.warn {
+		return " Refusal is off for this project: `\"publish\": \"warn\"` in .quality-harness.json makes this a warning."
+	}
+	if s.ignored {
+		return " The `\"publish\"` value in .quality-harness.json was ignored: only `\"publish\": \"warn\"` turns this refusal into a warning."
+	}
+	return ""
+}
+
+var knownStatus = map[string]string{"true": "zero", ":": "zero", "echo": "zero", "printf": "zero", "false": "nonzero"}
+
+var listControl = map[string]bool{"set": true, "shopt": true, "trap": true, "exec": true, "source": true, ".": true, "eval": true, "return": true, "alias": true, "unalias": true, "builtin": true, "enable": true}
+
+var shellNames = map[string]bool{"bash": true, "dash": true, "zsh": true, "ksh": true, "tcsh": true, "csh": true, "sh": true, "pwsh": true, "powershell": true}
+
+var (
+	exeSuffix  = regexp.MustCompile(`(?i)\.exe$`)
+	allDigits  = regexp.MustCompile(`^\d+$`)
+	pathSplit  = regexp.MustCompile(`[\\/]`)
+	negatedMap = map[string]string{"zero": "nonzero", "nonzero": "zero", "either": "either"}
+)
+
+// programName is a command word's program: its last path component, without `.exe` or a leading `@`.
+func programName(word string) string {
+	parts := pathSplit.Split(word, -1)
+	name := exeSuffix.ReplaceAllString(parts[len(parts)-1], "")
+	return strings.TrimPrefix(name, "@")
+}
+
+func isPiped(ended string) bool { return ended == "|" || ended == "|&" }
+
+func passThroughSink(c *shellCommand) bool {
+	if len(c.substitutions) > 0 || len(c.dynamic) > 0 {
+		return false
+	}
+	if len(c.argv) == 0 {
+		return false
+	}
+	name := programName(c.argv[0])
+	args := c.argv[1:]
+	switch name {
+	case "tee":
+		return true
+	case "cat":
+		return len(args) == 0 || (len(args) == 1 && args[0] == "-")
+	case "head", "tail":
+		for _, a := range args {
+			if !strings.HasPrefix(a, "-") && !allDigits.MatchString(a) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func constantSuccessCheck(command string) bool {
+	if strings.TrimSpace(command) == "" {
+		return false
+	}
+	return listStatus(command, 0) == "zero"
+}
+
+type cmdStatus struct {
+	status string
+	exits  bool
+}
+
+func listStatus(text string, depth int) string {
+	commands, complete := shellWords(text)
+	if !complete || len(commands) == 0 || depth > 3 {
+		return "either"
+	}
+	for _, c := range commands {
+		first := ""
+		if len(c.argv) > 0 {
+			first = c.argv[0]
+		}
+		if (c.redirects > 0 && !isPiped(c.ended)) || c.ended == "(" || c.ended == ")" || listControl[programName(first)] {
+			return "either"
+		}
+	}
+	merge := func(a, b string) string {
+		if a == b {
+			return a
+		}
+		return "either"
+	}
+	status := "zero"
+	for i := 0; i < len(commands); i++ {
+		joiner := ";"
+		if i > 0 {
+			joiner = commands[i-1].ended
+		}
+		end := i
+		for isPiped(commands[end].ended) && end+1 < len(commands) {
+			end++
+		}
+		var own cmdStatus
+		if commands[end].ended == "&" || (end > i && passThroughSink(commands[end])) {
+			own = cmdStatus{status: "zero"}
+		} else {
+			own = commandStatus(commands[end], depth)
+		}
+		if strict(commands[i].negated, "unknown") {
+			own = cmdStatus{status: "either"}
+		} else if commands[i].negated != nil && commands[end].ended != "&" && !(own.exits && end == i) {
+			own = cmdStatus{status: negatedMap[own.status]}
+		}
+		if own.exits && end == i && end < len(commands)-1 {
+			reaches := true
+			if joiner == "&&" {
+				reaches = status == "zero"
+			} else if joiner == "||" {
+				reaches = status == "nonzero"
+			}
+			if reaches {
+				return own.status
+			}
+			return "either"
+		}
+		switch joiner {
+		case "&&":
+			if status == "zero" {
+				status = own.status
+			} else if status == "nonzero" {
+				status = "nonzero"
+			} else {
+				status = merge(own.status, "nonzero")
+			}
+		case "||":
+			if status == "nonzero" {
+				status = own.status
+			} else if status == "zero" {
+				status = "zero"
+			} else {
+				status = merge(own.status, "zero")
+			}
+		default:
+			status = own.status
+		}
+		i = end
+	}
+	return status
+}
+
+func commandStatus(c *shellCommand, depth int) cmdStatus {
+	if len(c.substitutions) > 0 || len(c.argv) == 0 || (c.isDynamic(0) && c.argv[0] != "[") {
+		return cmdStatus{status: "either"}
+	}
+	name := programName(c.argv[0])
+	args := c.argv[1:]
+	if name == "exit" {
+		if len(args) == 0 || !allDigits.MatchString(args[0]) {
+			return cmdStatus{status: "either", exits: true}
+		}
+		if strings.TrimLeft(args[0], "0") == "" {
+			return cmdStatus{status: "zero", exits: true}
+		}
+		return cmdStatus{status: "nonzero", exits: true}
+	}
+	if s, ok := knownStatus[name]; ok {
+		return cmdStatus{status: s}
+	}
+	if name == "test" || name == "[" {
+		laterDynamic := false
+		for _, k := range c.dynamic {
+			if k > 0 {
+				laterDynamic = true
+			}
+		}
+		if !laterDynamic {
+			operands := args
+			if name == "[" && len(args) > 0 && args[len(args)-1] == "]" {
+				operands = args[:len(args)-1]
+			}
+			if len(operands) == 1 && !strings.HasPrefix(operands[0], "-") {
+				if operands[0] == "" {
+					return cmdStatus{status: "nonzero"}
+				}
+				return cmdStatus{status: "zero"}
+			}
+			return cmdStatus{status: "either"}
+		}
+	}
+	if shellNames[strings.ToLower(name)] && len(args) > 1 && args[0] == "-c" {
+		return cmdStatus{status: listStatus(args[1], depth+1)}
+	}
+	return cmdStatus{status: "either"}
+}
+
+func packageManagerCommand(directory string) string {
+	text, err := os.ReadFile(filepath.Join(directory, "package.json"))
+	if err != nil {
+		return ""
+	}
+	manifest, err := parseJSON(string(text))
+	if err != nil {
+		return ""
+	}
+	scripts, ok := get(manifest, "scripts").(*Obj)
+	if !ok {
+		return ""
+	}
+	runner := "npm"
+	if exists(filepath.Join(directory, "pnpm-lock.yaml")) {
+		runner = "pnpm"
+	} else if exists(filepath.Join(directory, "yarn.lock")) {
+		runner = "yarn"
+	} else if exists(filepath.Join(directory, "bun.lock")) || exists(filepath.Join(directory, "bun.lockb")) {
+		runner = "bun"
+	}
+	for _, name := range []string{"test", "check", "lint", "typecheck"} {
+		if s, ok := scripts.Get(name).(string); ok && strings.TrimSpace(s) != "" {
+			return runner + " run " + name
+		}
+	}
+	return ""
+}
+
+func makeTargetCommand(directory string) string {
+	for _, file := range []string{"Makefile", "makefile", "justfile", "Justfile"} {
+		source, err := os.ReadFile(filepath.Join(directory, file))
+		if err != nil {
+			continue
+		}
+		runner := "make"
+		if strings.EqualFold(file, "justfile") {
+			runner = "just"
+		}
+		for _, target := range []string{"test", "check", "lint", "verify", "validate", "build"} {
+			if regexp.MustCompile(`(?m)^` + target + `\s*:`).Match(source) {
+				return runner + " " + target
+			}
+		}
+	}
+	return ""
+}
+
+type checkOrigin struct {
+	command string // "" for none
+	origin  string // declared, inferred, none, refused, unproven
+}
+
+func checkCommandOrigin(cwd string, found *lookup) checkOrigin {
+	directory := nearestExistingDirectory(resolvePath(cwd))
+	if directory == "" {
+		return checkOrigin{origin: "none"}
+	}
+	if found == nil {
+		l := gitRepositoryLookup(directory)
+		found = &l
+	}
+	if !found.ok {
+		return checkOrigin{origin: "unproven"}
+	}
+	root := found.root
+	if root == "" {
+		root = directory
+	}
+	if declared := declaredCheckCommand(root); declared != "" {
+		if constantSuccessCheck(declared) {
+			return checkOrigin{origin: "refused"}
+		}
+		return checkOrigin{command: declared, origin: "declared"}
+	}
+	for _, candidate := range projectChecks {
+		if exists(filepath.Join(root, filepath.FromSlash(candidate.file))) {
+			return checkOrigin{command: candidate.command, origin: "inferred"}
+		}
+	}
+	if packaged := packageManagerCommand(root); packaged != "" {
+		return checkOrigin{command: packaged, origin: "inferred"}
+	}
+	if made := makeTargetCommand(root); made != "" {
+		return checkOrigin{command: made, origin: "inferred"}
+	}
+	return checkOrigin{origin: "none"}
+}
+
+func projectCheckCommand(cwd string) string { return checkCommandOrigin(cwd, nil).command }
+
+func runTheCheckSentence(cwd string) string {
+	o := checkCommandOrigin(cwd, nil)
+	if o.origin == "refused" {
+		return "The check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail."
+	}
+	if o.origin == "unproven" {
+		return "The repository root could not be read, so no check is named. That is not the same as this project having no check."
+	}
+	if o.command == "" {
+		return "Run the smallest repository-owned test, lint, build, or validation command after the final edit and report the exact command and result."
+	}
+	if o.origin == "declared" {
+		return fmt.Sprintf("Run `qh-check` — it runs %s (this project's own check) and records what it observed — after the final edit and report the exact command and result.", checkInCode(o.command))
+	}
+	return "No `check` is declared in `.quality-harness.json`. I inferred from this repository rather than from a declaration: " + checkInCode(o.command) +
+		", so that is not this project's own check. If it is red on an unmodified tree the finding is about this machine and not about your change — say which, and declare the real command as `check`. " +
+		"Run `qh-check` (it runs " + checkInCode(o.command) + " and records what it observed) after the final edit and report the exact command and result."
+}
+
+func inferredCheckCaveat(cwd string) string {
+	o := checkCommandOrigin(cwd, nil)
+	if o.origin == "inferred" {
+		return fmt.Sprintf(" The check %s was inferred from a manifest, not declared; declare it as `check` in .quality-harness.json.", checkInCode(o.command))
+	}
+	return ""
+}
+
+// turnEndSetting is where a turn-end finding goes (ADR-096 T3): notify, or the agent.
+func turnEndSetting(root string) string {
+	if strict(get(readConfig(root), "turnEnd"), "notify") {
+		return "notify"
+	}
+	return "agent"
+}
+
+// ---- corpus-text.mjs
+
+func isInvisible(r rune) bool {
+	return r <= 0x1f || (r >= 0x7f && r <= 0x9f) || (r >= 0x200b && r <= 0x200f) || (r >= 0x202a && r <= 0x202e) ||
+		(r >= 0x2060 && r <= 0x2069) || r == 0xfeff
+}
+
+// visiblePath shows an invisible character in a name as a visible escape.
+func visiblePath(value string) string {
+	var b strings.Builder
+	for _, r := range value {
+		if isInvisible(r) {
+			fmt.Fprintf(&b, `\u{%x}`, r)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+var backtickRun = regexp.MustCompile("`+")
+
+// codeSpan is a code span longer than any backtick run inside the text.
+func codeSpan(text string) string {
+	longest := 0
+	for _, run := range backtickRun.FindAllString(text, -1) {
+		if len(run) > longest {
+			longest = len(run)
+		}
+	}
+	fence := strings.Repeat("`", longest+1)
+	if longest > 0 {
+		return fence + " " + text + " " + fence
+	}
+	return fence + text + fence
+}
+
+// untagged shows a `<` a reader could take for a tag's as `‹`: one before an optional `/` and a letter, when a `>` follows
+// it or the name after it ends where a tag's name ends (whitespace, `/`, `\`, the end).
+func untagged(text string) string {
+	src := []rune(text)
+	var b strings.Builder
+	for k, r := range src {
+		if r == '<' && opensTag(src, k+1) {
+			b.WriteRune('‹')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func isASCIILetter(r rune) bool { return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') }
+
+func isJSSpace(r rune) bool {
+	switch r {
+	case ' ', '\t', '\n', '\v', '\f', '\r', 0xa0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
+		return true
+	}
+	return r >= 0x2000 && r <= 0x200a
+}
+
+func opensTag(src []rune, k int) bool {
+	if k < len(src) && src[k] == '/' {
+		k++
+	}
+	if k >= len(src) || !isASCIILetter(src[k]) {
+		return false
+	}
+	k++
+	// (?:[^>]*>): a `>` anywhere after the letter, on any line.
+	for j := k; j < len(src); j++ {
+		if src[j] == '>' {
+			return true
+		}
+	}
+	// [\w:-]*(?:[\s/\\]|$)
+	j := k
+	for j < len(src) && (isWordRune(src[j]) || src[j] == ':' || src[j] == '-') {
+		j++
+	}
+	return j == len(src) || isJSSpace(src[j]) || src[j] == '/' || src[j] == '\\'
+}
+
+func shownPath(value string) string { return untagged(visiblePath(value)) }
+
+func pathInCode(value string) string { return codeSpan(shownPath(value)) }
+
+// checkInCode is a check command as one line in a code span; its tabs kept, its other controls escaped.
+func checkInCode(command string) string {
+	parts := strings.Split(command, "\t")
+	for i, p := range parts {
+		parts[i] = visiblePath(p)
+	}
+	return codeSpan(untagged(strings.Join(parts, "\t")))
+}

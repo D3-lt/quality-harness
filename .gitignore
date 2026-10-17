@@ -38,3 +38,5 @@ __pycache__/
 # A running campaign's lock (scripts/mutate.mjs, campaignPaths): it made every tree look dirty while a campaign ran, so
 # `qh-check --commit` refused, rightly, for a file that is never committed (found 2026-10-17).
 .mutate-lock
+# ADR-110 T1: the qh binary built from core/ (go build -C core -o bin/qh ./cmd/qh); a build output, never a source.
+core/bin/

@@ -148,6 +148,12 @@ T=docs/adr/<record>/tasks/<task>.md
 qh-check && python3 "$CLAUDE_PLUGIN_ROOT/bin/adr-verify" "$T"
 ```
 
+When several tasks in a wave are ready to record at once, name them all in one call:
+`adr-verify "$T1" "$T2"` runs each fence in order and records each task's own row exactly as a single
+call would, with every output line prefixed by its task. A failing fence does not stop the next
+task, the exit is the first non-zero one, and a mistyped or repeated path refuses the whole call
+before any fence runs. It is for plain recording only, never with `--mutant`, `--human` or `--relock`.
+
 `qh-check` runs this project's declared check and records what it observed, which is
 what the completion advisories read. Running the command yourself still proves the
 work; it just leaves no record for them.

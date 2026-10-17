@@ -1490,6 +1490,134 @@
       "from": "    for section in (\"Mutation Log\", \"Verification Log\"):",
       "to": "    for section in (\"Mutation Log\",):",
       "only": "^a mutant that changes nothing, or a task with nowhere for its clean run, is refused before anything is written$"
+    },
+    {
+      "label": "verify, ADR-107 T3: a task path given twice is not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if key in seen:\n            fail(f\"{t} is given twice",
+      "to": "        if False:\n            fail(f\"{t} is given twice",
+      "only": "^a task path given twice is refused before any fence runs$"
+    },
+    {
+      "label": "verify, ADR-107 T3: a missing path in a multi-task call is not refused up front",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if not t.is_file():",
+      "to": "        if False:",
+      "only": "^an unknown second path runs nothing and records nothing, and a non-task is refused the same way$"
+    },
+    {
+      "label": "verify, ADR-107 T3: a file with no Acceptance section passes the multi-task preflight",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if acceptance_section(text) is None:",
+      "to": "        if False:",
+      "only": "^an unknown second path runs nothing and records nothing, and a non-task is refused the same way$"
+    },
+    {
+      "label": "verify, ADR-107 T3: the call exits 0 whatever a run exited",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if code and not first:",
+      "to": "        if False:",
+      "only": "^a failing first fence still lets the second task run, and the call exits with the first non-zero exit$"
+    },
+    {
+      "label": "verify, ADR-107 T3: the call exits with the last non-zero exit, not the first",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if code and not first:",
+      "to": "        if code:",
+      "only": "^a failing first fence still lets the second task run, and the call exits with the first non-zero exit$"
+    },
+    {
+      "label": "verify, ADR-107 T3: a failing task stops the rest of the call",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "            first = code\n",
+      "to": "            first = code\n            break\n",
+      "only": "^a failing first fence still lets the second task run, and the call exits with the first non-zero exit$"
+    },
+    {
+      "label": "verify, ADR-107 T3: a run's own exit is replaced by 0",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "out, err, code = r.stdout, r.stderr, r.returncode",
+      "to": "out, err, code = r.stdout, r.stderr, 0",
+      "only": "^a failing first fence still lets the second task run, and the call exits with the first non-zero exit$"
+    },
+    {
+      "label": "verify, ADR-107 T3: an output line is not prefixed with its task",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "print(f\"{t}: {line}\", file=stream)",
+      "to": "print(f\"{line}\", file=stream)",
+      "only": "^two tasks in one call record the rows two single calls record, each line named by its task$"
+    },
+    {
+      "label": "verify, ADR-107 T3: --cwd is not passed to each run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if cwd is not None:\n            argv += [\"--cwd\", str(cwd)]\n",
+      "to": "",
+      "only": "^a flag that shapes a run reaches every run of a multi-task call$"
+    },
+    {
+      "label": "verify, ADR-107 T3: --steps is not passed to each run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if steps is not None:\n            argv += [\"--steps\", steps]\n",
+      "to": "",
+      "only": "^a flag that shapes a run reaches every run of a multi-task call$"
+    },
+    {
+      "label": "verify, ADR-107 T3: several tasks with --mutant are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "((\"--mutant\", mutant is not None),",
+      "to": "((\"--mutant\", False),",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "verify, ADR-107 T3: several tasks with --human are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"--human\", human is not None),",
+      "to": "(\"--human\", False),",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "verify, ADR-107 T3: several tasks with --human-mutant are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"--human-mutant\", human_mutant is not None),",
+      "to": "(\"--human-mutant\", False),",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "verify, ADR-107 T3: several tasks with --relock are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"--relock\", relock),",
+      "to": "(\"--relock\", False),",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "verify, ADR-107 T3: several tasks with --restore are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"--restore\", restore),",
+      "to": "(\"--restore\", False),",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "verify, ADR-107 T3: several tasks with --sweep are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"--sweep\", sweep is not None)):",
+      "to": "(\"--sweep\", False)):",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
     }
   ]
 }

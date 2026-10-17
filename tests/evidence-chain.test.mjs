@@ -3493,3 +3493,86 @@ print(json.dumps({"dead": state(dead.pid), "live": state(os.getppid()), "dead_pi
   assert.equal(got.explicit, null, 'an explicit --restore recovers past an unknown owner')
   assert.match(got.live_says, /pid 4242/, 'a live owner refuses even --restore')
 })
+
+// ADR-107 T3 (the mrw way): several tasks in one call, a plan of independent runs.
+// Both tasks get their own fence so a row says which one ran; T2 is a copy of the
+// fixture's task, not a second shape the gate has never read.
+function twoTasks(fenceOne, fenceTwo) {
+  const copy = corpus()
+  addStepIdentities(copy)
+  const swap = fence => readTask(copy).replace(/(## Acceptance\n\n```bash\n)[\s\S]*?(```)/, `$1${fence}\n$2`)
+  writeTask(copy, swap(fenceOne))
+  writeFileSync(join(copy, 'tasks', 'T2-second.md'), swap(fenceTwo))
+  return copy
+}
+const T1 = 'tasks/T1-fixture.md'
+const T2 = 'tasks/T2-second.md'
+// The row's `ms:` field is the run's own wall time, which no two runs share.
+const rowsOf = copy => [T1, T2].map(t => readFileSync(join(copy, t), 'utf8').replace(/ · ms:\d+/g, ' · ms:N'))
+
+test('two tasks in one call record the rows two single calls record, each line named by its task', () => {
+  const multi = twoTasks('echo one', 'echo two')
+  const single = twoTasks('echo one', 'echo two')
+  const together = run('adr-verify', [T1, T2], multi)
+  expectExit(together, 0, 'adr-verify T1 T2')
+  expectExit(run('adr-verify', [T1], single), 0, 'adr-verify T1')
+  expectExit(run('adr-verify', [T2], single), 0, 'adr-verify T2')
+  assert.deepEqual(rowsOf(multi), rowsOf(single), 'a multi-task call writes the bytes the single calls write')
+  for (const line of together.stdout.split('\n').filter(Boolean)) {
+    assert.match(line, new RegExp(`^(${T1}|${T2}): `), `every stdout line says which task it is about: ${line}`)
+  }
+  assert.match(together.stdout, /tasks\/T1-fixture\.md: .*exit 0/)
+  assert.match(together.stdout, /tasks\/T2-second\.md: .*exit 0/)
+})
+
+test('a failing first fence still lets the second task run, and the call exits with the first non-zero exit', () => {
+  const copy = twoTasks('echo red; exit 3', 'echo two; exit 5')
+  const r = run('adr-verify', [T1, T2], copy)
+  expectExit(r, 3, 'the first non-zero exit among the runs')
+  const [one, two] = rowsOf(copy)
+  assert.match(one, /· exit 3 ·/, 'the failing run is recorded as what it was')
+  assert.match(two, /· exit 5 ·/, 'the second task ran and recorded its own row, even though it also failed')
+})
+
+test('a flag that shapes a run reaches every run of a multi-task call', () => {
+  // Without --cwd the fence runs beside the task, where ADR-001-selftest.md is not.
+  const copy = twoTasks('test -f ADR-001-selftest.md', 'test -f ADR-001-selftest.md')
+  expectExit(run('adr-verify', [T1, T2, '--cwd', '.', '--steps', 'S1'], copy), 0, '--cwd and --steps')
+  for (const row of rowsOf(copy)) {
+    assert.match(row, / · exit 0 · .* · steps:S1/, 'each run saw both flags')
+  }
+})
+
+test('an unknown second path runs nothing and records nothing, and a non-task is refused the same way', () => {
+  const copy = twoTasks('echo one', 'echo two')
+  const before = rowsOf(copy)
+  const missing = run('adr-verify', [T1, 'tasks/T9-typo.md'], copy)
+  expectExit(missing, 2, 'a typo refuses the whole call')
+  assert.match(missing.stdout + missing.stderr, /T9-typo\.md/, 'the refusal names the path')
+  assert.deepEqual(rowsOf(copy), before, 'N-1 rows are not recorded')
+  const notTask = run('adr-verify', [T1, 'tasks/README.md'], copy)
+  expectExit(notTask, 2, 'a file with no ## Acceptance is not a task')
+  assert.deepEqual(rowsOf(copy), before)
+})
+
+test('a task path given twice is refused before any fence runs', () => {
+  const copy = twoTasks('echo one', 'echo two')
+  const before = rowsOf(copy)
+  const r = run('adr-verify', [T1, T2, `./${T1}`], copy)
+  expectExit(r, 2, 'the same task twice')
+  assert.match(r.stdout + r.stderr, /twice|more than once|repeated/i)
+  assert.deepEqual(rowsOf(copy), before)
+})
+
+test('several tasks with a mode that is about one task are refused, and the refusal names the flag', () => {
+  const copy = twoTasks('echo one', 'echo two')
+  const before = rowsOf(copy)
+  for (const flags of [['--human', 'saw it'], ['--relock'], ['--restore'], ['--sweep', '.'],
+    ['--mutant', 'ADR-001-selftest.md', '--from', 'a', '--to', 'b', '--why', 'w'],
+    ['--human-mutant', 'ADR-001-selftest.md']]) {
+    const r = run('adr-verify', [T1, T2, ...flags], copy)
+    expectExit(r, 2, `several tasks with ${flags[0]}`)
+    assert.ok((r.stdout + r.stderr).includes(flags[0]), `names ${flags[0]}: ${r.stdout}${r.stderr}`)
+  }
+  assert.deepEqual(rowsOf(copy), before)
+})

@@ -2,6 +2,7 @@
 """adr-verify — run a task's Acceptance command and append tool-written evidence.
 
 Usage: adr-verify <task.md> [--cwd DIR]
+       adr-verify <task1.md> <task2.md> ... [--cwd DIR] [--steps S1,S3]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
                   --from <text> --to <text> --why <text> [--covers <mechanism>] [--in-place]
@@ -105,6 +106,19 @@ first line says which. A fence that reaches the checkout through an environment
 variable or a symlink is not detected. The worktree carries tracked and untracked
 files but no ignored one (a dependency directory, a build output): a fence that
 needs one makes it itself, or runs with --in-place.
+
+Several tasks in one call (ADR-107, the mrw way: one plan, many sites, a verdict per
+item) run each task's Acceptance fence in the order given and record each task's own
+Verification Log row exactly as a call naming that task alone would: the same bytes and
+the same digest rules, and the same output with each line prefixed by the task path.
+It is a plan of INDEPENDENT runs, not all-or-nothing, because each row is tool-written
+truth about its own fence: a task whose fence fails is recorded as the failure it is and
+the next task still runs. The exit code is the first non-zero exit among them, else 0.
+Only the PREFLIGHT is all-or-nothing: a path that does not exist, is not a task (no
+## Acceptance section), or is given twice refuses the whole call before any fence runs,
+so a typo cannot record N-1 rows and skip one. Several tasks cannot be combined with
+--mutant, --mutant-plan, --human, --human-mutant, --relock, --restore or --sweep: each
+writes a different log or acts on one task, so the call would not say what it claims.
 
 Exit: the Acceptance command's exit code (0 for --human; 0 for --restore) · for
 --mutant the code is the VERDICT, not the fence: 0 `killed` · 1 `survived`, a
@@ -2864,6 +2878,48 @@ def report_version():
     print(gate_identity())
 
 
+# ADR-107. Several tasks in one call, each recorded by a child that is this gate run on
+# that one task: the bytes a row carries, the digest rules and the output are then the
+# single call's by construction, not a copy of its steps. The preflight below is the
+# only all-or-nothing part; the runs after it are independent.
+def verify_several(tasks, cwd, steps):
+    seen = {}
+    for t in tasks:
+        if not t.is_file():
+            fail(f"task file not found, or not a file: {t} — nothing was run or written")
+        key = os.path.normcase(os.path.realpath(t))
+        if key in seen:
+            fail(f"{t} is given twice (as {seen[key]} and {t}): a task is recorded once per "
+                 f"call — nothing was run or written")
+        seen[key] = t
+        try:
+            text = t.read_text(errors="replace", encoding="utf-8")
+        except OSError as exc:
+            print(f"[adr-verify] could not run: {t} — {os_reason(exc)}", file=sys.stderr)
+            sys.exit(4)
+        if acceptance_section(text) is None:
+            fail(f"{t}: no ## Acceptance section, so it is not a task — nothing was run or written")
+    first = 0
+    for t in tasks:
+        argv = [sys.executable, str(Path(__file__).resolve()), str(t)]
+        if cwd is not None:
+            argv += ["--cwd", str(cwd)]
+        if steps is not None:
+            argv += ["--steps", steps]
+        try:
+            r = run_bounded(argv, capture_output=True, text=True, encoding="utf-8",
+                            errors="replace", timeout=fence_timeout() + 300, **NO_WINDOW)
+            out, err, code = r.stdout, r.stderr, r.returncode
+        except subprocess.TimeoutExpired as expired:
+            out, err, code = (decode_stream(expired.stdout), decode_stream(expired.stderr), 2)
+            err += "[adr-verify] UNRUN: this task's run did not finish; nothing is claimed for it.\n"
+        for stream, text in ((sys.stdout, out), (sys.stderr, err)):
+            for line in text.splitlines():
+                print(f"{t}: {line}", file=stream)
+        if code and not first:
+            first = code
+    return first
+
 def main():
     # ⚠ `--help` IS NOT AN UNKNOWN FLAG (BACKLOG §160).
     if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
@@ -2873,6 +2929,7 @@ def main():
         report_version()
         sys.exit(0)
     args, task, cwd, human = sys.argv[1:], None, None, None
+    tasks = []
 
     def value(i, flag):
         """The operand after a flag, or a usage error rather than a traceback.
@@ -2986,6 +3043,7 @@ def main():
             fail(f"unknown option: {args[i]}")
         else:
             task = Path(args[i])
+            tasks.append(task)
         i += 1
     if replace_hashes and not relock:
         fail("--replace-hashes is valid only with --relock")
@@ -3002,6 +3060,15 @@ def main():
     if in_place and mutant is None:
         fail("--in-place is valid only with the tool-run --mutant mode; without --mutant "
              "adr-verify changes no source, so there is nothing to place")
+    if len(tasks) > 1:
+        for flag, given in (("--mutant", mutant is not None), ("--mutant-plan", "--mutant-plan" in args),
+                            ("--human", human is not None), ("--human-mutant", human_mutant is not None),
+                            ("--relock", relock), ("--restore", restore), ("--sweep", sweep is not None)):
+            if given:
+                fail(f"several tasks cannot be combined with {flag}: it writes a different log or "
+                     f"acts on one task, so the call would not say what it claims. Name the task "
+                     f"alone, or drop {flag}.")
+        sys.exit(verify_several(tasks, cwd, steps))
     # Recovery needs no task file: the run that needs recovering is the one that
     # did not get far enough to finish, and asking for its paperwork first would
     # make the repair harder than the damage.

@@ -1527,6 +1527,22 @@
       "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "to": "    r\"(^|[;,:.—–(]|\\s)\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    },
+    {
+      "label": "adr-next, ADR-106 T2: SWE-bench's fail-to-pass list is a name, not a stop",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next.test.mjs"],
+      "from": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])\"\n",
+      "to": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])x\"\n",
+      "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
+    },
+    {
+      "label": "adr-next, ADR-106 T2: the spaced verb fail to pass still stops",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next.test.mjs"],
+      "from": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])\"\n",
+      "to": "    r\"|(?<![a-z])fail[-_ ]to[-_ ]pass(?![a-z])\"\n",
+      "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
     }
   ]
 }

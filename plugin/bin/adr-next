@@ -218,6 +218,9 @@ NEUTRALISED = re.compile(
     # manual check" by text, and two reviews found a count rule wider than its case (Codex on 73f930f,
     # ee82e08). A pasted summary that is the LAST sign-off stays a stop, the conservative reading; one
     # older than the task's exit-0 evidence is cleared by `human_stop`'s order rule instead.
+    # SWE-bench's FAIL_TO_PASS list, spelled either way, is a name as a counter label is: ADR-106 T2's sign-off citing
+    # the resolved rule read as a stop. Spaced, "fail to pass" is the verb and still stops.
+    r"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])"
     # The WHOLE label, then a separator, then a whole number: with the separator
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).

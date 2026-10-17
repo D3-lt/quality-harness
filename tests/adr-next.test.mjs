@@ -647,6 +647,22 @@ test('a negated stop word and a counter name are not verdicts, and the plain sto
   assert.equal(done('shipped; refused-unverifiable=0'), true)
 })
 
+// SWE-bench names its two test lists FAIL_TO_PASS and PASS_TO_PASS, and a sign-off that says where the resolved rule
+// was read names them: ADR-106 T2's ("FULL only when fail-to-pass and pass-to-pass are both 1") printed `stopped` on
+// «fail». The list's name is a metric, as `refused-unverifiable 0` is. The verb is still a stop.
+test('SWE-bench\'s fail-to-pass list is a name, and a note saying something failed to pass still stops', () => {
+  const done = note => {
+    const signoff = `- 2026-10-17 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
+  }
+  assert.equal(done('observed: resolved needs every fail-to-pass test passing'), true)
+  assert.equal(done('observed: FAIL_TO_PASS and PASS_TO_PASS both pass'), true)
+  assert.equal(done('observed: the patch did fail to pass review'), false)
+  assert.equal(done('observed: fail-to-pass, then the run failed'), false)
+  assert.equal(done('observed: fail'), false)
+})
+
 // A sign-off that cites the task's `## Stop Condition` section names a heading, not a verdict: ADR-078 T2's
 // approval ("+8%, under the Stop Condition's 25%") printed `stopped`, and work-next named it as missing evidence.
 // The condition reported as met is still a stop, and so is the plain word.

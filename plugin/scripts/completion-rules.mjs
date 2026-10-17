@@ -617,7 +617,14 @@ function writesThatChangedNothing(log, ended, root) {
   const at = log.findLastIndex(entry => entry.event === ended.event && ofAgent(entry))
   const from = log.findLastIndex((entry, index) => index < at && entry.event === opener && ofAgent(entry))
   if (at < 0 || (opener === 'subagent.started' && from < 0)) return []
-  const writes = log.slice(from + 1, at).filter(entry => entry.event === 'file.written' && entry.observable === true && typeof entry.path === 'string')
+  // Only a path the observation can contain: inside the work tree, and not under the git directory. `.git/config` is not
+  // ignored and hashes, so it is recorded observable, yet a change to it leaves tree, index and HEAD equal, and W called a
+  // real write unchanged (the Codex review of v3.8.42..2c747201).
+  const inTree = file => {
+    const relative = path.relative(root, file)
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative) && relative.split(/[\\/]/)[0] !== '.git'
+  }
+  const writes = log.slice(from + 1, at).filter(entry => entry.event === 'file.written' && entry.observable === true && typeof entry.path === 'string' && inTree(entry.path))
   if (!writes.length) return []
   const before = log.slice(0, log.indexOf(writes[0])).findLast(entry => entry.observation?.ok === true)
   if (!sameObservation(before?.observation, ended.observation)) return []

@@ -478,9 +478,17 @@
       "label": "ADR-108 T3: a write git cannot see is never named",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/adr-108.test.mjs"],
-      "from": "entry.observable === true && typeof entry.path === 'string')",
-      "to": "typeof entry.path === 'string')",
+      "from": "entry.observable === true && typeof entry.path === 'string' && inTree(entry.path))",
+      "to": "typeof entry.path === 'string' && inTree(entry.path))",
       "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
+    },
+    {
+      "label": "ADR-108 T3, Codex review of 2c747201: a write under the git directory is never named unchanged",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/adr-108.test.mjs"],
+      "from": " && relative.split(/[\\\\/]/)[0] !== '.git'",
+      "to": "",
+      "only": "^a write the observed tree cannot contain is never named unchanged, and a no-op inside it still is$"
     },
     {
       "label": "ADR-108 T3: rule W is queued",

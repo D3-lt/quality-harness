@@ -102,3 +102,21 @@ test('a turn whose writes left the tree unchanged is told so once, and a turn wh
   assert.equal((ledgers(blind)['sessions/s3.jsonl'] ?? []).findLast(row => row.event === 'turn.ended')?.observation?.ok, false, 'the Stop could not look at the tree')
   assert.doesNotMatch(said(blinded), new RegExp(W), 'an observation that failed says nothing (ADR-005)')
 })
+
+// The Codex review of v3.8.42..2c747201: a write the observed tree cannot see is not "unchanged". `.git/config` is not
+// ignored and hashes, so it was recorded observable, but the observation is the work tree's: a real change to it (a user.name)
+// left tree, index and HEAD equal, and W told the agent to apply the write again. Only paths inside the observed tree count.
+test('a write the observed tree cannot contain is never named unchanged, and a no-op inside it still is', t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'gitdir', BASE)
+  runHook(box, repo, 's1', { hook_event_name: 'SessionStart', source: 'startup' })
+  const config = path.join(repo, '.git', 'config')
+  writeFileSync(config, `${readFileSync(config, 'utf8')}[user]\n\tname = changed\n`)
+  runHook(box, repo, 's1', edit(config))
+  assert.doesNotMatch(said(runHook(box, repo, 's1', stop)), new RegExp(W), 'a write under .git is not named')
+  // Clean twin: a no-op Edit inside the work tree, in the same kind of session, is named.
+  const other = fixtureRepo(box, 'gitdir-twin', BASE)
+  runHook(box, other, 's2', { hook_event_name: 'SessionStart', source: 'startup' })
+  runHook(box, other, 's2', edit(path.join(other, 'src', 'a.js')))
+  assert.match(said(runHook(box, other, 's2', stop)), new RegExp(W), 'a no-op inside the work tree is still named')
+})

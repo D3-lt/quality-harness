@@ -1667,16 +1667,24 @@
       "label": "§381 sink run-later: a plain reader of the file leaves it data",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
-      "from": "(FILE_READERS.has(name) && !later.dynamic.includes(0))",
-      "to": "false",
+      "from": "    if (FILE_READERS.has(name)) return !plain",
+      "to": "    if (FILE_READERS.has(name)) return true",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {
-      "label": "§381 sink run-later: a script runner with an operand runs a file",
+      "label": "§381 sink run-later, Codex review of 2c747201: a reader in a pipeline is not plain",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
-      "from": "|| (SCRIPT_RUNNERS.has(name) && later.argv.length > 1)",
-      "to": "",
+      "from": "    const plain = later.pipeTo === null && !later.dynamic.length",
+      "to": "    const plain = !later.dynamic.length",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later: a script runner runs a file, with or without an operand",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "      || SCRIPT_RUNNERS.has(name) || later.argv.some",
+      "to": "      || (SCRIPT_RUNNERS.has(name) && later.argv.length > 1) || later.argv.some",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {

@@ -252,7 +252,9 @@ const DATA_SINKS = new Set(['cat', 'tee'])
 // bash, zsh and sh: `cat > r.sh <<'EOF' … EOF` then `sh r.sh`, `bash`, `zsh`, `dash`, `. ./r.sh`, `source r.sh`, and
 // `chmod +x r.sh; ./r.sh` all ran it, while `cat r.sh` did not. Across separate commands it stays the accepted gap:
 // git's own hook (ADR-066) is the guard there. So a sink that writes keeps its body counted when a later command is
-// not a plain reader and either names what was written, runs a file, or has a word it cannot read.
+// not a plain reader and either names what was written, runs a file, or has a word it cannot read. A reader is plain
+// only with no pipe, substitution, dynamic word or code (`cat r.sh | sh`, `echo $(sh r.sh)`, `cat <(sh r.sh)` each ran the
+// body), and a shell needs no operand to run it (`sh < r.sh`, `| sh`): the Codex review of v3.8.42..2c747201.
 const FILE_READERS = new Set(['cat', 'head', 'tail', 'wc', 'ls', 'less', 'more', 'grep', 'rg', 'diff', 'stat', 'file', 'echo', 'rm'])
 const SCRIPT_RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'source', '.'])
 const OUTPUT_REDIRECT = /\d*>>?[|&]?\s*(?:"([^"]*)"|'([^']*)'|([^\s;&|<>()]+))/g
@@ -270,9 +272,12 @@ function runsWhatItWrote(step, n, commands, text) {
   const files = writtenFiles(step, text)
   return commands.slice(n + 1).some(later => {
     const name = programName(later.argv[0] ?? '')
-    if (!later.argv.length || (FILE_READERS.has(name) && !later.dynamic.includes(0))) return false
+    if (!later.argv.length) return false
+    // A substitution always marks its word dynamic in this lexer, so `dynamic` covers it; the pipe is the case only it sees.
+    const plain = later.pipeTo === null && !later.dynamic.length && !later.code.some(Boolean)
+    if (FILE_READERS.has(name)) return !plain
     return later.dynamic.length > 0 || later.argv[0].includes('/') || later.argv[0].endsWith('.sh')
-      || (SCRIPT_RUNNERS.has(name) && later.argv.length > 1) || later.argv.some(word => files.has(sameFile(word)))
+      || SCRIPT_RUNNERS.has(name) || later.argv.some(word => files.has(sameFile(word)))
   })
 }
 function readsItsBodyAsData(step, n, commands, text) {

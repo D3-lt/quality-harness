@@ -1603,6 +1603,11 @@ const SINK_BODIES_THAT_STAY_MENTIONS = [
   "cat > r.sh <<'EOF'; ./r.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; mv r.sh q.sh; sh q.sh\ngit push\nEOF", "cat > r.sh <<'EOF'; sh $F\ngit push\nEOF",
   "mrw write <<'EOF'; sh plan.sh\ngit push\nEOF", "cat > r.sh <<'EOF'\ngit push\nEOF\nsh r.sh",
   "cat > job <<'EOF'; env ./job\ngit push\nEOF", "mrw write <<'EOF'; ./plan\ngit push\nEOF", "mrw write <<'EOF'; plan.sh\ngit push\nEOF", "mrw write <<'EOF'; $RUN\ngit push\nEOF",
+  // The Codex review of v3.8.42..2c747201: a reader is data only when plain, and a shell with no operand reads its stdin.
+  "cat > r.sh <<'EOF'; cat r.sh | sh\ngit push\nEOF", "cat > r.sh <<'EOF'; echo $(sh r.sh)\ngit push\nEOF",
+  "cat > r.sh <<'EOF'; cat <(sh r.sh)\ngit push\nEOF", "cat > r.sh <<'EOF'; sh < r.sh\ngit push\nEOF",
+  // A pipe from a plain reader into something that runs its input, with no shell word to catch: run under bash, zsh and sh.
+  "cat > r.sh <<'EOF'; cat r.sh | xargs -0 sh -c\ngit push\nEOF",
   // The words outside the body count, whatever the body holds.
   "cat <<'EOF'\nx\nEOF\ngit push", "echo push; cat <<'EOF'\nx\nEOF", "cat <<'EOF' # push\nx\nEOF",
 ]

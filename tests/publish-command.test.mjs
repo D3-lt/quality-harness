@@ -1614,6 +1614,8 @@ const SINK_BODIES_THAT_STAY_MENTIONS = [
   "cat > r.sh <<'EOF'; xargs -0 sh -c < r.sh\ngit push\nEOF",
   // A pipe into a program that runs its input with no shell word at all: only the reader's pipe shows it (run in three shells).
   "cat > r.sh <<'EOF'; cat r.sh | python3 -c 'import os,sys; os.system(sys.stdin.read())'\ngit push\nEOF",
+  // Its verification: a later command with no word at all still runs a substitution (`x=$(sh r.sh)`, `> "$(sh r.sh)"`).
+  "cat > r.sh <<'EOF'; x=$(sh r.sh)\ngit push\nEOF", "cat > r.sh <<'EOF'; > \"$(sh r.sh)\"\ngit push\nEOF",
   // The words outside the body count, whatever the body holds.
   "cat <<'EOF'\nx\nEOF\ngit push", "echo push; cat <<'EOF'\nx\nEOF", "cat <<'EOF' # push\nx\nEOF",
 ]

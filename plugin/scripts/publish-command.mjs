@@ -273,7 +273,8 @@ function runsWhatItWrote(step, n, commands, text) {
   const files = writtenFiles(step, text)
   return commands.slice(n + 1).some(later => {
     const name = programName(later.argv[0] ?? '')
-    if (!later.argv.length) return false
+    // A command with no word can still run a substitution: an assignment (`x=$(sh r.sh)`) or a redirect alone (its verification).
+    if (!later.argv.length) return later.substitutions.length > 0
     // Plain means no pipe, no substitution, no dynamic word and no code. A substitution is not always a dynamic word: one used
     // as a redirect target keeps no word at all (`> "$(sh r.sh)"`, its scoped review), so both are read.
     const plain = later.pipeTo === null && !later.substitutions.length && !later.dynamic.length && !later.code.some(Boolean)

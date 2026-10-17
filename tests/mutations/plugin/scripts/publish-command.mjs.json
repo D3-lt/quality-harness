@@ -1726,6 +1726,14 @@
       "from": "return later.dynamic.length > 0 || ",
       "to": "return ",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later, its verification: a later command with no word can still run a substitution",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "    if (!later.argv.length) return later.substitutions.length > 0",
+      "to": "    if (!later.argv.length) return false",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     }
   ]
 }

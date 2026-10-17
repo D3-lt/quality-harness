@@ -940,7 +940,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "column=\"status\", reopen=True)",
+      "from": "column=\"status\", readme=True)",
       "to": "column=\"status\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
@@ -3347,15 +3347,15 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: inside a table a line with no pipe is a one-cell row",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if found is None or reopen:\n            if found is None and not _UNESCAPED_PIPE.search(stripped):",
-      "to": "        if found is None or reopen or not _UNESCAPED_PIPE.search(stripped):\n            if not _UNESCAPED_PIPE.search(stripped):",
+      "from": "        if found is None or readme:\n            if found is None and not _UNESCAPED_PIPE.search(stripped):",
+      "to": "        if found is None or readme or not _UNESCAPED_PIPE.search(stripped):\n            if not _UNESCAPED_PIPE.search(stripped):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
       "label": "adr-lint, Codex review of the 3.8.40 plan: a delimiter opens a table only with its header's cell count",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(header):",
+      "from": "            if _DELIMITER_ROW.match(following) and (readme or len(gfm_table_cells(following)) == len(header)):",
       "to": "            if _DELIMITER_ROW.match(following):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
@@ -3451,8 +3451,8 @@
       "label": "adr-lint, BACKLOG §381: a README status word needs no leading pipe to be named",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "            for line, status_column in gfm_table_rows(readme_text.splitlines(), column=\"status\", reopen=True)",
-      "to": "            for line, status_column in gfm_table_rows([ln for ln in readme_text.splitlines() if ln.strip().startswith(\"|\")], column=\"status\", reopen=True)",
+      "from": "            for line, status_column in gfm_table_rows(readme_text.splitlines(), column=\"status\", readme=True)",
+      "to": "            for line, status_column in gfm_table_rows([ln for ln in readme_text.splitlines() if ln.strip().startswith(\"|\")], column=\"status\", readme=True)",
       "only": "^a README row without its leading pipe is still a done claim the evidence check reads$"
     },
     {
@@ -3460,8 +3460,24 @@
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
       "from": "gfm_table_rows(secs.get(\"Affected Files\", []))",
-      "to": "gfm_table_rows(secs.get(\"Affected Files\", []), reopen=True)",
+      "to": "gfm_table_rows(secs.get(\"Affected Files\", []), readme=True)",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of b37e3815: a README status table opens under a delimiter of any cell count",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if _DELIMITER_ROW.match(following) and (readme or len(gfm_table_cells(following)) == len(header)):",
+      "to": "            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(header):",
+      "only": "^a README status table keeps its advice under a miscounted delimiter, and its header is no status row$"
+    },
+    {
+      "label": "adr-lint, Codex review of b37e3815: a README header is no status row",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "                if readme:\n                    delimiter = True\n                    continue",
+      "to": "                pass",
+      "only": "^a README status table keeps its advice under a miscounted delimiter, and its header is no status row$"
     }
   ]
 }

@@ -1921,6 +1921,23 @@ test('a README row without its leading pipe is still a done claim the evidence c
     'an unknown status without its leading pipe is still named')
 })
 
+// The Codex review of b37e3815: reading README tables as GFM does lost two things the status check had. A delimiter
+// whose cell count is not its header's is no GFM table, and the status word under it went unnamed; and a header row
+// was read as a body row, so a header naming a task id said that task "has status `status`".
+test('a README status table keeps its advice under a miscounted delimiter, and its header is no status row', () => {
+  const { repo, adr, tasks } = agedCorpus('quality-harness-readme-status-table-', null)
+  const readme = join(tasks, 'README.md')
+  const original = readFileSync(readme, 'utf8')
+  const withTable = table => { writeFileSync(readme, `${original}\n${table}\n`); return run('adr-lint', [adr, tasks], repo) }
+  assert.match(withTable('| Task | Status |\n|---|---|\n| T1 | wip |').stdout, /README\.md: T1 has status `wip`, which this reader does not act on/,
+    'the control: a status word in a well-formed table is named')
+  assert.match(withTable('| Task | Status |\n|---|---|---|\n| T1 | wip |').stdout, /README\.md: T1 has status `wip`, which this reader does not act on/,
+    'a delimiter with one cell too many still opens the status table')
+  const header = withTable('| Item | Status | T1 |\n|---|---|---|\n| x | wip | T1 |').stdout
+  assert.doesNotMatch(header, /T1 has status `status`/, 'a header naming a task id is not that task\'s status row')
+  assert.match(header, /README\.md: T1 has status `wip`, which this reader does not act on/, 'the body row under it is read with its own Status column')
+})
+
 // A task path that would break a default Windows clone is advised at authoring
 // time (BACKLOG §231): MAX_PATH is 260, Git for Windows does not set
 // core.longpaths, and retiring a record adds eight characters (`docs/adr` →

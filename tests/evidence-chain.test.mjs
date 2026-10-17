@@ -3494,7 +3494,7 @@ print(json.dumps({"dead": state(dead.pid), "live": state(os.getppid()), "dead_pi
   assert.match(got.live_says, /pid 4242/, 'a live owner refuses even --restore')
 })
 
-// ADR-107 T3 (the mrw way): several tasks in one call, a plan of independent runs.
+// ADR-107 (the mrw way): several tasks in one call, a plan of independent runs.
 // Both tasks get their own fence so a row says which one ran; T2 is a copy of the
 // fixture's task, not a second shape the gate has never read.
 function twoTasks(fenceOne, fenceTwo) {

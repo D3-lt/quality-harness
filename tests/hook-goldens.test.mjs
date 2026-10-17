@@ -4,10 +4,10 @@
 // shells say different words for the same state, and its coverage is the rest of the suite until a Windows run of
 // these is asked for. QH_GOLDEN_UPDATE=1 rewrites them; read the diff before committing it.
 import assert from 'node:assert/strict'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
-import { expectGolden, fixtureRepo, ledgers, normaliser, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
+import { exercised, expectGolden, fixtureRepo, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
 
 const skip = process.platform === 'win32' && 'transcripts are recorded on POSIX (BACKLOG section 375)'
 const CONFIG = '{"check":"sh check.sh","fastCheck":"sh check.sh"}\n'
@@ -192,4 +192,68 @@ test('artifacts: a record written badly and a record written well are gated at t
   writeFileSync(good, '# ADR-002: good\n\n**Status:** Proposed\n\n## Context\n\nx\n')
   steps.push(...play(box, repo, session, [['write a fuller record', wrote(good)], ['turn end, two records', { hook_event_name: 'Stop', last_assistant_message: 'Wrote another.' }], ['a prompt', { hook_event_name: 'UserPromptSubmit', prompt: 'next' }]]))
   expectGolden(assert, 'artifacts', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
+})
+
+// ADR-110 T1: the tools the matchers name and no scenario above sent. Each is its own path through the hook: a notebook is named by
+// `notebook_path`, not `file_path`, and PowerShell goes through the publish lexer as Bash does.
+test('edits by every tool the matchers name: before and after Write, Edit, MultiEdit, NotebookEdit and a PowerShell command', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'tools', { ...BASE, 'nb.ipynb': '{"cells":[]}\n' })
+  const session = 'tools-1'
+  const file = path.join(repo, 'src', 'a.js')
+  const notebook = path.join(repo, 'nb.ipynb')
+  const fresh = path.join(repo, 'src', 'new.js')
+  const pre = (tool, input) => ({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: input })
+  const post = (tool, input) => ({ hook_event_name: 'PostToolUse', tool_name: tool, tool_input: input, tool_response: { success: true } })
+  const steps = play(box, repo, session, [
+    ['start', { hook_event_name: 'SessionStart', source: 'startup' }],
+    ['before a Write', pre('Write', { file_path: fresh, content: 'export const n = 1\n' })],
+  ])
+  writeFileSync(fresh, 'export const n = 1\n')
+  steps.push(...play(box, repo, session, [['before an Edit', pre('Edit', { file_path: file, old_string: '1', new_string: '2' })]]))
+  writeFileSync(file, 'export const a = 2\n')
+  steps.push(...play(box, repo, session, [
+    ['after an Edit', post('Edit', { file_path: file, old_string: '1', new_string: '2' })],
+    ['before a MultiEdit', pre('MultiEdit', { file_path: file, edits: [{ old_string: '2', new_string: '3' }] })],
+  ]))
+  writeFileSync(file, 'export const a = 3\n')
+  steps.push(...play(box, repo, session, [
+    ['after a MultiEdit', post('MultiEdit', { file_path: file, edits: [{ old_string: '2', new_string: '3' }] })],
+    ['before a NotebookEdit', pre('NotebookEdit', { notebook_path: notebook, new_source: 'x' })],
+  ]))
+  writeFileSync(notebook, '{"cells":[{"source":"x"}]}\n')
+  steps.push(...play(box, repo, session, [
+    ['after a NotebookEdit', post('NotebookEdit', { notebook_path: notebook, new_source: 'x' })],
+    ['a PowerShell listing', pre('PowerShell', { command: 'Get-ChildItem' })],
+    ['a PowerShell commit', pre('PowerShell', { command: 'git commit -m x' })],
+    ['turn end', { hook_event_name: 'Stop', last_assistant_message: 'Edited the files.' }],
+  ]))
+  expectGolden(assert, 'tools', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
+})
+
+// Which registered hook (event, and each tool its matcher names) no payload in `sent` reaches.
+function uncoveredHooks(hooksJson, sent) {
+  const missing = []
+  for (const [event, groups] of Object.entries(hooksJson.hooks ?? {})) {
+    for (const group of groups) {
+      const tools = typeof group.matcher === 'string' && group.matcher ? group.matcher.split('|') : [null]
+      for (const tool of tools) {
+        const name = tool === null ? event : `${event}:${tool}`
+        if (!sent.has(name)) missing.push(name)
+      }
+    }
+  }
+  return missing
+}
+
+// Declared last on purpose: node:test runs one file's tests in order, so this reads what every scenario above sent. Run alone
+// (a name filter), it sees nothing sent and is red, which is the honest answer to "did the goldens reach every hook".
+test('every registered hook event has a golden', { skip }, () => {
+  const hooks = JSON.parse(readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8'))
+  assert.deepEqual(uncoveredHooks(hooks, exercised), [], 'a registered hook that no golden scenario sends')
+  // The dirty twin: an event no scenario sends, in a copy of the registry, is named.
+  const extra = structuredClone(hooks)
+  extra.hooks.NoScenarioSendsThis = [{ hooks: [{ type: 'command', command: 'node' }] }]
+  extra.hooks.PostToolUse = [...extra.hooks.PostToolUse, { matcher: 'NoSuchTool', hooks: [] }]
+  assert.deepEqual(uncoveredHooks(extra, exercised), ['PostToolUse:NoSuchTool', 'NoScenarioSendsThis'])
 })

@@ -64,7 +64,14 @@ export function fixtureRepo(box, name, files) {
 
 const parse = text => { try { return JSON.parse(text) } catch { return text } }
 
+// Every event and tool a scenario sent, as `Event` and `Event:Tool`, so a test can ask which registered hook no scenario reaches.
+export const exercised = new Set()
+
 export function runHook(box, repo, session, payload, extraEnv = {}) {
+  if (typeof payload.hook_event_name === 'string') {
+    exercised.add(payload.hook_event_name)
+    if (typeof payload.tool_name === 'string') exercised.add(`${payload.hook_event_name}:${payload.tool_name}`)
+  }
   const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'lifecycle.mjs')], {
     cwd: repo, input: JSON.stringify({ cwd: repo, session_id: session, ...payload }), encoding: 'utf8',
     timeout: 120_000, windowsHide: true, env: environment(box, extraEnv),

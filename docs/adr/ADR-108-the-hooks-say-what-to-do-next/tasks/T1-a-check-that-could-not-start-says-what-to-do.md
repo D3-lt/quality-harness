@@ -52,6 +52,7 @@ out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \
 | 4 — it is used | the test drives the real hook |
 
 ## Mutation Log
+- 2026-10-17 · e5d4769e* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · the could-not-start finding no longer says not to run the check again · acceptance-sha256:963c185927a37ac2bd82a95884047494738350e9d0870edb8404fb168dd1dcb7
 
 ## Invariants
 
@@ -71,3 +72,12 @@ Stop and ask if `lastCheck.verdict` is not available where `uncheckedWorkReason`
 - A check that ran and failed (permanent: boundary: a failure is a finding about the work, and ADR-060 re-opens R1 on it by design)
 
 ## Verification Log
+- 2026-10-17 · e5d4769e* · exit 1 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:963c185927a37ac2bd82a95884047494738350e9d0870edb8404fb168dd1dcb7 · ms:1377 · test-lock-sha256:9070d623b714f0dc57c35659e0372b695f4df2a9c36152eaf91a78b9b73164a3 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLTEwOC50ZXN0Lm1qcwlhIGNoZWNrIHRoYXQgY291bGQgbm90IHN0YXJ0IGlzIHJlcG9ydGVkIG9uY2UgYXMgZXZpZGVuY2UtbGltaXRlZCwgbm90IHJ1biBhZ2FpbgkxNjZiMGM5Y2FhNTU2ZWY4MThhYjNmYWFhYWQ2ZjA0NGJlNTRhNmFjMDQwZDQyZjIyNGM1NGNlNWUyMDAzMzlj
+  ```
+  ```
+- 2026-10-17 · e5d4769e* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:963c185927a37ac2bd82a95884047494738350e9d0870edb8404fb168dd1dcb7 · ms:2624
+- 2026-10-17 · e5d4769e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:963c185927a37ac2bd82a95884047494738350e9d0870edb8404fb168dd1dcb7 · ms:0 · test-lock-sha256:7947e7d98641bccc4c08bed801781aeff8ecc4539acd92157a6e483560b934d2 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLTEwOC50ZXN0Lm1qcwlhIGNoZWNrIHRoYXQgY291bGQgbm90IHN0YXJ0IGlzIHJlcG9ydGVkIG9uY2UgYXMgZXZpZGVuY2UtbGltaXRlZCwgbm90IHJ1biBhZ2FpbgllZjdmZTQ1Y2QxMmFmYWVmMDUxYjMyNjEyODdhMjUxNmVjNGQ1M2IwZTFmMzhkNjhkNGIyNDc4ODE0NzVkYzk3 · test-lock-kind:replace
+- 2026-10-17 · e5d4769e* · exit 1 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:963c185927a37ac2bd82a95884047494738350e9d0870edb8404fb168dd1dcb7 · ms:979
+  ```
+  ```
+- 2026-10-17 · e5d4769e* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:963c185927a37ac2bd82a95884047494738350e9d0870edb8404fb168dd1dcb7 · ms:2529

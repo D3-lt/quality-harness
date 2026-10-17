@@ -478,7 +478,7 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
+function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false, checkEvent = null } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
@@ -504,12 +504,27 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
     : orderUnknown
       ? 'which check ran last on this turn\'s work could not be established, so it is not known to be checked.'
       : couldNotLook
-        ? 'the latest `qh-check` on this turn\'s work could not observe it (it timed out, did not start, or its observation failed), so it is not known to be checked.'
+        ? couldNotStartOpening(checkEvent)
       : paths.length || !held
         ? 'this turn ends with work no `qh-check` has passed on.'
         : 'this turn ends on an unchecked tree.'
+  // ADR-108 T1: a check that could not start is reported, not asked for again, so the sentence that asks for `qh-check` is not said.
   return `quality-harness: ${opening} ${listed}`
-    + `${unseenPathNote(outside)} ${sentence}`
+    + `${unseenPathNote(outside)}${couldNotLook && COULD_NOT_START[checkEvent] ? '' : ` ${sentence}`}`
+}
+
+// ADR-108 T1: what the Stop finding says when the latest check on the work could not observe it. Naming the verdict it
+// read and what to do instead of running it again is what mrw's refusals do; an event it does not know keeps the older words.
+const COULD_NOT_START = {
+  'check.unstarted': ['did not start', 'unstarted'],
+  'check.timeout': ['timed out', 'timeout'],
+  'check.unproven': ['could not be proven to have run', 'unproven'],
+}
+function couldNotStartOpening(checkEvent) {
+  const named = COULD_NOT_START[checkEvent]
+  if (!named) return 'the latest `qh-check` on this turn\'s work could not observe it (it timed out, did not start, or its observation failed), so it is not known to be checked.'
+  return `the latest \`qh-check\` on this turn's work could not observe it: it ${named[0]} (${named[1]}), so it is not known to be checked. Report it as EVIDENCE-LIMITED: <what it printed> in your final message and do not run it again on this tree; `
+    + 'if it cannot start on an unmodified tree the finding is about this machine, and declaring the real command as check in .quality-harness.json is the fix.'
 }
 
 // ONE finding per boundary, however many commits it names. A fetch, a merge or a
@@ -681,7 +696,7 @@ export function completionJudgement(facts, input) {
     if (!emittedFor(log, 'R1', key, channel, recipient)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
+      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: observation?.ok === true ? latestCheckFor(log, observation.tree)?.event ?? null : null }) })
     }
   }
   const unchecked = commits.filter(commit => {

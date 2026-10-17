@@ -497,6 +497,46 @@
       "from": "  if (unchangedWrites.length && !emittedFor(log, 'W', `W:${observation.tree}`, channel, recipient)) {",
       "to": "  if (unchangedWrites.length) {",
       "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
+    },
+    {
+      "label": "adr-108 T1: a check that could not start is told not to run again",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "and do not run it again on this tree; ",
+      "to": "and run it again when ready; ",
+      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
+    },
+    {
+      "label": "adr-108 T1: the could-not-start finding names the verdict it read",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "it ${named[0]} (${named[1]}), so it",
+      "to": "it ${named[0]}, so it",
+      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
+    },
+    {
+      "label": "adr-108 T1: the could-not-start finding does not also ask for the check",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "${couldNotLook && COULD_NOT_START[checkEvent] ? '' :",
+      "to": "${false ? '' :",
+      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
+    },
+    {
+      "label": "adr-108 T1: the verdict reaches the finding from the ledger",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "checkEvent: observation?.ok === true ? latestCheckFor",
+      "to": "checkEvent: false ? latestCheckFor",
+      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
     }
   ]
 }

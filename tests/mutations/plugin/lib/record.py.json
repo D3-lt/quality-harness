@@ -2682,6 +2682,110 @@
       "tests": ["tests/git-optional-locks.test.mjs"],
       "from": "    return {**os.environ, \"GIT_OPTIONAL_LOCKS\": \"0\"}",
       "to": "    return {**os.environ}"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: an Affected Files row needs no leading pipe",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if found is None and not _UNESCAPED_PIPE.search(stripped):",
+      "to": "            if found is None and not stripped.startswith(\"|\"):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: inside a table a line with no pipe is a one-cell row",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if found is None or readme:\n            if found is None and not _UNESCAPED_PIPE.search(stripped):",
+      "to": "        if found is None or readme or not _UNESCAPED_PIPE.search(stripped):\n            if not _UNESCAPED_PIPE.search(stripped):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a delimiter opens a table only with its header's cell count",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if _DELIMITER_ROW.match(following) and (readme or len(gfm_table_cells(following)) == len(header)):",
+      "to": "            if _DELIMITER_ROW.match(following):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a blank line ends a table",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if found is not None and (_BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: another block ends a table",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if found is not None and (not stripped or _HTML_BLOCK_START.match(stripped)):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of v3.8.39..1d991b64: an HTML block ends a table",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if found is not None and (not stripped or _BLOCK_START.match(stripped)):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of b37e3815: a README status table opens under a delimiter of any cell count",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if _DELIMITER_ROW.match(following) and (readme or len(gfm_table_cells(following)) == len(header)):",
+      "to": "            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(header):",
+      "only": "^a README status table keeps its advice under a miscounted delimiter, and its header is no status row$"
+    },
+    {
+      "label": "adr-lint, Codex review of b37e3815: a README header is no status row",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "                if readme:\n                    delimiter = True\n                    continue",
+      "to": "                pass",
+      "only": "^a README status table keeps its advice under a miscounted delimiter, and its header is no status row$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a trailing pipe adds no cell",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    if len(cells) > 1 and stripped.endswith(\"|\") and not stripped.endswith(\"\\\\|\"):",
+      "to": "    if False:",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a leading pipe adds no cell",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    if stripped.startswith(\"|\"):\n        cells.pop(0)\n    if len(cells) > 1",
+      "to": "    if len(cells) > 1",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex verification of c54110cb: only an HTML block that can interrupt a table ends one",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    r\"^<(?:(?:script|pre|style|textarea)",
+      "to": "    r\"^<(?:[A-Za-z!?/]|(?:script|pre|style|textarea)",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Claude review of b78a75dc: the HTML block start folds case as JavaScript does",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "track|ul)(?:[ \\t]|/?>|$))\", re.I | re.A)",
+      "to": "track|ul)(?:[ \\t]|/?>|$))\", re.I)",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Claude review of 54fd1e8e: only a space or a tab after a block tag name opens an HTML block",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "track|ul)(?:[ \\t]|/?>|$))\", re.I | re.A)",
+      "to": "track|ul)(?:\\s|/?>|$))\", re.I)",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     }
   ]
 }

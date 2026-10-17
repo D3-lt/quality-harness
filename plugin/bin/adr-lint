@@ -128,6 +128,7 @@ from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E
 from record import git_read_env  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
+from record import gfm_table_cells, gfm_table_rows  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
@@ -541,71 +542,6 @@ def markdown_table_cells(line, *, backslash_parity=False):
     if cells and cells[-1] == "":
         cells.pop()
     return cells
-
-
-_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
-_DELIMITER_ROW = re.compile(r"^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$")
-# What begins another block, and so ends a table: a block quote, a list item, a thematic break, or an HTML block of a
-# kind that can interrupt one (GFM HTML block types 1 to 6), as decision-corpus's BLOCK_START and HTML_BLOCK_START.
-# An autolink or inline HTML is a row of the table (the Codex verification of c54110cb).
-_BLOCK_START = re.compile(r"^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)")
-_HTML_BLOCK_START = re.compile(
-    r"^<(?:(?:script|pre|style|textarea)(?:[ \t]|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|/?(?:address|article|aside|base|basefont|"
-    r"blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|"
-    r"form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|"
-    r"option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t]|/?>|$))", re.I | re.A)
-
-
-def gfm_table_cells(line):
-    r"""Cells of one GFM table row: the leading and trailing pipes optional, an escaped `\|` kept in its cell."""
-    stripped = line.strip()
-    cells = [cell.strip() for cell in _UNESCAPED_PIPE.split(stripped)]
-    if stripped.startswith("|"):
-        cells.pop(0)
-    if len(cells) > 1 and stripped.endswith("|") and not stripped.endswith("\\|"):
-        cells.pop()
-    return cells
-
-
-def gfm_table_rows(lines, column="change", readme=False):
-    """The table rows of `lines` as GFM reads a table, as decision-corpus's `affectedFiles` reads one, each with the
-    index of its table's header cell named `column` (Change by default), -1 under a header that names none, None
-    outside a table.
-
-    A table is a header, the delimiter under it with as many cells, and body rows to a blank line or another block.
-    No row needs a leading pipe, and inside a table a line with no pipe is a one-cell row (GFM example 202). Outside
-    one, a line with a pipe is kept, as every `|` line was. Requiring the leading pipe dropped a second `add` of one
-    file from the collision check (the Codex review of the 3.8.40 plan), and a README `done` row from the evidence
-    check (BACKLOG §381).
-
-    `readme` reads a table as the README status check always has. A header and its delimiter open one wherever they
-    sit, where GFM keeps them as rows inside a body: two status and wave tables written with no blank line between
-    them are two tables to their author, and reading the second with the first's Status column advised on `T3, T5,
-    T6` (BACKLOG §75). The delimiter's cell count need not be the header's, since a status word under a miscounted
-    delimiter was still named before. And neither line is returned as a row, since a header naming a task id is not
-    that task's status (the Codex review of b37e3815). Affected Files reads neither way: a body row could then
-    redirect its Change column and drop a path.
-    """
-    rows, found, delimiter = [], None, False
-    for index, line in enumerate(lines):
-        if delimiter:
-            delimiter = False
-            continue
-        stripped = line.strip()
-        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):
-            found = None
-        if found is None or readme:
-            if found is None and not _UNESCAPED_PIPE.search(stripped):
-                continue
-            header = gfm_table_cells(stripped)
-            following = lines[index + 1].strip() if index + 1 < len(lines) else ""
-            if _DELIMITER_ROW.match(following) and (readme or len(gfm_table_cells(following)) == len(header)):
-                found = next((at for at, cell in enumerate(header) if cell.lower() == column), -1)
-                if readme:
-                    delimiter = True
-                    continue
-        rows.append((line, found))
-    return rows
 
 
 def markdown_fence_state(line, active):

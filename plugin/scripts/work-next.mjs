@@ -23,7 +23,7 @@ import { isMainModule } from './main-module.mjs'
 import { listedUnderUninterestingDirectory } from './lifecycle.mjs'
 import { danglingCorpusLinks } from './session-orientation.mjs'
 import { spawnGate } from './ready-lines.mjs'
-import { adrCorpus, aliasReason, corpusEligible, frozenArchiveOf, onceByRealPath, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
+import { adrCorpus, aliasReason, corpusEligible, frozenArchiveOf, gfmTableRows, onceByRealPath, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
 import { pathInCode, terminalText, visiblePath } from './corpus-text.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
@@ -421,10 +421,12 @@ export function specStatus(text) {
   return SPEC_STATUS.test(values[0]) ? values[0] : null
 }
 
+// A fact row as a Markdown table writes it, its leading pipe optional (`F-2 | b | t | @spec` is a row in GFM, and it
+// was no fact here, so a spec with an uncovered one looked covered: BACKLOG §381).
 function specBoundIds(text) {
   const ids = new Set()
   for (const line of text.split('\n')) {
-    const fact = line.match(/^\|\s*(F-\d+)\s*\|/)
+    const fact = line.match(/^\|?\s*(F-\d+)\s*\|/)
     if (fact) ids.add(fact[1])
     const scen = line.match(/^### (UC\d+-S\d+)\b/)
     if (scen) ids.add(scen[1])
@@ -521,10 +523,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     const dir = path.dirname(path.resolve(file))
     if (!readmeDone.has(dir)) {
       const ids = new Set()
-      for (const raw of read(path.join(dir, 'README.md')).split('\n')) {
-        const line = raw.trim()
-        if (!line.startsWith('|')) continue
-        const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim())
+      for (const { cells } of gfmTableRows(read(path.join(dir, 'README.md')).split('\n'))) {
         const index = cells.findIndex(cell => /^\[?T\d+\b/i.test(cell))
         if (index < 0) continue
         if (cells.slice(index + 1).some(cell => cell.toLowerCase() === 'done')) ids.add(cells[index].match(/T\d+/i)[0].toUpperCase())

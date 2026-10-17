@@ -995,6 +995,30 @@
       "from": "[path.resolve(path.dirname(record.file), value), path.resolve(root, value)].find(",
       "to": "[path.resolve(root, value), path.resolve(path.dirname(record.file), value)].find(",
       "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
+    },
+    {
+      "label": "§381 work-next: a spec fact row needs no leading pipe",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-pipeless-rows.test.mjs"],
+      "from": "line.match(/^\\|?\\s*(F-\\d+)\\s*\\|/)",
+      "to": "line.match(/^\\|\\s*(F-\\d+)\\s*\\|/)",
+      "only": "^a spec fact row with no leading pipe is bound: an uncovered one routes the spec to adr-write, as its piped twin does$"
+    },
+    {
+      "label": "§381 work-next: a README done row needs no leading pipe",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-pipeless-rows.test.mjs"],
+      "from": "gfmTableRows(read(path.join(dir, 'README.md')).split('\\n'))",
+      "to": "gfmTableRows(read(path.join(dir, 'README.md')).split('\\n').filter(row => row.trim().startsWith('|')))",
+      "only": "^a README done row with no leading pipe is an unbacked claim, routed to adr-verify like its piped twin$"
+    },
+    {
+      "label": "§381 work-next: a README done claim is the claim adr-lint reads, pipe-less rows outside a table too",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-pipeless-rows.test.mjs"],
+      "from": "gfmTableRows(read(path.join(dir, 'README.md')).split('\\n'))",
+      "to": "gfmTableRows(read(path.join(dir, 'README.md')).split('\\n')).filter(row => row.width !== null)",
+      "only": "^work-next reads the same README done claims as adr-lint, pipe-less rows included$"
     }
   ]
 }

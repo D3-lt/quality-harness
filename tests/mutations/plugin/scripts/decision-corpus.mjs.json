@@ -1618,8 +1618,8 @@
       "label": "§381 item 14 verification: a row whose cell count is not its header's keeps its path",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "      if (cells.length === table.cells) change = table.change",
-      "to": "      if (cells.length > table.change) change = table.change",
+      "from": "    const change = width !== null && cells.length === width ? column : -1",
+      "to": "    const change = width !== null && cells.length > column ? column : -1",
       "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
     },
     {
@@ -1642,8 +1642,8 @@
       "label": "Codex review of the 3.8.40 plan: only the delimiter under a header opens a table",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (table) {",
-      "to": "    if (table && !SEPARATOR_ROW.test((lines[i + 1] ?? '').trim())) {",
+      "from": "    if (!table) {\n      const next = (lines[i + 1] ?? '').trim()",
+      "to": "    if (!table || SEPARATOR_ROW.test((lines[i + 1] ?? '').trim())) {\n      const next = (lines[i + 1] ?? '').trim()",
       "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
     },
     {
@@ -1781,6 +1781,14 @@
       "from": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1(?:\\s*\\([^()]*\\))*$/",
       "to": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1.*$/",
       "only": "^a backticked name without an extension keeps its path beside an annotation or emphasis, and only those$"
+    },
+    {
+      "label": "§381 gfmTableRows: a line with a pipe outside a table is a row, pipe-less or not",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/work-next-pipeless-rows.test.mjs"],
+      "from": "    if (!table && !UNESCAPED_PIPE.test(line)) continue",
+      "to": "    if (!table && !line.startsWith('|')) continue",
+      "only": "^work-next reads the same README done claims as adr-lint, pipe-less rows included$"
     }
   ]
 }

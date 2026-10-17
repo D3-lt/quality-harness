@@ -950,27 +950,39 @@ function rowPath(first) {
 // (GFM example 202). A line shaped like a delimiter inside a body is data, so a body row cannot redirect the Change
 // column; a delimiter whose count is not its header's opens no table. A row that needed a leading pipe lost its path,
 // and so did a table with no edge pipes (BACKLOG §381; the Codex review of the 3.8.40 plan).
-function affectedFiles(text) {
-  const lines = markdownSection(text, 'Affected Files').split('\n')
-  const paths = []
+//
+// The rows of `lines` that are table rows, or lines with a pipe outside any table (kept, as every `|` line was), each
+// `{ cells, change, width }`: the row's cells, the index of its table's header cell named Change (-1 when that header
+// names none, and for a header row itself), and the table's cell count (null outside a table and for a header row). The
+// delimiter row is not returned. `done_task_ids` and `gfm_table_rows` in `plugin/bin/adr-lint` are this reader's Python
+// twin; work-next reads a README's done rows through it, so the router and the gate read one table rule.
+export function gfmTableRows(lines) {
+  const rows = []
   let table = null
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     if (table && (!line || BLOCK_START.test(line) || HTML_BLOCK_START.test(line))) table = null
     if (!table && !UNESCAPED_PIPE.test(line)) continue
     const cells = tableCells(line)
-    let change = -1
-    if (table) {
-      // A row with more or fewer cells than its header cannot say which cell is its Change, so it keeps its path (the
-      // verification of 271a698b).
-      if (cells.length === table.cells) change = table.change
-    } else {
+    if (!table) {
       const next = (lines[i + 1] ?? '').trim()
       if (SEPARATOR_ROW.test(next) && tableCells(next).length === cells.length) {
-        table = { cells: cells.length, change: cells.findIndex(header => /^change$/i.test(header)) }
+        table = { width: cells.length, change: cells.findIndex(header => /^change$/i.test(header)) }
         i++
+        rows.push({ cells, change: -1, width: null })
+        continue
       }
     }
+    rows.push({ cells, change: table?.change ?? -1, width: table?.width ?? null })
+  }
+  return rows
+}
+function affectedFiles(text) {
+  const paths = []
+  for (const { cells, change: column, width } of gfmTableRows(markdownSection(text, 'Affected Files').split('\n'))) {
+    // A row with more or fewer cells than its header cannot say which cell is its Change, so it keeps its path (the
+    // verification of 271a698b).
+    const change = width !== null && cells.length === width ? column : -1
     const path = rowPath(cells[0] ?? '')
     if (path === null) continue
     if (change >= 0 && READ_ONLY_CHANGE.test(cells[change].replace(/[*`_]/g, '').trim())) continue

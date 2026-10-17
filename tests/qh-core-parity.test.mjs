@@ -7,7 +7,7 @@
 // Skipped, with the reason, where `go` is not on PATH: there is no core to compare.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -16,7 +16,7 @@ import { mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
 import { commitOnlyCommand, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit } from '../plugin/scripts/publish-command.mjs'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
-import { fixtureRepo, normaliser, runHook, sandbox } from './hook-golden.mjs'
+import { fixtureRepo, ledgers, normaliser, runHook, sandbox } from './hook-golden.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const coreDir = path.resolve(here, '..', 'core')
@@ -167,5 +167,44 @@ test('what a session leaves outside the ledgers, and what the next one reads bac
   assert.ok(node.files.some(([name]) => name === 'data/sessions.jsonl') && node.files.some(([name]) => name === 'data/claims.jsonl'))
   assert.match(JSON.stringify(node.said), /What this session was doing before compaction/)
   assert.match(JSON.stringify(node.said), /The previous session in this directory ended/)
+  assert.deepEqual(go, node)
+})
+
+// ADR-110's amended Decision 4 (2026-10-17): the core detaches the artifact pass as the Node path does (ADR-080). The boundary
+// that starts it says nothing of what it finds, the pass gates behind it under its own lock and the machine lease (ADR-077),
+// and the next hook says the finding. Run with the default runner, never `inline`. A core that ran the pass inline would say
+// the finding at the turn end itself, so the two transcripts would differ there.
+const pause = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+
+function behindTheBoundary(box, implementation) {
+  const repo = fixtureRepo(box, 'repo', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  const detached = { QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: '' }
+  const hook = payload => runHook(box, repo, 'pass-1', payload, detached, implementation)
+  const said = [hook({ hook_event_name: 'SessionStart', source: 'startup' })]
+  mkdirSync(path.join(repo, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(repo, 'docs', 'adr', 'ADR-001-bad.md'), '# ADR-001: bad\n\nno status here\n')
+  said.push(hook({ hook_event_name: 'Stop', last_assistant_message: 'Wrote the record.' }))
+  // The pass is its own process now: wait, bounded, for its end in its ledger and for its lock to be gone.
+  const passes = path.join(repo, '.git', 'quality-harness', 'passes')
+  const ledger = path.join(passes, 'pass-1.jsonl')
+  const lock = path.join(passes, 'pass-1.lock')
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline && !(existsSync(ledger) && readFileSync(ledger, 'utf8').includes('"pass.ended"') && !existsSync(lock))) pause(100)
+  assert.ok(existsSync(ledger) && readFileSync(ledger, 'utf8').includes('"pass.ended"'), `${implementation.impl}: the pass left no end within the bound`)
+  said.push(hook({ hook_event_name: 'UserPromptSubmit', prompt: 'next' }))
+  return normaliser(box, [repo])({ said, ledgers: ledgers(repo) })
+}
+
+test('the artifact pass runs behind the boundary that starts it, and the next hook says what it found, from either implementation', { skip: noGo || posixOnly }, t => {
+  const bin = mkdtempSync(path.join(os.tmpdir(), 'qh-parity-bin-'))
+  t.after(() => rmSync(bin, { recursive: true, force: true }))
+  const qh = path.join(bin, 'qh')
+  const built = spawnSync('go', ['build', '-o', qh, './cmd/qh'], { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true })
+  assert.equal(built.status, 0, `go build failed: ${built.stderr}`)
+  const node = behindTheBoundary(sandbox(t), { impl: 'node' })
+  const go = behindTheBoundary(sandbox(t), { impl: 'go', bin: qh })
+  // What makes the comparison mean something: the turn end said no artifact finding, and the next prompt did.
+  assert.doesNotMatch(JSON.stringify(node.said[1]), /Artifact validation failed/)
+  assert.match(JSON.stringify(node.said[2]), /Artifact validation failed/)
   assert.deepEqual(go, node)
 })

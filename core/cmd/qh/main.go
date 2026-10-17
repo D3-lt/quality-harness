@@ -17,6 +17,9 @@ func main() {
 	switch {
 	case len(args) == 1 && (args[0] == "--version" || args[0] == "-v"):
 		fmt.Printf("qh version %s\n", version)
+	case len(args) == 3 && args[0] == "hook" && args[1] == "--artifact-pass":
+		// The detached artifact pass a hook started (ADR-080), reading the request it wrote.
+		os.Exit(hooks.RunArtifactPass(args[2]))
 	case len(args) == 2 && args[0] == "hook":
 		// The event is the payload's own hook_event_name, as lifecycle.mjs reads it; the argument names the registration.
 		os.Exit(hooks.Run(os.Stdin, os.Stdout, os.Stderr))

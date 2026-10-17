@@ -1,6 +1,7 @@
 // Rule A and the artifact pass (plugin/scripts/artifact-pass.mjs): the gates over everything this session changed, less what
-// a gate already answered for the same bytes. The pass writes its own ledger and the session log imports it. It runs here,
-// inline and bounded, never detached (ADR-110 Decision 4); the gates themselves stay JavaScript and shell, run by name.
+// a gate already answered for the same bytes. The pass writes its own ledger and the session log imports it. It runs behind
+// the boundary that asked for it, detached and under its lock's deadline, as ADR-080 and ADR-110's amended Decision 4 say; the
+// gates themselves stay JavaScript and shell, run by name.
 package hooks
 
 import (
@@ -554,7 +555,8 @@ func (h *hookRun) artifactRule(rec *recorded) {
 	h.startArtifactPass(targets, identities, bases)
 }
 
-// startArtifactPass claims the session's lock and runs the pass in this process, bounded by its budget.
+// startArtifactPass claims the session's lock, writes the pass's request, and starts the pass behind the boundary; a held lock
+// starts nothing, and a pass that cannot be started is said UNRUN. `QUALITY_HARNESS_ARTIFACT_PASS_RUNNER=inline` runs it here.
 func (h *hookRun) startArtifactPass(targets []string, identities map[string]any, bases []string) {
 	cwd, session := h.cwd, jsString(h.session)
 	unrun := func(why string) {
@@ -581,13 +583,106 @@ func (h *hookRun) startArtifactPass(targets []string, identities map[string]any,
 		unrun("its lock could not be made: " + c.err)
 		return
 	}
-	appendEvent(cwd, h.session, O("event", "artifact.pass", "token", c.token, "targets", float64(len(targets))))
-	runArtifactPass(cwd, ledger, lock, c.token, budget, c.deadline-passGraceMs, bases, targets, identities)
-	h.importPassVerdicts("", "")
+	request := filepath.Join(directory, strings.TrimSuffix(filepath.Base(lock), ".lock")+"."+c.token+".request.json")
+	release := func() {
+		releasePassLock(lock, c.token)
+		os.Remove(request)
+	}
+	// A request left by a pass that died before reading it would stay for ever.
+	if names, err := os.ReadDir(directory); err == nil {
+		for _, d := range names {
+			if !strings.HasSuffix(d.Name(), ".request.json") {
+				continue
+			}
+			file := filepath.Join(directory, d.Name())
+			if m, ok := mtimeMs(file); ok && nowMs()-m > passBudgetMs*2 {
+				os.Remove(file)
+			}
+		}
+	}
+	targetRows := []any{}
+	for _, file := range targets {
+		targetRows = append(targetRows, O("path", file, "blob", orNull(identities[file])))
+	}
+	body := O("session", h.session, "cwd", cwd, "ledger", ledger, "lock", lock, "token", c.token, "budgetMs", budget, "bases", bases,
+		"deadline", c.deadline-passGraceMs, "targets", targetRows)
+	if err := os.WriteFile(request, []byte(stringify(body)), 0o666); err != nil {
+		release()
+		unrun("its request could not be written: " + errCode(err, err.Error()))
+		return
+	}
+	setting := os.Getenv("QUALITY_HARNESS_ARTIFACT_PASS_RUNNER")
+	record := func() {
+		appendEvent(cwd, h.session, O("event", "artifact.pass", "token", c.token, "targets", float64(len(targets))))
+	}
+	if setting == "inline" {
+		record()
+		runArtifactPass(request)
+		h.importPassVerdicts("", "")
+		return
+	}
+	// ADR-080 under ADR-110's amended Decision 4: the pass runs behind the boundary, detached, under its lock's deadline. A
+	// runner named by the setting is a Node script, as it is for the Node path; otherwise this binary runs the pass.
+	var cmd *exec.Cmd
+	if setting != "" {
+		if !exists(setting) {
+			release()
+			unrun("its runner " + filepath.Base(setting) + " does not exist")
+			return
+		}
+		node, err := exec.LookPath("node")
+		if err != nil {
+			node = "node"
+		}
+		cmd = exec.Command(node, setting, "--artifact-pass", request)
+	} else {
+		self, err := os.Executable()
+		if err != nil {
+			release()
+			unrun(err.Error())
+			return
+		}
+		cmd = exec.Command(self, "hook", "--artifact-pass", request)
+	}
+	// The temp directory, not the session's: on Windows a live process's working directory cannot be deleted.
+	cmd.Dir = os.TempDir()
+	detach(cmd)
+	if err := cmd.Start(); err != nil {
+		release()
+		unrun(err.Error())
+		return
+	}
+	if cmd.Process == nil || cmd.Process.Pid <= 0 {
+		release()
+		unrun("the process did not start")
+		return
+	}
+	record()
+	cmd.Process.Release()
 }
 
-// runArtifactPass gates the targets a chunk at a time and appends each verdict with what its gate said as ONE ledger line.
-func runArtifactPass(cwd, ledger, lock, token string, budgetMs, deadline float64, bases, targets []string, blobs map[string]any) {
+// RunArtifactPass is `qh hook --artifact-pass <request>`: the pass itself. It gates the request's targets a chunk at a time and
+// appends each verdict with what its gate said to the pass ledger as ONE line, holds the machine lease while it gates
+// (ADR-077), and releases its own lock and no other. 2 is a request it could not read.
+func RunArtifactPass(requestFile string) int { return runArtifactPass(requestFile) }
+
+func runArtifactPass(requestFile string) int {
+	text, err := os.ReadFile(requestFile)
+	if err != nil {
+		return 2
+	}
+	request, err := parseJSON(string(text))
+	if err != nil {
+		return 2
+	}
+	os.Remove(requestFile)
+	ledger, ok1 := get(request, "ledger").(string)
+	lock, ok2 := get(request, "lock").(string)
+	token, ok3 := get(request, "token").(string)
+	cwd, ok4 := get(request, "cwd").(string)
+	if !ok1 || !ok2 || !ok3 || !ok4 {
+		return 2
+	}
 	write := func(entry *Obj) {
 		row := O("at", isoNow(), "pass", token)
 		for _, k := range entry.keys {
@@ -595,7 +690,33 @@ func runArtifactPass(cwd, ledger, lock, token string, budgetMs, deadline float64
 		}
 		appendLine(ledger, stringify(row)+"\n")
 	}
+	targets := []string{}
+	blobs := map[string]any{}
+	if rows, ok := get(request, "targets").([]any); ok {
+		for _, row := range rows {
+			if p, ok := get(row, "path").(string); ok {
+				targets = append(targets, p)
+				blobs[p] = orNull(get(row, "blob"))
+			}
+		}
+	}
+	budgetMs := float64(passBudgetMs)
+	if v, ok := numberOf(get(request, "budgetMs")); ok && v >= 0 {
+		budgetMs = v
+	}
+	deadline := nowMs() + budgetMs
+	if v, ok := numberOf(get(request, "deadline")); ok {
+		deadline = v
+	}
+	bases := []string{}
+	if list, ok := get(request, "bases").([]any); ok {
+		for _, b := range list {
+			bases = append(bases, jsString(b))
+		}
+	}
 	write(O("event", "pass.started", "pid", float64(os.Getpid()), "targets", targets))
+	// A lease that cannot be taken changes nothing about the pass.
+	held, _ := takeLease(leaseDir(), "quality-harness artifact pass", cwd, "running")
 	ledgerDirectory, err := os.MkdirTemp(os.TempDir(), "quality-harness-gates-")
 	if err != nil {
 		ledgerDirectory = ""
@@ -603,14 +724,38 @@ func runArtifactPass(cwd, ledger, lock, token string, budgetMs, deadline float64
 	reason := passTargets(targets, deadline, budgetMs, write, func(chunk []string, remaining float64, results *gateResults) string {
 		return runArtifactGates(chunk, cwd, remaining, bases, results, ledgerDirectory)
 	}, func(file string) (any, bool) {
-		before := orNull(blobs[file])
+		before := blobs[file]
 		return before, before != nil && strict(before, contentId(file))
 	})
 	if ledgerDirectory != "" {
 		os.RemoveAll(ledgerDirectory)
 	}
+	if held != nil {
+		releaseLease(held)
+	}
 	write(O("event", "pass.ended", "reason", reason))
 	releasePassLock(lock, token)
+	return 0
+}
+
+// numberOf is `Number(v)` when it is finite.
+func numberOf(v any) (float64, bool) {
+	var f float64
+	switch x := v.(type) {
+	case float64:
+		f = x
+	case string:
+		f = jsNumberOf(x)
+	case nil:
+		f = 0
+	case bool:
+		if x {
+			f = 1
+		}
+	default:
+		return 0, false
+	}
+	return f, !math.IsNaN(f) && !math.IsInf(f, 0)
 }
 
 func passTargets(paths []string, deadline, budgetMs float64, write func(*Obj), gate func([]string, float64, *gateResults) string, verdict func(string) (any, bool)) string {

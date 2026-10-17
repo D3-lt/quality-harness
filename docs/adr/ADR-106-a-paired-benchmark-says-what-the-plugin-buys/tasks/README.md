@@ -19,8 +19,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The paired scorer | pending | none — no spec | `node --test tests/eval-paired.test.mjs` (each named test passes once, nothing skipped) |
-| T2 | The pilot plans n | pending | none — no spec | human-observed: the pilot's sign-off line |
+| T1 | The paired scorer | done | none — no spec | `node --test tests/eval-paired.test.mjs` (each named test passes once, nothing skipped) |
+| T2 | The pilot checks the plumbing, and the pre-registrations are committed | pending | none — no spec | human-observed: the pilot's sign-off line |
 | T3 | The main run and its verdict | pending | none — no spec | human-observed: the main run's sign-off line |
 
 ## Contract Coupling
@@ -28,4 +28,4 @@ README must be regenerated.
 | Producer | Contract | Consumer(s) | Ordering note |
 |----------|----------|-------------|---------------|
 | T1 | the paired-rows format, the pre-registration's fields and the verdict words | T2, T3 | T1 before T2 |
-| T2 | `prereg-main.json` | T3 | T2 before T3 |
+| T2 | `prereg-main-claude-sonnet-5-5.json`, `prereg-main-claude-opus-5-5.json` | T3 | T2 before T3 |

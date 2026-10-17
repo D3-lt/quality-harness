@@ -209,6 +209,18 @@ hours) and changes Decisions 1, 2, 6 and 7 as follows. Every change is made befo
      with `--plan` as a check of the plumbing, never as a verdict.
    - **Decision 7's stop becomes a scoring condition:** an arm *without* whose false-completion incidence is below 10% is
      INCONCLUSIVE, with too few events to show a drop.
+5. **Decision 8, the exception is granted, narrowly.** A quality-harness session recommended it on 2026-10-17. Zy approved it
+   there ("Ok") and confirmed it in tool-multipathreadwrite the same day ("Yes, approved").
+   - **Committed:** one verdict file per model, `verdict-main-<model>.json`, beside its pre-registration. It holds the
+     instance counts, each arm's cells and rates, the paired counts, the permutation p, the bootstrap percentiles, the
+     verdict word and its reasons, the pre-registration's sha-256 and the scorer's blob sha. A reason may name one
+     SWE-bench instance id as its example; no list of instances is written.
+   - **Never committed here:** per-instance rows, transcripts and model output. They stay in tool-multipathreadwrite's bench
+     storage, where `bench export-paired` writes them.
+   - **The scorer holds the shape.** `--verdict-out <file>` writes only those keys. Handed any other key, the writer refuses,
+     writes nothing and exits 2 (T4, with a test that shows it refusing), so the exception cannot widen by accident.
+   - **Decision 9 follows:** `docs/BENCHMARKS.md` may quote each verdict with its configuration and date. The precedent is
+     BACKLOG §105, as Decision 8 notes.
 
 ## Alternatives Considered
 

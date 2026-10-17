@@ -1,0 +1,40 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "split": "test",
+  "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+  "selection_rule": "the 191 instance ids with the lowest sha256(\"adr-162:\" + instance_id) among those whose gold patch has at least 2 hunk headers, less the ids selected in bench/swe-bench/selection.json and bench/swe-bench/selection-adr-160.json (BACKLOG, Pre-registered for ADR-162; bench swebench-select)",
+  "selection_salt": "adr-162:",
+  "instance_count": 191,
+  "instance_list_sha256": "371a9dfd4b2784fcf3b3e6d6b77d950f89439c1ca08bbff1bb8f83869ce686a9",
+  "k": 1,
+  "model": "claude-opus-5-5",
+  "cli_version": "2.1.302 (Claude Code)",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "scaffold": {
+    "configs": [
+      "A",
+      "B",
+      "P"
+    ],
+    "pair": [
+      "A",
+      "P"
+    ],
+    "profile": "stage5",
+    "runner": "bench",
+    "stage": "stage5"
+  },
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
+  "max_turns": 60,
+  "budget_seconds": 1200,
+  "scorer_blob_sha": "d002e0b9cc677b68e1b3a9b47f648e8df2e323a9",
+  "alpha": 0.01,
+  "arms": {
+    "with": "P",
+    "without": "A"
+  },
+  "block_size": 40
+}

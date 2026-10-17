@@ -1,11 +1,11 @@
 # Task ADR-106-T3: The main run and its verdict
 
-**Depends-on:** T2
+**Depends-on:** T2, T4
 **Covers:** none — no spec
 **Estimated scope:** L (an external run and, if allowed, one documentation edit)
 **Owner:** Zy
 **Produces:** the verdict, recorded as ADR-106 Decision 8 allows
-**Consumes:** `prereg-main-claude-sonnet-5-5.json`, `prereg-main-claude-opus-5-5.json` (T2); the paired-rows format, the pre-registration's fields and the verdict words (T1)
+**Consumes:** `prereg-main-claude-sonnet-5-5.json`, `prereg-main-claude-opus-5-5.json` (T2); the paired-rows format, the pre-registration's fields and the verdict words (T1); `--verdict-out` and the verdict file's keys (T4)
 **Data dependency:** tool-multipathreadwrite ADR-162's Stage 5 (`docs/bench/stage-5/` there), its pool `bench/swe-bench/selection-adr-162.json`, and `bench export-paired`'s rows per model (amended 2026-10-17)
 **Proof map:** v1
 
@@ -18,7 +18,8 @@ allow.
 
 | File | Change | Why |
 |------|--------|-----|
-| `docs/BENCHMARKS.md` | edit | the verdict word, both arms' cells, the configuration and the date, whatever the verdict is, only if Decision 8's exception is granted |
+| `docs/BENCHMARKS.md` | edit | the verdict word, both arms' cells, the configuration and the date, whatever the verdict is (Decision 8's exception, granted 2026-10-17) |
+| `docs/adr/ADR-106-a-paired-benchmark-says-what-the-plugin-buys/verdict-main-<model>.json` | add | the scorer's `--verdict-out` file per model, and nothing else from the run (amended 2026-10-17) |
 
 ## Ordered Steps
 
@@ -31,7 +32,7 @@ allow.
    only, since a later block may not have run that model: `bench export-paired --pair A,P --model M --scorer-sha <the
    pinned blob> --selection … --canary … docs/bench/stage-5/block-1 … block-L`. Score them with `--prereg
    prereg-main-<model>.json`, `--pool` (the 191 ids), `--instances` (the first min(40·L, 191)) and `--disjoint-from` (the
-   pilot's ids). [proof: human: the scorer's printed cells and verdict]
+   pilot's ids), with `--verdict-out verdict-main-<model>.json`. [proof: human: the scorer's printed cells and verdict]
 5. [S5] Record the verdict as Decision 9 says: NOT SHOWN and GUARD NOT MET as plainly as SHOWN, INCONCLUSIVE as
    could-not-measure. [proof: human: the diff of what was recorded]
 

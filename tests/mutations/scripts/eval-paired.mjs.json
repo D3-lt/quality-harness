@@ -119,6 +119,16 @@
       "from": "  if (prereg.k != null && !isRepeatCount(prereg.k))",
       "to": "  if (false)",
       "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: the verdict file's allow list holds no per-instance key",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  prereg_sha256: 'string',",
+      "to": "  prereg_sha256: 'string',\n  rows: 'strings',",
+      "only": "^(?:the verdict file holds only the aggregate, and any other key is refused)$"
     }
   ]
 }

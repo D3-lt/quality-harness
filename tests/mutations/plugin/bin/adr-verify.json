@@ -1575,8 +1575,8 @@
       "label": "verify, multi-task: several tasks with --mutant are not refused",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/evidence-chain.test.mjs"],
-      "from": "((\"--mutant\", mutant is not None),",
-      "to": "((\"--mutant\", False),",
+      "from": "(\"--mutant\", mutant is not None),\n                            (\"--human\"",
+      "to": "(\"--mutant\", False),\n                            (\"--human\"",
       "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
     },
     {
@@ -1778,6 +1778,14 @@
       "from": "                    run_targets = [tree / inside for inside in insides]",
       "to": "                    run_targets = [tree / inside for inside in insides[:1]]",
       "only": "^a mutant plan over two files runs in the worktree and leaves both files in the checkout alone$"
+    },
+    {
+      "label": "verify, multi-task: several tasks with --mutant-plan are refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"--mutant-plan\", mutant_plan is not None), (\"--mutant\"",
+      "to": "(\"--mutant\", mutant is not None), (\"--mutant\"",
+      "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
     }
   ]
 }

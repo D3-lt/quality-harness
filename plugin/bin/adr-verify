@@ -3253,7 +3253,9 @@ def main():
         fail("--in-place is valid only with the tool-run --mutant mode; without --mutant "
              "adr-verify changes no source, so there is nothing to place")
     if len(tasks) > 1:
-        for flag, given in (("--mutant", mutant is not None), ("--mutant-plan", "--mutant-plan" in args),
+        # --mutant-plan first, by its own variable: by this point a readable plan has been copied into `mutant`, and the
+        # refusal named --mutant for a call that never gave it.
+        for flag, given in (("--mutant-plan", mutant_plan is not None), ("--mutant", mutant is not None),
                             ("--human", human is not None), ("--human-mutant", human_mutant is not None),
                             ("--relock", relock), ("--restore", restore), ("--sweep", sweep is not None)):
             if given:

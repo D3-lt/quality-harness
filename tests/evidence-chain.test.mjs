@@ -3684,13 +3684,16 @@ test('a task path given twice is refused before any fence runs', () => {
 
 test('several tasks with a mode that is about one task are refused, and the refusal names the flag', () => {
   const copy = twoTasks('echo one', 'echo two')
+  // A readable plan, so --mutant-plan reaches the several-tasks refusal instead of failing to read its file first.
+  writeFileSync(join(copy, 'plan.txt'), '@@ ADR-001-selftest.md 1 replace\nx\n')
   const before = rowsOf(copy)
   for (const flags of [['--human', 'saw it'], ['--relock'], ['--restore'], ['--sweep', '.'],
     ['--mutant', 'ADR-001-selftest.md', '--from', 'a', '--to', 'b', '--why', 'w'],
-    ['--human-mutant', 'ADR-001-selftest.md']]) {
+    ['--human-mutant', 'ADR-001-selftest.md'], ['--mutant-plan', 'plan.txt', '--why', 'w']]) {
     const r = run('adr-verify', [T1, T2, ...flags], copy)
     expectExit(r, 2, `several tasks with ${flags[0]}`)
-    assert.ok((r.stdout + r.stderr).includes(flags[0]), `names ${flags[0]}: ${r.stdout}${r.stderr}`)
+    // The several-tasks refusal itself, naming exactly the flag given: a substring would let --mutant pass for --mutant-plan.
+    assert.ok((r.stdout + r.stderr).includes(`several tasks cannot be combined with ${flags[0]}:`), `names ${flags[0]}: ${r.stdout}${r.stderr}`)
   }
   assert.deepEqual(rowsOf(copy), before)
 })

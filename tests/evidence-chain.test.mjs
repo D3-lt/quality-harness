@@ -1840,7 +1840,7 @@ test('a mutant plan with a hunk that matches nothing, or many, or is not in the 
   const before = planFiles(copy)
   const task = readTask(copy)
   const refused = (body, pattern, label) => {
-    const out = verify(copy, planArgs(planFile(copy, body)))
+    const out = run('adr-verify', planArgs(planFile(copy, body)), copy)
     expectExit(out, 2, label)
     assert.match(out.stdout + out.stderr, pattern, label)
     assert.deepEqual(planFiles(copy), before, `${label}: both files are untouched`)
@@ -1855,21 +1855,23 @@ test('a mutant plan with a hunk that matches nothing, or many, or is not in the 
   refused('@@ two_a.py 2 replace sha=abc\nA = 9\n', /sha=abc/, 'a guard outside the subset')
   refused('@@ ../two_a.py 1 delete\n', /must be a path inside --cwd/, 'a path that leaves --cwd')
 
-  const nothing = verify(copy, planArgs(planFile(copy, '@@ two_a.py 2 replace\nA = 1\n@@ two_b.py 1 replace\nB = 2\n')))
+  const nothing = run('adr-verify', planArgs(planFile(copy, '@@ two_a.py 2 replace\nA = 1\n@@ two_b.py 1 replace\nB = 2\n')), copy)
   expectExit(nothing, 2, 'a plan that nets to no change')
   assert.match(nothing.stdout + nothing.stderr, /MUTANT DID NOTHING/)
   assert.deepEqual(planFiles(copy), before)
   assert.equal(readTask(copy), task)
 
-  const both = verify(copy, [...planArgs(planFile(copy, TWO_FILE_PLAN)), '--mutant', 'two_a.py'])
+  const both = run('adr-verify', [...planArgs(planFile(copy, TWO_FILE_PLAN)), '--mutant', 'two_a.py'], copy)
   expectExit(both, 2, 'a plan and --mutant together')
+  // Its own refusal, not another that also exits 2: with the task path given twice, the several-tasks refusal answered here.
+  assert.match(both.stdout + both.stderr, /--mutant-plan replaces --mutant/)
   assert.equal(readTask(copy), task)
-  const comment = verify(copy, planArgs(planFile(copy, '@@ two_a.py 2 insert-after\n# only a note\n')))
+  const comment = run('adr-verify', planArgs(planFile(copy, '@@ two_a.py 2 insert-after\n# only a note\n')), copy)
   expectExit(comment, 2, 'a plan that adds only a comment')
   assert.match(comment.stdout + comment.stderr, /COMMENT-ONLY MUTANT/)
   assert.deepEqual(planFiles(copy), before)
 
-  const duplicate = verify(copy, [...planArgs(planFile(copy, TWO_FILE_PLAN)), '--also-restore', 'two_b.py'])
+  const duplicate = run('adr-verify', [...planArgs(planFile(copy, TWO_FILE_PLAN)), '--also-restore', 'two_b.py'], copy)
   expectExit(duplicate, 2, 'a plan file declared again as a generated output')
   assert.match(duplicate.stdout + duplicate.stderr, /repeats the --mutant target/)
   assert.deepEqual(planFiles(copy), before)
@@ -1881,8 +1883,8 @@ test('a mutant plan covers insert-before, insert-after and delete, resolved agai
   const copy = planCorpus(`cp two_a.py seen_a.txt\ncp two_b.py seen_b.txt\necho '1 passed in 0.01s'`)
   writeFileSync(join(copy, 'two_a.py'), 'import os\nA = 1\nZ = 0\n')
   const before = planFiles(copy)
-  const out = verify(copy, planArgs(planFile(copy,
-    '@@ two_a.py 1 delete\n@@ two_a.py 2 insert-after\nA2 = 5\n@@ two_b.py 1 insert-before\nB0 = 0\n')))
+  const out = run('adr-verify', planArgs(planFile(copy,
+    '@@ two_a.py 1 delete\n@@ two_a.py 2 insert-after\nA2 = 5\n@@ two_b.py 1 insert-before\nB0 = 0\n')), copy)
   expectExit(out, 1, 'a fence that only copies cannot notice the mutant')
   for (const verdict of [/^ok two_a\.py 1 delete$/m, /^ok two_a\.py 2 insert-after$/m, /^ok two_b\.py 1 insert-before$/m]) {
     assert.match(out.stdout, verdict)

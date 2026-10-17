@@ -905,7 +905,7 @@ const UNESCAPED_PIPE = /(?<!\\)\|/
 // autolink or inline HTML, which GFM keeps as a row, ended the table and the rows under it lost their paths (the Codex
 // verification of c54110cb).
 const BLOCK_START = /^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)/
-const HTML_BLOCK_START = /^<(?:(?:script|pre|style|textarea)(?:\s|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\s|\/?>|$))/i
+const HTML_BLOCK_START = /^<(?:(?:script|pre|style|textarea)(?:[ \t]|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t]|\/?>|$))/i
 // A row's cells as GFM splits them: at every pipe a backslash does not escape, the leading and trailing pipes optional.
 // Splitting at every raw `|` let an escaped pipe and a missing trailing pipe cancel, so the count matched the header's
 // and the wrong cell was read as Change (the Codex review of v3.8.36..v3.8.38).

@@ -549,10 +549,10 @@ _DELIMITER_ROW = re.compile(r"^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$")
 # An autolink or inline HTML is a row of the table (the Codex verification of c54110cb).
 _BLOCK_START = re.compile(r"^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)")
 _HTML_BLOCK_START = re.compile(
-    r"^<(?:(?:script|pre|style|textarea)(?:\s|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|/?(?:address|article|aside|base|basefont|"
+    r"^<(?:(?:script|pre|style|textarea)(?:[ \t]|>|$)|!--|\?|![A-Za-z]|!\[CDATA\[|/?(?:address|article|aside|base|basefont|"
     r"blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|"
     r"form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|"
-    r"option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\s|/?>|$))", re.I | re.A)
+    r"option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t]|/?>|$))", re.I | re.A)
 
 
 def gfm_table_cells(line):

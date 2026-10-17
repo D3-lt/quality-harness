@@ -188,6 +188,9 @@ test('a table is one header, the delimiter under it and its rows to a blank line
   assert.deepEqual(governedBy('autolink-stays', piped + '| `src/a.js` | edit | x |\n<https://example.com>\nFile | Why | Change\n--- | --- | ---\n`src/new.js` | edit | read\n'), ['src/a.js', 'src/new.js'])
   assert.deepEqual(governedBy('inline-html-stays', piped + '| `src/a.js` | read | x |\n<span>note</span>\n`src/b.js`\n'), ['src/b.js'])
   assert.deepEqual(governedBy('div-ends', piped + '| `src/a.js` | read | x |\n<div>\nFile | Why | Change\n--- | --- | ---\n| `src/new.js` | read | edit |\n'), ['src/new.js'])
+  // After the tag name GFM takes a space, a tab, `>`, `/>` or the line's end, and no other space: `<div` and a no-break
+  // space is inline, and the table goes on, as adr-lint reads it (the Claude review of 54fd1e8e).
+  assert.deepEqual(governedBy('nbsp-stays', piped + '| `src/a.js` | edit | x |\n<div x>\nFile | Why | Change\n--- | --- | ---\n`src/new.js` | edit | read\n'), ['src/a.js', 'src/new.js'])
 })
 
 test('a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing', () => {

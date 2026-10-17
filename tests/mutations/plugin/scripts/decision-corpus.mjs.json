@@ -1741,6 +1741,14 @@
       "from": "const HTML_BLOCK_START = /^<(?:(?:script|pre|style|textarea)",
       "to": "const HTML_BLOCK_START = /^<(?:[A-Za-z!?/]|(?:script|pre|style|textarea)",
       "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Claude review of 54fd1e8e: only a space or a tab after a block tag name opens an HTML block",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "track|ul)(?:[ \\t]|\\/?>|$))/i",
+      "to": "track|ul)(?:\\s|\\/?>|$))/i",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
     }
   ]
 }

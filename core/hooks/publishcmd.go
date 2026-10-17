@@ -396,6 +396,7 @@ var (
 	dataSinks      = map[string]bool{"cat": true, "tee": true}
 	fileReaders    = map[string]bool{"cat": true, "head": true, "tail": true, "wc": true, "ls": true, "less": true, "more": true, "grep": true, "rg": true, "diff": true, "stat": true, "file": true, "echo": true, "rm": true}
 	scriptRunners  = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "source": true, ".": true}
+	wrappedShells  = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true}
 	outputRedirect = regexp.MustCompile(`\d*>>?[|&]?[\t\n\v\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\v\f\r ;&|<>()]+))`)
 )
 
@@ -431,11 +432,16 @@ func runsWhatItWrote(step *shellCommand, n int, commands []*shellCommand, text s
 	files := writtenFiles(step, text)
 	for _, later := range commands[n+1:] {
 		name := programName(argAt(later.argv, 0))
+		// A command with no word can still run a substitution: an assignment or a redirect alone.
 		if len(later.argv) == 0 {
+			if len(later.substitutions) > 0 {
+				return true
+			}
 			continue
 		}
-		// A reader is plain only with no pipe, dynamic word or code (a substitution always marks its word dynamic).
-		plain := later.pipeTo < 0 && len(later.dynamic) == 0
+		// A reader is plain only with no pipe, substitution, dynamic word or code: a substitution used as a redirect target
+		// keeps no word at all, so both are read.
+		plain := later.pipeTo < 0 && len(later.substitutions) == 0 && len(later.dynamic) == 0
 		for _, c := range later.code {
 			plain = plain && !c
 		}
@@ -445,11 +451,12 @@ func runsWhatItWrote(step *shellCommand, n int, commands []*shellCommand, text s
 			}
 			continue
 		}
-		if len(later.dynamic) > 0 || strings.Contains(later.argv[0], "/") || strings.HasSuffix(later.argv[0], ".sh") || scriptRunners[name] {
+		if len(later.dynamic) > 0 || len(later.substitutions) > 0 || strings.Contains(later.argv[0], "/") || strings.HasSuffix(later.argv[0], ".sh") || scriptRunners[name] {
 			return true
 		}
+		// A shell named anywhere runs its input, whatever wraps it: `env sh < r.sh`, `xargs -0 sh -c < r.sh`.
 		for _, word := range later.argv {
-			if files[sameFile(word)] {
+			if wrappedShells[programName(word)] || files[sameFile(word)] {
 				return true
 			}
 		}

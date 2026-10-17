@@ -138,7 +138,10 @@ func writesThatChangedNothing(log Log, ended *recorded, root string) []string {
 		inTree := false
 		if isPath {
 			rel := relPath(root, p)
-			inTree = rel != "" && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) && pathSplit.Split(rel, -1)[0] != ".git"
+			inTree = rel != "" && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)
+			for _, part := range pathSplit.Split(rel, -1) {
+				inTree = inTree && part != ".git"
+			}
 		}
 		if strict(get(e, "event"), "file.written") && isTrue(get(e, "observable")) && inTree {
 			writes = append(writes, i)

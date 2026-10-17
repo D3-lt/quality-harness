@@ -71,13 +71,14 @@ const parse = text => { try { return JSON.parse(text) } catch { return text } }
 // Every event and tool a scenario sent, as `Event` and `Event:Tool`, so a test can ask which registered hook no scenario reaches.
 export const exercised = new Set()
 
-export function runHook(box, repo, session, payload, extraEnv = {}) {
+// `implementation` names which one runs this call; by default the one the environment selects.
+export function runHook(box, repo, session, payload, extraEnv = {}, implementation = { impl: IMPL, bin: QH_BIN }) {
   if (typeof payload.hook_event_name === 'string') {
     exercised.add(payload.hook_event_name)
     if (typeof payload.tool_name === 'string') exercised.add(`${payload.hook_event_name}:${payload.tool_name}`)
   }
-  const [command, args] = IMPL === 'go'
-    ? [QH_BIN, ['hook', String(payload.hook_event_name)]]
+  const [command, args] = implementation.impl === 'go'
+    ? [implementation.bin, ['hook', String(payload.hook_event_name)]]
     : [process.execPath, [path.join(pluginDir, 'scripts', 'lifecycle.mjs')]]
   const run = spawnSync(command, args, {
     cwd: repo, input: JSON.stringify({ cwd: repo, session_id: session, ...payload }), encoding: 'utf8',

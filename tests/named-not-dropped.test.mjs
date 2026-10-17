@@ -233,6 +233,15 @@ test('a backticked name without an extension is a path only when it is the whole
     ['Makefile', 'src/load.js'])
 })
 
+// The whole cell may wrap the name in emphasis and follow it with annotations in parentheses: an outside corpus at
+// ae3bdb8 wrote `| \`Makefile\` (L80-85) | edit |` and 3.8.40 lost it. Anything else beside the name is still prose.
+test('a backticked name without an extension keeps its path beside an annotation or emphasis, and only those', () => {
+  const cells = ['`Makefile` (L80-85)', '**`Dockerfile`**', '`Procfile` (new) (L3)', '_`Gemfile`_ (L1)',
+    '`other-repo` login screen', '`Rakefile` and the rest', '`Brewfile` (L1) then more', '**`Justfile`* (L1)']
+  assert.deepEqual(governedBy('annotated', AFFECTED + '| File | Change |\n|---|---|\n' + cells.map(cell => `| ${cell} | edit |\n`).join('')),
+    ['Dockerfile', 'Gemfile', 'Makefile', 'Procfile'])
+})
+
 test('corpus-report counts a record named in lower case', () => {
   const entry = name => ({ name, isFile: () => true })
   assert.equal(recordCount('x', () => [entry('ADR-001-a.md'), entry('adr-002-b.md'), entry('notes.md')]), 2)

@@ -1698,7 +1698,7 @@
       "label": "Codex review of the 3.8.40 plan: a backticked cell is a path without an extension",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    return /[./\\\\]/.test(ticked) || first === span[0] ? ticked : null",
+      "from": "    return /[./\\\\]/.test(ticked) || WHOLE_CELL_NAME.test(first) ? ticked : null",
       "to": "    return /[./\\\\]/.test(ticked) ? ticked : null",
       "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
     },
@@ -1754,9 +1754,33 @@
       "label": "outside run at 7f9aa041: a backticked name without an extension is a path only when it is the whole cell",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    return /[./\\\\]/.test(ticked) || first === span[0] ? ticked : null",
+      "from": "    return /[./\\\\]/.test(ticked) || WHOLE_CELL_NAME.test(first) ? ticked : null",
       "to": "    return ticked",
       "only": "^a backticked name without an extension is a path only when it is the whole cell$"
+    },
+    {
+      "label": "outside run at ae3bdb8: a lone name keeps its path beside annotations in parentheses",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1(?:\\s*\\([^()]*\\))*$/",
+      "to": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1$/",
+      "only": "^a backticked name without an extension keeps its path beside an annotation or emphasis, and only those$"
+    },
+    {
+      "label": "outside run at ae3bdb8: the emphasis around a lone name must close as it opened",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1(?:\\s*\\([^()]*\\))*$/",
+      "to": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`[*_]{0,2}(?:\\s*\\([^()]*\\))*$/",
+      "only": "^a backticked name without an extension keeps its path beside an annotation or emphasis, and only those$"
+    },
+    {
+      "label": "outside run at ae3bdb8: only parenthesised annotations may follow a lone name",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1(?:\\s*\\([^()]*\\))*$/",
+      "to": "const WHOLE_CELL_NAME = /^([*_]{0,2})`[^`]+`\\1.*$/",
+      "only": "^a backticked name without an extension keeps its path beside an annotation or emphasis, and only those$"
     }
   ]
 }

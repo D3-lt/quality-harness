@@ -389,3 +389,30 @@ jobs:
           claude plugin validate --strict .
           claude plugin validate --strict plugin/.claude-plugin/plugin.json
           claude plugin validate --strict plugin/skills
+
+  # ADR-110 T1: the Go core answers every hook golden as the Node hooks do, and agrees with them where the goldens do not
+  # look (tests/qh-core-parity.test.mjs: the classifier over its own tests' literals, and what a session leaves outside the
+  # ledgers). Go comes from core/go.mod, so the version CI builds with is the one the module declares. On Windows the
+  # goldens skip by name, as they do in every job, and the parity test's classifier half still runs.
+  core:
+    name: go core (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
+      - name: Build qh
+        run: go build -C core -o bin/qh ./cmd/qh
+      - name: Run the goldens and the parity test against the Go core
+        env:
+          QUALITY_HARNESS_HOOK_IMPL: go
+        run: node --test tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs

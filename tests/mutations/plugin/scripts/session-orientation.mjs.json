@@ -149,6 +149,30 @@
       "from": "const corpusLook = inside ? hasDecisionCorpus(root, listing) : false",
       "to": "const corpusLook = inside ? (process.getBuiltinModule('node:child_process').spawnSync(path.join(import.meta.dirname, '..', 'bin', 'adr-next'), [root, '--json'], { windowsHide: true, timeout: 10_000 }), hasDecisionCorpus(root, listing)) : false",
       "only": "^(?:SessionStart and the compact note name no ready task and start no adr-next where work-next finds one)$"
+    },
+    {
+      "label": "ADR-107 T3: mrw is named only when it answers --version in its own shape",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": "return /^mrw version v\\d+\\.\\d+/.test(version(candidate, env)) ? candidate : null",
+      "to": "return candidate",
+      "only": "^a session with mrw on PATH is told it is there, and a session without it is told nothing$"
+    },
+    {
+      "label": "ADR-107 T3: the mrw line is said only when mrw resolves",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": "if ((check || corpusLook === true) && mrwOnPath()) {",
+      "to": "if (check || corpusLook === true) {",
+      "only": "^a session with mrw on PATH is told it is there, and a session without it is told nothing$"
+    },
+    {
+      "label": "ADR-107 T3: Windows resolves mrw.exe and POSIX does not",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": "const name = windows ? 'mrw.exe' : 'mrw'",
+      "to": "const name = 'mrw.exe'",
+      "only": "^mrw is resolved from PATH the way the platform resolves it, without a shell$"
     }
   ]
 }

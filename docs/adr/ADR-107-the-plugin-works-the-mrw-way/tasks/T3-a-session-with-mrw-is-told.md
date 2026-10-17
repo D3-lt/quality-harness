@@ -52,6 +52,8 @@ out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \
 | 4 — it is used | the test drives the real hook |
 
 ## Mutation Log
+- 2026-10-17 · 1e125bf9* · mutant killed · exit 1 · `plugin/scripts/session-orientation.mjs` · a different binary called mrw would be pointed to as mrw · acceptance-sha256:6470196f320cf9618e2e333ef9011b5f9f9093f7ae9a3818839985719431bd87
+- 2026-10-17 · 1e125bf9* · mutant killed · exit 1 · `plugin/scripts/session-orientation.mjs` · a session without mrw would be told to use it · acceptance-sha256:6470196f320cf9618e2e333ef9011b5f9f9093f7ae9a3818839985719431bd87
 
 ## Invariants
 
@@ -71,3 +73,9 @@ Stop and ask if resolving `mrw` adds more than 50 ms to SessionStart on this mac
 - Saying it on every prompt (permanent: boundary: a standing fact is said once, ADR-094)
 
 ## Verification Log
+- 2026-10-17 · 1e125bf9* · exit 1 · `out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \ …` · acceptance-sha256:6470196f320cf9618e2e333ef9011b5f9f9093f7ae9a3818839985719431bd87 · ms:597 · test-lock-sha256:5084a8b745a53af480e5091a397c15696d05664b58768e09bd3a940599e5c369 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbXJ3LXdheS50ZXN0Lm1qcwlhIHNlc3Npb24gd2l0aCBtcncgb24gUEFUSCBpcyB0b2xkIGl0IGlzIHRoZXJlLCBhbmQgYSBzZXNzaW9uIHdpdGhvdXQgaXQgaXMgdG9sZCBub3RoaW5nCTQ5MTMyOTQ2ZTFhYWRjMTdjZTAwMmI0NTIxNGU1NjZmMWI0NDIxNjhkM2M5MWRlOTExOWFhZjY3Y2QxZThiYjEKYm9keQl0ZXN0cy9tcnctd2F5LnRlc3QubWpzCW1ydyBpcyByZXNvbHZlZCBmcm9tIFBBVEggdGhlIHdheSB0aGUgcGxhdGZvcm0gcmVzb2x2ZXMgaXQsIHdpdGhvdXQgYSBzaGVsbAkxYjI1Nzg1ZWYwNmE3YzhmOGU4NzBhMWY2OTNjMjU2MDBiNDcxNmM0YzI1MTQwYjVlMDk5ODU4ZGI2ZjAyMzhkCmJvZHkJdGVzdHMvbXJ3LXdheS50ZXN0Lm1qcwl0aGUgaW1wbGVtZW50aW5nIHNraWxscyB0ZWFjaCBvbmUgcmVhZCBvZiBldmVyeSBzaXRlLCBvbmUgYmF0Y2ggb2YgZWRpdHMsIGFuZCBhIGNoZWNrIHRoYXQgZWFjaCBlZGl0IGxhbmRlZAlhZDcxMTZiM2FlOTEyM2ZlOWUzMDRjMDIxMDZmMjUzNDJhMjUxYWYzYmU4MzFiNzc3NzA3YzVlMGNkNWE0NTAw
+  ```
+  ```
+- 2026-10-17 · 1e125bf9* · exit 0 · `out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \ …` · acceptance-sha256:6470196f320cf9618e2e333ef9011b5f9f9093f7ae9a3818839985719431bd87 · ms:899
+- 2026-10-17 · 1e125bf9* · exit 0 · `out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \ …` · acceptance-sha256:6470196f320cf9618e2e333ef9011b5f9f9093f7ae9a3818839985719431bd87 · ms:946
+- 2026-10-17 · 1e125bf9* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6470196f320cf9618e2e333ef9011b5f9f9093f7ae9a3818839985719431bd87 · ms:0 · test-lock-sha256:e1382bc4fc09170622a4844c17b97dd32379708d8959bd7b8d6efde7e11fd76a · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbXJ3LXdheS50ZXN0Lm1qcwlhIHNlc3Npb24gd2l0aCBtcncgb24gUEFUSCBpcyB0b2xkIGl0IGlzIHRoZXJlLCBhbmQgYSBzZXNzaW9uIHdpdGhvdXQgaXQgaXMgdG9sZCBub3RoaW5nCTdhNjUzZmNiN2QyYTQwMmQwOGRkMDQ2MzMwMjYyOWNlNTliNjM2NDM1NDg2MDNlM2U2YmZhOGIzZDZiNmYxOTUKYm9keQl0ZXN0cy9tcnctd2F5LnRlc3QubWpzCW1ydyBpcyByZXNvbHZlZCBmcm9tIFBBVEggdGhlIHdheSB0aGUgcGxhdGZvcm0gcmVzb2x2ZXMgaXQsIHdpdGhvdXQgYSBzaGVsbAkxYWZkZDU3OTIzMDhjNjZhYTkwYmUwNWE5Y2QwZmJkNDZlNjg4M2M0ZDljMjE3MGUyOTcyZjdiZGFjMjg5NzBkCmJvZHkJdGVzdHMvbXJ3LXdheS50ZXN0Lm1qcwl0aGUgaW1wbGVtZW50aW5nIHNraWxscyB0ZWFjaCBvbmUgcmVhZCBvZiBldmVyeSBzaXRlLCBvbmUgYmF0Y2ggb2YgZWRpdHMsIGFuZCBhIGNoZWNrIHRoYXQgZWFjaCBlZGl0IGxhbmRlZAlhZDcxMTZiM2FlOTEyM2ZlOWUzMDRjMDIxMDZmMjUzNDJhMjUxYWYzYmU4MzFiNzc3NzA3YzVlMGNkNWE0NTAw · test-lock-kind:replace

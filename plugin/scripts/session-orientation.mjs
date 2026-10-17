@@ -4,6 +4,7 @@
 import { decisionContext, listedPath, trackedPaths, unmarkedArchives } from './decision-corpus.mjs'
 import path from 'node:path'
 import { lstatSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { canonical, nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryLookup } from './tree-facts.mjs'
 import { checkCommandOrigin } from './check-command.mjs'
@@ -120,6 +121,12 @@ export function sessionOrientation(cwd, { once = false } = {}) {
   // that never opted into this lifecycle at all, which is the noise this
   // project was told is worse than not shipping the plugin.
   // Git-fail is UNPROVEN, not "no corpus" — a false would skip this notice.
+  // ADR-107 T3: a session with mrw on PATH is pointed to it, in a repository that opted into this lifecycle, once.
+  if ((check || corpusLook === true) && mrwOnPath()) {
+    standing('mrw is on PATH: read every site you will touch in one `mrw read`, and apply every edit as one `mrw write` plan '
+      + '(the `execution` skill\'s "Read and edit in batches").')
+  }
+
   if (check || corpusLook === true || corpusLook === 'UNPROVEN') {
     const shadow = shadowInstallNotice()
     if (shadow) {
@@ -136,6 +143,26 @@ export function sessionOrientation(cwd, { once = false } = {}) {
   }
 
   return lines.join('\n\n')
+}
+
+// mrw as the platform would resolve it from PATH, with no shell: the first directory holding the name wins, and it is named
+// only when it answers `--version` in mrw's own shape, so a different tool called mrw is never pointed to (ADR-107 T3).
+export function mrwOnPath(env = process.env, platform = process.platform, version = mrwVersion) {
+  const windows = platform === 'win32'
+  const name = windows ? 'mrw.exe' : 'mrw'
+  for (const dir of String((windows ? env.Path ?? env.PATH : env.PATH) ?? '').split(windows ? ';' : ':').filter(Boolean)) {
+    const candidate = path.join(dir, name)
+    let found
+    try { found = statSync(candidate) } catch { continue }
+    if (!found.isFile() || (!windows && (found.mode & 0o111) === 0)) continue
+    return /^mrw version v\d+\.\d+/.test(version(candidate, env)) ? candidate : null
+  }
+  return null
+}
+
+function mrwVersion(file, env) {
+  const out = spawnSync(file, ['--version'], { encoding: 'utf8', timeout: 2000, windowsHide: true, env })
+  return out.status === 0 ? String(out.stdout) : ''
 }
 
 // The governing and killed decisions for whatever this call is about to touch.

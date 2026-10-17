@@ -3,6 +3,10 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { mrwOnPath } from '../plugin/scripts/session-orientation.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const skills = path.join(repoRoot, 'plugin', 'skills')
@@ -31,4 +35,58 @@ test('the implementing skills teach one read of every site, one batch of edits, 
     try { body = skill(name) } catch { continue }
     assert.ok(!body.includes(sentence), `${name} copies the section instead of pointing to it`)
   }
+})
+
+// ADR-107 T3: a session with mrw on PATH is pointed to it once; a session without it, or with a different binary of that name,
+// hears nothing new. Through the real SessionStart hook, with PATH built by the test.
+const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
+const LINE = /mrw is on PATH: read every site you will touch in one `mrw read`/
+
+test('a session with mrw on PATH is told it is there, and a session without it is told nothing', { skip: process.platform === 'win32' && 'the stub is a POSIX script; the Windows name is asserted through mrwOnPath below' }, () => {
+  const top = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'qh-mrw-way-')))
+  try {
+    const repo = path.join(top, 'repo')
+    mkdirSync(repo)
+    spawnSync('git', ['init', '-q'], { cwd: repo })
+    writeFileSync(path.join(repo, '.quality-harness.json'), JSON.stringify({ check: 'npm test' }))
+    const stub = (dir, answer) => {
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(path.join(dir, 'mrw'), `#!/bin/sh\necho '${answer}'\n`)
+      chmodSync(path.join(dir, 'mrw'), 0o755)
+      return dir
+    }
+    // The real PATH without any directory holding an mrw, so the machine's own install cannot answer.
+    const bare = String(process.env.PATH).split(':').filter(dir => dir && !existsSync(path.join(dir, 'mrw'))).join(':')
+    const start = (PATH, n) => {
+      // Each start its own temp and data directory: the line is said once per repository, and that memory lives there.
+      const own = path.join(top, `t-${n}`); mkdirSync(own, { recursive: true })
+      const env = { ...process.env, PATH, TMPDIR: own, TMP: own, TEMP: own, CLAUDE_PLUGIN_DATA: path.join(own, 'data') }
+      const out = spawnSync(process.execPath, [lifecycleScript], { cwd: repo, encoding: 'utf8', timeout: 120_000, env,
+        input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: `mrw-way-${n}`, cwd: repo }) })
+      assert.equal(out.status, 0, out.stderr)
+      return out.stdout
+    }
+    const real = stub(path.join(top, 'real'), 'mrw version v1.68.0-9-g6de290ac (6de290a)')
+    assert.match(start(`${real}:${bare}`, 1), LINE, 'mrw answering in its own shape is named')
+    assert.doesNotMatch(start(bare, 2), LINE, 'no mrw on PATH: nothing is said')
+    const other = stub(path.join(top, 'other'), 'mrw 0.1 — a different tool')
+    assert.doesNotMatch(start(`${other}:${bare}`, 3), LINE, 'a different binary called mrw is not pointed to')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('mrw is resolved from PATH the way the platform resolves it, without a shell', () => {
+  const top = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'qh-mrw-resolve-')))
+  try {
+    const dir = path.join(top, 'bin')
+    mkdirSync(dir)
+    writeFileSync(path.join(dir, 'mrw.exe'), '')
+    // Executable, so POSIX skipping it is about the name, not the mode bit.
+    chmodSync(path.join(dir, 'mrw.exe'), 0o755)
+    const seen = []
+    const answer = file => { seen.push(file); return 'mrw version v1.68.0' }
+    assert.equal(mrwOnPath({ Path: dir }, 'win32', answer), path.join(dir, 'mrw.exe'), 'Windows finds mrw.exe on Path')
+    assert.equal(mrwOnPath({ PATH: dir }, 'linux', answer), null, 'POSIX does not take mrw.exe for mrw')
+    assert.equal(mrwOnPath({ PATH: '' }, 'linux', answer), null, 'an empty PATH names nothing')
+    assert.deepEqual(seen, [path.join(dir, 'mrw.exe')], 'only a found file is asked its version')
+  } finally { rmSync(top, { recursive: true, force: true }) }
 })

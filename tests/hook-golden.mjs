@@ -4,7 +4,7 @@
 // session and check ledgers are stored, with time, ids and paths normalised. A refactor of lifecycle.mjs must
 // leave every transcript byte-identical; a transcript that changes is a finding, never an update to wave away.
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,14 +19,19 @@ const UPDATE = process.env.QH_GOLDEN_UPDATE === '1'
 export function sandbox(t) {
   const top = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-golden-')))
   t.after(() => rmSync(top, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))
-  const box = { top, home: path.join(top, 'home'), data: path.join(top, 'data'), tmp: path.join(top, 'tmp'), gitConfig: path.join(top, 'gitconfig') }
-  for (const dir of [box.home, box.data, box.tmp]) mkdirSync(dir, { recursive: true })
+  const box = { top, home: path.join(top, 'home'), data: path.join(top, 'data'), tmp: path.join(top, 'tmp'), bin: path.join(top, 'bin'), gitConfig: path.join(top, 'gitconfig') }
+  for (const dir of [box.home, box.data, box.tmp, box.bin]) mkdirSync(dir, { recursive: true })
   writeFileSync(box.gitConfig, '')
+  // The machine's own tools stay on PATH, so mrw would too, and SessionStart names it (ADR-107 T3). An mrw that fails its
+  // --version sits first, so whatever is installed here never reaches a transcript.
+  writeFileSync(path.join(box.bin, 'mrw'), '#!/bin/sh\nexit 1\n')
+  chmodSync(path.join(box.bin, 'mrw'), 0o755)
+  writeFileSync(path.join(box.bin, 'mrw.exe'), '')
   return box
 }
 
 const environment = (box, extra = {}) => ({
-  PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TZ: 'UTC', LANG: 'C', LC_ALL: 'C',
+  PATH: `${box.bin}${path.delimiter}${process.env.PATH}`, SystemRoot: process.env.SystemRoot, TZ: 'UTC', LANG: 'C', LC_ALL: 'C',
   HOME: box.home, USERPROFILE: box.home, TMPDIR: box.tmp, TMP: box.tmp, TEMP: box.tmp,
   CLAUDE_PLUGIN_DATA: box.data, CLAUDE_PLUGIN_ROOT: pluginDir,
   GIT_CONFIG_GLOBAL: box.gitConfig, GIT_CONFIG_NOSYSTEM: '1',

@@ -109,3 +109,5 @@ whose catalog says what each one's decision effect is now.
 | [ADR-105](ADR-105-a-fast-committed-commit-is-checked-at-turn-end.md) | A commit its declared fast check passed on is not named unchecked at turn end | Accepted |
 | [ADR-106](ADR-106-a-paired-benchmark-says-what-the-plugin-buys.md) | Measure what the plugin buys with a paired benchmark that hidden tests grade | Accepted |
 | [ADR-107](ADR-107-the-plugin-works-the-mrw-way.md) | The plugin works the mrw way | Accepted |
+| [ADR-108](ADR-108-the-hooks-say-what-to-do-next.md) | The hooks say what to do next, the mrw way | Accepted |
+| [ADR-109](ADR-109-a-landed-plan-is-a-mutant-catalogue.md) | The agent writes the tests; the plugin tests the trust between the code and the contract | Accepted |

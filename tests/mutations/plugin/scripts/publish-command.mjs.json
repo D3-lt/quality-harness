@@ -1659,8 +1659,8 @@
       "label": "§381 sink run-later: a later command naming the written file is not a reader of it",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
-      "from": "|| later.argv.some(word => files.has(sameFile(word)))",
-      "to": "",
+      "from": " || files.has(sameFile(word)))",
+      "to": ")",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {
@@ -1675,8 +1675,24 @@
       "label": "§381 sink run-later, Codex review of 2c747201: a reader in a pipeline is not plain",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
-      "from": "    const plain = later.pipeTo === null && !later.dynamic.length",
-      "to": "    const plain = !later.dynamic.length",
+      "from": "    const plain = later.pipeTo === null && !later.substitutions.length",
+      "to": "    const plain = !later.substitutions.length",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later, its scoped review: a substitution as a redirect target is not plain",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "later.pipeTo === null && !later.substitutions.length && !later.dynamic.length",
+      "to": "later.pipeTo === null && !later.dynamic.length",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink run-later, its scoped review: a shell under a wrapper still runs the file",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "WRAPPED_SHELLS.has(programName(word)) || ",
+      "to": "",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {

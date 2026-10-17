@@ -1608,6 +1608,12 @@ const SINK_BODIES_THAT_STAY_MENTIONS = [
   "cat > r.sh <<'EOF'; cat <(sh r.sh)\ngit push\nEOF", "cat > r.sh <<'EOF'; sh < r.sh\ngit push\nEOF",
   // A pipe from a plain reader into something that runs its input, with no shell word to catch: run under bash, zsh and sh.
   "cat > r.sh <<'EOF'; cat r.sh | xargs -0 sh -c\ngit push\nEOF",
+  // Its scoped review: a substitution as a redirect target is not a dynamic word, and a wrapper hides the shell's name.
+  // Each ran the body under bash, zsh and sh.
+  "cat > r.sh <<'EOF'; cat notes.md > \"$(sh r.sh)\"\ngit push\nEOF", "cat > r.sh <<'EOF'; env sh < r.sh\ngit push\nEOF",
+  "cat > r.sh <<'EOF'; xargs -0 sh -c < r.sh\ngit push\nEOF",
+  // A pipe into a program that runs its input with no shell word at all: only the reader's pipe shows it (run in three shells).
+  "cat > r.sh <<'EOF'; cat r.sh | python3 -c 'import os,sys; os.system(sys.stdin.read())'\ngit push\nEOF",
   // The words outside the body count, whatever the body holds.
   "cat <<'EOF'\nx\nEOF\ngit push", "echo push; cat <<'EOF'\nx\nEOF", "cat <<'EOF' # push\nx\nEOF",
 ]

@@ -257,6 +257,7 @@ const DATA_SINKS = new Set(['cat', 'tee'])
 // body), and a shell needs no operand to run it (`sh < r.sh`, `| sh`): the Codex review of v3.8.42..2c747201.
 const FILE_READERS = new Set(['cat', 'head', 'tail', 'wc', 'ls', 'less', 'more', 'grep', 'rg', 'diff', 'stat', 'file', 'echo', 'rm'])
 const SCRIPT_RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'source', '.'])
+const WRAPPED_SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
 const OUTPUT_REDIRECT = /\d*>>?[|&]?\s*(?:"([^"]*)"|'([^']*)'|([^\s;&|<>()]+))/g
 const sameFile = word => String(word).replace(/^\.\//, '')
 function writtenFiles(step, text) {
@@ -273,11 +274,13 @@ function runsWhatItWrote(step, n, commands, text) {
   return commands.slice(n + 1).some(later => {
     const name = programName(later.argv[0] ?? '')
     if (!later.argv.length) return false
-    // A substitution always marks its word dynamic in this lexer, so `dynamic` covers it; the pipe is the case only it sees.
-    const plain = later.pipeTo === null && !later.dynamic.length && !later.code.some(Boolean)
+    // Plain means no pipe, no substitution, no dynamic word and no code. A substitution is not always a dynamic word: one used
+    // as a redirect target keeps no word at all (`> "$(sh r.sh)"`, its scoped review), so both are read.
+    const plain = later.pipeTo === null && !later.substitutions.length && !later.dynamic.length && !later.code.some(Boolean)
     if (FILE_READERS.has(name)) return !plain
-    return later.dynamic.length > 0 || later.argv[0].includes('/') || later.argv[0].endsWith('.sh')
-      || SCRIPT_RUNNERS.has(name) || later.argv.some(word => files.has(sameFile(word)))
+    // A shell named anywhere runs its input, whatever wraps it: `env sh < r.sh`, `xargs -0 sh -c < r.sh` (its scoped review).
+    return later.dynamic.length > 0 || later.substitutions.length > 0 || later.argv[0].includes('/') || later.argv[0].endsWith('.sh')
+      || SCRIPT_RUNNERS.has(name) || later.argv.some(word => WRAPPED_SHELLS.has(programName(word)) || files.has(sameFile(word)))
   })
 }
 function readsItsBodyAsData(step, n, commands, text) {

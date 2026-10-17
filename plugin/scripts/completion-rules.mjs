@@ -622,7 +622,7 @@ function writesThatChangedNothing(log, ended, root) {
   // real write unchanged (the Codex review of v3.8.42..2c747201).
   const inTree = file => {
     const relative = path.relative(root, file)
-    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative) && relative.split(/[\\/]/)[0] !== '.git'
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative) && !relative.split(/[\\/]/).includes('.git')
   }
   const writes = log.slice(from + 1, at).filter(entry => entry.event === 'file.written' && entry.observable === true && typeof entry.path === 'string' && inTree(entry.path))
   if (!writes.length) return []

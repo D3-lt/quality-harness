@@ -195,7 +195,7 @@ you then read the result. Both spellings have put a red tree on `main`.
    command-entry state should be restored.
 
    A mutant that needs several edits (a call site and the import it drops, two files) takes
-   `--mutant-plan <plan-file> --why …` in place of the `--from`/`--to` pair: mrw hunks
+   `--mutant-plan <plan-file> --why …` replaces the whole single-edit form (`--mutant <file>`, `--from` and `--to` together): mrw hunks
    (`@@ <path> <N|N-M|/regex/> replace|delete|insert-after|insert-before`, then body lines), every
    address read from the original file, a pattern matching exactly one line, applied whole or not at
    all, one `ok <path> <addr> <op>` per hunk, one restore transaction over every file, and a row that

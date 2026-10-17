@@ -1,6 +1,6 @@
 // ADR-108: the hooks say what to do next. Each test drives the real hook in a temp repository (tests/hook-golden.mjs).
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fixtureRepo, ledgers, pluginDir, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
@@ -119,4 +119,11 @@ test('a write the observed tree cannot contain is never named unchanged, and a n
   runHook(box, other, 's2', { hook_event_name: 'SessionStart', source: 'startup' })
   runHook(box, other, 's2', edit(path.join(other, 'src', 'a.js')))
   assert.match(said(runHook(box, other, 's2', stop)), new RegExp(W), 'a no-op inside the work tree is still named')
+  // Its scoped review: a `.git` below the top is no more visible to the tree than the top one.
+  const nested = fixtureRepo(box, 'gitdir-nested', BASE)
+  mkdirSync(path.join(nested, 'vendor', '.git'), { recursive: true })
+  runHook(box, nested, 's3', { hook_event_name: 'SessionStart', source: 'startup' })
+  writeFileSync(path.join(nested, 'vendor', '.git', 'config'), 'x\n')
+  runHook(box, nested, 's3', edit(path.join(nested, 'vendor', '.git', 'config')))
+  assert.doesNotMatch(said(runHook(box, nested, 's3', stop)), new RegExp(W), 'a write under a nested .git is not named')
 })

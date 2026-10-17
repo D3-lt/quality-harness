@@ -486,8 +486,16 @@
       "label": "ADR-108 T3, Codex review of 2c747201: a write under the git directory is never named unchanged",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/adr-108.test.mjs"],
-      "from": " && relative.split(/[\\\\/]/)[0] !== '.git'",
+      "from": " && !relative.split(/[\\\\/]/).includes('.git')",
       "to": "",
+      "only": "^a write the observed tree cannot contain is never named unchanged, and a no-op inside it still is$"
+    },
+    {
+      "label": "ADR-108 T3, its scoped review: a .git below the top of the tree is excluded too",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/adr-108.test.mjs"],
+      "from": "!relative.split(/[\\\\/]/).includes('.git')",
+      "to": "relative.split(/[\\\\/]/)[0] !== '.git'",
       "only": "^a write the observed tree cannot contain is never named unchanged, and a no-op inside it still is$"
     },
     {

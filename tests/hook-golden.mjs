@@ -13,6 +13,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 export const pluginDir = path.resolve(here, '..', 'plugin')
 export const goldenDir = path.join(here, 'goldens')
 const UPDATE = process.env.QH_GOLDEN_UPDATE === '1'
+// ADR-110 T1: the one seam that says which implementation a scenario runs. `go` spawns the static core, `qh hook <event>`, from
+// QUALITY_HARNESS_QH_BIN or the repository's core/bin/qh; anything else runs lifecycle.mjs exactly as before.
+const IMPL = process.env.QUALITY_HARNESS_HOOK_IMPL === 'go' ? 'go' : 'node'
+const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'core', 'bin', 'qh')
 
 // One directory holds everything a scenario touches, so a hook that reaches for the home directory, the temp
 // directory or the plugin data directory finds this run's and nothing of the machine's.
@@ -72,10 +76,15 @@ export function runHook(box, repo, session, payload, extraEnv = {}) {
     exercised.add(payload.hook_event_name)
     if (typeof payload.tool_name === 'string') exercised.add(`${payload.hook_event_name}:${payload.tool_name}`)
   }
-  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'lifecycle.mjs')], {
+  const [command, args] = IMPL === 'go'
+    ? [QH_BIN, ['hook', String(payload.hook_event_name)]]
+    : [process.execPath, [path.join(pluginDir, 'scripts', 'lifecycle.mjs')]]
+  const run = spawnSync(command, args, {
     cwd: repo, input: JSON.stringify({ cwd: repo, session_id: session, ...payload }), encoding: 'utf8',
     timeout: 120_000, windowsHide: true, env: environment(box, extraEnv),
   })
+  // A binary that is not there has said nothing, which is not a transcript: the scenario fails naming why.
+  if (run.error) throw new Error(`the hook did not run (${command}): ${run.error.message}`)
   return { exit: run.status, signal: run.signal, stdout: parse(run.stdout.trim()), stderr: run.stderr.trim() }
 }
 

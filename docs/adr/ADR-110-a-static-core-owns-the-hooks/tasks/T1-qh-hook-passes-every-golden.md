@@ -36,8 +36,8 @@ event that had none (ADR-110, Decisions 1 and 2).
 ## Acceptance
 
 ```bash
-go build -o "$(mktemp -d)/qh" ./cmd/qh \
-  && out=$(QUALITY_HARNESS_HOOK_IMPL=go node --test --test-reporter=tap tests/hook-goldens.test.mjs 2>&1) \
+b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \
+  && out=$(QUALITY_HARNESS_QH_BIN="$b/qh" QUALITY_HARNESS_HOOK_IMPL=go node --test --test-reporter=tap tests/hook-goldens.test.mjs 2>&1) \
   && test "$(printf '%s\n' "$out" | grep -cE '^ok [0-9]+ - ')" -ge 8 \
   && ! printf '%s\n' "$out" | grep -qE '^not ok|# SKIP'
 ```

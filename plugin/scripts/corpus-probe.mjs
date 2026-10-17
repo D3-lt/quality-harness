@@ -409,7 +409,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   try {
     const hook = timed('SessionStart', null, () => node('lifecycle.mjs', [], {
       input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: `corpus-probe-${process.pid}`, cwd: resolved }),
-      env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch, QUALITY_HARNESS_STATE_DIR: path.join(scratch, 'state') },
+      env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch, QUALITY_HARNESS_STATE_DIR: path.join(scratch, 'state'), QUALITY_HARNESS_NO_MRW: '1' },
     }))
     // A hook that crashed, was signalled, or printed something other than the
     // JSON the host expects made no observation; it is could-not-run, not an

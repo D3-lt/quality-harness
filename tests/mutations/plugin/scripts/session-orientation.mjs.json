@@ -173,6 +173,14 @@
       "from": "const name = windows ? 'mrw.exe' : 'mrw'",
       "to": "const name = 'mrw.exe'",
       "only": "^mrw is resolved from PATH the way the platform resolves it, without a shell$"
+    },
+    {
+      "label": "ADR-107 T3: QUALITY_HARNESS_NO_MRW asks about the project, not the machine",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": "  if (env.QUALITY_HARNESS_NO_MRW === '1') return null\n",
+      "to": "",
+      "only": "^corpus-probe asks SessionStart about the corpus, not about the machine it runs on$"
     }
   ]
 }

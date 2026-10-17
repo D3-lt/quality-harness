@@ -147,7 +147,10 @@ export function sessionOrientation(cwd, { once = false } = {}) {
 
 // mrw as the platform would resolve it from PATH, with no shell: the first directory holding the name wins, and it is named
 // only when it answers `--version` in mrw's own shape, so a different tool called mrw is never pointed to (ADR-107 T3).
+// QUALITY_HARNESS_NO_MRW=1 asks about the project, not the machine: corpus-probe sets it, since what a probe reports is about
+// the corpus it reads, and a line that depends on the prober's PATH would read as a change in that corpus.
 export function mrwOnPath(env = process.env, platform = process.platform, version = mrwVersion) {
+  if (env.QUALITY_HARNESS_NO_MRW === '1') return null
   const windows = platform === 'win32'
   const name = windows ? 'mrw.exe' : 'mrw'
   for (const dir of String((windows ? env.Path ?? env.PATH : env.PATH) ?? '').split(windows ? ';' : ':').filter(Boolean)) {

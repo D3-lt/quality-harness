@@ -781,6 +781,14 @@
       "from": "    named(field, b ?? [], a ?? [], line => (COULD_NOT_LOOK.test(line) ? ",
       "to": "    named(field, b ?? [], a ?? [], line => (true ? ",
       "only": "^an ordinary advice line that came or went is printed unmarked$"
+    },
+    {
+      "label": "corpus-probe, ADR-107 T3: SessionStart is asked about the corpus, not the prober's PATH",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": ", QUALITY_HARNESS_NO_MRW: '1' },",
+      "to": " },",
+      "only": "^corpus-probe asks SessionStart about the corpus, not about the machine it runs on$"
     }
   ]
 }

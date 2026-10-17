@@ -47,7 +47,7 @@ test('a session with mrw on PATH is told it is there, and a session without it i
   try {
     const repo = path.join(top, 'repo')
     mkdirSync(repo)
-    spawnSync('git', ['init', '-q'], { cwd: repo })
+    spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 60_000, windowsHide: true })
     writeFileSync(path.join(repo, '.quality-harness.json'), JSON.stringify({ check: 'npm test' }))
     const stub = (dir, answer) => {
       mkdirSync(dir, { recursive: true })
@@ -88,5 +88,34 @@ test('mrw is resolved from PATH the way the platform resolves it, without a shel
     assert.equal(mrwOnPath({ PATH: dir }, 'linux', answer), null, 'POSIX does not take mrw.exe for mrw')
     assert.equal(mrwOnPath({ PATH: '' }, 'linux', answer), null, 'an empty PATH names nothing')
     assert.deepEqual(seen, [path.join(dir, 'mrw.exe')], 'only a found file is asked its version')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// What corpus-probe reports is about the corpus, so the prober's own PATH must not show in it: a machine with mrw would
+// otherwise report a SessionStart line no corpus produced (found by the corpus matrix on a machine that has mrw).
+test('corpus-probe asks SessionStart about the corpus, not about the machine it runs on', { skip: process.platform === 'win32' && 'the stub is a POSIX script' }, () => {
+  const top = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'qh-mrw-probe-')))
+  try {
+    const repo = path.join(top, 'repo')
+    mkdirSync(repo)
+    spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 60_000, windowsHide: true })
+    writeFileSync(path.join(repo, '.quality-harness.json'), JSON.stringify({ check: 'npm test' }))
+    const bin = path.join(top, 'bin')
+    mkdirSync(bin)
+    writeFileSync(path.join(bin, 'mrw'), "#!/bin/sh\necho 'mrw version v1.68.0-9-g6de290ac (6de290a)'\n")
+    chmodSync(path.join(bin, 'mrw'), 0o755)
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TMPDIR: top, TMP: top, TEMP: top }
+    const probe = spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'corpus-probe.mjs'), repo, '--json'],
+      { encoding: 'utf8', timeout: 180_000, windowsHide: true, env })
+    assert.equal(probe.status, 0, probe.stderr)
+    const lines = JSON.parse(probe.stdout).sessionStart?.lines ?? []
+    assert.ok(lines.length > 0, 'the probe ran SessionStart and it said something about this project')
+    assert.ok(!lines.some(line => LINE.test(line)), `the probe reported the machine's mrw:\n${lines.join('\n')}`)
+    // The control: the same hook, asked directly with the same PATH, does name it.
+    const own = path.join(top, 'own'); mkdirSync(own)
+    const direct = spawnSync(process.execPath, [lifecycleScript], { cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true,
+      env: { ...env, TMPDIR: own, TMP: own, TEMP: own, CLAUDE_PLUGIN_DATA: path.join(own, 'data') },
+      input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: 'mrw-probe-control', cwd: repo }) })
+    assert.match(direct.stdout, LINE)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

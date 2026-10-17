@@ -111,3 +111,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-107](ADR-107-the-plugin-works-the-mrw-way.md) | The plugin works the mrw way | Accepted |
 | [ADR-108](ADR-108-the-hooks-say-what-to-do-next.md) | The hooks say what to do next, the mrw way | Accepted |
 | [ADR-109](ADR-109-a-landed-plan-is-a-mutant-catalogue.md) | The agent writes the tests; the plugin tests the trust between the code and the contract | Accepted |
+| [ADR-110](ADR-110-a-static-core-owns-the-hooks.md) | A static core owns the hooks, and the lifecycle is opt-in | Accepted |

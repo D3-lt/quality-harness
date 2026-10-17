@@ -431,10 +431,21 @@ func runsWhatItWrote(step *shellCommand, n int, commands []*shellCommand, text s
 	files := writtenFiles(step, text)
 	for _, later := range commands[n+1:] {
 		name := programName(argAt(later.argv, 0))
-		if len(later.argv) == 0 || (fileReaders[name] && !later.isDynamic(0)) {
+		if len(later.argv) == 0 {
 			continue
 		}
-		if len(later.dynamic) > 0 || strings.Contains(later.argv[0], "/") || strings.HasSuffix(later.argv[0], ".sh") || (scriptRunners[name] && len(later.argv) > 1) {
+		// A reader is plain only with no pipe, dynamic word or code (a substitution always marks its word dynamic).
+		plain := later.pipeTo < 0 && len(later.dynamic) == 0
+		for _, c := range later.code {
+			plain = plain && !c
+		}
+		if fileReaders[name] {
+			if !plain {
+				return true
+			}
+			continue
+		}
+		if len(later.dynamic) > 0 || strings.Contains(later.argv[0], "/") || strings.HasSuffix(later.argv[0], ".sh") || scriptRunners[name] {
 			return true
 		}
 		for _, word := range later.argv {

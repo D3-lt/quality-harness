@@ -132,7 +132,15 @@ func writesThatChangedNothing(log Log, ended *recorded, root string) []string {
 	writes := []int{}
 	for i := from + 1; i < at; i++ {
 		e := log.E[i]
-		if strict(get(e, "event"), "file.written") && isTrue(get(e, "observable")) && isString(get(e, "path")) {
+		// Only a path the observation can contain: inside the work tree and not under the git directory (`.git/config`
+		// hashes and is not ignored, yet a change to it leaves tree, index and HEAD equal).
+		p, isPath := get(e, "path").(string)
+		inTree := false
+		if isPath {
+			rel := relPath(root, p)
+			inTree = rel != "" && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) && pathSplit.Split(rel, -1)[0] != ".git"
+		}
+		if strict(get(e, "event"), "file.written") && isTrue(get(e, "observable")) && inTree {
 			writes = append(writes, i)
 		}
 	}

@@ -1551,6 +1551,14 @@
       "from": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])\"\n",
       "to": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])\"\n",
       "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
+    },
+    {
+      "label": "adr-next, Claude review of a966786c: the fail-to-pass name needs a left identifier bound too",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next.test.mjs"],
+      "from": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])\"\n",
+      "to": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![\\w-])\"\n",
+      "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
     }
   ]
 }

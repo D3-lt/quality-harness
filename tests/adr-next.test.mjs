@@ -666,6 +666,8 @@ test('SWE-bench\'s fail-to-pass list is a name, and a note saying something fail
   assert.equal(done('observed: fail-to-pass-failed 0'), true)
   assert.equal(done('observed: fail_to_pass-failed 0'), true)
   assert.equal(done('observed: fail_to_pass_failed'), false)
+  assert.equal(done('observed: x_fail_to_pass'), false)
+  assert.equal(done('observed: swe-fail-to-pass'), false)
 })
 
 // A sign-off that cites the task's `## Stop Condition` section names a heading, not a verdict: ADR-078 T2's

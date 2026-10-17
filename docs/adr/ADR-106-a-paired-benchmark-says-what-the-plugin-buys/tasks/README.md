@@ -21,7 +21,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | The paired scorer | done | none — no spec | `node --test tests/eval-paired.test.mjs` (each named test passes once, nothing skipped) |
-| T2 | The pilot checks the plumbing, and the pre-registrations are committed | pending | none — no spec | human-observed: the pilot's sign-off line |
+| T2 | The pilot checks the plumbing, and the pre-registrations are committed | done | none — no spec | human-observed: the pilot's sign-off line |
 | T3 | The main run and its verdict | pending | none — no spec | human-observed: the main run's sign-off line |
 | T4 | The aggregate verdict file | done | none — no spec | `node --test tests/eval-paired.test.mjs` (the verdict-file test passes once, nothing skipped) |
 

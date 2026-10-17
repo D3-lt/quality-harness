@@ -940,8 +940,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if header:",
-      "to": "        if header and status_column is None:",
+      "from": "column=\"status\", reopen=True)",
+      "to": "column=\"status\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -3339,16 +3339,16 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: an Affected Files row needs no leading pipe",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "            if not _UNESCAPED_PIPE.search(stripped):",
-      "to": "            if not stripped.startswith(\"|\"):",
+      "from": "            if found is None and not _UNESCAPED_PIPE.search(stripped):",
+      "to": "            if found is None and not stripped.startswith(\"|\"):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
       "label": "adr-lint, Codex review of the 3.8.40 plan: inside a table a line with no pipe is a one-cell row",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if change is None:\n            if not _UNESCAPED_PIPE.search(stripped):",
-      "to": "        if True:\n            if not _UNESCAPED_PIPE.search(stripped):",
+      "from": "        if found is None or reopen:\n            if found is None and not _UNESCAPED_PIPE.search(stripped):",
+      "to": "        if found is None or reopen or not _UNESCAPED_PIPE.search(stripped):\n            if not _UNESCAPED_PIPE.search(stripped):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
@@ -3363,16 +3363,16 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: a blank line ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
-      "to": "        if change is not None and (_BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "from": "        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if found is not None and (_BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
       "label": "adr-lint, Codex review of the 3.8.40 plan: another block ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
-      "to": "        if change is not None and (not stripped or _HTML_BLOCK_START.match(stripped)):",
+      "from": "        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if found is not None and (not stripped or _HTML_BLOCK_START.match(stripped)):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
@@ -3403,8 +3403,8 @@
       "label": "adr-lint, Codex review of v3.8.39..1d991b64: an HTML block ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
-      "to": "        if change is not None and (not stripped or _BLOCK_START.match(stripped)):",
+      "from": "        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):",
+      "to": "        if found is not None and (not stripped or _BLOCK_START.match(stripped)):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
@@ -3437,6 +3437,30 @@
       "tests": ["tests/gates.test.mjs"],
       "from": "        column = change if change is not None and change >= 0 else 1",
       "to": "        column = 1",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a README done row needs no leading pipe to be checked",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    for line, _ in gfm_table_rows(readme_text.splitlines()):",
+      "to": "    for line, _ in [(ln, None) for ln in readme_text.splitlines() if ln.strip().startswith(\"|\")]:",
+      "only": "^a README row without its leading pipe is still a done claim the evidence check reads$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a README status word needs no leading pipe to be named",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            for line, status_column in gfm_table_rows(readme_text.splitlines(), column=\"status\", reopen=True)",
+      "to": "            for line, status_column in gfm_table_rows([ln for ln in readme_text.splitlines() if ln.strip().startswith(\"|\")], column=\"status\", reopen=True)",
+      "only": "^a README row without its leading pipe is still a done claim the evidence check reads$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: Affected Files never reopens a table at a header-shaped body row",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "gfm_table_rows(secs.get(\"Affected Files\", []))",
+      "to": "gfm_table_rows(secs.get(\"Affected Files\", []), reopen=True)",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     }
   ]

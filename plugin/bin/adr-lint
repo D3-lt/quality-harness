@@ -566,29 +566,35 @@ def gfm_table_cells(line):
     return cells
 
 
-def gfm_table_rows(lines):
-    """The table rows of `lines` as GFM reads a table, as decision-corpus's `affectedFiles` reads one, each with its
-    table's Change column: the index of the header cell named Change, -1 under a header that names none, None outside
-    a table.
+def gfm_table_rows(lines, column="change", reopen=False):
+    """The table rows of `lines` as GFM reads a table, as decision-corpus's `affectedFiles` reads one, each with the
+    index of its table's header cell named `column` (Change by default), -1 under a header that names none, None
+    outside a table.
 
     A table is a header, the delimiter under it with as many cells, and body rows to a blank line or another block.
     No row needs a leading pipe, and inside a table a line with no pipe is a one-cell row (GFM example 202). Outside
     one, a line with a pipe is kept, as every `|` line was. Requiring the leading pipe dropped a second `add` of one
-    file from the collision check (the Codex review of the 3.8.40 plan).
+    file from the collision check (the Codex review of the 3.8.40 plan), and a README `done` row from the evidence
+    check (BACKLOG §381).
+
+    `reopen` lets a header and its delimiter inside a body open a new table, where GFM keeps them as rows. Affected
+    Files does not, since a body row could then redirect the Change column and drop a path. The README status check
+    does, since two status and wave tables written with no blank line between them are two tables to their author,
+    and reading the second with the first's Status column advised on `T3, T5, T6` (BACKLOG §75).
     """
-    rows, change = [], None
+    rows, found = [], None
     for index, line in enumerate(lines):
         stripped = line.strip()
-        if change is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):
-            change = None
-        if change is None:
-            if not _UNESCAPED_PIPE.search(stripped):
+        if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):
+            found = None
+        if found is None or reopen:
+            if found is None and not _UNESCAPED_PIPE.search(stripped):
                 continue
             header = gfm_table_cells(stripped)
             following = lines[index + 1].strip() if index + 1 < len(lines) else ""
             if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(header):
-                change = next((column for column, cell in enumerate(header) if cell.lower() == "change"), -1)
-        rows.append((line, change))
+                found = next((at for at, cell in enumerate(header) if cell.lower() == column), -1)
+        rows.append((line, found))
     return rows
 
 
@@ -2448,11 +2454,10 @@ def done_task_ids(readme_text):
     dependency done because its dependent is.
     """
     out = []
-    for line in readme_text.splitlines():
-        line = line.strip()
-        if not line.startswith("|"):
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+    # A row as GFM reads one, a leading pipe or not: a `done` row written without it was a claim nobody checked
+    # against its Verification Log (BACKLOG §381).
+    for line, _ in gfm_table_rows(readme_text.splitlines()):
+        cells = gfm_table_cells(line)
         if len(cells) < 2:
             continue
         found = next(((i, m) for i, c in enumerate(cells)
@@ -2543,23 +2548,11 @@ def check_task_status_vocabulary(infos, readme_text, errors):
     # `ID | Title | Status | Acceptance`, so a column number right for one is
     # wrong for the other even among the CORRECT tables. Bound by name, per
     # table, or the check is reading the right position in the wrong container.
-    lines = [ln.strip() for ln in readme_text.splitlines()]
-    separator = re.compile(r"^\|[\s:|-]+\|?$")
-    status_column = None
-    rows = []
-    for i, line in enumerate(lines):
-        if not line.startswith("|"):
-            status_column = None       # a table ends where the table rows end
-            continue
-        if separator.match(line):
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        header = i + 1 < len(lines) and separator.match(lines[i + 1])
-        if header:
-            status_column = next((j for j, c in enumerate(cells) if c.lower() == "status"), None)
-            continue
-        if status_column is not None:
-            rows.append((status_column, cells))
+    # Each table's Status column is its own header's, read as GFM reads a table: a row needs no leading pipe, so a
+    # status word in a row written without one is named too (BACKLOG §381).
+    rows = [(status_column, gfm_table_cells(line))
+            for line, status_column in gfm_table_rows(readme_text.splitlines(), column="status", reopen=True)
+            if status_column is not None and status_column >= 0]
     for status_column, cells in rows:
         if status_column >= len(cells):
             continue

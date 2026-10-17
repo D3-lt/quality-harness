@@ -1899,6 +1899,28 @@ test('a pipe-less Affected Files row is a row: a second add still collides, and 
   assert.match(ignoredWith(piped + '| `kept.go` | edit | w |\n<span>note</span>\n`cmd/thing/main.go`\n'), named, 'inline HTML is a row of the table')
 })
 
+// A README row needs no leading pipe either (BACKLOG §381, the leading-pipe class). `done_task_ids` and the status
+// vocabulary check read only `|` lines, so `1 | [T1-fixture](T1-fixture.md) | S | none | done` was a done claim nobody
+// checked against its Verification Log, and an unknown status word nobody named.
+test('a README row without its leading pipe is still a done claim the evidence check reads', () => {
+  const { repo, adr, tasks } = agedCorpus('quality-harness-pipeless-readme-', null)
+  const readme = join(tasks, 'README.md')
+  const original = readFileSync(readme, 'utf8')
+  const t1 = join(tasks, 'T1-fixture.md')
+  writeFileSync(t1, readFileSync(t1, 'utf8').replace(/(## Verification Log\n)[\s\S]*?(?=\n## |$)/, '$1\n'))
+  const withRow = row => { writeFileSync(readme, original.replace(/^\| 1 \| \[T1-fixture\].*$/m, row)); return run('adr-lint', [adr, tasks], repo) }
+  const unbacked = /T1 is marked done but its Verification Log has no exit-0 entry|marked done but its Verification Log has no exit-0 entry/
+  const piped = withRow('| 1 | [T1-fixture](T1-fixture.md) | S | none | done |')
+  expectExit(piped, 1, 'the control: a piped done row with no evidence blocks')
+  assert.match(piped.stdout, unbacked)
+  const bare = withRow('1 | [T1-fixture](T1-fixture.md) | S | none | done')
+  expectExit(bare, 1, 'a done row without its leading pipe blocks the same way')
+  assert.match(bare.stdout, unbacked)
+  assert.doesNotMatch(withRow('1 | [T1-fixture](T1-fixture.md) | S | none | pending').stdout, unbacked, 'a pending row claims nothing')
+  assert.match(withRow('1 | [T1-fixture](T1-fixture.md) | S | none | wip').stdout, /README\.md: T1 has status `wip`, which this reader does not act on/,
+    'an unknown status without its leading pipe is still named')
+})
+
 // A task path that would break a default Windows clone is advised at authoring
 // time (BACKLOG §231): MAX_PATH is 260, Git for Windows does not set
 // core.longpaths, and retiring a record adds eight characters (`docs/adr` →

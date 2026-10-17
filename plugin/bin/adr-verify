@@ -6,6 +6,7 @@ Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
                   --from <text> --to <text> --why <text> [--covers <mechanism>] [--in-place]
+       adr-verify <task.md> --mutant-plan <plan-file> --why <text> [--covers <mechanism>] [--in-place]
         adr-verify <task.md> [--steps S1,S3]
         adr-verify <task.md> --relock [--replace-hashes] [--cwd DIR]
         adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
@@ -119,6 +120,18 @@ Only the PREFLIGHT is all-or-nothing: a path that does not exist, is not a task 
 so a typo cannot record N-1 rows and skip one. Several tasks cannot be combined with
 --mutant, --mutant-plan, --human, --human-mutant, --relock, --restore or --sweep: each
 writes a different log or acts on one task, so the call would not say what it claims.
+
+--mutant-plan <file> --why <text> replaces --mutant/--from/--to when one mutant needs
+several edits, in one file or in several (ADR-107): a call site and the import it
+drops, a source and its twin. The plan holds mrw hunks, `@@ <path> <N|N-M|/regex/> <op>`
+and body lines, with <path> relative to --cwd and <op> one of replace, delete,
+insert-after, insert-before. Every address resolves against the ORIGINAL file; a
+/regex/ (Python syntax) must match exactly one line. The plan applies whole or not at
+all: any hunk that matches nothing or several, overlaps another, or uses a
+create/unlink/rename op, a sha=/lines=/anchor= guard or a body line starting with @@
+is refused with nothing written; a plan whose hunks change no byte is `MUTANT DID
+NOTHING`. Each hunk's verdict is printed (`ok <path> <addr> <op>`), every file joins
+ONE restore transaction, and the Mutation Log row names them all (`a.py, b.py`).
 
 Exit: the Acceptance command's exit code (0 for --human; 0 for --restore) · for
 --mutant the code is the VERDICT, not the fence: 0 `killed` · 1 `survived`, a
@@ -1077,7 +1090,7 @@ def _same_file(left, right):
         return False
 
 
-def secondary_members(cwd, target, declared):
+def secondary_members(cwd, targets, declared):
     """Validate and snapshot every repeatable --also-restore value."""
     root = Path(cwd).resolve()
     members, seen = [], []
@@ -1085,7 +1098,7 @@ def secondary_members(cwd, target, declared):
         candidate, problem = inspect_transaction_path(root, root.joinpath(*_portable_relative_parts(raw)))
         if problem:
             fail(f"--also-restore {raw!r} {problem}")
-        if _same_file(candidate, target):
+        if any(_same_file(candidate, target) for target in targets):
             fail(f"--also-restore {raw!r} repeats the --mutant target; declare it only once")
         if any(_same_file(candidate, prior) for prior in seen):
             fail(f"--also-restore {raw!r} duplicates another generated output")
@@ -1197,8 +1210,8 @@ def _decode_v2_journal(data, cwd):
             except Exception as exc:
                 raise ValueError(f"{named}: invalid mutant bytes: {exc}")
         members.append(member)
-    if targets != 1:
-        raise ValueError("journal must contain exactly one target")
+    if targets < 1:
+        raise ValueError("journal must contain at least one target")
     return data["phase"], members
 
 
@@ -1471,8 +1484,210 @@ def recover_mutant(cwd, explicit=False):
              f"Verification is blocked until it is reconciled.")
 
 
+# ADR-107: `--mutant-plan` reads the subset of mrw's plan grammar a mutant needs: `@@ <path> <N|N-M|/regex/> <op>`, op
+# one of replace, delete, insert-after, insert-before, then body lines. Not supported, and refused by name: create,
+# unlink, rename, the sha=/lines=/anchor=/body=/raw= guards, and a body line that starts with @@.
+PLAN_HEADER = re.compile(r"^@@ (?P<path>\S+) (?P<addr>\d+(?:-\d+)?|/.+/) (?P<op>[a-z-]+)(?P<rest>.*)$")
+PLAN_OPS = ("replace", "delete", "insert-after", "insert-before")
+
+
+def load_edit_target(cwd, rel):
+    """The file a mutant edits, as bytes and as text, or a refusal that names it."""
+    target = Path(rel) if looks_absolute(rel) else (cwd / rel)
+    if not target.exists():
+        fail(f"--mutant file not found: {target}")
+    target, target_problem = inspect_transaction_path(cwd, target)
+    if target_problem:
+        fail(f"--mutant target {rel!r} {target_problem}; a restore transaction cannot own it")
+    # Kept as BYTES so the restore is a restore, not a re-encode.
+    original_bytes = target.read_bytes()
+    return {
+        "rel": rel, "target": target, "original_bytes": original_bytes,
+        "original": original_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n"),
+        "newline": "\r\n" if b"\r\n" in original_bytes else "\n",
+    }
+
+
+def refuse_comment_only(rel, target, frm, to):
+    # A DIRECTIVE WEARS A COMMENT'S SYNTAX. `//go:build readcostspec` is lexically
+    # a comment and semantically a build constraint: restoring it removes whole
+    # test functions from compilation, which is a larger behavioural change than
+    # most real mutants. The guard below classifies by SHAPE and cannot see that,
+    # so it refused the strongest mutant a task whose deliverable IS the tag can
+    # have — reported 2026-08-29 with a hand-verified repro where `go test -run`
+    # exited 0 over a suite that executed nothing (docs/BACKLOG.md §67).
+    #
+    # The family is not Go-only: `// +build`, `//go:generate`, `//go:embed`,
+    # `//go:linkname`, `//nolint`, `# type: ignore`, a `noqa` comment,
+    # `// eslint-disable`, `/* istanbul ignore */`, a shebang. Several are
+    # exactly what a campaign most wants to test, because a coverage-suppression
+    # pragma is a mechanism whose whole job is to make something invisible.
+    #
+    # Deliberately a LIST rather than a heuristic: "a comment whose first token
+    # ends in a colon" would swallow ordinary prose, and this guard exists to
+    # refuse mutants, so a loose exemption silently re-opens the hole it closes.
+    if DIRECTIVE_COMMENT.search(frm) or DIRECTIVE_COMMENT.search(to):
+        return
+    marker = LINE_COMMENT.get(target.suffix.lower())
+    if marker and strip_comments(frm, marker) == strip_comments(to, marker):
+        fail(f"COMMENT-ONLY MUTANT: in {rel} this edit changes only comments or "
+             f"blank lines, so it changes nothing the program does. A test cannot "
+             f"be expected to notice it, and a 'survived' verdict here would be "
+             f"about the mutant, not the test.")
+
+
+def single_edit(cwd, rel, frm, to):
+    """The one edit `--mutant --from --to` describes, or a refusal."""
+    edit = load_edit_target(cwd, rel)
+    # THE check this tool exists for. An edit that does not apply is the silent
+    # no-op that reports a clean pass; an edit that applies in several places is
+    # a different mutant than the one described.
+    n = edit["original"].count(frm)
+    if n == 0:
+        fail(f"MUTANT DID NOT APPLY: --from text is not present in {rel}. "
+             f"Nothing was run — a mutation that does not land proves nothing, "
+             f"and reporting it as applied is how a decoration test survives.")
+    if n != 1:
+        fail(f"MUTANT NOT UNIQUE: --from text appears {n} times in {rel}. "
+             f"Extend it until it selects exactly the one site you mean.")
+    if frm == to:
+        fail(f"MUTANT DID NOTHING: --to is the same text as --from, so {rel} would be written unchanged. "
+             f"Nothing was run — a verdict about a mutation that never happened is not evidence (ADR-107 T2).")
+    refuse_comment_only(rel, edit["target"], frm, to)
+    edit["mutated"] = edit["original"].replace(frm, to, 1)
+    return edit
+
+
+def parse_plan(text):
+    """The hunks of a --mutant-plan, or a refusal that names the plan line."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    hunks = []
+    for number, line in enumerate(lines, 1):
+        if not line.startswith("@@"):
+            if not hunks:
+                fail(f"--mutant-plan line {number}: text before the first `@@` hunk header")
+            hunks[-1]["body"].append(line)
+            continue
+        found = PLAN_HEADER.match(line)
+        if found is None:
+            fail(f"--mutant-plan line {number}: {line!r} is not a hunk header "
+                 f"`@@ <path> <N|N-M|/regex/> <op>`. A body line that starts with @@ is not "
+                 f"supported (mrw reads it only with body=<N> raw=true, which this reader does not): "
+                 f"write the line so it does not start with @@.")
+        if found["op"] not in PLAN_OPS:
+            fail(f"--mutant-plan line {number}: op {found['op']!r} is not supported; "
+                 f"{', '.join(PLAN_OPS)} are. create, unlink and rename are not.")
+        if found["rest"].strip():
+            fail(f"--mutant-plan line {number}: {found['rest'].strip()!r} is not supported; "
+                 f"the sha=, lines=, anchor=, body= and raw= guards are not read here.")
+        hunks.append({"path": found["path"], "addr": found["addr"], "op": found["op"],
+                      "line": number, "body": []})
+    if not hunks:
+        fail("--mutant-plan holds no hunk")
+    for hunk in hunks:
+        where = f"--mutant-plan line {hunk['line']}"
+        if hunk["op"] == "delete" and hunk["body"]:
+            fail(f"{where}: delete takes no body")
+        if hunk["op"] != "delete" and not hunk["body"]:
+            fail(f"{where}: {hunk['op']} needs a body; use delete to remove lines")
+        if hunk["op"].startswith("insert") and re.fullmatch(r"\d+-\d+", hunk["addr"]):
+            fail(f"{where}: {hunk['op']} takes one line or one pattern, not a range")
+    return hunks
+
+
+def resolve_hunk(hunk, lines, rel):
+    """((start, end), None) or (None, problem): half-open indexes into the ORIGINAL lines, a point for an insert."""
+    addr = hunk["addr"]
+    if addr.startswith("/"):
+        try:
+            pattern = re.compile(addr[1:-1])
+        except re.error as exc:
+            return None, f"{addr} is not a regular expression ({exc})"
+        found = [index for index, text in enumerate(lines, 1) if pattern.search(text)]
+        if len(found) != 1:
+            where = f" (lines {', '.join(map(str, found[:8]))})" if found else ""
+            return None, f"pattern {addr} matched {len(found)} lines{where}; it must match exactly one"
+        first = last = found[0]
+    else:
+        head, _, tail = addr.partition("-")
+        first, last = int(head), int(tail or head)
+        if first < 1 or last < first or last > len(lines):
+            return None, f"line {addr} is outside {rel}, which has {len(lines)} lines"
+    if hunk["op"] == "insert-after":
+        return (last, last), None
+    if hunk["op"] == "insert-before":
+        return (first - 1, first - 1), None
+    return (first - 1, last), None
+
+
+def spans_clash(left, right):
+    (a, b), (c, d) = left, right
+    if a == b and c == d:
+        return a == c
+    if a == b:
+        return c < a < d
+    if c == d:
+        return a < c < b
+    return a < d and c < b
+
+
+def plan_edits(cwd, text):
+    """(edits, verdicts) for a --mutant-plan: every hunk resolved against the ORIGINAL files, all of it or a refusal."""
+    grouped = {}
+    for hunk in parse_plan(text):
+        rel = hunk["path"]
+        if looks_absolute(rel) or ".." in rel.replace("\\", "/").split("/"):
+            fail(f"--mutant-plan line {hunk['line']}: {rel!r} must be a path inside --cwd, relative to it")
+        grouped.setdefault(rel, []).append(hunk)
+    staged, problems, seen = [], [], []
+    for rel, group in grouped.items():
+        edit = load_edit_target(cwd, rel)
+        if any(_same_file(edit["target"], prior) for prior in seen):
+            fail(f"--mutant-plan names {rel!r} under two spellings; name each file once")
+        seen.append(edit["target"])
+        lines = edit["original"].split("\n")
+        ended = lines[-1] == ""
+        if ended:
+            lines.pop()
+        spans = []
+        for hunk in group:
+            span, problem = resolve_hunk(hunk, lines, rel)
+            if problem:
+                problems.append(f"{rel} (plan line {hunk['line']}, {hunk['addr']} {hunk['op']}): {problem}")
+                continue
+            for other, earlier in spans:
+                if spans_clash(span, other):
+                    problems.append(f"{rel}: the hunks at plan lines {earlier['line']} and {hunk['line']} overlap")
+            spans.append((span, hunk))
+        staged.append((edit, lines, ended, spans))
+    if problems:
+        fail("--mutant-plan refused, nothing was written:\n  - " + "\n  - ".join(problems))
+    edits = []
+    for edit, lines, ended, spans in staged:
+        out, removed, added = list(lines), [], []
+        for (start, end), hunk in sorted(spans, key=lambda item: item[0], reverse=True):
+            body = [] if hunk["op"] == "delete" else hunk["body"]
+            removed.extend(lines[start:end])
+            added.extend(body)
+            out[start:end] = body
+        edit["mutated"] = "\n".join(out) + ("\n" if ended and out else "")
+        edit["removed"], edit["added"] = "\n".join(removed), "\n".join(added)
+        edits.append(edit)
+    if all(source_bytes(e["mutated"], e["newline"]) == e["original_bytes"] for e in edits):
+        fail("MUTANT DID NOTHING: the plan's hunks together leave every file byte for byte as it was. "
+             "Nothing was run — a verdict about a mutation that never happened is not evidence (ADR-107 T2).")
+    for edit in edits:
+        if source_bytes(edit["mutated"], edit["newline"]) != edit["original_bytes"]:
+            refuse_comment_only(edit["rel"], edit["target"], edit["removed"], edit["added"])
+    verdicts = [f"ok {hunk['path']} {hunk['addr']} {hunk['op']}"
+                for hunk in sorted((h for *_, group in staged for _, h in group), key=lambda h: h["line"])]
+    return edits, verdicts
+
+
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
-               covers=None, steps=None, in_place=False, placement=None):
+               covers=None, steps=None, in_place=False, placement=None, plan=None):
     # ADR-025: taken HERE, before this function writes anything at all. The
     # journal below and the verification entry this run records both modify the
     # tree, so a sha read later would carry the dirty marker `*` earned by our
@@ -1488,7 +1703,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     it sounds: the whole point is to run this on a clean tree, and the failure
     mode is silently committing a deliberate defect.
     """
-    if frm is None or to is None:
+    if plan is None and (frm is None or to is None):
         fail("--mutant needs --from <text> and --to <text> "
              "(use --to '' to delete). --why <text> is required too.")
     if not why or not why.strip():
@@ -1531,65 +1746,18 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                  f"the bundled task-template.md) before recording mutants.")
 
     cwd = Path(cwd).resolve()
-    target = Path(rel) if looks_absolute(rel) else (cwd / rel)
-    if not target.exists():
-        fail(f"--mutant file not found: {target}")
-    target, target_problem = inspect_transaction_path(cwd, target)
-    if target_problem:
-        fail(f"--mutant target {rel!r} {target_problem}; a restore transaction cannot own it")
-
-    # Kept as BYTES so the restore below is a restore, not a re-encode.
-    original_bytes = target.read_bytes()
-    original = original_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n")
-    target_newline = "\r\n" if b"\r\n" in original_bytes else "\n"
-
-    # THE check this tool exists for. An edit that does not apply is the silent
-    # no-op that reports a clean pass; an edit that applies in several places is
-    # a different mutant than the one described.
-    n = original.count(frm)
-    if n == 0:
-        fail(f"MUTANT DID NOT APPLY: --from text is not present in {rel}. "
-             f"Nothing was run — a mutation that does not land proves nothing, "
-             f"and reporting it as applied is how a decoration test survives.")
-    if n != 1:
-        fail(f"MUTANT NOT UNIQUE: --from text appears {n} times in {rel}. "
-             f"Extend it until it selects exactly the one site you mean.")
-    if frm == to:
-        fail(f"MUTANT DID NOTHING: --to is the same text as --from, so {rel} would be written unchanged. "
-             f"Nothing was run — a verdict about a mutation that never happened is not evidence (ADR-107 T2).")
-
-    # A DIRECTIVE WEARS A COMMENT'S SYNTAX. `//go:build readcostspec` is lexically
-    # a comment and semantically a build constraint: restoring it removes whole
-    # test functions from compilation, which is a larger behavioural change than
-    # most real mutants. The guard below classifies by SHAPE and cannot see that,
-    # so it refused the strongest mutant a task whose deliverable IS the tag can
-    # have — reported 2026-08-29 with a hand-verified repro where `go test -run`
-    # exited 0 over a suite that executed nothing (docs/BACKLOG.md §67).
-    #
-    # The family is not Go-only: `// +build`, `//go:generate`, `//go:embed`,
-    # `//go:linkname`, `//nolint`, `# type: ignore`, a `noqa` comment,
-    # `// eslint-disable`, `/* istanbul ignore */`, a shebang. Several are
-    # exactly what a campaign most wants to test, because a coverage-suppression
-    # pragma is a mechanism whose whole job is to make something invisible.
-    #
-    # Deliberately a LIST rather than a heuristic: "a comment whose first token
-    # ends in a colon" would swallow ordinary prose, and this guard exists to
-    # refuse mutants, so a loose exemption silently re-opens the hole it closes.
-    if DIRECTIVE_COMMENT.search(frm) or DIRECTIVE_COMMENT.search(to):
-        pass
-    elif (marker := LINE_COMMENT.get(target.suffix.lower())) and \
-            strip_comments(frm, marker) == strip_comments(to, marker):
-        fail(f"COMMENT-ONLY MUTANT: in {rel} this edit changes only comments or "
-             f"blank lines, so it changes nothing the program does. A test cannot "
-             f"be expected to notice it, and a 'survived' verdict here would be "
-             f"about the mutant, not the test.")
+    if plan is None:
+        edits, verdicts = [single_edit(cwd, rel, frm, to)], []
+    else:
+        edits, verdicts = plan_edits(cwd, plan)
+    rel = ", ".join(e["rel"] for e in edits)
 
     # ADR-076 T2: where the run goes, decided after the preflight and said on the first line.
     # Evidence stays this checkout's: the task file, `entry_sha` above, record_run's test-body
     # locks. Execution — both fences, the mutant and the reset between them — moves to a
     # worktree of the checkout's working-tree content unless an arm below keeps it in place.
     placement = {} if placement is None else placement
-    run_cwd, run_target, reason, swept = cwd, target, None, []
+    run_cwd, run_targets, reason, swept = cwd, [e["target"] for e in edits], None, []
     root = None if in_place else checkout_root(cwd)
     if in_place:
         reason = "--in-place was given"
@@ -1600,12 +1768,15 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     elif (named := fence_names_checkout(cmd, list(dict.fromkeys([str(root[1]), root[0]])))) is not None:
         reason = f"the fence names this checkout's path {named}, which a worktree cannot redirect"
     else:
-        try:
-            inside = target.resolve().relative_to(root[1])
-        except ValueError:
-            inside = None
-        if inside is None:
-            reason = f"the mutant target {target} is outside the checkout {root[1]}"
+        insides, outside = [], None
+        for e in edits:
+            try:
+                insides.append(e["target"].resolve().relative_to(root[1]))
+            except ValueError:
+                outside = e["target"]
+                break
+        if outside is not None:
+            reason = f"the mutant target {outside} is outside the checkout {root[1]}"
         else:
             # A signal that lands while the tree is built would end this process before
             # it knew the tree's id, and the tree would wait for a later sweep: forced
@@ -1621,17 +1792,22 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                 else:
                     placement["id"] = built[-1]["id"]
                     tree = Path(built[-1]["tree"])
-                    run_cwd, run_target = tree / cwd.relative_to(root[1]), tree / inside
-                    try:
-                        held = run_target.read_bytes() == original_bytes
-                    except OSError:
-                        held = False
-                    if not held:
+                    run_cwd = tree / cwd.relative_to(root[1])
+                    run_targets = [tree / inside for inside in insides]
+                    unheld = []
+                    for e, run_target in zip(edits, run_targets):
+                        try:
+                            held = run_target.read_bytes() == e["original_bytes"]
+                        except OSError:
+                            held = False
+                        if not held:
+                            unheld.append(e["rel"])
+                    if unheld:
                         # An ignored file is not carried into a worktree, and a target the
                         # tree does not hold byte for byte would make it a different mutant.
                         dispose_worktree(placement)
-                        run_cwd, run_target = cwd, target
-                        reason = (f"the worktree does not hold {rel} as this checkout does "
+                        run_cwd, run_targets = cwd, [e["target"] for e in edits]
+                        reason = (f"the worktree does not hold {', '.join(unheld)} as this checkout does "
                                   f"(an ignored file is not carried into one)")
             finally:
                 release_signals(before, pending, unwind=placement.get("id") is not None)
@@ -1642,6 +1818,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
               flush=True)
     else:
         print(f"[adr-verify] in place: {reason}.", flush=True)
+    for line in verdicts:
+        print(line, flush=True)
     for record in swept:
         if isinstance(record, dict) and record.get("said"):
             print(f"[adr-verify] {record['said']}")
@@ -1657,15 +1835,14 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                  f"({failure}), so it was not run: a sweep could remove the tree under it.")
     fence_start = own if isolated else None
 
-    mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
     members = [{
         "role": "target",
         "path": str(run_target),
         "existed": True,
-        "original": base64.b64encode(original_bytes).decode("ascii"),
-        "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
-    }]
-    members.extend(secondary_members(run_cwd, run_target, also_restore))
+        "original": base64.b64encode(e["original_bytes"]).decode("ascii"),
+        "mutated": base64.b64encode(source_bytes(e["mutated"], e["newline"])).decode("ascii"),
+    } for e, run_target in zip(edits, run_targets)]
+    members.extend(secondary_members(run_cwd, run_targets, also_restore))
 
     verdict, code, detail = "inconclusive", 2, ""
     # Isolated, nothing is applied to this checkout, so there is nothing for a later run
@@ -1679,7 +1856,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         "phase": "baseline",
         "cwd": str(run_cwd),
         "members": members,
-        "from": frm, "to": to, "why": why.strip(), "cmd": cmd,
+        "from": frm, "to": to, "plan": plan, "why": why.strip(), "cmd": cmd,
     }
 
     # The journal protects the CLEAN run too: an Acceptance fence may generate or
@@ -1804,7 +1981,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                 fail(f"[adr-verify] could not advance the mutant journal ({e}); refusing before "
                      f"mutation. The clean fence ran, but no evidence was written.")
 
-        write_source(run_target, original.replace(frm, to, 1), target_newline)
+        for e, run_target in zip(edits, run_targets):
+            write_source(run_target, e["mutated"], e["newline"])
 
         # Said BEFORE the fence runs, because the fence is the part that gets
         # killed. Whatever else is lost, the transcript then names the file that
@@ -1821,14 +1999,15 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             print(f"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken "
                   f"until the fence finishes.", flush=True)
             print(f"[adr-verify] if this run is killed, restore it with `adr-verify --restore "
-                  f"--cwd {cwd}`, or `git checkout -- {rel}`.", flush=True)
+                  f"--cwd {cwd}`, or `git checkout -- {' '.join(e['rel'] for e in edits)}`.", flush=True)
 
-        ok, why_not = syntax_ok(run_target)
-        if not ok:
-            print(f"[adr-verify] the mutant does not parse: {why_not}")
-            print("[adr-verify] a mutant that does not build has NOT been tested — it has "
-                  "been skipped. Rewrite it so it still parses.")
-            sys.exit(2)
+        for run_target in run_targets:
+            ok, why_not = syntax_ok(run_target)
+            if not ok:
+                print(f"[adr-verify] the mutant does not parse: {why_not}")
+                print("[adr-verify] a mutant that does not build has NOT been tested — it has "
+                      "been skipped. Rewrite it so it still parses.")
+                sys.exit(2)
 
         try:
             r = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
@@ -2946,6 +3125,7 @@ def main():
 
     mutant = frm = to = why = None
     restore = False
+    mutant_plan = None
     relock = False
     replace_hashes = False
     sweep = None
@@ -2970,6 +3150,9 @@ def main():
         elif args[i] == "--mutant":
             i += 1
             mutant = value(i, "--mutant")
+        elif args[i] == "--mutant-plan":
+            i += 1
+            mutant_plan = value(i, "--mutant-plan")
         elif args[i] == "--also-restore":
             i += 1
             also_restore.append(value(i, "--also-restore"))
@@ -3047,6 +3230,15 @@ def main():
         i += 1
     if replace_hashes and not relock:
         fail("--replace-hashes is valid only with --relock")
+    plan = None
+    if mutant_plan is not None:
+        if mutant is not None or frm is not None or to is not None:
+            fail("--mutant-plan replaces --mutant, --from and --to; give the plan or the single edit, not both")
+        try:
+            plan = Path(mutant_plan).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            fail(f"--mutant-plan could not read {mutant_plan}: {exc}")
+        mutant = mutant_plan
     if relock and mutant is not None:
         fail("--relock cannot be combined with --mutant")
     if relock and human_mutant is not None:
@@ -3280,7 +3472,7 @@ def main():
         placement = {}
         try:
             run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
-                       covers=covers, steps=steps, in_place=in_place, placement=placement)
+                       covers=covers, steps=steps, in_place=in_place, placement=placement, plan=plan)
         finally:
             # ADR-076: after every row is written, and on every way out of the run.
             dispose_worktree(placement)

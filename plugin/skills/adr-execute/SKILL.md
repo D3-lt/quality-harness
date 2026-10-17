@@ -194,6 +194,14 @@ you then read the result. Both spellings have put a red tree on `main`.
    cleanup, including over a concurrent edit; declare only disposable generated outputs whose
    command-entry state should be restored.
 
+   A mutant that needs several edits (a call site and the import it drops, two files) takes
+   `--mutant-plan <plan-file> --why …` instead of `--mutant/--from/--to`: mrw hunks
+   (`@@ <path> <N|N-M|/regex/> replace|delete|insert-after|insert-before`, then body lines), every
+   address read from the original file, a pattern matching exactly one line, applied whole or not at
+   all, one `ok <path> <addr> <op>` per hunk, one restore transaction over every file, and a row that
+   names them all. `create`/`unlink`/`rename`, the `sha=`/`lines=`/`anchor=` guards and a body line
+   starting with `@@` are refused.
+
    A `--mutant` run executes both fences in a worktree of the checkout, which carries tracked and
    untracked files but **no ignored one** — no `node_modules`, virtualenv or build output. A fence
    that needs one makes it itself (`npm ci` first), or the run takes `--in-place`.

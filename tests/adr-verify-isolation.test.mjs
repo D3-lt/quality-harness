@@ -440,3 +440,22 @@ test('a clean fence that fails in the worktree says the worktree holds no ignore
   assert.match(bare.stdout, /UNPROVEN/, bare.stdout)
   assert.doesNotMatch(bare.stdout, /no ignored file/, bare.stdout)
 })
+
+test('a mutant plan over two files runs in the worktree and leaves both files in the checkout alone', () => {
+  // Red only while BOTH files hold their mutant, so a plan that reached the worktree in part is a survivor.
+  const { dir } = corpus({ fence: FENCE.replace('if grep -q "## Decisiun" ADR-001-selftest.md;', 'if grep -q "## Decisiun" ADR-001-selftest.md && grep -q "service" architecture.md;') })
+  const planDir = mkdtempSync(path.join(os.tmpdir(), 'qh-n4-plan-'))
+  made.push(planDir)
+  const plan = path.join(planDir, 'plan.txt')
+  writeFileSync(plan, '@@ ADR-001-selftest.md /^## Decision$/ replace\n## Decisiun\n@@ architecture.md /^\\*\\*Tier:\\*\\*/ replace\n**Tier:** service\n')
+  const before = snapshot(dir, new Set(['tasks/T1-fixture.md']))
+  const argv = [path.join(bin, 'adr-verify'), 'tasks/T1-fixture.md', '--cwd', '.', '--mutant-plan', plan, '--why', 'both files change in one tree']
+  const run = spawnSync(process.platform === 'win32' ? 'python3' : argv[0], process.platform === 'win32' ? argv : argv.slice(1),
+    { cwd: dir, env: process.env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout.split('\n')[0], /isolated in/, run.stdout)
+  assert.match(run.stdout, /^ok architecture\.md \/\^\\\*\\\*Tier:\\\*\\\*\/ replace$/m)
+  assert.match(mutationLog(dir), /mutant killed · exit [1-9]\d* · `ADR-001-selftest\.md, architecture\.md`/)
+  assert.deepEqual(snapshot(dir, new Set(['tasks/T1-fixture.md'])), before)
+  assert.equal(worktrees(dir), 1, 'a worktree outlived the run')
+})

@@ -133,8 +133,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\", flush=True)\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
-      "to": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\")\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")",
+      "from": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\", flush=True)\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {' '.join(e['rel'] for e in edits)}`.\", flush=True)",
+      "to": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\")\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {' '.join(e['rel'] for e in edits)}`.\")",
       "only": "^(?:the warning that names the broken file survives the kill that hides it)$"
     },
     {
@@ -752,8 +752,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                       covers=covers, steps=steps, in_place=in_place, placement=placement)",
-      "to": "                       covers=covers, in_place=in_place, placement=placement)",
+      "from": "                       covers=covers, steps=steps, in_place=in_place, placement=placement, plan=plan)",
+      "to": "                       covers=covers, in_place=in_place, placement=placement, plan=plan)",
       "only": "^(?:a mutation run's own clean entry carries the steps it was given|the UNPROVEN early return records the steps its run named)$"
     },
     {
@@ -1181,8 +1181,8 @@
       "tests": [
         "tests/adr-verify-isolation.test.mjs"
       ],
-      "from": "        write_source(run_target, original.replace(frm, to, 1), target_newline)",
-      "to": "        write_source(target, original.replace(frm, to, 1), target_newline)",
+      "from": "            write_source(run_target, e[\"mutated\"], e[\"newline\"])",
+      "to": "            write_source(e[\"target\"], e[\"mutated\"], e[\"newline\"])",
       "only": "^a mutant run leaves the checkout unchanged but for the task file's logs$"
     },
     {
@@ -1231,8 +1231,8 @@
       "tests": [
         "tests/adr-verify-isolation.test.mjs"
       ],
-      "from": "    members.extend(secondary_members(run_cwd, run_target, also_restore))",
-      "to": "    members.extend(secondary_members(cwd, target, also_restore))",
+      "from": "    members.extend(secondary_members(run_cwd, run_targets, also_restore))",
+      "to": "    members.extend(secondary_members(cwd, [e[\"target\"] for e in edits], also_restore))",
       "only": "^a generated output left by the clean fence is reset before the mutant fence$"
     },
     {
@@ -1618,6 +1618,166 @@
       "from": "(\"--sweep\", sweep is not None)):",
       "to": "(\"--sweep\", False)):",
       "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a pattern that matches no line is not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if len(found) != 1:\n            where = ",
+      "to": "        if len(found) > 1:\n            where = ",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a pattern that matches several lines is not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if len(found) != 1:\n            where = ",
+      "to": "        if len(found) == 0:\n            where = ",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a line past the end of the file is not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if first < 1 or last < first or last > len(lines):",
+      "to": "        if first < 1 or last < first:",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a plan with a failing hunk still applies its other hunks",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    if problems:\n        fail(\"--mutant-plan refused",
+      "to": "    if False:\n        fail(\"--mutant-plan refused",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a plan whose hunks net to no change is run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    if all(source_bytes(e[\"mutated\"], e[\"newline\"]) == e[\"original_bytes\"] for e in edits):",
+      "to": "    if False:",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: two hunks on the same lines are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    return a < d and c < b",
+      "to": "    return False",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: hunks are applied top-down, so a later address reads the edited file",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "key=lambda item: item[0], reverse=True)",
+      "to": "key=lambda item: item[0], reverse=False)",
+      "only": "^a mutant plan covers insert-before, insert-after and delete, resolved against the original lines$"
+    },
+    {
+      "label": "verify, ADR-107 plan: the mutated file loses its final newline",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "(\"\\n\" if ended and out else \"\")",
+      "to": "\"\"",
+      "only": "^a mutant plan covers insert-before, insert-after and delete, resolved against the original lines$"
+    },
+    {
+      "label": "verify, ADR-107 plan: the restore journal records only the first file of a plan",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    } for e, run_target in zip(edits, run_targets)]",
+      "to": "    } for e, run_target in zip(edits[:1], run_targets[:1])]",
+      "only": "^(?:a mutant plan over two files is killed, says ok per hunk, names both files, and restores both|a SIGKILLed mutant plan leaves both files mutated, and the next run restores both)$"
+    },
+    {
+      "label": "verify, ADR-107 plan: only the first file of a plan is written",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        for e, run_target in zip(edits, run_targets):\n            write_source",
+      "to": "        for e, run_target in zip(edits[:1], run_targets[:1]):\n            write_source",
+      "only": "^a SIGKILLed mutant plan leaves both files mutated, and the next run restores both$"
+    },
+    {
+      "label": "verify, ADR-107 plan: the Mutation Log row names only the first file",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    rel = \", \".join(e[\"rel\"] for e in edits)",
+      "to": "    rel = edits[0][\"rel\"]",
+      "only": "^a mutant plan over two files is killed, says ok per hunk, names both files, and restores both$"
+    },
+    {
+      "label": "verify, ADR-107 plan: no hunk verdict is printed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    for line in verdicts:\n        print(line, flush=True)",
+      "to": "    for line in verdicts:\n        pass",
+      "only": "^a mutant plan over two files is killed, says ok per hunk, names both files, and restores both$"
+    },
+    {
+      "label": "verify, ADR-107 plan: an op outside the subset is accepted",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if found[\"op\"] not in PLAN_OPS:",
+      "to": "        if False:",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a guard outside the subset is ignored",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if found[\"rest\"].strip():",
+      "to": "        if False:",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a plan path outside --cwd is not refused by name",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if looks_absolute(rel) or \"..\" in rel.replace(\"\\\\\", \"/\").split(\"/\"):",
+      "to": "        if False:",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a plan and --mutant together are accepted",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if mutant is not None or frm is not None or to is not None:\n            fail(\"--mutant-plan replaces",
+      "to": "        if False:\n            fail(\"--mutant-plan replaces",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: the journal accepts exactly one target again",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    if targets < 1:",
+      "to": "    if targets != 1:",
+      "only": "^a SIGKILLed mutant plan leaves both files mutated, and the next run restores both$"
+    },
+    {
+      "label": "verify, ADR-107 plan: --also-restore compares with the first plan file only",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "        if any(_same_file(candidate, target) for target in targets):",
+      "to": "        if _same_file(candidate, targets[0]):",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a comment-only plan is run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "            refuse_comment_only(edit[\"rel\"], edit[\"target\"], edit[\"removed\"], edit[\"added\"])",
+      "to": "            pass",
+      "only": "^a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere$"
+    },
+    {
+      "label": "verify, ADR-107 plan: a plan run in the worktree is not announced as isolated",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-isolation.test.mjs"],
+      "from": "                    run_targets = [tree / inside for inside in insides]",
+      "to": "                    run_targets = [tree / inside for inside in insides[:1]]",
+      "only": "^a mutant plan over two files runs in the worktree and leaves both files in the checkout alone$"
     }
   ]
 }

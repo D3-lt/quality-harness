@@ -1796,6 +1796,124 @@ test('a SIGKILLed mutant run is restored by the next run, not left in the tree',
   assert.ok(!mutated(copy), 'the mutant survived a restore that reported success')
 })
 
+// ADR-107: `--mutant-plan` is the mrw way for a mutant that needs more than one edit: one plan, resolved against the
+// original files, all of it or none of it, a verdict per hunk, one restore transaction over every file it touches.
+const PLAN_WHY = 'a call site and the import it drops go together'
+function planCorpus(fence) {
+  const copy = corpus()
+  addMutationLog(copy)
+  writeFileSync(join(copy, 'two_a.py'), 'import os\nA = 1\n')
+  writeFileSync(join(copy, 'two_b.py'), 'B = 2\nC = 2\n')
+  // A function replacement: a string one reads `$'` in a grep pattern as "the text after the match".
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?```/, () => `\`\`\`bash\n${fence ??
+    `set -e\npython3 -c 'import two_a, two_b; assert two_a.A == 1 and two_b.B == 2'\necho '2 passed in 0.01s'`}\n\`\`\``))
+  return copy
+}
+function planFile(copy, body) {
+  const file = join(mkdtempSync(join(os.tmpdir(), 'quality-harness-plan-')), 'plan.txt')
+  temps.push(dirname(file))
+  writeFileSync(file, body)
+  return file
+}
+// Longer values than the originals: Python trusts a bytecode cache whose source size and mtime second still match.
+const TWO_FILE_PLAN = '@@ two_a.py 2 replace\nA = 99\n@@ two_b.py /^B = / replace\nB = 33\n'
+const planArgs = (file, extra = []) => ['tasks/T1-fixture.md', '--cwd', '.', '--mutant-plan', file, '--why', PLAN_WHY, ...extra]
+const planFiles = copy => ['two_a.py', 'two_b.py'].map(f => readFileSync(join(copy, f), 'utf8'))
+
+test('a mutant plan over two files is killed, says ok per hunk, names both files, and restores both', () => {
+  const copy = planCorpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  const before = planFiles(copy)
+  const out = runWith(journal, planArgs(planFile(copy, TWO_FILE_PLAN)), copy)
+  expectExit(out, 0, 'a plan whose hunks break the fence is a kill')
+  assert.match(out.stdout, /^ok two_a\.py 2 replace$/m)
+  assert.match(out.stdout, /^ok two_b\.py \/\^B = \/ replace$/m)
+  assert.match(readTask(copy), /mutant killed · exit [1-9]\d* · `two_a\.py, two_b\.py` · /)
+  assert.deepEqual(planFiles(copy), before, 'both files are restored after the run')
+  assert.deepEqual(readdirSync(journal), [], 'the journal is cleared')
+  assert.doesNotMatch(lint(copy).stdout, /Mutation Log entry doesn't match/)
+})
+
+test('a mutant plan with a hunk that matches nothing, or many, or is not in the grammar, writes nothing anywhere', () => {
+  const copy = planCorpus()
+  const before = planFiles(copy)
+  const task = readTask(copy)
+  const refused = (body, pattern, label) => {
+    const out = verify(copy, planArgs(planFile(copy, body)))
+    expectExit(out, 2, label)
+    assert.match(out.stdout + out.stderr, pattern, label)
+    assert.deepEqual(planFiles(copy), before, `${label}: both files are untouched`)
+    assert.equal(readTask(copy), task, `${label}: nothing is recorded`)
+  }
+  refused('@@ two_a.py 2 replace\nA = 9\n@@ two_b.py /^Z = / replace\nB = 3\n', /matched 0/, 'a pattern that matches nothing')
+  refused('@@ two_a.py 2 replace\nA = 9\n@@ two_b.py / = 2/ replace\nB = 3\n', /matched 2/, 'a pattern that matches two lines')
+  refused('@@ two_a.py 2 replace\nA = 9\n@@ two_b.py 9 replace\nB = 3\n', /line 9/, 'a line past the end')
+  refused('@@ two_a.py 2 replace\nA = 9\n@@ two_a.py 2 delete\n', /overlap/, 'two hunks on one line')
+  refused('@@ two_a.py 2 replace\n@@ not a header\n', /body line that starts with @@/, 'a body line starting @@ is not supported')
+  refused('@@ two_a.py 2 create\nx\n', /create/, 'an op outside the subset')
+  refused('@@ two_a.py 2 replace sha=abc\nA = 9\n', /sha=abc/, 'a guard outside the subset')
+  refused('@@ ../two_a.py 1 delete\n', /must be a path inside --cwd/, 'a path that leaves --cwd')
+
+  const nothing = verify(copy, planArgs(planFile(copy, '@@ two_a.py 2 replace\nA = 1\n@@ two_b.py 1 replace\nB = 2\n')))
+  expectExit(nothing, 2, 'a plan that nets to no change')
+  assert.match(nothing.stdout + nothing.stderr, /MUTANT DID NOTHING/)
+  assert.deepEqual(planFiles(copy), before)
+  assert.equal(readTask(copy), task)
+
+  const both = verify(copy, [...planArgs(planFile(copy, TWO_FILE_PLAN)), '--mutant', 'two_a.py'])
+  expectExit(both, 2, 'a plan and --mutant together')
+  assert.equal(readTask(copy), task)
+  const comment = verify(copy, planArgs(planFile(copy, '@@ two_a.py 2 insert-after\n# only a note\n')))
+  expectExit(comment, 2, 'a plan that adds only a comment')
+  assert.match(comment.stdout + comment.stderr, /COMMENT-ONLY MUTANT/)
+  assert.deepEqual(planFiles(copy), before)
+
+  const duplicate = verify(copy, [...planArgs(planFile(copy, TWO_FILE_PLAN)), '--also-restore', 'two_b.py'])
+  expectExit(duplicate, 2, 'a plan file declared again as a generated output')
+  assert.match(duplicate.stdout + duplicate.stderr, /repeats the --mutant target/)
+  assert.deepEqual(planFiles(copy), before)
+  assert.equal(readTask(copy), task)
+})
+
+test('a mutant plan covers insert-before, insert-after and delete, resolved against the original lines', () => {
+  // The fence only copies what it sees, so the mutant survives (exit 1) and the copies are the bytes the plan produced.
+  const copy = planCorpus(`cp two_a.py seen_a.txt\ncp two_b.py seen_b.txt\necho '1 passed in 0.01s'`)
+  writeFileSync(join(copy, 'two_a.py'), 'import os\nA = 1\nZ = 0\n')
+  const before = planFiles(copy)
+  const out = verify(copy, planArgs(planFile(copy,
+    '@@ two_a.py 1 delete\n@@ two_a.py 2 insert-after\nA2 = 5\n@@ two_b.py 1 insert-before\nB0 = 0\n')))
+  expectExit(out, 1, 'a fence that only copies cannot notice the mutant')
+  for (const verdict of [/^ok two_a\.py 1 delete$/m, /^ok two_a\.py 2 insert-after$/m, /^ok two_b\.py 1 insert-before$/m]) {
+    assert.match(out.stdout, verdict)
+  }
+  assert.equal(readFileSync(join(copy, 'seen_a.txt'), 'utf8'), 'A = 1\nA2 = 5\nZ = 0\n', 'every address was read from the original file')
+  assert.equal(readFileSync(join(copy, 'seen_b.txt'), 'utf8'), 'B0 = 0\nB = 2\nC = 2\n')
+  assert.deepEqual(planFiles(copy), before)
+})
+
+test('a SIGKILLed mutant plan leaves both files mutated, and the next run restores both', async () => {
+  const copy = planCorpus(`if grep -q 'A = 9' two_a.py; then sleep 60; exit 1; fi\necho '2 passed in 0.01s'`)
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  const before = planFiles(copy)
+  const args = planArgs(planFile(copy, TWO_FILE_PLAN))
+  const child = spawn(process.platform === 'win32' ? 'python3' : join(bin, 'adr-verify'),
+    process.platform === 'win32' ? [join(bin, 'adr-verify'), ...args] : args,
+    { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal }, timeout: 60_000 })
+  const landed = () => planFiles(copy).every((text, i) => text !== before[i])
+  for (let i = 0; i < 200 && !landed(); i += 1) await setTimeout(25)
+  assert.ok(landed(), 'the plan never landed in both files, so nothing was probed')
+  child.kill('SIGKILL')
+  await once(child, 'exit')
+  assert.ok(landed(), 'a SIGKILL that unwound is not the case being tested')
+
+  const recovered = runWith(journal, ['--restore', '--cwd', '.'], copy)
+  expectExit(recovered, 0, 'adr-verify --restore')
+  assert.match(recovered.stdout, /RESTORED/)
+  assert.deepEqual(planFiles(copy), before, 'the journal restores every file the plan touched')
+})
+
 // BACKLOG §339, reported from a peer's checkout: every adr-verify call recovers the checkout's
 // journal first, and the journal named no owner, so a second call during a live run restored
 // that run's mutant under its fence and cleared its journal. A journal whose owner is alive

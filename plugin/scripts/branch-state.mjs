@@ -882,8 +882,29 @@ export function refreshBehind({ gitDir, spawnRefresher = startRefresher, now = D
   }
 }
 
-function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false }) {
-  const text = render(state, { brief })
+/**
+ * The short HEAD the checkout holds now, when the snapshot's key no longer matches the key read from files this prompt, else
+ * null (ADR-065 accepts one stale prompt; it does not accept serving a moved HEAD as current). Null too when either key
+ * cannot be read: a claim that HEAD moved needs both ends. No process is started, because both keys come from files.
+ */
+export function movedSince(stored, live) {
+  if (typeof stored !== 'string' || typeof live !== 'string' || stored === live) return null
+  try {
+    JSON.parse(stored)
+    const sha = JSON.parse(live)[1]
+    return typeof sha === 'string' && sha ? sha.slice(0, 7) : null
+  } catch { return null }
+}
+
+// A snapshot served while it is due names the HEAD it was read at, so a HEAD that has moved since is said beside it. The
+// live sha is part of what `said` compares and the age is not: a moved HEAD is a change worth saying once, an age never is.
+const movedClause = movedTo => ` (moved since this was read: HEAD now ${movedTo}; uncommitted and ahead not re-read)`
+
+function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null }) {
+  const claim = movedTo && state.looked ? movedClause(movedTo) : ''
+  const head = headOf(state)
+  const mark = shown => (claim && shown.startsWith(head) ? `${head}${claim}${shown.slice(head.length)}` : shown)
+  const text = mark(render(state, { brief }))
   const key = brief ? redKey(state) : null
   if (brief && key === null && previous && previous.said === text) return false
   // ADR-094 T1: the same red run, already said in full, is one line. It is never stored.
@@ -891,15 +912,16 @@ function emitCachedBranchState(state, { brief, age, previous, store, refreshing 
     process.stdout.write(`${redLine(state)}\n`)
     return true
   }
+  const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''
   // §381 item 13: the same unknown, already said in full, is the head's line and one word. `said` becomes the full text, so
-  // the next unchanged prompt says nothing.
+  // the next unchanged prompt says nothing. Served from a due snapshot it still carries the snapshot's age: it prints that
+  // snapshot's HEAD and dirty count, and an unmarked line reads as current.
   const unknown = brief ? unknownKey(state) : null
   if (unknown !== null && saidKey(previous?.said) === unknown) {
-    process.stdout.write(`${headOf(state)} · ⚠ CI COULD NOT LOOK, unchanged\n`)
+    process.stdout.write(`${mark(head)} · ⚠ CI COULD NOT LOOK, unchanged${stale ? suffix : ''}\n`)
     stampBriefSaid(store, text, key)
     return true
   }
-  const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''
   process.stdout.write(`${text}${suffix}\n`)
   if (brief) stampBriefSaid(store, text, key)
   return true
@@ -984,7 +1006,8 @@ function main(argv = process.argv.slice(2)) {
       finish(line ? 'withheld-stale' : 'withheld-stale-again', { status: 0 })
       return 0
     }
-    emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing })
+    emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing,
+      stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)) })
     finish('served-behind', { status: 0 })
     return 0
   }

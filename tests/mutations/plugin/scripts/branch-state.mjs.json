@@ -813,8 +813,8 @@
       "label": "§381 item 13: the short line stamps the full text, so the next unchanged prompt is silent",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
-      "from": "COULD NOT LOOK, unchanged\\n`)\n    stampBriefSaid(store, text, key)\n",
-      "to": "COULD NOT LOOK, unchanged\\n`)\n",
+      "from": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n    stampBriefSaid(store, text, key)\n",
+      "to": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n",
       "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
     },
     {
@@ -845,6 +845,48 @@
       "tests": ["tests/git-optional-locks.test.mjs"],
       "from": "env: argv[0] === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env,",
       "to": "env: { ...env, GIT_OPTIONAL_LOCKS: '0' },"
+    },
+    {
+      "label": "stale HEAD: a key that moved is read as unmoved",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-moved.test.mjs"],
+      "from": "typeof live !== 'string' || stored === live) return null",
+      "to": "typeof live !== 'string' || stored !== live) return null"
+    },
+    {
+      "label": "stale HEAD: the moved clause is never written",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-moved.test.mjs"],
+      "from": "const claim = movedTo && state.looked ? movedClause(movedTo) : ''",
+      "to": "const claim = ''"
+    },
+    {
+      "label": "stale HEAD: the served-behind brief is not told which HEAD is live",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-moved.test.mjs"],
+      "from": "stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)) })",
+      "to": "stale: true, movedTo: null })"
+    },
+    {
+      "label": "stale HEAD: the unknown-CI shortcut on a due snapshot carries no age",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-moved.test.mjs"],
+      "from": "unchanged${stale ? suffix : ''}",
+      "to": "unchanged"
+    },
+    {
+      "label": "stale HEAD: the unknown-CI shortcut prints the snapshot's head unmarked",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-moved.test.mjs"],
+      "from": "process.stdout.write(`${mark(head)} · ⚠ CI COULD NOT LOOK",
+      "to": "process.stdout.write(`${head} · ⚠ CI COULD NOT LOOK"
+    },
+    {
+      "label": "stale HEAD: an age is added to what an unchanged brief is compared with",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-moved.test.mjs"],
+      "from": "if (brief && key === null && previous && previous.said === text) return false",
+      "to": "if (brief && key === null && previous && previous.said === `${text} (read ${age}s ago)`) return false"
     }
   ]
 }

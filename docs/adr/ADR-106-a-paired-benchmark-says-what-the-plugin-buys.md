@@ -1,6 +1,6 @@
 # ADR-106: Measure what the plugin buys with a paired benchmark that hidden tests grade
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-16
 **Owner:** Zy
 **Spec:** None — no spec stage. The owner asked for this record on 2026-10-16 ("yes draft the ADR"), after asking whether the harness creates value and whether SWE-bench-style tests could show it.

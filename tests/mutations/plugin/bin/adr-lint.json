@@ -3334,6 +3334,70 @@
       "from": "f\"declare it; give one of them its own id\", evidence=True)",
       "to": "f\"declare it; give one of them its own id\")",
       "only": "^two task files declaring one id are named, and neither silently replaces the other$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: an Affected Files row needs no leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if not _UNESCAPED_PIPE.search(stripped):",
+      "to": "            if not stripped.startswith(\"|\"):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: inside a table a line with no pipe is a one-cell row",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if not in_table:\n            if not _UNESCAPED_PIPE.search(stripped):",
+      "to": "        if True:\n            if not _UNESCAPED_PIPE.search(stripped):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a delimiter opens a table only with its header's cell count",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(gfm_table_cells(stripped)):",
+      "to": "            if _DELIMITER_ROW.match(following):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a blank line ends a table",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if in_table and (not stripped or _BLOCK_START.match(stripped)):",
+      "to": "        if in_table and _BLOCK_START.match(stripped):",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: another block ends a table",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        if in_table and (not stripped or _BLOCK_START.match(stripped)):",
+      "to": "        if in_table and not stripped:",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a trailing pipe adds no cell",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    if len(cells) > 1 and stripped.endswith(\"|\") and not stripped.endswith(\"\\\\|\"):",
+      "to": "    if False:",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: a leading pipe adds no cell",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    if stripped.startswith(\"|\"):\n        cells.pop(0)\n    if len(cells) > 1",
+      "to": "    if len(cells) > 1",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of the 3.8.40 plan: Affected Files is read through the GFM row reader",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    aff = [ln for ln in gfm_table_rows(secs.get(\"Affected Files\", [])) if \"`\" in ln]",
+      "to": "    aff = [ln for ln in secs.get(\"Affected Files\", []) if ln.strip().startswith(\"|\") and \"`\" in ln]",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     }
   ]
 }

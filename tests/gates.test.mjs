@@ -1846,6 +1846,49 @@ test('an evidenced task whose Affected Files git ignores is reported, with the p
     `a check that did not run must say so:\n${unasked.stdout}`)
 })
 
+// adr-lint reads Affected Files as decision-corpus does (the Codex review of the 3.8.40 plan): a row needs no leading
+// pipe, and inside a table a line with no pipe is a one-cell row. Requiring the pipe dropped a second `add` of one file
+// from the blocking collision check, with no advice, and an ignored path from the ignored-path check.
+test('a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named', () => {
+  const { repo, adr, tasks } = agedCorpus('quality-harness-pipeless-', null)
+  const t1 = join(tasks, 'T1-fixture.md')
+  const template = readFileSync(t1, 'utf8')
+  const withTable = (text, table) => text.replace(/(## Affected Files\n)[\s\S]*?(?=\n## )/, `$1\n${table}`)
+  writeFileSync(join(tasks, 'README.md'), readFileSync(join(tasks, 'README.md'), 'utf8') + '| 2 | [T2-twin](T2-twin.md) | S | none | pending |\n')
+  const lintWith = (one, two) => {
+    writeFileSync(t1, withTable(template, one))
+    writeFileSync(join(tasks, 'T2-twin.md'), withTable(template.replace(/\bT1\b/g, 'T2'), two))
+    return run('adr-lint', [adr, tasks], repo).stdout
+  }
+  const piped = '| File | Change | Why |\n|---|---|---|\n'
+  const adds = piped + '| `src/a.js` | add | x |\n'
+  const collides = /`src\/a\.js` is added by T1, T2/
+  assert.match(lintWith(adds, adds), collides, 'the control: two piped add rows collide')
+  assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n`src/a.js` | add | y |\n'), collides, 'a row without its leading pipe')
+  assert.match(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/a.js` | add | y\n'), collides, 'a table with no edge pipes')
+  assert.doesNotMatch(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/a.js` | edit | y\n'), collides, 'an edit row does not collide')
+  // A pipe-less table has data rows, and an empty one still has none.
+  const noRows = /T2-twin\.md: Affected Files table has no data rows/
+  assert.doesNotMatch(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/b.js` | edit | y\n'), noRows)
+  assert.match(lintWith(adds, piped), noRows)
+
+  // The ignored-path check asks only of a task with passing evidence.
+  writeFileSync(join(repo, '.gitignore'), 'thing\n')
+  mkdirSync(join(repo, 'cmd', 'thing'), { recursive: true })
+  writeFileSync(join(repo, 'cmd', 'thing', 'main.go'), 'package main\n')
+  writeFileSync(join(repo, 'kept.go'), 'package main\n')
+  const evidenced = table => withTable(template, table).replace(/(## Verification Log\n)[\s\S]*$/,
+    `$1\n- 2026-08-29 · abc1234 · exit 0 · \`true\` · acceptance-sha256:${'0'.repeat(64)}\n`)
+  const ignoredWith = table => { writeFileSync(t1, evidenced(table)); return run('adr-lint', [adr, tasks], repo).stdout }
+  const named = /T1-fixture\.md: Affected Files names `cmd\/thing\/main\.go`, and git IGNORES it/
+  assert.match(ignoredWith('File | Change | Why\n--- | --- | ---\n`cmd/thing/main.go` | edit | w\n'), named, 'a pipe-less table')
+  assert.match(ignoredWith(piped + '| `kept.go` | edit | w |\n`cmd/thing/main.go`\n'), named, 'a one-cell row inside the table')
+  assert.doesNotMatch(ignoredWith(piped + '| `kept.go` | edit | w |\n\n`cmd/thing/main.go`\n'), named, 'after a blank line it is prose')
+  assert.doesNotMatch(ignoredWith(piped + '| `kept.go` | edit | w |\n- `cmd/thing/main.go`\n'), named, 'a list item under the table is not a row of it')
+  assert.doesNotMatch(ignoredWith('| File | Change |\n|---|---|---|\n| `kept.go` | edit |\n`cmd/thing/main.go`\n'), named, 'a delimiter of another count opens no table')
+  assert.match(ignoredWith('| File | Change | Why |\n--- | --- | ---\n| `kept.go` | edit | w |\n`cmd/thing/main.go`\n'), named, 'a trailing pipe adds no cell')
+})
+
 // A task path that would break a default Windows clone is advised at authoring
 // time (BACKLOG §231): MAX_PATH is 260, Git for Windows does not set
 // core.longpaths, and retiring a record adds eight characters (`docs/adr` →

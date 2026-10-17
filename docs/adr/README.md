@@ -108,3 +108,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-104](ADR-104-a-literal-path-commit-elsewhere.md) | A commit whose literal `-C` path names another repository is not this checkout's publish | Accepted |
 | [ADR-105](ADR-105-a-fast-committed-commit-is-checked-at-turn-end.md) | A commit its declared fast check passed on is not named unchecked at turn end | Accepted |
 | [ADR-106](ADR-106-a-paired-benchmark-says-what-the-plugin-buys.md) | Measure what the plugin buys with a paired benchmark that hidden tests grade | Accepted |
+| [ADR-107](ADR-107-the-plugin-works-the-mrw-way.md) | The plugin works the mrw way | Accepted |

@@ -56,6 +56,7 @@ out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \
 | 4 — it is used | ADR-084's skill-usage count, and T4 |
 
 ## Mutation Log
+- 2026-10-17 · 8dcaa273* · mutant killed · exit 1 · `plugin/skills/execution/SKILL.md` · the section an implementer is pointed to would be gone, and the skills pointing to it would point at nothing · acceptance-sha256:ff04f23ae64277269f6063c3c92be96910aadca2aea4087a9b61828e0fd6454b
 
 ## Invariants
 
@@ -75,3 +76,7 @@ Stop and ask if the section cannot be written in twelve lines without dropping o
 - Hook text for every session (deferred: T4)
 
 ## Verification Log
+- 2026-10-17 · 8dcaa273* · exit 1 · `out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \ …` · acceptance-sha256:ff04f23ae64277269f6063c3c92be96910aadca2aea4087a9b61828e0fd6454b · ms:231 · test-lock-sha256:22bbebcf767e3a4bb185a7497d7f67ce005b2cc3a87fd793da0456654abe1dd0 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbXJ3LXdheS50ZXN0Lm1qcwl0aGUgaW1wbGVtZW50aW5nIHNraWxscyB0ZWFjaCBvbmUgcmVhZCBvZiBldmVyeSBzaXRlLCBvbmUgYmF0Y2ggb2YgZWRpdHMsIGFuZCBhIGNoZWNrIHRoYXQgZWFjaCBlZGl0IGxhbmRlZAlhZDcxMTZiM2FlOTEyM2ZlOWUzMDRjMDIxMDZmMjUzNDJhMjUxYWYzYmU4MzFiNzc3NzA3YzVlMGNkNWE0NTAw
+  ```
+  ```
+- 2026-10-17 · 8dcaa273* · exit 0 · `out=$(node --test --test-reporter=tap tests/mrw-way.test.mjs 2>&1) \ …` · acceptance-sha256:ff04f23ae64277269f6063c3c92be96910aadca2aea4087a9b61828e0fd6454b · ms:269

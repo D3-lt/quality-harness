@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-107 T1: the execution skill carries the read-and-edit-in-batches section",
+      "file": "plugin/skills/execution/SKILL.md",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": "## Read and edit in batches",
+      "to": "## Read and edit together",
+      "only": "^the implementing skills teach one read of every site, one batch of edits, and a check that each edit landed$"
+    },
+    {
+      "label": "ADR-107 T1: an edit that matched nothing is named a failure",
+      "file": "plugin/skills/execution/SKILL.md",
+      "tests": ["tests/mrw-way.test.mjs"],
+      "from": "An edit that matched nothing is a failure, never a quiet success",
+      "to": "An edit that matched nothing is worth a second look",
+      "only": "^the implementing skills teach one read of every site, one batch of edits, and a check that each edit landed$"
+    }
+  ]
+}

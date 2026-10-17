@@ -168,7 +168,8 @@ you then read the result. Both spellings have put a red tree on `main`.
    step 1). No production code before a red test — the test-driven-development discipline governs here.
    Record the red run with `adr-verify <task.md>` — the expected non-zero entry is
    the TDD-red evidence and stays in the log.
-3. **Implement**: Make the necessary code edits directly. Do not commit yet.
+3. **Implement**: Make the necessary code edits directly, read and edited in batches (the `execution` skill's
+   "Read and edit in batches"). Do not commit yet.
 
    Two checks belong here, and neither is optional:
 

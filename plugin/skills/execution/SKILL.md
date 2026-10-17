@@ -29,6 +29,16 @@ File count alone does not require an ADR. An existing accepted plan or ADR remai
   consumers, not hypothetical flexibility.
 - Do not bundle adjacent cleanup or refactoring.
 
+
+## Read and edit in batches
+
+- Plan the reads as one read of every site you will touch, many ranges in one call, before the first edit.
+- Count before reading: find how many places match, then read those sites, not whole files.
+- Plan the edits as one batch, and make the same change at many sites as one substitution, not N edits.
+- Check that every edit landed. An edit that matched nothing is a failure, never a quiet success; so is
+  one that matched more places than you meant.
+- A refusal names what to fix: read it and fix the cause; never force past it.
+- When `mrw` is on PATH, use it for all of this: `mrw read` for the reads, one `mrw write` plan for the edits.
 ## Verify
 
 - Run the smallest project-owned command after the final edit.

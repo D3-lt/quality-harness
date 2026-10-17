@@ -116,7 +116,8 @@ Every child prompt names:
 - assigned role and owned scope;
 - non-goals and prohibited side effects;
 - repository paths and applicable project rules;
-- expected output and executed evidence.
+- expected output and executed evidence;
+- for an implementer, the `execution` skill's "Read and edit in batches".
 
 Children are leaf roles unless explicitly assigned coordination. Reviewers are read-only. Fixers
 touch only confirmed blocking findings. Explorers do not turn memories into tasks or edit another

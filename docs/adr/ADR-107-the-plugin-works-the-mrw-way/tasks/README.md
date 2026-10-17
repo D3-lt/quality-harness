@@ -19,7 +19,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The implementing skills teach the mrw way | pending | none — no spec | `node --test tests/mrw-way.test.mjs` (named test passes, nothing skipped) |
+| T1 | The implementing skills teach the mrw way | done | none — no spec | `node --test tests/mrw-way.test.mjs` (named test passes, nothing skipped) |
 | T2 | The plugin's own writers refuse an edit that did nothing | pending | none — no spec | human-observed: the audit and each fix's test |
 | T3 | A session with mrw on PATH is told it is there | pending | none — no spec | `node --test tests/mrw-way.test.mjs` (named test passes, nothing skipped) |
 | T4 | A later benchmark stage measures the batching cue | pending | none — no spec | human-observed: the stage's sign-off |

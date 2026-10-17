@@ -44,6 +44,7 @@ import unicodedata
 import stat
 from functools import lru_cache
 from pathlib import Path
+from collections import namedtuple
 
 # A gate a hook starts hidden has no console, and every console program it starts
 # (git, bash) then gets a console window of its own, which Windows Terminal opens as a
@@ -83,6 +84,9 @@ __all__ = [
     "TEST_LOCK_FIELD",
     "TEST_LOCK_FIELD_ANON",
     "tests_table_rows",
+    "gfm_table_scan",
+    "gfm_rows",
+    "GfmRow",
     "gfm_table_cells",
     "gfm_table_rows",
     "vlog_has_test_lock",
@@ -1239,7 +1243,7 @@ def gfm_table_cells(line):
     return cells
 
 
-def gfm_table_rows(lines, column="change", readme=False):
+def gfm_table_scan(lines, column="change", readme=False):
     """The table rows of `lines` as GFM reads a table, as decision-corpus's `affectedFiles` reads one, each with the
     index of its table's header cell named `column` (Change by default), -1 under a header that names none, None
     outside a table.
@@ -1257,6 +1261,10 @@ def gfm_table_rows(lines, column="change", readme=False):
     delimiter was still named before. And neither line is returned as a row, since a header naming a task id is not
     that task's status (the Codex review of b37e3815). Affected Files reads neither way: a body row could then
     redirect its Change column and drop a path.
+
+    Each row is `(index, line, found, header)`: its place in `lines`, its line, the table's `column` index or None, and
+    whether it is the header the table opened at (never true under `readme`, which returns neither header nor
+    delimiter).
     """
     rows, found, delimiter = [], None, False
     for index, line in enumerate(lines):
@@ -1266,6 +1274,7 @@ def gfm_table_rows(lines, column="change", readme=False):
         stripped = line.strip()
         if found is not None and (not stripped or _BLOCK_START.match(stripped) or _HTML_BLOCK_START.match(stripped)):
             found = None
+        header_row = False
         if found is None or readme:
             if found is None and not _UNESCAPED_PIPE.search(stripped):
                 continue
@@ -1273,21 +1282,46 @@ def gfm_table_rows(lines, column="change", readme=False):
             following = lines[index + 1].strip() if index + 1 < len(lines) else ""
             if _DELIMITER_ROW.match(following) and (readme or len(gfm_table_cells(following)) == len(header)):
                 found = next((at for at, cell in enumerate(header) if cell.lower() == column), -1)
+                header_row = True
                 if readme:
                     delimiter = True
                     continue
-        rows.append((line, found))
+        rows.append((index, line, found, header_row))
+    return rows
+
+
+def gfm_table_rows(lines, column="change", readme=False):
+    """`gfm_table_scan` without the positions: each row's line and its table's `column` index."""
+    return [(line, found) for _index, line, found, _header in gfm_table_scan(lines, column, readme)]
+
+
+GfmRow = namedtuple("GfmRow", "index line cells found header delimiter")
+
+
+def gfm_rows(lines):
+    """The lines of a section that GFM reads as table rows, for a reader that must not lose a row written without its
+    leading pipe (BACKLOG §381).
+
+    A row has an unescaped pipe and sits inside a table, or leads with one as every row here did before. A line with a
+    pipe and no leading pipe outside a table is prose: GFM renders no table without the delimiter row under a header,
+    and a blocking check must not read a sentence as a row. A pipe-less line inside a table is a one-cell row to GFM
+    and is not returned: no reader here has a use for one. `header` marks the row a table opened at, `delimiter` the
+    line of dashes under it, `found` is as in `gfm_table_scan`.
+    """
+    rows = []
+    for index, line, found, header in gfm_table_scan(lines):
+        stripped = line.strip()
+        if _UNESCAPED_PIPE.search(stripped) and (found is not None or stripped.startswith("|")):
+            rows.append(GfmRow(index, line, gfm_table_cells(stripped), found, header,
+                               bool(_DELIMITER_ROW.match(stripped))))
     return rows
 
 
 def tests_table_rows(text):
     """(name, file) pairs from the Tests table, or an empty list."""
     rows = []
-    for line in sections_of(text).get("Tests", []):
-        stripped = line.strip()
-        if not stripped.startswith("|"):
-            continue
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
+    for row in gfm_rows(sections_of(text).get("Tests", [])):
+        cells = row.cells
         if len(cells) < 2 or cells[0].lower().startswith("test name"):
             continue
         if cells and set(cells[0]) <= set("-: "):

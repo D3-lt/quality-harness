@@ -2786,6 +2786,30 @@
       "from": "track|ul)(?:[ \\t]|/?>|$))\", re.I | re.A)",
       "to": "track|ul)(?:\\s|/?>|$))\", re.I)",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "record.py, BACKLOG §381: the lock writer reads a Tests row without its leading pipe",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if len(cells) < 2 or cells[0].lower().startswith(\"test name\"):",
+      "to": "        if not row.line.strip().startswith(\"|\") or len(cells) < 2 or cells[0].lower().startswith(\"test name\"):",
+      "only": "^a Tests row without its leading pipe is locked at the first red, and an older lock does not newly refuse done$"
+    },
+    {
+      "label": "record.py, BACKLOG §381: a line with a pipe outside a table and no leading pipe is prose, not a row",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if _UNESCAPED_PIPE.search(stripped) and (found is not None or stripped.startswith(\"|\")):",
+      "to": "        if _UNESCAPED_PIPE.search(stripped):",
+      "only": "^a Tests row without its leading pipe is a row check_tests_exist reads$"
+    },
+    {
+      "label": "record.py, BACKLOG §381: a row inside a table needs no leading pipe",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if _UNESCAPED_PIPE.search(stripped) and (found is not None or stripped.startswith(\"|\")):",
+      "to": "        if _UNESCAPED_PIPE.search(stripped) and stripped.startswith(\"|\"):",
+      "only": "^a Tests row without its leading pipe is a row check_tests_exist reads$"
     }
   ]
 }

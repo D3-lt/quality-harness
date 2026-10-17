@@ -3374,6 +3374,38 @@
       "from": "gfm_table_rows(secs.get(\"Affected Files\", []))",
       "to": "gfm_table_rows(secs.get(\"Affected Files\", []), readme=True)",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a Tests line is a row only where GFM reads one",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        cells = ([] if indented_code or index not in row_lines else markdown_table_cells(",
+      "to": "        cells = ([] if indented_code else markdown_table_cells(",
+      "only": "^a Proof map step proved by a Tests row without its leading pipe is referenced$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a Tests row needs no leading pipe for its cells to be read",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        cells = ([] if indented_code or index not in row_lines else markdown_table_cells(",
+      "to": "        cells = ([] if indented_code or not line.strip().startswith(\"|\") else markdown_table_cells(",
+      "only": "^a Proof map step proved by a Tests row without its leading pipe is referenced$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: markdown_table_cells splits a line without its leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "    stripped = line.strip()\n    if not backslash_parity:",
+      "to": "    stripped = line.strip()\n    if not stripped.startswith(\"|\"):\n        return []\n    if not backslash_parity:",
+      "only": "^a Tests row without its leading pipe is a row check_tests_exist reads$"
+    },
+    {
+      "label": "adr-lint, BACKLOG §381: a finding names the line of a Tests row without its leading pipe",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/pipeless-tables.test.mjs"],
+      "from": "        if \"|\" in line and f\"`{name}`\" in line and f\"`{rel}`\" in line:",
+      "to": "        if line.lstrip().startswith(\"|\") and f\"`{name}`\" in line and f\"`{rel}`\" in line:",
+      "only": "^a Tests row without its leading pipe is a row check_tests_exist reads$"
     }
   ]
 }

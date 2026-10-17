@@ -128,7 +128,7 @@ from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E
 from record import git_read_env  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
-from record import gfm_table_cells, gfm_table_rows  # noqa: E402
+from record import gfm_table_cells, gfm_table_rows, gfm_rows  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
@@ -524,8 +524,6 @@ def markdown_table_cells(line, *, backslash_parity=False):
     not change under this record.
     """
     stripped = line.strip()
-    if not stripped.startswith("|"):
-        return []
     if not backslash_parity:
         return [cell.strip() for cell in re.split(r"(?<!\\)\|", stripped.strip("|"))]
     cells, cell, backslashes = [], [], 0
@@ -599,14 +597,20 @@ def proof_map_sections(text):
 
 
 def task_tests_rows(secs, *, proof_map=False):
-    """Every ## Tests line with its cells split once for both consumers."""
+    """Every ## Tests line with its cells split once for both consumers.
+
+    A line has cells when GFM reads it as a table row (`gfm_rows`), a leading pipe or not: a row written without one is
+    a test the table names, and was an empty line here (BACKLOG §381).
+    """
+    lines = secs.get("Tests", [])
+    row_lines = {row.index for row in gfm_rows(lines)}
     rows = []
     fenced = None
-    for line in secs.get("Tests", []):
+    for index, line in enumerate(lines):
         was_fenced = fenced is not None
         fenced, fence_line = markdown_fence_state(line, fenced)
         indented_code = proof_map and re.match(r"^(?: {4}|\t)", line)
-        cells = ([] if indented_code else markdown_table_cells(
+        cells = ([] if indented_code or index not in row_lines else markdown_table_cells(
             line, backslash_parity=proof_map))
         rows.append((line.strip(), cells, was_fenced or fence_line
                      or bool(indented_code)))
@@ -2051,9 +2055,7 @@ def check_task(path, all_stems, errors, root, tracked):
     # the acceptance command filters on, so a name that exists only here is a
     # test nothing runs.
     tests = []
-    for s2, cells, _fenced in test_rows:
-        if not s2.startswith("|") or s2.startswith("|--") or "---" in s2.split("|")[1:2]:
-            continue
+    for _line, cells, _fenced in test_rows:
         if len(cells) < 2 or cells[0].lower().startswith("test name"):
             continue
         nm = re.search(r"`([^`]+)`", cells[0])
@@ -2942,7 +2944,7 @@ def tests_row_ref(inf, name, rel):
     `rel`, or the file alone when no row matches. A finding about a row that does
     not say which row sends the reader to grep for it (BACKLOG §280 item 2)."""
     for number, line in enumerate(inf.get("text", "").splitlines(), 1):
-        if line.lstrip().startswith("|") and f"`{name}`" in line and f"`{rel}`" in line:
+        if "|" in line and f"`{name}`" in line and f"`{rel}`" in line:
             return f"{inf['path'].name}:{number}"
     return inf["path"].name
 

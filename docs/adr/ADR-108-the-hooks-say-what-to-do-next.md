@@ -117,7 +117,7 @@ See `docs/adr/ADR-108-the-hooks-say-what-to-do-next/tasks/README.md`.
 - The publish verdict's wording (permanent: boundary: ADR-061 and ADR-081 own it, and it already names the command)
 - Reading written files' bytes at PostToolUse (permanent: boundary: alternative (b); the tree observation is the measurement)
 - A batching cue in every session's SessionStart (deferred: ADR-107 T4)
-- The naming of a FAILED check's run in R1's repeated text (deferred: `docs/BACKLOG.md` §381, the R1 repeat line)
+- The naming of a FAILED check's run in R1's repeated text (deferred: docs/BACKLOG.md §381, the R1 repeat line)
 
 ## Risks
 

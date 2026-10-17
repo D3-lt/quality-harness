@@ -1532,16 +1532,24 @@
       "label": "adr-next, ADR-106 T2: SWE-bench's fail-to-pass list is a name, not a stop",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next.test.mjs"],
-      "from": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])\"\n",
-      "to": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])x\"\n",
+      "from": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])\"\n",
+      "to": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])x\"\n",
       "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
     },
     {
       "label": "adr-next, ADR-106 T2: the spaced verb fail to pass still stops",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next.test.mjs"],
-      "from": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])\"\n",
-      "to": "    r\"|(?<![a-z])fail[-_ ]to[-_ ]pass(?![a-z])\"\n",
+      "from": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])\"\n",
+      "to": "    r\"|(?<![\\w-])fail[-_ ]to[-_ ]pass(?![\\w-])\"\n",
+      "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
+    },
+    {
+      "label": "adr-next, Codex verification of 34f4b1e2: the fail-to-pass name is a whole identifier",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next.test.mjs"],
+      "from": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])\"\n",
+      "to": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![a-z])\"\n",
       "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
     }
   ]

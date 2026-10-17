@@ -661,6 +661,11 @@ test('SWE-bench\'s fail-to-pass list is a name, and a note saying something fail
   assert.equal(done('observed: the patch did fail to pass review'), false)
   assert.equal(done('observed: fail-to-pass, then the run failed'), false)
   assert.equal(done('observed: fail'), false)
+  // The name is a whole identifier: a counter label that begins with it is still read whole (the Codex verification
+  // of 34f4b1e2), and a longer identifier holding a stop word still stops.
+  assert.equal(done('observed: fail-to-pass-failed 0'), true)
+  assert.equal(done('observed: fail_to_pass-failed 0'), true)
+  assert.equal(done('observed: fail_to_pass_failed'), false)
 })
 
 // A sign-off that cites the task's `## Stop Condition` section names a heading, not a verdict: ADR-078 T2's

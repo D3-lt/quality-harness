@@ -40,11 +40,11 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
         },
-        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
       },
-      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
     },
     {
       "name": "turn end, tests claimed",
@@ -202,6 +202,14 @@
         "event": "action.emitted",
         "rule": "R1",
         "key": "<sha>:0:1",
+        "channel": "both",
+        "recipient": "main"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "W",
+        "key": "W:<sha>",
         "channel": "both",
         "recipient": "main"
       },

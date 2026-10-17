@@ -7,7 +7,7 @@ import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents } from './event-log.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
 import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
-import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
+import { gitRepositoryLookup, mark, sameObservation, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
 import { turnEndSetting } from './project-config.mjs'
@@ -586,6 +586,28 @@ export function completionRules(input, ended) {
 }
 
 /**
+ * ADR-108 T3. The paths this turn (or this subagent) wrote that git could see, when the tree observed at its end is the
+ * observation taken before the first of them: an Edit that matched nothing reports success everywhere except in the tree.
+ * The earlier observation is the latest one the session log already holds before that write (`session.started`, the
+ * previous `turn.ended`, a subagent boundary), so this spawns nothing. No such observation, a log read in part, or an
+ * observation that failed on either side says nothing (ADR-005); a write git cannot see (`observable: false`) is never
+ * named (ADR-051). The comparison is the whole observation (tree, index and HEAD), so a commit in between is a change.
+ */
+function writesThatChangedNothing(log, ended, root) {
+  const opener = { 'turn.ended': 'turn.ended', 'subagent.ended': 'subagent.started' }[ended?.event]
+  if (!opener || root === null || ended.observation?.ok !== true || logIncomplete(log)) return []
+  const ofAgent = entry => entry.agentId === ended.agentId
+  const at = log.findLastIndex(entry => entry.event === ended.event && ofAgent(entry))
+  const from = log.findLastIndex((entry, index) => index < at && entry.event === opener && ofAgent(entry))
+  if (at < 0 || (opener === 'subagent.started' && from < 0)) return []
+  const writes = log.slice(from + 1, at).filter(entry => entry.event === 'file.written' && entry.observable === true && typeof entry.path === 'string')
+  if (!writes.length) return []
+  const before = log.slice(0, log.indexOf(writes[0])).findLast(entry => entry.observation?.ok === true)
+  if (!sameObservation(before?.observation, ended.observation)) return []
+  return [...new Set(writes.map(entry => path.relative(root, entry.path)))]
+}
+
+/**
  * What the turn-end rules read from the world (BACKLOG section 375, stage C): the session log, the project's check, the
  * repository root, the writes git could not see, the paths git lists, the commits made since the session began. The reads
  * that depend on a verdict (the sentence that names the check, the key of the could-not-look finding, the task-file nudge)
@@ -617,6 +639,7 @@ export function completionFacts(input, ended) {
   }
   return {
     log, observation, check, root, baseline, writes, status, commits,
+    unchangedWrites: writesThatChangedNothing(log, ended, root),
     sentence: once(() => runTheCheckSentence(input.cwd)),
     locationKey: () => canonical(root ?? path.resolve(input.cwd ?? process.cwd())),
     nudge: changed => evidenceNudge(input.cwd, changed),
@@ -631,7 +654,7 @@ export function completionFacts(input, ended) {
  * tests/completion-judgement.test.mjs walks it. Returns `{ claim, actions }`; the caller records the claim and queues the actions.
  */
 export function completionJudgement(facts, input) {
-  const { log, observation, check, root, baseline, writes, status, commits } = facts
+  const { log, observation, check, root, baseline, writes, status, commits, unchangedWrites = [] } = facts
   const claim = {
     claim: completionClaim(input.last_assistant_message),
     evidence: ledgerEvidence(log, observation, baseline, commits, writes, check, status),
@@ -694,6 +717,10 @@ export function completionJudgement(facts, input) {
           : (status?.why || commits?.why || 'a git query failed without saying why')
       actions.push({ rule: 'R4', key, text: couldNotLookReason(facts.sentence(), why) })
     }
+  }
+  // ADR-108 T3: writes git could see that left the observed tree as it was before them. Said once per tree to each audience.
+  if (unchangedWrites.length && !emittedFor(log, 'W', `W:${observation.tree}`, channel, recipient)) {
+    actions.push({ rule: 'W', key: `W:${observation.tree}`, text: `quality-harness: this turn wrote ${unchangedWrites.join(', ')} and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert.` })
   }
   // The check passed and a task file changed: the corpus wants that recorded,
   // not asserted. Not a rule — it repeats while the state it is about holds.

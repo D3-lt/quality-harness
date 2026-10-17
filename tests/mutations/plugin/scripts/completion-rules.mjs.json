@@ -465,6 +465,38 @@
       "from": "    commit.fastPassed = fastPassed.get(commit.tree)",
       "to": "    commit.fastPassed = false",
       "only": "^a commit its fast check passed on is not named at turn end, and every other commit still is$"
+    },
+    {
+      "label": "ADR-108 T3: a write that changed the tree is not named",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/adr-108.test.mjs"],
+      "from": "  if (!sameObservation(before?.observation, ended.observation)) return []",
+      "to": "  if (sameObservation(before?.observation, ended.observation)) return []",
+      "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
+    },
+    {
+      "label": "ADR-108 T3: a write git cannot see is never named",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/adr-108.test.mjs"],
+      "from": "entry.observable === true && typeof entry.path === 'string')",
+      "to": "typeof entry.path === 'string')",
+      "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
+    },
+    {
+      "label": "ADR-108 T3: rule W is queued",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/adr-108.test.mjs"],
+      "from": "  if (unchangedWrites.length && !emittedFor(",
+      "to": "  if (false && !emittedFor(",
+      "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
+    },
+    {
+      "label": "ADR-108 T3: rule W is said once per tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/adr-108.test.mjs"],
+      "from": "  if (unchangedWrites.length && !emittedFor(log, 'W', `W:${observation.tree}`, channel, recipient)) {",
+      "to": "  if (unchangedWrites.length) {",
+      "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
     }
   ]
 }

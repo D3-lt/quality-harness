@@ -55,6 +55,7 @@ out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \
 | 4 — it is used | the test drives the real hooks |
 
 ## Mutation Log
+- 2026-10-17 · e5d4769e* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · rule W never queued: the acceptance test goes red · acceptance-sha256:c347a71e9e31ae5e2ad40e63420dcf5b945ee7c2450473f84aa9113159203a60
 
 ## Invariants
 
@@ -76,3 +77,9 @@ observation at PostToolUse (a cost on the hottest path; ADR-080's rule that no h
 - Comparing file bytes at PostToolUse (permanent: boundary: ADR-108 alternative (b))
 
 ## Verification Log
+- 2026-10-17 · e5d4769e* · exit 1 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:c347a71e9e31ae5e2ad40e63420dcf5b945ee7c2450473f84aa9113159203a60 · ms:755 · test-lock-sha256:31fddaf1a79cfd3a2bbb2f6ef3b63099f55317cbef7a2091eba2f2d6ed4ecab1 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLTEwOC50ZXN0Lm1qcwlhIHR1cm4gd2hvc2Ugd3JpdGVzIGxlZnQgdGhlIHRyZWUgdW5jaGFuZ2VkIGlzIHRvbGQgc28gb25jZSwgYW5kIGEgdHVybiB3aG9zZSB3cml0ZXMgY2hhbmdlZCBpdCBpcyBub3QJZWZiYjBjZmRmOTQ4ZWI5MjZmMzczMGZlYmM0YTgzNDEzZmUyMmE5MDA2Yzg2N2I0NTQzNjhmMDRiNTY5N2U4ZQ
+  ```
+  ```
+- 2026-10-17 · e5d4769e* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:c347a71e9e31ae5e2ad40e63420dcf5b945ee7c2450473f84aa9113159203a60 · ms:2903
+- 2026-10-17 · e5d4769e* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:c347a71e9e31ae5e2ad40e63420dcf5b945ee7c2450473f84aa9113159203a60 · ms:2856
+- 2026-10-17 · e5d4769e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:c347a71e9e31ae5e2ad40e63420dcf5b945ee7c2450473f84aa9113159203a60 · ms:0 · test-lock-sha256:aae3bb266d07738e4f80353020b1cf7c81df048fd9f751dd366114491c33bb52 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLTEwOC50ZXN0Lm1qcwlhIHR1cm4gd2hvc2Ugd3JpdGVzIGxlZnQgdGhlIHRyZWUgdW5jaGFuZ2VkIGlzIHRvbGQgc28gb25jZSwgYW5kIGEgdHVybiB3aG9zZSB3cml0ZXMgY2hhbmdlZCBpdCBpcyBub3QJZTQxOGViZjBiNmI4ZGQ3YTIzYjI5NWU2MzhiNGFkYzVmNDYzNTQ0ZTNlODc3MGQzNTYzOGIwOGQ0MTUyMjkxMg · test-lock-kind:replace

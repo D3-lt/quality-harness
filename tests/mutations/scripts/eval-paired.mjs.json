@@ -89,6 +89,36 @@
       "from": "    if (!prefix || (size !== pool.length && size % block !== 0)) {",
       "to": "    if (!prefix) {",
       "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: the false-completion floor reads the per-instance average, not pooled runs",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  const floor = cell.without.rates.falseCompletion",
+      "to": "  const floor = cell.without.counts.falseCompletion / cell.without.readable",
+      "only": "^(?:the verdict follows the pre-registered order, and a blanket hedger does not reach SHOWN)$"
+    },
+    {
+      "label": "paired: alpha is a finite number in (0, 1) before anything compares it",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "const isLevel = value => typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 1",
+      "to": "const isLevel = value => value > 0 && value < 1",
+      "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: k is a positive whole number of repeats in scoring mode",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (prereg.k != null && !isRepeatCount(prereg.k))",
+      "to": "  if (false)",
+      "only": "^(?:a run is scored only against its committed pre-registration)$"
     }
   ]
 }

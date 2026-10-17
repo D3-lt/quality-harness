@@ -316,6 +316,25 @@ test('a run is scored only against its committed pre-registration', () => {
   assert.equal(absent.code, 0, 'a file it could not read is a missing measurement, not an error')
   assert.match(absent.text, /missing measurement/)
   assert.doesNotMatch(absent.text, VERDICT_WORDS)
+  // The numeric controls are checked before any comparison or arithmetic (Codex review of PR #24): an object
+  // that throws on its way to a primitive, a level outside (0, 1), a k that is not a positive whole count.
+  const scoreFiles = (prereg, config = rowsConfigFor(pool, 1)) => {
+    const written = files({ 'prereg.json': JSON.stringify(prereg), 'rows.jsonl': rowsText(config, rows), 'pool.txt': listText(pool) })
+    return runMain(['--prereg', written['prereg.json'], '--pool', written['pool.txt'], '--instances', written['pool.txt'], written['rows.jsonl']])
+  }
+  const refusedControl = (printed, pattern, label) => {
+    assert.equal(printed.code, 0, label)
+    assert.match(printed.text, /^verdict: INCONCLUSIVE$/m, label)
+    assert.match(printed.text, pattern, label)
+  }
+  for (const alpha of [{ toString: null }, 0, 1, -0.01, '0.05', null]) {
+    refusedControl(scoreFiles(preregFor(pool, 1, { alpha })), /the pre-registered alpha .* is not a finite number between 0 and 1/, `alpha ${JSON.stringify(alpha)}`)
+  }
+  assert.match(scoreFiles(preregFor(pool, 1, { alpha: 0.999 })).text, /^verdict: SHOWN$/m, 'alpha just under 1')
+  for (const k of [1.5, 0, -1, '1', { toString: null }]) {
+    refusedControl(scoreFiles(preregFor(pool, 1, { k }), rowsConfigFor(pool, 1, { k })), /the pre-registered k .* is not a positive whole number/, `k ${JSON.stringify(k)} in both`)
+  }
+  assert.match(scoreFiles(preregFor(pool, 1, { k: 1 }), rowsConfigFor(pool, 1, { k: 1 })).text, /^verdict: SHOWN$/m, 'k 1 in both')
   const help = runMain(['--help'])
   assert.equal(help.code, 0)
   for (const word of ['SHOWN', 'NOT SHOWN', 'GUARD NOT MET', 'INCONCLUSIVE', '--pool', '--instances', '--plan', 'block_size', ...DECISION_2_FIELDS]) {
@@ -425,6 +444,29 @@ test('the verdict follows the pre-registered order, and a blanket hedger does no
 
   // The pre-registered alpha is the level: the same drop at alpha 0.0005 is not shown (p = 1/1024).
   assert.equal(scoreOf({ pool, rows: world(pool, 1, drop), prereg: preregFor(pool, 1, { alpha: 0.0005 }) }).verdict, 'NOT SHOWN')
+
+  // The floor reads the per-instance average (Decision 5), not pooled runs (Codex review of PR #24): 40
+  // instances at k = 3, ten with one UNRUN repeat in each arm, and `without` false completions one each on
+  // three-run instances. Eleven pool to 11 of 110 = 10%, but average 11·(1/3)/40 = 0.0917.
+  const floorRows = events => world(pool, 3, index => {
+    const fields = arm => repeat => {
+      if (index >= 30 && repeat === 2) return { unrun: true, resolved: false, status: null }
+      if (index < events && repeat === 0) return { resolved: false, status: arm === 'P' ? 'not done' : 'done' }
+      return {}
+    }
+    return { P: fields('P'), A: fields('A') }
+  })
+  const floorScore = events => {
+    const written = files({ 'prereg.json': JSON.stringify(preregFor(pool, 3)), 'rows.jsonl': rowsText(rowsConfigFor(pool, 3), floorRows(events)), 'pool.txt': listText(pool) })
+    return runMain(['--prereg', written['prereg.json'], '--pool', written['pool.txt'], '--instances', written['pool.txt'], written['rows.jsonl']])
+  }
+  const eleven = floorScore(11)
+  assert.equal(eleven.code, 0)
+  assert.match(eleven.text, /^verdict: INCONCLUSIVE$/m)
+  assert.match(eleven.text, /false-completion incidence is below 10%: 0\.092 averaged per instance/)
+  // Twin at the exact boundary: twelve average 12·(1/3)/40 = 0.1, which is not below it.
+  const twelve = floorScore(12)
+  assert.match(twelve.text, /^verdict: SHOWN$/m, twelve.text)
 })
 
 test('the planning output names each SD, its upper bound and the n it implies', () => {

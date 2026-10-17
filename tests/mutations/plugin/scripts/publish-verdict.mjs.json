@@ -406,7 +406,7 @@
       ],
       "from": "      ...verdict, deny: false, key: `${verdict.key}:fresh`,",
       "to": "      ...verdict, deny: false, key: verdict.key,",
-      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
+      "only": "^a fresh-commit advice after a refused commit on the same tree is still told$"
     },
     {
       "label": "ADR-088 T2: the publish verdict judges the ledger-bound log, not the bare session log",

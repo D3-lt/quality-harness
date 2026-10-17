@@ -1266,6 +1266,19 @@ test('an unarmed commit into a repository the command creates is advised, not re
   }
 })
 
+// ADR-086 T2's `:fresh` key keeps the fresh-commit advice apart from a refusal on the same tree: a refusal emits the tree's
+// plain key, and an advice carrying that key afterwards reads as already said and is dropped. The locked test above runs each
+// row in a fresh session, so nothing there is refused first, and the catalogue mutant dropping `:fresh` went GREEN on CI at
+// bb31d8d8 (the hook golden `publish-classifier` does kill it). This is that case, through the hook, with its clean twin.
+test('a fresh-commit advice after a refused commit on the same tree is still told', () => {
+  const unarmed = armedSession('fresh-after-refusal-', { armed: false })
+  assert.equal(unarmed.decide('git commit -m x'), 'deny', 'the unchecked commit is refused, and its key is the tree\'s')
+  const command = FRESH_REPOSITORY_ROWS(freshParent(), slashed(unarmed.dir))[0]
+  assert.match(unarmed.tell(command), /ADR-086/, 'the fresh commit is still advised after the refusal')
+  // Clean twin: the same fresh commit again is the same `:fresh` key, and silent.
+  assert.equal(unarmed.tell(command), '', 'the same fresh commit again on the same tree is silent')
+})
+
 test('an unarmed chain the text cannot place in a fresh repository is still refused', () => {
   const unarmed = armedSession('fresh-twin-', { armed: false })
   const rows = FRESH_REPOSITORY_TWINS(freshParent(), slashed(unarmed.dir))

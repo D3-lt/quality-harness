@@ -61,6 +61,14 @@ b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \
 | 4 — it is used | the goldens run against it in CI |
 
 ## Mutation Log
+- 2026-10-17 · e1bd26e2 · mutant killed · exit 1 · `core/hooks/turnend.go` · R1's key loses the tree's evidence revision, so a check event on the tree no longer re-opens the finding; the goldens hold R1's key in the action.emitted rows · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba
+- 2026-10-17 · e1bd26e2* · mutant killed · exit 1 · `core/hooks/publish.go` · rule P's dedupe never finds the advice already said on this tree, so every mention repeats it; the classifier golden holds one advisory per tree · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba
+- 2026-10-17 · e1bd26e2* · mutant killed · exit 1 · `core/hooks/ledger.go` · the observable-write filter calls a gitignored write observable, so a write git cannot see is recorded as one it can; the writes golden holds observable false for the ignored file · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba
+- 2026-10-17 · e1bd26e2* · mutant survived · exit 0 · `core/hooks/shellwords.go` · the lexer's heredoc arm reads a quoted delimiter as unquoted, so a quoted body is code again and its words are read as a publish or a mention; the classifier golden holds the quoted-heredoc forms · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-17 · e1bd26e2* · mutant killed · exit 1 · `core/hooks/shellwords.go` · the lexer's heredoc arm reads a quoted delimiter as unquoted, so a quoted body only cat or mrw reads is code again; the heredocs golden, added because this mutant survived the earlier scenarios, holds that body as data · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba
 
 ## Invariants
 
@@ -88,3 +96,8 @@ this one.
   ```
   ```
 - 2026-10-17 · a3c619df · exit 0 · `b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \ …` · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba · ms:18114
+- 2026-10-17 · e1bd26e2 · exit 0 · `b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \ …` · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba · ms:8147
+- 2026-10-17 · e1bd26e2* · exit 0 · `b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \ …` · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba · ms:7865
+- 2026-10-17 · e1bd26e2* · exit 0 · `b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \ …` · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba · ms:8275
+- 2026-10-17 · e1bd26e2* · exit 0 · `b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \ …` · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba · ms:8023
+- 2026-10-17 · e1bd26e2* · exit 0 · `b=$(mktemp -d) && go build -C core -o "$b/qh" ./cmd/qh \ …` · acceptance-sha256:5bcdd21d1087b8853376b60f2ca2ddfb684a089ac0dbf531258626a871f5e9ba · ms:20897

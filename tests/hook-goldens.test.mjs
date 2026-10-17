@@ -231,6 +231,27 @@ test('edits by every tool the matchers name: before and after Write, Edit, Multi
   expectGolden(assert, 'tools', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
 })
 
+// ADR-110 T1: a quoted here-document a reader only copies is data, an unquoted one is not, and one piped into a shell runs.
+// Each command is the first a session says anything about, so rule P's dedupe cannot hide what the lexer made of it (the
+// heredoc-arm mutant on core/hooks/shellwords.go survived the scenarios above for exactly that reason).
+test('heredocs: a quoted body only cat or mrw reads is data, an unquoted one and one piped into sh are not', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'heredocs', BASE)
+  const commands = [
+    "cat <<'EOF' > note.txt\ngit push\nEOF",
+    'cat <<EOF > note.txt\ngit push\nEOF',
+    "mrw write - <<'EOF'\ngit commit\nEOF",
+    "cat <<'EOF' | sh\ngit push\nEOF",
+  ]
+  // Each session starts on the tree as it is and then changes it, so the tree a command meets is unchecked.
+  const steps = commands.flatMap((command, n) => {
+    const started = play(box, repo, `heredocs-${n}`, [['start', { hook_event_name: 'SessionStart', source: 'startup' }]])
+    writeFileSync(path.join(repo, 'src', 'b.js'), `export const b = ${n}\n`)
+    return [...started, ...play(box, repo, `heredocs-${n}`, [[command, bash(command)]])]
+  })
+  expectGolden(assert, 'heredocs', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
+})
+
 // Which registered hook (event, and each tool its matcher names) no payload in `sent` reaches.
 function uncoveredHooks(hooksJson, sent) {
   const missing = []

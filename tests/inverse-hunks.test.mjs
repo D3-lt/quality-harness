@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { devNull, tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { measure, operatorsOn, parseHunks, renderTable, verdictOf, waitForLoad } from './inverse-hunks.mjs'
+import { measure, operatorsOn, parseHunks, renderTable, verdictOf, waitForLoad } from '../scripts/inverse-hunks.mjs'
 
 // ADR-109 T1. The script reverts one landed hunk at a time against the tests of its commit. Every fixture here is a repository
 // this file creates; nothing below spawns git anywhere else (CLAUDE.md §9).

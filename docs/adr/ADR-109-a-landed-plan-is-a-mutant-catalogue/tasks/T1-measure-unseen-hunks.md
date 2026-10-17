@@ -18,7 +18,7 @@ see (ADR-109, Decision 1), so that T2 is built on a measurement or the record is
 | File | Change | Why |
 |------|--------|-----|
 | `scripts/inverse-hunks.mjs` | add | for a commit range: each plugin commit's `git diff -U0` hunks outside `tests/`, each mutated alone in a worktree of that commit, the commit's test files run (`tests/*.test.mjs` the commit touched, else the files its catalogue entries name), and a verdict per hunk per mutation: noticed (a test failed), unnoticed (green), inconclusive (did not parse, build or run). Mutations: the inverse (the original lines back), and three operators applied to the hunk's new lines where they match — a comparison flipped (`<`→`>=`, `===`→`!==`), a boolean literal flipped, a numeric literal nudged by one — so the same hunks compare the inverse with generated variants per fence run |
-| `scripts/inverse-hunks.test.mjs` | add | the script against a fixture repository the test creates: a hunk the fixture's test sees is noticed, one it does not is unnoticed, a revert that breaks syntax is inconclusive |
+| `tests/inverse-hunks.test.mjs` | add | the script against a fixture repository the test creates: a hunk the fixture's test sees is noticed, one it does not is unnoticed, a revert that breaks syntax is inconclusive |
 
 ## Ordered Steps
 
@@ -36,7 +36,7 @@ counts, the load, and the decision on T2.
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `a reverted hunk the tests see is noticed, one they do not is unnoticed, and one that breaks the build is inconclusive` | `scripts/inverse-hunks.test.mjs` | the three verdicts on a fixture the test builds; the script never writes into the repository it measures | — | S1, S2 |
+| `a reverted hunk the tests see is noticed, one they do not is unnoticed, and one that breaks the build is inconclusive` | `tests/inverse-hunks.test.mjs` | the three verdicts on a fixture the test builds; the script never writes into the repository it measures | — | S1, S2 |
 
 ## Reachability
 

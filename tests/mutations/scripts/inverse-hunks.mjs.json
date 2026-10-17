@@ -4,7 +4,7 @@
       "label": "inverse-hunks: a run with no leaf results is inconclusive, not noticed",
       "file": "scripts/inverse-hunks.mjs",
       "tests": [
-        "scripts/inverse-hunks.test.mjs"
+        "tests/inverse-hunks.test.mjs"
       ],
       "from": "  if (!leafTestsRun(run.stdout, files)) return { verdict: 'inconclusive', detail: 'the run had no leaf results' }",
       "to": "  if (!leafTestsRun(run.stdout, files)) return { verdict: 'noticed' }"
@@ -13,7 +13,7 @@
       "label": "inverse-hunks: hunks under tests/ are in no count",
       "file": "scripts/inverse-hunks.mjs",
       "tests": [
-        "scripts/inverse-hunks.test.mjs"
+        "tests/inverse-hunks.test.mjs"
       ],
       "from": "filter(h => !/(^|\\/)tests\\//.test(h.path))",
       "to": "filter(() => true)"
@@ -22,7 +22,7 @@
       "label": "inverse-hunks: a revert that does not parse is inconclusive, not run",
       "file": "scripts/inverse-hunks.mjs",
       "tests": [
-        "scripts/inverse-hunks.test.mjs"
+        "tests/inverse-hunks.test.mjs"
       ],
       "from": "else if (!syntax.ok && existsSync(path.join(tree, hunk.path)))",
       "to": "else if (false && existsSync(path.join(tree, hunk.path)))"
@@ -31,7 +31,7 @@
       "label": "inverse-hunks: a commit with no test to run is inconclusive, never green",
       "file": "scripts/inverse-hunks.mjs",
       "tests": [
-        "scripts/inverse-hunks.test.mjs"
+        "tests/inverse-hunks.test.mjs"
       ],
       "from": "if (!tests.length) { entry.kinds[kind] = { verdict: 'inconclusive', detail: 'no test names this file' }; continue }",
       "to": "if (!tests.length) { entry.kinds[kind] = { verdict: 'unnoticed' }; continue }"

@@ -18,6 +18,16 @@ const lifecycle = { ...lifecycleOwn, ...checkLedger, ...completionRules }
 
 const unseen = file => ({ event: 'file.written', path: file, observable: false })
 
+// A Windows account without the symlink privilege (no Developer Mode, not elevated) cannot build these fixtures: measured
+// 2026-10-17 on the owner's Windows peer, symlinkSync threw EPERM. CLAUDE.md §7: skipped with the reason, asked of the
+// platform once rather than assumed from it. Relocked for ADR-094 T4 by the owner's "go" the same day.
+const symlinkSkip = (() => {
+  const probe = mkdtempSync(path.join(os.tmpdir(), 'qh-symlink-probe-'))
+  try { symlinkSync(path.join(probe, 'target'), path.join(probe, 'link')); return false }
+  catch (error) { return error.code === 'EPERM' && 'this account cannot create symlinks (EPERM): Windows without Developer Mode or elevation' }
+  finally { rmSync(probe, { recursive: true, force: true }) }
+})()
+
 function layout(t) {
   const base = mkdtempSync(path.join(os.tmpdir(), 'qh-outside-root-'))
   t.after(() => rmSync(base, { recursive: true, force: true }))
@@ -28,7 +38,7 @@ function layout(t) {
   return { base, root, elsewhere }
 }
 
-test('an absolute write outside the repository is not counted as unseen', t => {
+test('an absolute write outside the repository is not counted as unseen', { skip: symlinkSkip }, t => {
   const { base, root, elsewhere } = layout(t)
   const outside = unseen(path.join(elsewhere, 'notes.md'))
   assert.equal(lifecycle.unobservableWrites([outside], root).length, 0, 'the scratchpad write is not this tree\'s')
@@ -45,7 +55,7 @@ test('an absolute write outside the repository is not counted as unseen', t => {
   assert.equal(lifecycle.unobservableWrites([outside]).length, 1)
 })
 
-test('a relative or unplaceable write path is still counted as unseen', t => {
+test('a relative or unplaceable write path is still counted as unseen', { skip: symlinkSkip }, t => {
   const { base, root, elsewhere } = layout(t)
   const counted = [
     unseen(path.join(root, 'src', 'a.js')),
@@ -82,7 +92,7 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
 // Supplementary (NOT in the Acceptance fence): the recorder is the writer of the log, and it canonicalises a path under
 // a directory link to its target; the inside spelling it keeps (`lexical`) is what keeps the write counted (a Codex
 // review of ADR-094 found the tests supplied a spelling the recorder discards).
-test('a write through a directory link is counted when the hook records it', t => {
+test('a write through a directory link is counted when the hook records it', { skip: symlinkSkip }, t => {
   const { base, root, elsewhere } = layout(t)
   const git = spawnSync('git', ['-C', root, 'init', '-q'], { encoding: 'utf8', timeout: 30_000 })
   assert.equal(git.status, 0, git.stderr)

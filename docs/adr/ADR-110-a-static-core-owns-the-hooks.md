@@ -146,5 +146,6 @@ the tree and read the same ledgers.
 
 ## Follow-ups
 
+- [ ] Found at the start of T1, 2026-10-17: every `mrw` package is under `internal/` (tool-multipathreadwrite at 6de290ac: `internal/plan`, `internal/apply`, `internal/read` and the rest), and Go refuses an import of `internal/` from another module, so Decision 1's "imports `mrw`'s packages" cannot hold as written. T1 does not need them (the hooks parse no plan); ADR-109's inversion would. Raised with tool-multipathreadwrite as a finding: whether it exports a `pkg/` for the plan grammar and the read ledger is that project's decision. Until then the core imports nothing from `mrw`, and it writes no plan reader of its own either.
 - [ ] T2's numbers: per event, wall time and output bytes for both implementations; per attempt, turns and cost in the benchmark arm.
 - [x] Owner decision: Accepted by the owner, 2026-10-17 ("go"); T3 waits on T2's numbers.

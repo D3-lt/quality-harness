@@ -3347,7 +3347,7 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: inside a table a line with no pipe is a one-cell row",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if not in_table:\n            if not _UNESCAPED_PIPE.search(stripped):",
+      "from": "        if change is None:\n            if not _UNESCAPED_PIPE.search(stripped):",
       "to": "        if True:\n            if not _UNESCAPED_PIPE.search(stripped):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
@@ -3355,7 +3355,7 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: a delimiter opens a table only with its header's cell count",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(gfm_table_cells(stripped)):",
+      "from": "            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(header):",
       "to": "            if _DELIMITER_ROW.match(following):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
@@ -3363,16 +3363,16 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: a blank line ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if in_table and (not stripped or _BLOCK_START.match(stripped)):",
-      "to": "        if in_table and _BLOCK_START.match(stripped):",
+      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped)):",
+      "to": "        if change is not None and _BLOCK_START.match(stripped):",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
       "label": "adr-lint, Codex review of the 3.8.40 plan: another block ends a table",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        if in_table and (not stripped or _BLOCK_START.match(stripped)):",
-      "to": "        if in_table and not stripped:",
+      "from": "        if change is not None and (not stripped or _BLOCK_START.match(stripped)):",
+      "to": "        if change is not None and not stripped:",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     },
     {
@@ -3395,8 +3395,24 @@
       "label": "adr-lint, Codex review of the 3.8.40 plan: Affected Files is read through the GFM row reader",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    aff = [ln for ln in gfm_table_rows(secs.get(\"Affected Files\", [])) if \"`\" in ln]",
-      "to": "    aff = [ln for ln in secs.get(\"Affected Files\", []) if ln.strip().startswith(\"|\") and \"`\" in ln]",
+      "from": "    aff = [(ln, change) for ln, change in gfm_table_rows(secs.get(\"Affected Files\", [])) if \"`\" in ln]",
+      "to": "    aff = [(ln, None) for ln in secs.get(\"Affected Files\", []) if ln.strip().startswith(\"|\") and \"`\" in ln]",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of v3.8.39..1d991b64: an HTML block ends a table",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "_BLOCK_START = re.compile(r\"^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$|<[A-Za-z!?/])\")",
+      "to": "_BLOCK_START = re.compile(r\"^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$)\")",
+      "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
+    },
+    {
+      "label": "adr-lint, Codex review of v3.8.39..1d991b64: an add is read from the header's Change column",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        column = change if change is not None and change >= 0 else 1",
+      "to": "        column = 1",
       "only": "^a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named$"
     }
   ]

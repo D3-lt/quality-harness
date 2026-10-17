@@ -179,6 +179,9 @@ test('a table is one header, the delimiter under it and its rows to a blank line
   assert.deepEqual(governedBy('blank-ends', piped + '| `src/a.js` | read | x |\n\n| `src/b.js` | read | x |\n'), ['src/b.js'])
   // Another block ends the table too: a list item under it is not a row of it.
   assert.deepEqual(governedBy('block-ends', piped + '| `src/a.js` | read | x |\n- `src/b.js` | read | x\n'), ['src/b.js'])
+  // So does an HTML block: the second table's Change is its own third column, not the first table's second (the Codex
+  // review of v3.8.39..1d991b64).
+  assert.deepEqual(governedBy('html-ends', piped + '| `src/a.js` | read | x |\n<!-- between tables -->\nFile | Why | Change\n--- | --- | ---\n| `src/new.js` | read | edit |\n'), ['src/new.js'])
 })
 
 test('a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing', () => {
@@ -189,9 +192,9 @@ test('a fence in Affected Files is an example: its heading neither starts nor en
 
 test('a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path', () => {
   // A backticked cell with a space stays prose: a real corpus wrote an acceptance command there (lifecycle.test.mjs).
-  const cells = ['`src/a b.js`', '`Dockerfile`', '`<path>`', '(compile)', 'run the tests', 'Makefile', 'src/c.js']
+  const cells = ['`src/a b.js`', '`Dockerfile`', '`(data).json`', '`(src)/a.js`', '`<path>`', '(compile)', 'run the tests', 'Makefile', 'src/c.js']
   assert.deepEqual(governedBy('spellings', AFFECTED + '| File | Change |\n|---|---|\n' + cells.map(cell => `| ${cell} | edit |\n`).join('')),
-    ['Dockerfile', 'src/c.js'])
+    ['(data).json', '(src)/a.js', 'Dockerfile', 'src/c.js'])
 })
 
 test('corpus-report counts a record named in lower case', () => {

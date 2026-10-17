@@ -1698,15 +1698,15 @@
       "label": "Codex review of the 3.8.40 plan: a backticked cell is a path without an extension",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
-      "to": "  if (ticked !== undefined && /[./\\\\]/.test(ticked)) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^</.test(ticked) ? ticked : null",
+      "to": "  if (ticked !== undefined && /[./\\\\]/.test(ticked)) return ticked && !/\\s/.test(ticked) && !/^</.test(ticked) ? ticked : null",
       "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
     },
     {
       "label": "Codex review of the 3.8.40 plan: a backticked placeholder is not a path",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^</.test(ticked) ? ticked : null",
       "to": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) ? ticked : null",
       "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
     },
@@ -1714,9 +1714,25 @@
       "label": "Codex review of the 3.8.40 plan: a backticked cell with a space is not a path",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
-      "to": "  if (ticked !== undefined) return ticked && !/^[<(]/.test(ticked) ? ticked : null",
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^</.test(ticked) ? ticked : null",
+      "to": "  if (ticked !== undefined) return ticked && !/^</.test(ticked) ? ticked : null",
       "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
+    },
+    {
+      "label": "Codex review of v3.8.39..1d991b64: a backticked path may begin with a parenthesis",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^</.test(ticked) ? ticked : null",
+      "to": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
+    },
+    {
+      "label": "Codex review of v3.8.39..1d991b64: an HTML block ends a table",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "const BLOCK_START = /^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$|<[A-Za-z!?/])/",
+      "to": "const BLOCK_START = /^(?:>|[-*+](?:\\s|$)|\\d{1,9}[.)](?:\\s|$)|(?:\\*\\s*){3,}$|(?:-\\s*){3,}$|(?:_\\s*){3,}$)/",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
     }
   ]
 }

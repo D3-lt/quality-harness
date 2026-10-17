@@ -1867,6 +1867,10 @@ test('a pipe-less Affected Files row is a row: a second add still collides, and 
   assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n`src/a.js` | add | y |\n'), collides, 'a row without its leading pipe')
   assert.match(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/a.js` | add | y\n'), collides, 'a table with no edge pipes')
   assert.doesNotMatch(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/a.js` | edit | y\n'), collides, 'an edit row does not collide')
+  // The Change column is the header's, not always the second (the Codex review of v3.8.39..1d991b64), and an HTML block
+  // ends a table, so a second table reads its own header.
+  assert.match(lintWith(adds, 'File | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'Change in the third column')
+  assert.match(lintWith(adds, piped + '| `src/b.js` | edit | y |\n<!-- between -->\nFile | Why | Change\n--- | --- | ---\n`src/a.js` | y | add\n'), collides, 'an HTML block ends a table')
   // A pipe-less table has data rows, and an empty one still has none.
   const noRows = /T2-twin\.md: Affected Files table has no data rows/
   assert.doesNotMatch(lintWith(adds, 'File | Change | Why\n--- | --- | ---\n`src/b.js` | edit | y\n'), noRows)

@@ -544,8 +544,8 @@ def markdown_table_cells(line, *, backslash_parity=False):
 
 _UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 _DELIMITER_ROW = re.compile(r"^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$")
-# What begins another block, and so ends a table: a block quote, a list item, a thematic break.
-_BLOCK_START = re.compile(r"^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)")
+# What begins another block, and so ends a table: a block quote, a list item, a thematic break, an HTML block.
+_BLOCK_START = re.compile(r"^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$|<[A-Za-z!?/])")
 
 
 def gfm_table_cells(line):
@@ -560,25 +560,28 @@ def gfm_table_cells(line):
 
 
 def gfm_table_rows(lines):
-    """The lines that are table rows as GFM reads a table, as decision-corpus's `affectedFiles` reads one.
+    """The table rows of `lines` as GFM reads a table, as decision-corpus's `affectedFiles` reads one, each with its
+    table's Change column: the index of the header cell named Change, -1 under a header that names none, None outside
+    a table.
 
     A table is a header, the delimiter under it with as many cells, and body rows to a blank line or another block.
     No row needs a leading pipe, and inside a table a line with no pipe is a one-cell row (GFM example 202). Outside
     one, a line with a pipe is kept, as every `|` line was. Requiring the leading pipe dropped a second `add` of one
     file from the collision check (the Codex review of the 3.8.40 plan).
     """
-    rows, in_table = [], False
+    rows, change = [], None
     for index, line in enumerate(lines):
         stripped = line.strip()
-        if in_table and (not stripped or _BLOCK_START.match(stripped)):
-            in_table = False
-        if not in_table:
+        if change is not None and (not stripped or _BLOCK_START.match(stripped)):
+            change = None
+        if change is None:
             if not _UNESCAPED_PIPE.search(stripped):
                 continue
+            header = gfm_table_cells(stripped)
             following = lines[index + 1].strip() if index + 1 < len(lines) else ""
-            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(gfm_table_cells(stripped)):
-                in_table = True
-        rows.append(line)
+            if _DELIMITER_ROW.match(following) and len(gfm_table_cells(following)) == len(header):
+                change = next((column for column, cell in enumerate(header) if cell.lower() == "change"), -1)
+        rows.append((line, change))
     return rows
 
 
@@ -1737,7 +1740,7 @@ def check_task(path, all_stems, errors, root, tracked):
         errors.append(f"{path.name}: ## Acceptance has no runnable fence (```bash, ```sh or "
                       f"```shell) and no explicit 'Acceptance is human-observed:' sentence — "
                       f"{found}prose acceptance is rejected")
-    aff = [ln for ln in gfm_table_rows(secs.get("Affected Files", [])) if "`" in ln]
+    aff = [(ln, change) for ln, change in gfm_table_rows(secs.get("Affected Files", [])) if "`" in ln]
     if not aff:
         errors.advise(f"{path.name}: Affected Files table has no data rows "
                       f"(a row with a backticked path)")
@@ -1762,7 +1765,7 @@ def check_task(path, all_stems, errors, root, tracked):
                 or "· human-observed ·" in ln)
            for ln in secs.get("Verification Log", [])):
         named = set()
-        for ln in aff:
+        for ln, _ in aff:
             cells = gfm_table_cells(ln)
             pm = re.search(r"`([^`]+)`", cells[0]) if cells else None
             if pm and not pm.group(1).strip().startswith("`"):
@@ -1783,9 +1786,12 @@ def check_task(path, all_stems, errors, root, tracked):
                 f"if it was meant for one place.")
 
     adds = set()
-    for ln in aff:
+    for ln, change in aff:
         cells = gfm_table_cells(ln)
-        if len(cells) >= 2 and re.search(r"\badd\b", cells[1], re.I):
+        # The header's Change column; column 2 only where no header names one. Always reading column 2 missed an `add`
+        # under `File | Why | Change` (the Codex review of v3.8.39..1d991b64).
+        column = change if change is not None and change >= 0 else 1
+        if len(cells) > column and re.search(r"\badd\b", cells[column], re.I):
             pm = re.search(r"`([^`]+)`", cells[0])
             if pm:
                 adds.add(pm.group(1))

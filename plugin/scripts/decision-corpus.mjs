@@ -899,8 +899,10 @@ const READ_ONLY_WORD = '(?:read|none|unchanged|no change|read[- ]only)'
 const READ_ONLY_CHANGE = new RegExp(`^${READ_ONLY_WORD}\\.?(?:\\s*\\(\\s*${READ_ONLY_WORD}\\s*\\)\\.?)?(?:\\s+[—–]\\s+\\S.*)?$`, 'i')
 const SEPARATOR_ROW = /^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/
 const UNESCAPED_PIPE = /(?<!\\)\|/
-// What begins another block, and so ends a table: a block quote, a list item, a thematic break.
-const BLOCK_START = /^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)/
+// What begins another block, and so ends a table: a block quote, a list item, a thematic break, an HTML block. Without
+// the last, a comment between two tables kept the first table's Change column for the second (the Codex review of
+// v3.8.39..1d991b64).
+const BLOCK_START = /^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$|<[A-Za-z!?/])/
 // A row's cells as GFM splits them: at every pipe a backslash does not escape, the leading and trailing pipes optional.
 // Splitting at every raw `|` let an escaped pipe and a missing trailing pipe cancel, so the count matched the header's
 // and the wrong cell was read as Change (the Codex review of v3.8.36..v3.8.38).
@@ -920,13 +922,14 @@ function tableCells(line) {
   return cells
 }
 // The path a row's first cell names, or null. A backticked cell with no space in it is a path as written, an extension
-// or not: `Dockerfile` was lost (the Codex review of the 3.8.40 plan). One with a space is not, since on a real corpus
+// or not, a leading parenthesis included: `Dockerfile` was lost (the Codex review of the 3.8.40 plan), and so, for a
+// while, was `(data).json` (the Codex review of v3.8.39..1d991b64). One with a space is not, since on a real corpus
 // cell 0 of neighbouring tables held `! rg -iq 'MCP stdio' README.md`, and nothing here tells a command from a path
 // with a space in it (BACKLOG §381). An unticked cell must look like a path too: that corpus also produced
 // `(T3's two tests)` and `(compile)`, every one reported as a governed path, so an unticked `Makefile` is not read.
 function rowPath(first) {
   const ticked = first.match(/`([^`]+)`/)?.[1].trim()
-  if (ticked !== undefined) return ticked && !/\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null
+  if (ticked !== undefined) return ticked && !/\s/.test(ticked) && !/^</.test(ticked) ? ticked : null
   if (!first || /^file$/i.test(first) || /^</.test(first) || /\s/.test(first) || !/[./\\]/.test(first)) return null
   return first
 }

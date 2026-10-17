@@ -607,6 +607,14 @@
       "from": "quality-harness: a commit into another repository is advised, not refused (ADR-104): the command about to run",
       "to": "quality-harness: the command about to run",
       "only": "^the person told of a commit into another repository is told why it was allowed$"
+    },
+    {
+      "label": "§381 mention: a quoted heredoc body only a data sink reads is not words",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "  const command = withoutSinkBodies(given)",
+      "to": "  const command = given",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     }
   ]
 }

@@ -1574,6 +1574,70 @@
       "from": "    if (word === '--all') return true",
       "to": "    if (false) return true",
       "only": "^an index the command stages before committing is not known yet, never unchecked$"
+    },
+    {
+      "label": "§381 sink: a body piped on is its reader's input, not a sink's",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "if (step.pipeTo !== null || step.substitutions.length",
+      "to": "if (step.substitutions.length",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: a substitution beside the body is something to run",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "|| step.substitutions.length ||",
+      "to": "||",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: a dynamic word is not a sink",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "|| step.dynamic.some(Boolean) ||",
+      "to": "||",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: a word that is code is not a sink",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "|| step.code.some(Boolean)) return false",
+      "to": ") return false",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: an interpreter is not a data sink",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "const DATA_SINKS = new Set(['cat', 'tee'])",
+      "to": "const DATA_SINKS = new Set(['cat', 'tee', 'sh', 'node'])",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: only mrw write takes a body as a plan",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "(program === 'mrw' && step.argv[1] === 'write')",
+      "to": "program === 'mrw'",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: the advisory mask is owned by sinks only",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "document.body.endsWith('\\n') && owns(step)) {",
+      "to": "document.body.endsWith('\\n')) {",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 sink: an echo argument stays words for the advisory arm",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "{ owns: readsItsBodyAsData, echoes: false }",
+      "to": "{ owns: readsItsBodyAsData, echoes: true }",
+      "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     }
   ]
 }

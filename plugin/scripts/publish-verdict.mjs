@@ -2,7 +2,7 @@
 // tree (ADR-061, ADR-081), the reviewer guard for a role spawned read-only (ADR-060), and the offer of git's own hook
 // (ADR-066). Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A refusal needs evidence; a command
 // that is only mentioned is warned about, never refused (CLAUDE.md section 3).
-import { commitOnlyCommand, decodedPowerShell, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit } from './publish-command.mjs'
+import { commitOnlyCommand, decodedPowerShell, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit, withoutSinkBodies } from './publish-command.mjs'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { appendEvent, nearestExistingDirectory, readEvents } from './event-log.mjs'
@@ -34,8 +34,10 @@ export function containsCommitOrPush(command) {
 // (`git comm`it`, a Windows chaos round of 626934a), so it reads both spellings too.
 const PUBLISH_MENTION = /(?<![A-Za-z0-9_.-])(?:commit|push)(?![A-Za-z0-9_-])/
 
-export function mentionsCommitOrPush(command) {
-  if (typeof command !== 'string') return false
+export function mentionsCommitOrPush(given) {
+  if (typeof given !== 'string') return false
+  // A quoted here-document that only `cat`, `tee` or `mrw write` reads is data, not words (BACKLOG §381).
+  const command = withoutSinkBodies(given)
   // Split on what a base64 word cannot hold, rather than match the word: a greedy
   // match over one multi-megabyte word overflowed V8's regex stack and crashed the
   // hook before Rule P was read (a Windows chaos round of 916b515, F7). The words are
@@ -338,10 +340,10 @@ export function publishJudgement(facts, { invoked, commitOnly = false, stagesFir
 
 export function publishUnchecked(input, requested, env = process.env) {
   if (requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') return
+  // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
+  // evidence than advice). A command that merely mentions the words is warned.
   let verdict = publishVerdict({
     cwd: input.cwd, session: input.session_id, observation: requested.observation,
-    // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
-    // evidence than advice). A command that merely mentions the words is warned.
     invoked: publishCommandIn(input.tool_input?.command),
     commitOnly: commitOnlyCommand(input.tool_input?.command),
     stagesFirst: stagesBeforeCommit(input.tool_input?.command),

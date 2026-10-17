@@ -216,7 +216,7 @@ export function foreignCommitPath(command, env = process.env, platform = process
 // again holds the marker in exactly the slot the data came from.
 const DATA_MARK = 'qhdata'
 
-function withoutData(text) {
+function withoutData(text, { owns = () => true, echoes = true } = {}) {
   const { commands, complete } = shellWords(text)
   if (!complete) return text
   let out = text
@@ -229,11 +229,11 @@ function withoutData(text) {
   commands.forEach((step, n) => {
     step.heredocs.forEach((document, j) => {
       // A body keeps its line ending, or the delimiter line after it would join the marker.
-      if (document.quoted && document.delimiter !== null && document.body.endsWith('\n')) {
+      if (document.quoted && document.delimiter !== null && document.body.endsWith('\n') && owns(step)) {
         take(document.body, `${DATA_MARK}\n`, read => read[n]?.heredocs[j]?.body === `${DATA_MARK}\n`)
       }
     })
-    if (step.argv[0] !== 'echo' && step.argv[0] !== 'true') return
+    if (!echoes || (step.argv[0] !== 'echo' && step.argv[0] !== 'true')) return
     for (let k = 1; k < step.argv.length; k += 1) {
       const value = step.argv[k]
       if (!value.includes("'")) take(`'${value}'`, DATA_MARK, read => read[n]?.argv[k] === DATA_MARK)
@@ -242,6 +242,21 @@ function withoutData(text) {
   })
   return out
 }
+
+// The programs that only READ a quoted here-document: `cat` and `tee` copy it, `mrw write` takes it as a plan. Each
+// was run under bash, zsh and sh with a stand-in for the verb in the body, and none ran it (CLAUDE.md §16). A body
+// piped on (`cat <<'EOF' | sh`) is that program's input, and an argument or a substitution is something else to run,
+// so only a command that is plain and last in its pipeline is a sink; an interpreter, `eval` and `source` are not.
+const DATA_SINKS = new Set(['cat', 'tee'])
+function readsItsBodyAsData(step) {
+  if (step.pipeTo !== null || step.substitutions.length || step.dynamic.some(Boolean) || step.code.some(Boolean)) return false
+  const program = programName(step.argv[0] ?? '')
+  return DATA_SINKS.has(program) || (program === 'mrw' && step.argv[1] === 'write')
+}
+
+// The text with those bodies taken out, for the advisory arm. Everything else stays as it was, so a word beside the
+// body, a publish after it and a body something runs are all still seen.
+export const withoutSinkBodies = text => withoutData(text, { owns: readsItsBodyAsData, echoes: false })
 
 // Shells whose `-c` string runs, each executed with `-c` on 2026-09-26 (§296).
 // pwsh and powershell take `-c` / `-Command` by their documentation. `su -c`,

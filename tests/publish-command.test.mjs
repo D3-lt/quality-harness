@@ -1558,3 +1558,65 @@ test('a hook run before the latest offer does not arm the session', () => {
   appendEvent(stale.dir, stale.session, { event: 'publish.hook-ran', hook: 'prepare-commit-msg' })
   assert.notEqual(stale.decide('git commit -m x'), 'deny', 'armed again: the commit is left to git')
 })
+
+// ── The advisory arm reads the words as words, but a quoted heredoc body that a data sink reads is not words ──
+// Measured over a session log joined with its transcripts: 105 of 188 mentions came from a quoted-delimiter
+// body handed to `mrw write`, `cat` or `tee`, and none preceded a publish the precise arm missed. Each program
+// below was run under bash, zsh and sh with a stand-in for the verb on PATH: the body of a quoted heredoc to
+// cat or tee is never run, but `cat <<'EOF' | sh` and an unquoted delimiter's `$(…)` are.
+const SINK_BODIES = [
+  "mrw write <<'EOF'\n@@ docs/x.md 1 insert-after\ngit push\nEOF",
+  "cat > notes.md <<'EOF'\nrun git commit -m x\nEOF",
+  "cat <<\"EOF\"\n$(git push)\nEOF",
+  "tee out.txt <<'EOF'\ngit push\nEOF",
+  "/bin/cat > f <<'EOF'\ngit push\nEOF",
+]
+const SINK_BODIES_THAT_STAY_MENTIONS = [
+  "sh <<'EOF'\ngit push\nEOF", "bash <<'EOF'\ngit push\nEOF", "node - <<'EOF'\nrun('git push')\nEOF", "python3 - <<'EOF'\nprint('git push')\nEOF",
+  'cat <<EOF\n$(git push)\nEOF', 'tee out <<EOF\n`git push`\nEOF',
+  "cat <<'EOF' | sh\ngit push\nEOF", "cat <<'EOF' | mrw write\ngit push\nEOF",
+  "mrw read <<'EOF'\ngit push\nEOF", "cat $(echo x) <<'EOF'\ngit push\nEOF", "tee >(sh) <<'EOF'\ngit push\nEOF",
+  "cat $F <<'EOF'\ngit push\nEOF", "cat \"a;b\" <<'EOF'\ngit push\nEOF", "cat > \"$(sh)\" <<'EOF'\ngit push\nEOF", "echo 'git push'",
+  // The words outside the body count, whatever the body holds.
+  "cat <<'EOF'\nx\nEOF\ngit push", "echo push; cat <<'EOF'\nx\nEOF", "cat <<'EOF' # push\nx\nEOF",
+]
+
+test('a quoted heredoc body that only a data sink reads is not a mention', () => {
+  for (const command of SINK_BODIES) {
+    assert.equal(publishCommandIn(command), null, command)
+    assert.equal(mentionsCommitOrPush(command), false, command)
+  }
+  // DIRTY twin: the same bodies where something runs them, or where the shell expands them, still are.
+  for (const command of SINK_BODIES_THAT_STAY_MENTIONS) assert.equal(mentionsCommitOrPush(command), true, command)
+  // ...and a publish after the body is still a publish.
+  assert.equal(containsCommitOrPush("cat <<'EOF'\nx\nEOF\ngit push"), true)
+  assert.equal(containsCommitOrPush("mrw write <<'EOF'\nx\nEOF\ngit push"), true)
+})
+
+test('a sink body is judged by the shell\'s reading of it, not by a spelling', () => {
+  // A body repeated as a command, and a delimiter the body imitates, are code the mask must not hide.
+  for (const command of [
+    "cat <<'EOF'\ngit push\nEOF\ngit push", "cat <<'EOF'\n git push\nEOF\n git push", "cat <<'EOF'\nEOF\npush\nEOF", "cat <<-'EOF'\n\tgit push\n\tEOF\ngit push",
+  ]) assert.equal(mentionsCommitOrPush(command), true, command)
+})
+
+test('the hook says nothing about a sink body, and still tells a mention beside it', () => {
+  const unarmed = armedSession('sink-body-', { armed: false })
+  for (const command of SINK_BODIES) assert.doesNotMatch(unarmed.tell(command), /only mentions commit or push/, command)
+  assert.match(unarmed.tell("sh <<'EOF'\nx\nEOF\necho push"), /only mentions commit or push/)
+})
+
+test('a stand-in for the verb is never run by a sink body', { skip: FRESH_BASH ? false : 'no /bin/bash on this platform' }, () => {
+  const scratch = mkdtempSync(path.join(hookTmp, 'sink-run-'))
+  const record = path.join(scratch, 'ran.log')
+  writeFileSync(path.join(scratch, 'git'), '#!/bin/sh\necho ran >> "$QH_RAN"\n', { mode: 0o755 })
+  const run = command => {
+    writeFileSync(record, '')
+    const done = spawnSync(FRESH_BASH, ['-c', command], { cwd: scratch, encoding: 'utf8', timeout: 10_000, env: { PATH: `${scratch}:/usr/bin:/bin`, QH_RAN: record, HOME: scratch } })
+    assert.equal(done.status, 0, `${command}\n${done.stderr}`)
+    return readFileSync(record, 'utf8')
+  }
+  for (const command of SINK_BODIES.filter(row => !row.startsWith('mrw'))) assert.equal(run(command), '', command)
+  // DIRTY twin: the rows that stay mentions can run it.
+  for (const command of ["sh <<'EOF'\ngit push\nEOF", 'cat <<EOF | sh\n$(git push)\nEOF', "cat <<'EOF' | sh\ngit push\nEOF"]) assert.notEqual(run(command), '', command)
+})

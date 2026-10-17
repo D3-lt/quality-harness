@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-10-16
+**Amended:** 2026-10-17 by Zy, before any counted row: the instrument is tool-multipathreadwrite ADR-162's Stage 5 (see "Amendment, 2026-10-17" below)
 **Owner:** Zy
 **Spec:** None — no spec stage. The owner asked for this record on 2026-10-16 ("yes draft the ADR"), after asking whether the harness creates value and whether SWE-bench-style tests could show it.
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-032-an-eval-names-the-skill-it-exercises.md, docs/adr/ADR-035-a-confident-claim-is-checked-against-what-ran.md, docs/adr/ADR-036-the-asserted-arm-is-retired-and-the-rate-is-joined-to-evidence.md, docs/research/2026-08-28-verification-is-the-bottleneck.md, docs/research/2026-09-30-the-nervous-system-plan.md, docs/BENCHMARKS.md, plugin/evals/README.md, docs/BACKLOG.md §30, §105, §382
@@ -151,6 +152,64 @@ bound, when a blanket `STATUS: not done` arm reaches SHOWN, when either arm reso
 see, or when either guard is breached; or if T3 runs
 before `prereg-main.json` is committed.
 
+## Amendment, 2026-10-17: the instrument is tool-multipathreadwrite ADR-162's Stage 5
+
+Zy decided, in tool-multipathreadwrite on 2026-10-17, while accepting that project's ADR-162:
+- "One run, A/B/P": this plugin is configuration P beside that project's A (no plugin) and B (mrw), and A is the
+  control for both.
+- "Sonnet and Opus".
+- "Looks every 100": a sequential stage with registered looks.
+- "Verified 2+ hunks (191)".
+- "Amend it before Stage 5".
+
+That settles T2's Awaiting-decision (where the arms run, which dataset, which model, the budget: up to about 38 machine
+hours) and changes Decisions 1, 2, 6 and 7 as follows. Every change is made before any counted row exists. Decisions 3 to
+5, 8 and 9 are unchanged, and Decision 8's exception (whether aggregates may be committed here) is still the owner's.
+
+1. **Decision 1, the arms.**
+   - **without** is tool-multipathreadwrite bench configuration A.
+   - **with** is configuration P: A plus this plugin, loaded with `--plugin-dir` from a checkout at tag v3.8.40.
+   - **The shared profile.** Both arms run under one profile: skills on, `Skill` offered, `node` on PATH, `CODEX_CLI_PATH`
+     at a stub that refuses, and no other plugin or account-synced skill. A canary per configuration shows the plugin's
+     skills listed and its session hooks firing in P, and neither in A.
+   - **Repeats and models.** k = 1. Sonnet 5.5 and Opus 5.5 each get their own verdict, never pooled.
+   - **The limitation, said with every verdict.** Neither arm is offered `Agent`, and neither reaches Codex, so this
+     plugin's subagent and review skills run without them.
+2. **Decision 2, the pre-registration.**
+   - **One file per model,** `prereg-main-<model>.json` beside these tasks, committed before Stage 5's first counted
+     attempt.
+   - **Field names,** as `bench export-paired` writes them on its config line: `dataset`, `split`, `revision`,
+     `selection_rule`, `selection_salt`, `instance_count`, `instance_list_sha256` (the 191-instance pool), `k`, `model`,
+     `cli_version`, `plugin` (`tag`, `commit`), `scaffold`, `prompt_sha256`, `max_turns`, `budget_seconds` and
+     `scorer_blob_sha`.
+   - **Three scoring controls, in the pre-registration only:** `alpha`, `arms` (`{"with": "P", "without": "A"}`) and
+     `block_size` (40). The export's config line does not carry them, and they are never compared with it. Neither is an
+     `n` the pre-registration may carry; the config line's own `n` is informational.
+   - **`instance_count` is the frozen pool's count** (191), compared for equality like every field above. It is never a
+     denominator: every count, rate and pairing threshold is taken over the scored instances (Decision 6, below).
+3. **Decision 6, the instances scored and the level.**
+   - **How Stage 5 stops.** It runs the pool in blocks of 40. It stops a model's P at the first eligible look where that
+     project's P-against-A verdict (ADR-156's bar on cost and resolve) is PAYS or LOSES.
+   - **The scored instances** are the pool's first min(40·L, 191), where L is the look at which P's comparison closed for
+     that model, or all 191 if it never closed; the fifth block holds 31. They are passed as `--instances`, and the scorer
+     accepts a list only when it is a prefix of the pre-registered pool whose length is min(`block_size`·L, 191) for some
+     L ≥ 1.
+   - **The level.** That stopping reads outcomes correlated with false completion, so SHOWN needs one-sided p < 0.01
+     (`alpha` 0.01, the Bonferroni level of Stage 5's five looks), read once per model. This is a conservative allowance,
+     not an exact test under that stopping.
+   - **Otherwise as written.** The guards and every INCONCLUSIVE condition stand, with "the pre-registered instances" read as
+     the scored instances. The "fewer than n are" condition applies only when a pre-registration carries an `n`. These two
+     do not, so completeness is the 90%-paired condition alone.
+   - **Cost and wall time per arm** are cells Decision 6 names, but the rows do not carry them, and the scorer says so. They
+     are read from tool-multipathreadwrite's `bench analyze` over the same blocks and model, and quoted beside the scorer's
+     cells.
+4. **Decision 7, no pilot plans n.**
+   - **The sample** is fixed by Stage 5's pool and looks.
+   - **ADR-162 T4's harness pilot** is 2 instances × A/B/P × both models, stage `pilot-5`, outside the pool. It is scored
+     with `--plan` as a check of the plumbing, never as a verdict.
+   - **Decision 7's stop becomes a scoring condition:** an arm *without* whose false-completion incidence is below 10% is
+     INCONCLUSIVE, with too few events to show a drop.
+
 ## Alternatives Considered
 
 - **Quote a leaderboard number with the plugin installed.** Rejected: without a paired control it cannot tell the plugin from
@@ -183,12 +242,21 @@ boundary, and T2 decides which one.
 | Paired rows, JSONL | new: one `{"config": {...}}` line, then one row per run `{instance, arm, repeat, status, resolved, brokeTests, limit, unrun}` | `scripts/eval-paired-rows.mjs` (T2) | `scripts/eval-paired.mjs` (T1) |
 | `scripts/eval-paired.mjs` output | new: per-arm cells, paired counts per metric, unrun and unreadable counts, p, both bootstrap bounds, the SDs and planned n, the verdict word | T1 | the owner; T2's and T3's sign-offs; `docs/BENCHMARKS.md` if Decision 8 allows |
 
+Amended 2026-10-17. The table above is the original wiring, kept as history; this one replaces it.
+
+| Surface | Change | Producer | Consumer(s) |
+|---------|--------|----------|-------------|
+| `prereg-main-<model>.json`, one per model | the pre-registration: Decision 2's export fields plus the scoring controls `alpha`, `arms`, `block_size` | T2 | `scripts/eval-paired.mjs` (T1), T3 |
+| Paired rows, JSONL | as above, written by tool-multipathreadwrite's `bench export-paired`, one file per model | tool-multipathreadwrite ADR-162 | `scripts/eval-paired.mjs` (T1) |
+| `scripts/eval-paired.mjs` flags | `--pool <list>` (the frozen pool) beside `--instances` (its scored prefix); `--plan` checks the plumbing and plans nothing | T1 | T2, T3 |
+
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
 | the paired-rows format, the pre-registration's fields and the verdict words | T1 | T2, T3 | No — new |
 | `prereg-main.json` | T2 | T3 | No — new |
+| `prereg-main-<model>.json` (amended 2026-10-17; replaces the row above) | T2 | T3 | No — new |
 
 ## Implementation
 
@@ -233,4 +301,4 @@ None — no persistent state, contract or integration in this repository. Remove
 
 - [ ] Owner decision: Accept, amend or reject this record.
 - [ ] Owner decision (Decision 8): may aggregate counts and the verdict word be committed and quoted, and in which files?
-- [ ] Owner decision (T2's Awaiting-decision): where the arms run, which dataset, which model, and the budget cap.
+- [x] Owner decision (T2's Awaiting-decision): settled by Zy on 2026-10-17 through tool-multipathreadwrite ADR-162 (see "Amendment, 2026-10-17").

@@ -1,0 +1,124 @@
+{
+  "mutations": [
+    {
+      "label": "paired: an UNRUN row is outside every metric",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (row.unrun) return null\n  const readable = READABLE.has(row.status)",
+      "to": "  if (false) return null\n  const readable = READABLE.has(row.status)",
+      "only": "^(?:an infrastructure failure is UNRUN, and a run that hit its limit is judged)$"
+    },
+    {
+      "label": "paired: a run that hit its limit is judged, never UNRUN",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (row.unrun) return null\n  const readable = READABLE.has(row.status)",
+      "to": "  if (row.unrun || row.limit) return null\n  const readable = READABLE.has(row.status)",
+      "only": "^(?:an infrastructure failure is UNRUN, and a run that hit its limit is judged)$"
+    },
+    {
+      "label": "paired: an unreadable claim still counts for resolve incidence",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "    resolve: row.resolved ? 1 : 0,",
+      "to": "    resolve: readable && row.resolved ? 1 : 0,",
+      "only": "^(?:an unreadable STATUS line is no claim and still counts for resolve incidence)$"
+    },
+    {
+      "label": "paired: an instance is paired on a metric only when both arms judge it",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "      if (withMean !== null && withoutMean !== null) diffs.push(withMean - withoutMean)",
+      "to": "      if (withMean !== null || withoutMean !== null) diffs.push(withMean - withoutMean)",
+      "only": "^(?:pairing is per metric and counts every pre-registered instance)$"
+    },
+    {
+      "label": "paired: a Decision 2 field that differs from the pre-registration is inconclusive",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "    else if (canonical(prereg[field]) !== canonical(config[field]))",
+      "to": "    else if (false)",
+      "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: the permutation p is exact at 20 or fewer nonzero differences",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (size <= EXACT_UP_TO) {",
+      "to": "  if (size < 0) {",
+      "only": "^(?:the permutation p is exact on a small set and correct on a large one)$"
+    },
+    {
+      "label": "paired: the resolve guard reads the bootstrap 5th percentile",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  return { p5: percentile(means, 0.05), p95: percentile(means, 0.95) }",
+      "to": "  return { p5: percentile(means, 0.5), p95: percentile(means, 0.95) }",
+      "only": "^(?:the bootstrap percentiles are the paired difference itself on a constant set)$"
+    },
+    {
+      "label": "paired: GUARD NOT MET wins over SHOWN",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (guard.length) return VERDICTS.guard",
+      "to": "  if (guard.length && !shown) return VERDICTS.guard",
+      "only": "^(?:the bootstrap percentiles are the paired difference itself on a constant set|the verdict follows the pre-registered order, and a blanket hedger does not reach SHOWN)$"
+    },
+    {
+      "label": "paired: the scored instances end on a block boundary or at the end of the pool",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "    if (!prefix || (size !== pool.length && size % block !== 0)) {",
+      "to": "    if (!prefix) {",
+      "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: the false-completion floor reads the per-instance average, not pooled runs",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  const floor = cell.without.rates.falseCompletion",
+      "to": "  const floor = cell.without.counts.falseCompletion / cell.without.readable",
+      "only": "^(?:the verdict follows the pre-registered order, and a blanket hedger does not reach SHOWN)$"
+    },
+    {
+      "label": "paired: alpha is a finite number in (0, 1) before anything compares it",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "const isLevel = value => typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 1",
+      "to": "const isLevel = value => value > 0 && value < 1",
+      "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: k is a positive whole number of repeats in scoring mode",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (prereg.k != null && !isRepeatCount(prereg.k))",
+      "to": "  if (false)",
+      "only": "^(?:a run is scored only against its committed pre-registration)$"
+    }
+  ]
+}

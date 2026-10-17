@@ -1551,7 +1551,7 @@
       "label": "verify, multi-task: an output line is not prefixed with its task",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/evidence-chain.test.mjs"],
-      "from": "print(f\"{t}: {line}\", file=stream)",
+      "from": "print(f\"{t.as_posix()}: {line}\", file=stream)",
       "to": "print(f\"{line}\", file=stream)",
       "only": "^two tasks in one call record the rows two single calls record, each line named by its task$"
     },

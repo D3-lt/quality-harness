@@ -3094,7 +3094,8 @@ def verify_several(tasks, cwd, steps):
             err += "[adr-verify] UNRUN: this task's run did not finish; nothing is claimed for it.\n"
         for stream, text in ((sys.stdout, out), (sys.stderr, err)):
             for line in text.splitlines():
-                print(f"{t}: {line}", file=stream)
+                # POSIX form, so a line names its task the same way on every platform (the Windows CI job saw `tasks\T1`).
+                print(f"{t.as_posix()}: {line}", file=stream)
         if code and not first:
             first = code
     return first

@@ -1696,11 +1696,11 @@
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {
-      "label": "§381 sink run-later: a script runner runs a file, with or without an operand",
+      "label": "§381 sink run-later: a sourced input runs, whatever it is named",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-command.test.mjs"],
       "from": "      || SCRIPT_RUNNERS.has(name) || later.argv.some",
-      "to": "      || (SCRIPT_RUNNERS.has(name) && later.argv.length > 1) || later.argv.some",
+      "to": "      || later.argv.some",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {

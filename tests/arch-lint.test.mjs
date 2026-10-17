@@ -239,3 +239,27 @@ test('a symbol that exists only on this machine does not satisfy a check', () =>
     /appears nowhere in the repo/,
     'a symbol that exists only in the working tree must not satisfy an architecture check')
 })
+
+// BACKLOG §381, the leading-pipe class: GFM takes a table row without its leading pipe, and the rule-row checks read
+// only lines that began with one. The same finding must follow the row whichever way it is written.
+test('arch-lint reads a rule row and a Module Map row without their leading pipe', () => {
+  const NO_COMMAND = /no backticked command|sync-prose/
+  const ruleDoc = rows => conforming.replace('## Dependency Contracts\n\nNone — fixture has no import graph.\n',
+    `## Dependency Contracts\n\n${rows}\n`)
+  const piped = lint(ruleDoc('| Rule | Check |\n|------|-------|\n| the domain layer imports no adapter | someone looks at it during review |'))
+  assert.match(piped, NO_COMMAND, 'the control: a piped row with no command is reported')
+  assert.match(lint(ruleDoc('| Rule | Check |\n|------|-------|\nthe domain layer imports no adapter | someone looks at it during review')),
+    NO_COMMAND, 'a body row without its leading pipe is a row')
+  assert.match(lint(ruleDoc('Rule | Check\n------|------\nthe domain layer imports no adapter | someone looks at it during review')),
+    NO_COMMAND, 'so is a row in a table written without any edge pipe')
+  const bareHeader = lint(ruleDoc('Rule | Check\n------|------\n| the domain layer imports no adapter | someone looks at it during review |'))
+  assert.match(bareHeader, NO_COMMAND, 'a header without its leading pipe is the header, and the first piped row is data')
+  assert.doesNotMatch(bareHeader, /no data rows/)
+  assert.doesNotMatch(lint(ruleDoc('| Rule | Check |\n|------|-------|\n| the domain layer imports no adapter | `bash selftest.sh` |')),
+    NO_COMMAND, 'and a row that does name a command is not reported, or the finding fires for any input')
+
+  const bareMap = conforming.replace(/\| `ADR-001-selftest\.md`[^\n]*\n\| `tasks`[^\n]*\n/,
+    '`ADR-001-selftest.md` | domain | the ADR fixture\'s shape drifts from adr-lint | ADR-001\n`tasks` | domain | the task fixture\'s shape drifts | ADR-001\n')
+  assert.notEqual(bareMap, conforming)
+  assert.doesNotMatch(lint(bareMap), /Module Map has no data rows/, 'Module Map rows without a leading pipe are data rows')
+})

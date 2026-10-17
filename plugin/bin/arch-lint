@@ -71,7 +71,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, NO_WINDOW, git_read_env, walk  # noqa: E402
+from record import sections_of, NO_WINDOW, git_read_env, walk, gfm_rows, gfm_table_cells  # noqa: E402
 from record import clipped, os_reason, read_regular  # noqa: E402
 
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
@@ -82,9 +82,17 @@ SYNC_PROSE = re.compile(r"keep.{0,12}sync|manually|by review|remember|be careful
 
 
 def data_rows(lines):
-    """Table data rows: skip the header row and |---| separators."""
-    rows = [ln for ln in lines if ln.strip().startswith("|")]
-    return [r for r in rows[1:] if not re.match(r"^\|[\s\-|:]+\|?$", r.strip())]
+    """Table data rows: not the header, not the delimiter under it.
+
+    A row as GFM reads one, so a row written without its leading pipe is a row, and a header written without it is
+    still the header (BACKLOG §381). Lines that open no table keep the older reading, where the first piped line is
+    the header.
+    """
+    rows = gfm_rows(lines)
+    data = [row for row in rows if not row.delimiter and not row.header]
+    if not any(row.header for row in rows):
+        data = data[1:]
+    return [row.line for row in data]
 
 
 def is_none_section(lines):
@@ -597,7 +605,7 @@ def main():
             continue
         for r in rows:
             # \| is an escaped pipe INSIDE a cell (e.g. a grep alternation) — not a delimiter
-            cells = [c.strip() for c in re.split(r"(?<!\\)\|", r.strip().strip("|"))]
+            cells = gfm_table_cells(r)
             check = cells[-1] if cells else ""
             if not check:
                 errors.append(f"{s}: row has empty check cell: {clipped(r.strip(), 70)}")

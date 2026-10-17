@@ -68,7 +68,7 @@ export function checkLaunch(command, platform = process.platform, env = process.
 // did before (BACKLOG section 376): the repository and its declared config, the command and how it came to be named, the
 // prose the project declared, and what the ledger says of this tree.
 function checkFacts({ cwd, env, fast }) {
-  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
   const facts = {
@@ -235,7 +235,7 @@ export function commitArgsProblem(args) {
 }
 
 const listed = (cwd, args) => {
-  const run = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  const run = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   return run.status === 0 ? String(run.stdout ?? '').split('\n').filter(Boolean) : null
 }
 
@@ -248,7 +248,7 @@ const listed = (cwd, args) => {
  */
 export async function runCommit({ cwd = process.cwd(), env = process.env, args = [], stdin = 'inherit', ...check } = {}) {
   const stderr = check.stderr ?? process.stderr
-  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (repositoryDiscovery(top) !== true) {
     stderr.write('qh-check: --commit needs a git repository, and this directory is not in one.\n')
     return 2

@@ -30,11 +30,11 @@ export function previousPassHead(root, command) {
   if (!latest) return null
   // The pass is placed by its HEAD only when it was taken on that commit's own tree: a pass over uncommitted code
   // says nothing about what differs from HEAD later (found by a Codex review of ADR-094).
-  const tree = spawnSync('git', ['-C', root, 'rev-parse', '--verify', '-q', `${latest.after.head}^{tree}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const tree = spawnSync('git', ['-C', root, 'rev-parse', '--verify', '-q', `${latest.after.head}^{tree}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   return !tree.error && tree.status === 0 && tree.stdout.trim() === latest.after.tree ? latest.after.head : null
 }
 export function onlyTextChangedSince(root, head) {
-  const git = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const git = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   const changed = git(['diff', '--no-renames', '--raw', '-z', head, '--'])
   const untracked = git(['ls-files', '-z', '--others', '--exclude-standard'])
   if (changed.error || changed.status !== 0 || untracked.error || untracked.status !== 0) return false

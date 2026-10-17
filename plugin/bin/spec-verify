@@ -80,6 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, walk  # noqa: E402
 from record import os_reason, regular_file_problem  # noqa: E402
+from record import git_read_env  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -136,7 +137,7 @@ def repo_root(spec_path, override):
     try:
         top = run_bounded(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
                           capture_output=True, text=True, timeout=10,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace", env=git_read_env())
         if top.returncode == 0:
             return Path(top.stdout.strip())
     except Exception:

@@ -2675,6 +2675,13 @@
       "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
       "to": "    recognised = heading and (kept or bold)",
       "only": "^every row of the recognition table reads its approved answer in record\\.py and adr-lint$"
+    },
+    {
+      "label": "git index lock: the Python helper no longer sets GIT_OPTIONAL_LOCKS",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/git-optional-locks.test.mjs"],
+      "from": "    return {**os.environ, \"GIT_OPTIONAL_LOCKS\": \"0\"}",
+      "to": "    return {**os.environ}"
     }
   ]
 }

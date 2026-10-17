@@ -140,6 +140,13 @@
       "from": "statusMemo && !String(root).split(/[\\\\/]/).includes('..') ? path.resolve(root) : null",
       "to": "statusMemo ? path.resolve(root) : null",
       "only": "^a path with a \"..\" component is asked of git every time, and an invalid one is not reported as a clean tree$"
+    },
+    {
+      "label": "git index lock: tree-facts' working-tree status read takes the lock",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/git-optional-locks.test.mjs"],
+      "from": "    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })",
+      "to": "    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })"
     }
   ]
 }

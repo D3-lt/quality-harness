@@ -58,9 +58,18 @@ def no_window(platform):
 
 NO_WINDOW = no_window(os.name)
 
+
+def git_read_env():
+    """The environment for a git child that only reads. A plain `git status` rewrites .git/index when a tracked
+    file's stat changed, holding .git/index.lock while it does, and an agent's own `git add` then fails on it;
+    GIT_OPTIONAL_LOCKS=0 stops that. The plugin never needs a read to write the index. Not for a git child that
+    writes, and not for a child that is not git."""
+    return {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+
 __all__ = [
     "sections_of",
     "NO_WINDOW",
+    "git_read_env",
     "section_span",
     "repeated_headings",
     "unterminated_fence",
@@ -3408,7 +3417,7 @@ def git_root(d):
     try:
         r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace", **NO_WINDOW)
+                           encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
         if r.returncode == 0:
             return Path(r.stdout.strip())
     except Exception:
@@ -3421,7 +3430,7 @@ def _object_format(root):
     try:
         r = subprocess.run(["git", "-C", root, "rev-parse", "--show-object-format"],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace", **NO_WINDOW)
+                           encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
     except Exception:
         return None
     # Only git's two words are an answer. A git older than the flag echoes an option it does not

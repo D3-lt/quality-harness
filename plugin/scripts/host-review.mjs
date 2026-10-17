@@ -184,7 +184,7 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
 // ADR-100 T1: what a review covered, as full shas resolved before it ran. `base <ref>` is `<ref>..HEAD`; `commit <sha>` is
 // exact, that commit alone, because Codex is shown `git show <sha>`, a merge included; `uncommitted` names no commit.
 function gitSha(repo, ref) {
-  const run = spawnSync('git', ['-C', repo, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const run = spawnSync('git', ['-C', repo, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   const sha = run.status === 0 ? String(run.stdout ?? '').trim() : ''
   return /^[0-9a-f]{40,64}$/.test(sha) ? sha : null
 }
@@ -321,7 +321,7 @@ function runClaude({ model, target, range, resolve, run, output }) {
 // file it reads itself). Null when git could not say.
 function scopeDiff(repo, scope, range) {
   const git = args => {
-    const child = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true })
+    const child = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
     return child.status === 0 ? String(child.stdout ?? '') : null
   }
   const kind = String(scope ?? '').trim().split(/\s+/)[0]

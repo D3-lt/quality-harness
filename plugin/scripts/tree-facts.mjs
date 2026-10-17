@@ -68,7 +68,7 @@ export function gitRepositoryLookup(directory, spawnResult) {
   // One shape for every holder of this answer (`stdout` as git printed it, `out` trimmed): observe() asks the same question and
   // keeps the same entry, and an entry one of them wrote must read the same to the other.
   const run = spawnResult !== undefined ? spawnResult : remembered(directory, ['rev-parse', '--show-toplevel'], () => {
-    const asked = spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+    const asked = spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
     return asked.error ? asked : { ...asked, out: String(asked.stdout ?? '').trim() }
   })
   if (!run || run.error || run.status == null) {
@@ -125,7 +125,7 @@ export function observe(cwd, budgetMs = observeBudgetMs(), { without = [] } = {}
     if (remaining <= 0) throw new Error(`git took more than ${budgetMs} ms`)
     const run = spawnSync('git', ['-C', directory, ...args], {
       encoding: 'utf8', timeout: remaining, maxBuffer: 16 * 1024 * 1024, windowsHide: true,
-      env: env ? { ...process.env, ...env } : process.env,
+      env: { ...process.env, ...env, GIT_OPTIONAL_LOCKS: '0' },
     })
     if (run.error?.code === 'ETIMEDOUT') throw new Error(`git took more than ${budgetMs} ms`)
     if (run.error) throw new Error(`git could not run (${run.error.code ?? run.error.message})`)
@@ -229,7 +229,7 @@ export function mark(lines, ok, why = '') {
 // after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
 // a name may end in a space.
 export function gitLines(root, args, { nul = false } = {}) {
-  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (run.error || run.status !== 0) {
     const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
     const why = run.error ? run.error.message : `git ${verb} exited ${run.status}`
@@ -280,7 +280,7 @@ export function statusPaths(root) {
   // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
   // its own field, which is skipped — the new name is the path that exists.
   const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
-    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (run.error || run.status !== 0) {
     return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
   }

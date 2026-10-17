@@ -96,7 +96,7 @@ export function probeDigest(read = readFileSync) {
  * is what lets an attestation refuse to claim readers the runner did not commit.
  * Two git spawns at most. `run` is the seam.
  */
-export function readerFingerprint(pluginRoot, { run = args => spawnSync('git', ['-C', pluginRoot, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true }) } = {}) {
+export function readerFingerprint(pluginRoot, { run = args => spawnSync('git', ['-C', pluginRoot, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }) } = {}) {
   const files = []
   const walk = relative => {
     for (const entry of readdirSync(path.join(pluginRoot, relative), { withFileTypes: true })) {

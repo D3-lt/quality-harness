@@ -322,7 +322,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, input, encoding: 'utf8',",
+      "from": "out: execFileSync(argv[0], argv.slice(1), { cwd, env: argv[0] === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env, timeout, input, encoding: 'utf8',",
       "to": "out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, input, encoding: 'utf8',"
     },
     {
@@ -831,6 +831,20 @@
       "tests": ["tests/branch-state.test.mjs"],
       "from": "  if (!state.ci || typeof state.ci !== 'object' || state.ci.looked) return null",
       "to": "  if (!state.ci || typeof state.ci !== 'object') return null"
+    },
+    {
+      "label": "git index lock: branch-state's shell hands git no GIT_OPTIONAL_LOCKS",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/git-optional-locks.test.mjs"],
+      "from": "env: argv[0] === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env,",
+      "to": "env,"
+    },
+    {
+      "label": "git index lock: branch-state's shell hands the setting to every child, not only git",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/git-optional-locks.test.mjs"],
+      "from": "env: argv[0] === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env,",
+      "to": "env: { ...env, GIT_OPTIONAL_LOCKS: '0' },"
     }
   ]
 }

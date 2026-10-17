@@ -205,7 +205,7 @@ export function releaseReport({
   // No terminal prompt: a credential helper that asks would hold the doctor past
   // its own timeout, which is a wall around the child, not around the prompt.
   run = (args, options) => execFileSync('git', args, {
-    encoding: 'utf8', timeout: 15_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, windowsHide: true, ...options,
+    encoding: 'utf8', timeout: 15_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }, windowsHide: true, ...options,
   }),
 } = {}) {
   if (!version) return { looked: false, note: 'the installed version is unreadable' }

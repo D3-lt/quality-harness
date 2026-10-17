@@ -41,10 +41,10 @@ export const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
 // of holding an unanswerable question against every later commit in the session.
 // Returns null when Git cannot answer, which keeps the gate closed.
 function deletedTrackedPaths(cwd) {
-  const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (root.status !== 0) return null
   const deleted = spawnSync('git', ['-C', cwd, '-c', 'core.quotePath=false', 'diff', '--no-renames', '--name-only', '--diff-filter=D', 'HEAD'],
-    { encoding: 'utf8', timeout: 10_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+    { encoding: 'utf8', timeout: 10_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (deleted.status !== 0) return null
   const top = root.stdout.trim()
   return deleted.stdout.split('\n')

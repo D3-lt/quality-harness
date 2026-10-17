@@ -88,7 +88,7 @@ export function proseSpecs(root) {
     if (problem) return refuse(problem)
   }
   for (const spec of declared) {
-    const tracked = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    const tracked = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
     if (tracked.error || tracked.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
     const entries = tracked.stdout.split('\0').filter(Boolean)
     if (entries.length === 0) return refuse(`${JSON.stringify(spec)} matches no tracked path`)

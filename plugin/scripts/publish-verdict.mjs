@@ -147,7 +147,7 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
   // Once per env file: a resume or compact SessionStart must not add a second copy.
   if (existing.includes('hook.qh-publish-')) return null
   const probe = run('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit', 'hook', 'list', 'pre-commit'],
-    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (probe.error || probe.status !== 0 || !/\bqhprobe\b/.test(probe.stdout ?? '')) {
     const why = probe.error ? probe.error.code ?? probe.error.message : `exit ${probe.status}: ${String(probe.stderr ?? '').trim().split('\n')[0]}`
     return record({ event: 'publish.unarmed', reason: `git here does not list a config-based hook (${why}); git 2.54 or later runs them` })
@@ -395,7 +395,7 @@ export function publishUnchecked(input, requested, env = process.env) {
 // proves nothing, and the refusal stands.
 export function commonDirectory(dir, cwd, run = spawnSync) {
   const probe = run('git', ['-C', dir, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
-    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   const printed = probe?.status === 0 && !probe.error ? String(probe.stdout ?? '').trim() : ''
   if (!printed) return null
   try { return realpathSync.native(printed) } catch { return null }

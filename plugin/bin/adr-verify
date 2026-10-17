@@ -196,7 +196,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, visible, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
 from record import os_reason  # noqa: E402
-from record import record_id, special_file_problem, title_line, NO_WINDOW, walk  # noqa: E402
+from record import record_id, special_file_problem, title_line, NO_WINDOW, git_read_env, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
 from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402
 
@@ -798,12 +798,12 @@ def git_sha(cwd):
     """
     try:
         g = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--short", "HEAD"],
-                           capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace", **NO_WINDOW)
+                           capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
         if g.returncode != 0:
             return "no-git"
         sha = g.stdout.strip()
         d = run_bounded(["git", "-C", str(cwd), "status", "--porcelain"],
-                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, env=git_read_env())
     except (OSError, subprocess.TimeoutExpired):
         return "no-git"
     return sha + ("*" if d.stdout.strip() else "")
@@ -898,7 +898,7 @@ def checkout_root(cwd):
     try:
         r = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=30, **NO_WINDOW)
+                           timeout=30, env=git_read_env(), **NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         return None
     given = r.stdout.strip()
@@ -2295,7 +2295,7 @@ def git_says(args, cwd):
     """
     try:
         r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, timeout=30,
-                           text=True, encoding="utf-8", errors="replace", **NO_WINDOW)
+                           text=True, encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
@@ -3155,7 +3155,7 @@ def main():
     if cwd is None:
         try:
             r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
-                               capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace", **NO_WINDOW)
+                               capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
             cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent
         except (OSError, subprocess.TimeoutExpired):
             cwd = task.parent

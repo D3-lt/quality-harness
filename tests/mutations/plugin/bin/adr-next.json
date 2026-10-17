@@ -983,8 +983,8 @@
       "tests": [
         "tests/untimed-children.test.mjs"
       ],
-      "from": "                           capture_output=True, timeout=10, **NO_WINDOW)",
-      "to": "                           capture_output=True, timeout=10)",
+      "from": "                           capture_output=True, timeout=10, env=git_read_env(), **NO_WINDOW)",
+      "to": "                           capture_output=True, timeout=10, env=git_read_env())",
       "only": "starts its children with no window"
     },
     {

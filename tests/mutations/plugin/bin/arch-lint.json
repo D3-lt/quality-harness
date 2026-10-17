@@ -179,6 +179,13 @@
       "from": "        text = read_regular(path)",
       "to": "        text = path.read_text(errors=\"replace\", encoding=\"utf-8\")",
       "only": "^arch-lint and adr-lint never open a FIFO they were pointed at or walked into$"
+    },
+    {
+      "label": "git index lock: arch-lint's ls-files read drops the setting",
+      "file": "plugin/bin/arch-lint",
+      "tests": ["tests/git-optional-locks.test.mjs"],
+      "from": "capture_output=True, timeout=30, env=git_read_env(), **NO_WINDOW)",
+      "to": "capture_output=True, timeout=30, **NO_WINDOW)"
     }
   ]
 }

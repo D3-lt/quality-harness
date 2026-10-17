@@ -98,7 +98,9 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000, input } = {
     // different-lineage review — a comment is a claim, and this one was wrong on
     // the day it was written (CLAUDE.md, "Comments Lie — Follow the Code").
     // A child given `input` reads it on stdin; any other gets none, so it never waits on the hook's own.
-    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, input, encoding: 'utf8',
+    // A read-only git call must not take the index lock (`git status` refreshes and rewrites the index, holding .git/index.lock
+    // while it does, which fails an agent's own `git add`); `gh` and anything else is left as it was.
+    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env: argv[0] === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env, timeout, input, encoding: 'utf8',
       stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true }).trim() }
   } catch (error) {
     return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }

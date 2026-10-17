@@ -125,6 +125,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 # answer the same cutover (a test ten tasks lock), so this line waives ruff's F401.
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501,F401
 from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E402
+from record import git_read_env  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
@@ -353,7 +354,7 @@ def committed_lines(path, run=None):
     # raises UnicodeDecodeError and kills the gate instead of letting it judge.
     runner = run or (lambda argv, cwd: subprocess.run(
         argv, cwd=cwd, capture_output=True, text=True, timeout=10,
-        encoding="utf-8", errors="replace", **NO_WINDOW))
+        encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW))
     target = Path(path)
     directory = target.parent if target.parent != Path("") else Path(".")
     try:
@@ -4151,7 +4152,7 @@ def tracked_or_unignored_paths(root):
         try:
             r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false", *args],
                                capture_output=True, text=True, timeout=30,
-                               encoding="utf-8", errors="replace", **NO_WINDOW)
+                               encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
         except Exception:
             return None
         if r.returncode != 0:
@@ -4779,7 +4780,7 @@ def ignored_paths(root, candidates):
         r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false",
                             "check-ignore", "-v", "-z", "--stdin"],
                            input="\0".join(sorted(candidates)) + "\0", capture_output=True,
-                           text=True, timeout=30, encoding="utf-8", errors="replace", **NO_WINDOW)
+                           text=True, timeout=30, encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
     except Exception:
         return None
     # 0 = at least one ignored, 1 = none ignored, 128 = not a repository. Only
@@ -6294,7 +6295,7 @@ def advice_survival_path(start):
     try:
         r = subprocess.run(["git", "-C", str(start), "rev-parse", "--git-path", ADVICE_SURVIVAL_NAME],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace", **NO_WINDOW)
+                           encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW)
     except Exception:
         return None
     if r.returncode != 0 or not r.stdout.strip():

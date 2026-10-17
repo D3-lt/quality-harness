@@ -89,7 +89,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 # answer the same cutover (a test ten tasks lock), so this line waives ruff's F401.
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401
 from record import git_root, os_reason  # noqa: E402
-from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
+from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW, git_read_env  # noqa: E402
 from record import row_date_problem  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
@@ -539,7 +539,7 @@ def listed_absent(tasks_dir):
     """
     try:
         r = subprocess.run(["git", "-C", str(tasks_dir), "ls-files", "-z", "--", "."],
-                           capture_output=True, timeout=10, **NO_WINDOW)
+                           capture_output=True, timeout=10, env=git_read_env(), **NO_WINDOW)
     except Exception:
         return []
     if r.returncode != 0:

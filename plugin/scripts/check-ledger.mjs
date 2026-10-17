@@ -359,9 +359,9 @@ export function recordFileWritten(input) {
       return inside.startsWith('..') || path.isAbsolute(inside)
     })()
     if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {
-      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
       if (!ignored.error && ignored.status === 1) {
-        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
         entry.observable = true
         entry.blob = !hashed.error && hashed.status === 0 ? hashed.stdout.trim() : null
       }

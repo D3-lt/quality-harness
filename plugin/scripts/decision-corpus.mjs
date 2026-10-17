@@ -1491,7 +1491,7 @@ export function trackedPaths(root) {
   // tracked_paths already used `-z`; this copy did not.
   for (const args of [['ls-files', '-z'], ['ls-files', '--others', '--exclude-standard', '-z']]) {
     const run = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args],
-      { encoding: 'utf8', timeout: 30000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
+      { encoding: 'utf8', timeout: 30000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
     if (run.error || run.status !== 0 || typeof run.stdout !== 'string') return null
     for (const value of run.stdout.split('\0')) {
       if (value) found.add(value)

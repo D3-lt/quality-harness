@@ -51,6 +51,7 @@ out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \
 | 4 — it is used | the test drives the real hook |
 
 ## Mutation Log
+- 2026-10-17 · 6d947c86* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · the implementer contract no longer carries the batching sentence · acceptance-sha256:220c0bb23c57488fa7c27018a3d1a6d3c1598046ea6f0a4ccfed403cddd774fb
 
 ## Invariants
 
@@ -69,3 +70,7 @@ Stop and ask if the sentence cannot be added without changing a line a locked te
 - The read-only roles' contract (permanent: boundary: they do not edit)
 
 ## Verification Log
+- 2026-10-17 · 6d947c86* · exit 1 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:220c0bb23c57488fa7c27018a3d1a6d3c1598046ea6f0a4ccfed403cddd774fb · ms:4020 · test-lock-sha256:8d53c3894517bab72e97eb78f76c900ae04a9819d10ca817efc857b872987c53 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLTEwOC50ZXN0Lm1qcwlhIGNoZWNrIHRoYXQgY291bGQgbm90IHN0YXJ0IGlzIHJlcG9ydGVkIG9uY2UgYXMgZXZpZGVuY2UtbGltaXRlZCwgbm90IHJ1biBhZ2FpbgllZjdmZTQ1Y2QxMmFmYWVmMDUxYjMyNjEyODdhMjUxNmVjNGQ1M2IwZTFmMzhkNjhkNGIyNDc4ODE0NzVkYzk3CmJvZHkJdGVzdHMvYWRyLTEwOC50ZXN0Lm1qcwlhIHNwYXduZWQgaW1wbGVtZW50ZXIgaXMgdG9sZCB0byByZWFkIGV2ZXJ5IHNpdGUsIGVkaXQgaW4gb25lIGJhdGNoLCBhbmQgY2hlY2sgZWFjaCBlZGl0IGxhbmRlZAlhM2E3ZjBhZGI5YjI1Zjg4YzVkN2EzNTM1YWZjMWUwMTE5ZDY3YWFlZDc0Njg2Zjk3M2I2MDFkYWY0ODUzZGQ0
+  ```
+  ```
+- 2026-10-17 · 6d947c86* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-108.test.mjs 2>&1) \ …` · acceptance-sha256:220c0bb23c57488fa7c27018a3d1a6d3c1598046ea6f0a4ccfed403cddd774fb · ms:2646

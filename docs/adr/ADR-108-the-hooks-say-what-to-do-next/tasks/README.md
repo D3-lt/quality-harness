@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | A check that could not start says what to do | done | none — no spec | `node --test tests/adr-108.test.mjs` (named test passes, nothing skipped) |
-| T2 | The subagent contract carries the mrw way | pending | none — no spec | `node --test tests/adr-108.test.mjs` (named test passes, nothing skipped) |
+| T2 | The subagent contract carries the mrw way | done | none — no spec | `node --test tests/adr-108.test.mjs` (named test passes, nothing skipped) |
 | T3 | A write that left the tree unchanged is named | done | none — no spec | `node --test tests/adr-108.test.mjs` (named test passes, nothing skipped) |
 
 ## Contract Coupling

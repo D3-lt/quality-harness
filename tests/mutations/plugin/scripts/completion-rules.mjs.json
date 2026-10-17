@@ -537,6 +537,36 @@
       "from": "checkEvent: observation?.ok === true ? latestCheckFor",
       "to": "checkEvent: false ? latestCheckFor",
       "only": "^a check that could not start is reported once as evidence-limited, not run again$"
+    },
+    {
+      "label": "adr-108 T2: the subagent contract carries the batching sentence",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "    readOnly ? null : 'Read every site",
+      "to": "    true ? null : 'Read every site",
+      "only": "^a spawned implementer is told to read every site, edit in one batch, and check each edit landed$"
+    },
+    {
+      "label": "adr-108 T2: a read-only role is not given the editing sentence",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "    readOnly ? null : 'Read every site",
+      "to": "    false ? null : 'Read every site",
+      "only": "^a spawned implementer is told to read every site, edit in one batch, and check each edit landed$"
+    },
+    {
+      "label": "adr-108 T2: the batching sentence points at the skill's real heading",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "(the execution skill\\'s \"Read and edit in batches\")",
+      "to": "(the execution skill\\'s \"Batching\")",
+      "only": "^a spawned implementer is told to read every site, edit in one batch, and check each edit landed$"
     }
   ]
 }

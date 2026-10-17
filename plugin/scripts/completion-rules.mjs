@@ -383,6 +383,8 @@ export function subagentContract(input) {
     'Preserve the supplied scope and non-goals; invent no features, configuration, fallbacks, dependencies, or speculative abstractions.',
     'DRY duplicated knowledge, not similar syntax; use SOLID only where a demonstrated boundary needs it.',
     roleLine,
+    // ADR-108 T2: the mrw way in one sentence, for a role that may edit; no skill reaches a subagent that did not invoke one.
+    readOnly ? null : 'Read every site you will touch before the first edit, make the edits as one batch, and check that each landed: an edit that matched nothing is a failure (the execution skill\'s "Read and edit in batches").',
     `Before returning after edits, ${runTheCheckSentence(input.cwd).replace(/^Run /, 'run ')}`,
     'Return touched files, exact executed evidence, and remaining risk or uncertainty.',
     // ADR-029 T2. What the CALLER asked for, when it asked for anything. Said as

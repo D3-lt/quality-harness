@@ -14,6 +14,7 @@ import { measure, operatorsOn, parseHunks, renderTable, verdictOf, waitForLoad }
 // the Windows CI job (push run 39067161309).
 const emptyGitConfig = path.join(mkdtempSync(path.join(tmpdir(), 'qh-inverse-config-')), 'gitconfig')
 writeFileSync(emptyGitConfig, '')
+test.after(() => rmSync(path.dirname(emptyGitConfig), { recursive: true, force: true }))
 const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: emptyGitConfig, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
 const git = (dir, ...args) => {
   const r = spawnSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf8', timeout: 60000, windowsHide: true, env: gitEnv })

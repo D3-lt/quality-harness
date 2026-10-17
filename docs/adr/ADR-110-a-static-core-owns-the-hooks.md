@@ -97,6 +97,12 @@ deadline or holds a git lock".
 What remains of detachment's cost is cleanup, and each part is bounded and filed: a test removing a directory while a
 child still writes there (BACKLOG §380), and a Windows kill that does not take a process's children (BACKLOG §381).
 
+**Correction, the same day.** "Is reaped at SessionEnd" above is not what either implementation does, found by T1's builder
+porting the pass: Node's SessionEnd kills nothing, and a detached pass ends by its own budget while its lock lapses at the
+deadline. What holds today is the deadline, not reaping. Whether SessionEnd should reap a still-running child (and how, given
+that a Windows kill does not take a process's children) is open and filed in BACKLOG §381; until it is decided, read the
+amended Decision 4 as "under a deadline" only.
+
 ## Alternatives Considered
 
 - **(a) Rust.** The owner's stated preference. Not taken for this record: `mrw`'s grammar and ledger would need a second

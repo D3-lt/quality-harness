@@ -30,7 +30,7 @@
   "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
   "max_turns": 60,
   "budget_seconds": 1200,
-  "scorer_blob_sha": "d002e0b9cc677b68e1b3a9b47f648e8df2e323a9",
+  "scorer_blob_sha": "558548fa190e07ac2375331c02ae8860e3f49067",
   "alpha": 0.01,
   "arms": {
     "with": "P",

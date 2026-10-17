@@ -11,7 +11,7 @@ import test from 'node:test'
 
 import {
   DECISION_2_FIELDS, bootstrapPercentiles, chiSquareQuantile, judge, listDigest, main, permutationP, plan, score,
-  sdUpperBound, writeVerdict,
+  REASON_CODES, sdUpperBound, writeVerdict,
 } from '../scripts/eval-paired.mjs'
 
 const made = []
@@ -613,4 +613,41 @@ test('the verdict file holds only the aggregate, and any other key is refused', 
   const clean = join(directory, 'verdict-clean.json')
   assert.equal(quietly(() => writeVerdict(written, clean)).code, 0)
   assert.deepEqual(JSON.parse(readFileSync(clean, 'utf8')), written)
+
+  // The empty key is a key (Codex review of PR #26): `{"": "", rows}` is refused, not written.
+  const empty = join(directory, 'verdict-empty-key.json')
+  const emptyKey = quietly(() => writeVerdict({ '': '', ...written, rows }, empty))
+  assert.equal(emptyKey.code, 2)
+  assert.equal(existsSync(empty), false, 'an empty key let the write through')
+  // A reason is a code from REASON_CODES, never the words stdout prints.
+  const worded = quietly(() => writeVerdict({ ...written, reasons: [`the canary did not pass: ${pool[0]}`] }, empty))
+  assert.equal(worded.code, 2)
+  assert.match(worded.err, /the key reasons is not in/)
+  assert.equal(existsSync(empty), false)
+
+  // No free text from the run reaches the file, through main() (Codex review of PR #26): every reason is a code.
+  const transcript = 'SYNTHETIC TRANSCRIPT: the agent wrote the patch and said it was done'
+  const payload = `SYNTHETIC MODEL OUTPUT ${'{"turn": "x", "text": "y"}'.repeat(40)}`
+  const leaky = files({
+    'prereg.json': JSON.stringify(preregFor(pool, 1)), 'pool.txt': listText(pool),
+    'duplicates.jsonl': rowsText(rowsConfigFor(pool, 1), [...rows, ...rows.filter(row => row.arm === 'P')]),
+    'transcript.jsonl': rowsText(rowsConfigFor(pool, 1, { canary: { pass: false, transcript } }), rows),
+    'payload.jsonl': rowsText(rowsConfigFor(pool, 1, { scaffold: { name: 'headless', flags: ['--print'], payload } }), rows),
+  })
+  const leakyScoring = ['--prereg', leaky['prereg.json'], '--pool', leaky['pool.txt'], '--instances', leaky['pool.txt']]
+  for (const [rowsFile, code] of [['duplicates.jsonl', 'duplicate-rows'], ['transcript.jsonl', 'canary-failed'], ['payload.jsonl', 'config-field-differs:scaffold']]) {
+    const target = join(dirname(leaky[rowsFile]), `verdict-${rowsFile}.json`)
+    const run = runMain([...leakyScoring, '--verdict-out', target, leaky[rowsFile]])
+    assert.equal(run.code, 0, rowsFile)
+    assert.match(run.text, /^verdict: INCONCLUSIVE$/m, rowsFile)
+    const body = readFileSync(target, 'utf8')
+    const verdict = JSON.parse(body)
+    assert.equal(verdict.verdict, 'INCONCLUSIVE')
+    assert.deepEqual(verdict.reasons, [code], `${rowsFile}: one code, each once`)
+    assert.ok(verdict.reasons.every(entry => REASON_CODES.includes(entry)))
+    for (const id of pool) assert.ok(!body.includes(id), `${rowsFile}: ${id} reached the verdict file`)
+    assert.ok(!body.includes('SYNTHETIC'), `${rowsFile}: run text reached the verdict file`)
+  }
+  // Twin: stdout keeps the words the file leaves out.
+  assert.ok(runMain([...leakyScoring, leaky['duplicates.jsonl']]).text.includes(`a duplicate row: instance ${pool[0]}`))
 })

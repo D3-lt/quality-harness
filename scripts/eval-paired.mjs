@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // eval-paired.mjs — ADR-106's paired scorer: what the plugin buys, measured against a control arm.
 //
-//   node scripts/eval-paired.mjs --prereg <json> --pool <list> --instances <list> [--disjoint-from <list>] <rows.jsonl>
+//   node scripts/eval-paired.mjs --prereg <json> [--pool <list>] --instances <list> [--disjoint-from <list>] [--verdict-out <file>] <rows.jsonl>
 //   node scripts/eval-paired.mjs --plan [--instances <list>] [--with <arm>] [--without <arm>] <rows.jsonl>
 //
 // It reads paired rows (one `{"config": {...}}` line, then one row per run, as tool-multipathreadwrite's
@@ -12,10 +12,12 @@
 //
 // Rules borrowed from eval-deltas.mjs and eval-compare.mjs (ADR-005): a run the infrastructure failed is
 // UNRUN and never moves a rate; a file it could not read is a missing measurement, never an effect. It
-// reads, writes nothing, and exits 0 whatever it finds (2 only for a command line it cannot parse).
+// reads, writes nothing but the verdict file --verdict-out names, and exits 0 whatever it finds (2 only for a
+// command line it cannot parse, or a verdict file it refuses or fails to write).
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /** Decision 2's fields: present in the pre-registration and the rows' config line, and equal. */
@@ -44,6 +46,23 @@ const READABLE = new Set(['done', 'not done'])
 const SIDES = ['with', 'without']
 const METRICS = ['falseCompletion', 'resolve', 'underClaim']
 const LABELS = { falseCompletion: 'false completion', resolve: 'resolve', underClaim: 'under-claim', done: 'done coverage P(done)', brokeTests: 'broken tests' }
+
+/**
+ * Every reason a verdict can carry, as a code: the verdict file holds these and no free text from the run, so no
+ * instance id, transcript or payload can reach it through a reason (Codex review of PR #26). stdout keeps the words.
+ */
+export const REASON_CODES = Object.freeze([
+  'rows-not-json', 'rows-no-config-line', 'rows-malformed', 'rows-empty', 'duplicate-rows', 'outside-pool', 'repeats-over-k',
+  ...DECISION_2_FIELDS.flatMap(field => [`prereg-lacks:${field}`, `config-lacks:${field}`, `config-field-differs:${field}`]),
+  'canary-failed', 'n-invalid', 'alpha-invalid', 'k-invalid', 'arms-invalid', 'pool-digest-differs', 'pool-count-differs',
+  'pool-duplicate-id', 'block-size-invalid', 'not-a-block-prefix', 'disjoint-overlap',
+  'paired-below-90', 'paired-below-n', 'unrun-gap', 'no-judged-run', 'unreadable-gap',
+  ...SIDES.flatMap(side => [`unreadable-over-10:${side}`, `resolve-under-10:${side}`]), 'without-fc-under-10',
+  'resolve-guard', 'underclaim-guard',
+])
+const CODE_SET = new Set(REASON_CODES)
+// A reason: its code for the verdict file, its words for stdout.
+const problem = (code, text) => ({ code, text })
 
 /** The ids of an instance list: one per line, trimmed, blank lines dropped, in file order. */
 export function listIds(text) {
@@ -107,18 +126,18 @@ export function readRows(text) {
     const line = raw.trim()
     if (!line) return
     let value
-    try { value = JSON.parse(line) } catch { problems.push(`rows line ${index + 1} is not JSON`); return }
+    try { value = JSON.parse(line) } catch { problems.push(problem('rows-not-json', `rows line ${index + 1} is not JSON`)); return }
     if (first) {
       first = false
       if (isObject(value) && isObject(value.config)) config = value.config
-      else problems.push('the rows file does not start with a {"config": {...}} line')
+      else problems.push(problem('rows-no-config-line', 'the rows file does not start with a {"config": {...}} line'))
       return
     }
     const wrong = rowShapeError(value)
-    if (wrong) problems.push(`rows line ${index + 1} ${wrong}`)
+    if (wrong) problems.push(problem('rows-malformed', `rows line ${index + 1} ${wrong}`))
     else rows.push(value)
   })
-  if (first) problems.push('the rows file holds no config line and no row')
+  if (first) problems.push(problem('rows-empty', 'the rows file holds no config line and no row'))
   return { config, rows, problems }
 }
 
@@ -134,7 +153,7 @@ function collect(rows, arms, scored, pool, k) {
   for (const row of rows) {
     if (row.arm !== arms.with && row.arm !== arms.without) { ignoredArms += 1; continue }
     const key = JSON.stringify([row.instance, row.arm, row.repeat])
-    if (seen.has(key)) { problems.push(`a duplicate row: instance ${row.instance}, arm ${row.arm}, repeat ${row.repeat}`); continue }
+    if (seen.has(key)) { problems.push(problem('duplicate-rows', `a duplicate row: instance ${row.instance}, arm ${row.arm}, repeat ${row.repeat}`)); continue }
     seen.add(key)
     if (pool && !pool.has(row.instance)) { stranger.add(row.instance); continue }
     if (scored && !scored.has(row.instance)) { ignoredOutsideScored += 1; continue }
@@ -142,9 +161,9 @@ function collect(rows, arms, scored, pool, k) {
     repeats.set(pair, (repeats.get(pair) ?? 0) + 1)
     kept.push(row)
   }
-  if (stranger.size) problems.push(`${stranger.size} instance(s) in the rows are not in the pool, e.g. ${[...stranger].sort()[0]}`)
+  if (stranger.size) problems.push(problem('outside-pool', `${stranger.size} instance(s) in the rows are not in the pool, e.g. ${[...stranger].sort()[0]}`))
   const over = k === null ? 0 : [...repeats.values()].filter(count => count > k).length
-  if (over) problems.push(`${over} instance-arm pair(s) carry more than k = ${k} repeats`)
+  if (over) problems.push(problem('repeats-over-k', `${over} instance-arm pair(s) carry more than k = ${k} repeats`))
   return { problems, kept, ignoredArms, ignoredOutsideScored }
 }
 
@@ -331,34 +350,34 @@ function sampleSd(values) {
 function configurationProblems(prereg, config, pool, scored, disjoint, poolLabel) {
   const problems = []
   for (const field of DECISION_2_FIELDS) {
-    if (prereg[field] == null) problems.push(`the pre-registration lacks ${field}`)
-    else if (config[field] == null) problems.push(`the rows' config line lacks ${field}`)
-    else if (canonical(prereg[field]) !== canonical(config[field])) problems.push(`${field} differs: pre-registered ${canonical(prereg[field])}, rows ${canonical(config[field])}`)
+    if (prereg[field] == null) problems.push(problem(`prereg-lacks:${field}`, `the pre-registration lacks ${field}`))
+    else if (config[field] == null) problems.push(problem(`config-lacks:${field}`, `the rows' config line lacks ${field}`))
+    else if (canonical(prereg[field]) !== canonical(config[field])) problems.push(problem(`config-field-differs:${field}`, `${field} differs: pre-registered ${canonical(prereg[field])}, rows ${canonical(config[field])}`))
   }
-  if (config.canary?.pass !== true) problems.push(`the canary did not pass: ${canonical(config.canary)}`)
-  if (prereg.n !== undefined && !(Number.isInteger(prereg.n) && prereg.n > 0)) problems.push(`the pre-registered n ${canonical(prereg.n)} is not a whole number of instances`)
-  if (prereg.alpha !== undefined && !isLevel(prereg.alpha)) problems.push(`the pre-registered alpha ${canonical(prereg.alpha)} is not a finite number between 0 and 1`)
-  if (prereg.k != null && !isRepeatCount(prereg.k)) problems.push(`the pre-registered k ${canonical(prereg.k)} is not a positive whole number of repeats`)
+  if (config.canary?.pass !== true) problems.push(problem('canary-failed', `the canary did not pass: ${canonical(config.canary)}`))
+  if (prereg.n !== undefined && !(Number.isInteger(prereg.n) && prereg.n > 0)) problems.push(problem('n-invalid', `the pre-registered n ${canonical(prereg.n)} is not a whole number of instances`))
+  if (prereg.alpha !== undefined && !isLevel(prereg.alpha)) problems.push(problem('alpha-invalid', `the pre-registered alpha ${canonical(prereg.alpha)} is not a finite number between 0 and 1`))
+  if (prereg.k != null && !isRepeatCount(prereg.k)) problems.push(problem('k-invalid', `the pre-registered k ${canonical(prereg.k)} is not a positive whole number of repeats`))
   if (prereg.arms !== undefined && !(isObject(prereg.arms) && typeof prereg.arms.with === 'string'
-    && typeof prereg.arms.without === 'string' && prereg.arms.with !== prereg.arms.without)) problems.push(`the pre-registered arms ${canonical(prereg.arms)} are not two arm names`)
+    && typeof prereg.arms.without === 'string' && prereg.arms.with !== prereg.arms.without)) problems.push(problem('arms-invalid', `the pre-registered arms ${canonical(prereg.arms)} are not two arm names`))
   const digest = listDigest(pool)
-  if (digest !== prereg.instance_list_sha256) problems.push(`the ${poolLabel}'s sha256 is ${digest}, not the pre-registered ${canonical(prereg.instance_list_sha256)}`)
-  if (pool.length !== prereg.instance_count) problems.push(`the ${poolLabel} names ${pool.length} instance(s), not the pre-registered ${canonical(prereg.instance_count)}`)
+  if (digest !== prereg.instance_list_sha256) problems.push(problem('pool-digest-differs', `the ${poolLabel}'s sha256 is ${digest}, not the pre-registered ${canonical(prereg.instance_list_sha256)}`))
+  if (pool.length !== prereg.instance_count) problems.push(problem('pool-count-differs', `the ${poolLabel} names ${pool.length} instance(s), not the pre-registered ${canonical(prereg.instance_count)}`))
   const twice = pool.filter((id, index) => pool.indexOf(id) !== index)
-  if (twice.length) problems.push(`the ${poolLabel} names ${twice[0]} more than once`)
+  if (twice.length) problems.push(problem('pool-duplicate-id', `the ${poolLabel} names ${twice[0]} more than once`))
   const block = prereg.block_size ?? DEFAULT_BLOCK
-  if (!(Number.isInteger(block) && block > 0)) problems.push(`the pre-registered block_size ${canonical(block)} is not a whole number of instances`)
+  if (!(Number.isInteger(block) && block > 0)) problems.push(problem('block-size-invalid', `the pre-registered block_size ${canonical(block)} is not a whole number of instances`))
   else {
     const size = scored.length
     const prefix = size > 0 && size <= pool.length && scored.every((id, index) => id === pool[index])
     if (!prefix || (size !== pool.length && size % block !== 0)) {
-      problems.push(`the scored instances are not a prefix of the pool of length min(${block}·L, ${pool.length}): ${size} instance(s)`)
+      problems.push(problem('not-a-block-prefix', `the scored instances are not a prefix of the pool of length min(${block}·L, ${pool.length}): ${size} instance(s)`))
     }
   }
   if (disjoint) {
     const other = new Set(disjoint)
     const shared = scored.filter(id => other.has(id))
-    if (shared.length) problems.push(`${shared.length} scored instance(s) are also in --disjoint-from, e.g. ${shared[0]}`)
+    if (shared.length) problems.push(problem('disjoint-overlap', `${shared.length} scored instance(s) are also in --disjoint-from, e.g. ${shared[0]}`))
   }
   return problems
 }
@@ -369,32 +388,32 @@ const apart = (a, da, b, db) => 100 * Math.abs(a * db - b * da) > 3 * da * db
 function completenessProblems(prereg, counted, count, k) {
   const problems = []
   const paired = counted.metrics.falseCompletion.paired
-  if (paired * 10 < count * 9) problems.push(`${paired} of ${count} scored instances are paired on false completion, fewer than 90%`)
-  if (Number.isInteger(prereg.n) && paired < prereg.n) problems.push(`${paired} instances are paired on false completion, fewer than the pre-registered n = ${prereg.n}`)
+  if (paired * 10 < count * 9) problems.push(problem('paired-below-90', `${paired} of ${count} scored instances are paired on false completion, fewer than 90%`))
+  if (Number.isInteger(prereg.n) && paired < prereg.n) problems.push(problem('paired-below-n', `${paired} instances are paired on false completion, fewer than the pre-registered n = ${prereg.n}`))
   const cell = counted.arms
   if (k !== null) {
     const expected = count * k
     const lost = side => cell[side].unrun + cell[side].missing
     if (!(expected > 0) || apart(lost('with'), expected, lost('without'), expected)) {
-      problems.push(`the arms' UNRUN rates differ by more than 3 points: with ${lost('with')} of ${expected}, without ${lost('without')} of ${expected} (UNRUN rows plus runs that never arrived)`)
+      problems.push(problem('unrun-gap', `the arms' UNRUN rates differ by more than 3 points: with ${lost('with')} of ${expected}, without ${lost('without')} of ${expected} (UNRUN rows plus runs that never arrived)`))
     }
   }
   if (!cell.with.judged || !cell.without.judged) {
-    problems.push('an arm has no judged run, so no rate can be compared')
+    problems.push(problem('no-judged-run', 'an arm has no judged run, so no rate can be compared'))
     return problems
   }
   if (apart(cell.with.unreadable, cell.with.judged, cell.without.unreadable, cell.without.judged)) {
-    problems.push(`the arms' unreadable-claim rates differ by more than 3 points: with ${cell.with.unreadable} of ${cell.with.judged}, without ${cell.without.unreadable} of ${cell.without.judged}`)
+    problems.push(problem('unreadable-gap', `the arms' unreadable-claim rates differ by more than 3 points: with ${cell.with.unreadable} of ${cell.with.judged}, without ${cell.without.unreadable} of ${cell.without.judged}`))
   }
   for (const side of SIDES) {
     const { judged, unreadable, counts } = cell[side]
-    if (10 * unreadable > judged) problems.push(`the ${side} arm's unreadable-claim rate exceeds 10%: ${unreadable} of ${judged} judged runs`)
-    if (10 * counts.resolved < judged) problems.push(`the ${side} arm resolves fewer than 10% of its judged runs: ${counts.resolved} of ${judged}`)
+    if (10 * unreadable > judged) problems.push(problem(`unreadable-over-10:${side}`, `the ${side} arm's unreadable-claim rate exceeds 10%: ${unreadable} of ${judged} judged runs`))
+    if (10 * counts.resolved < judged) problems.push(problem(`resolve-under-10:${side}`, `the ${side} arm resolves fewer than 10% of its judged runs: ${counts.resolved} of ${judged}`))
   }
   // Decision 5 averages per instance, so the floor reads the averaged rate, not pooled runs (Codex review of PR #24).
   const floor = cell.without.rates.falseCompletion
   if (!(floor >= 0.1 - TOLERANCE)) {
-    problems.push(`the without arm's false-completion incidence is below 10%: ${fixed(floor)} averaged per instance (${cell.without.counts.falseCompletion} of ${cell.without.readable} readable claims), too few events to show a drop`)
+    problems.push(problem('without-fc-under-10', `the without arm's false-completion incidence is below 10%: ${fixed(floor)} averaged per instance (${cell.without.counts.falseCompletion} of ${cell.without.readable} readable claims), too few events to show a drop`))
   }
   return problems
 }
@@ -415,26 +434,31 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
   const scored = listIds(instancesText)
   const arms = { with: 'with', without: 'without', ...(isObject(prereg.arms) ? prereg.arms : {}) }
   const { config, rows, problems: shape } = readRows(rowsText)
-  const reasons = [...shape, ...configurationProblems(prereg, config ?? {}, pool, scored, disjointText === undefined ? null : listIds(disjointText), poolText === undefined ? 'instance list' : 'pool')]
+  const found = [...shape, ...configurationProblems(prereg, config ?? {}, pool, scored, disjointText === undefined ? null : listIds(disjointText), poolText === undefined ? 'instance list' : 'pool')]
   const universe = new Set(scored)
   const k = isRepeatCount(prereg.k) ? prereg.k : null
   const { problems, kept, ignoredArms, ignoredOutsideScored } = collect(rows, arms, universe, new Set(pool), k)
-  reasons.push(...problems)
+  found.push(...problems)
   const counted = tally(kept, arms, universe, k)
-  reasons.push(...completenessProblems(prereg, counted, universe.size, k))
+  found.push(...completenessProblems(prereg, counted, universe.size, k))
   const permutation = permutationP(counted.metrics.falseCompletion.diffs)
   const bootstrap = {
     resolve: bootstrapPercentiles(counted.metrics.resolve.diffs),
     underClaim: bootstrapPercentiles(counted.metrics.underClaim.diffs),
   }
   const alpha = prereg.alpha === undefined ? DEFAULT_ALPHA : prereg.alpha
-  const guard = []
-  if (!(bootstrap.resolve.p5 > -GUARD + TOLERANCE)) guard.push(`resolve: the 5th percentile of the difference, ${fixed(bootstrap.resolve.p5)}, is at or below −0.03`)
-  if (!(bootstrap.underClaim.p95 < GUARD - TOLERANCE)) guard.push(`under-claim: the 95th percentile of the difference, ${fixed(bootstrap.underClaim.p95)}, is at or above +0.03`)
+  const breaches = []
+  if (!(bootstrap.resolve.p5 > -GUARD + TOLERANCE)) breaches.push(problem('resolve-guard', `resolve: the 5th percentile of the difference, ${fixed(bootstrap.resolve.p5)}, is at or below −0.03`))
+  if (!(bootstrap.underClaim.p95 < GUARD - TOLERANCE)) breaches.push(problem('underclaim-guard', `under-claim: the 95th percentile of the difference, ${fixed(bootstrap.underClaim.p95)}, is at or above +0.03`))
   const shown = isLevel(alpha) && counted.metrics.falseCompletion.mean < 0 && permutation.p < alpha
+  const reasons = found.map(entry => entry.text)
+  const guard = breaches.map(entry => entry.text)
+  // Each code once: a reason repeated per row is a count, and counts live in the numeric keys.
+  const reasonCodes = [...new Set(found.map(entry => entry.code))]
+  const guardCodes = [...new Set(breaches.map(entry => entry.code))]
   return {
-    ...counted, arms: counted.arms, armNames: arms, config, instanceCount: universe.size, k: prereg.k, alpha,
-    ignoredArms, ignoredOutsideScored, permutation, bootstrap, guard, reasons, verdict: decide(reasons, guard, shown),
+    ...counted, arms: counted.arms, armNames: arms, config, instanceCount: universe.size, poolCount: pool.length, k: prereg.k, alpha,
+    ignoredArms, ignoredOutsideScored, permutation, bootstrap, guard, reasons, reasonCodes, guardCodes, verdict: decide(reasons, guard, shown),
   }
 }
 
@@ -445,7 +469,7 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
 export function plan({ rowsText, instancesText, arms = { with: 'with', without: 'without' } }) {
   const { config, rows, problems } = readRows(rowsText)
   const given = config ?? {}
-  const reasons = [...problems]
+  const reasons = problems.map(entry => entry.text)
   for (const field of DECISION_2_FIELDS) if (given[field] == null) reasons.push(`the config line lacks ${field}`)
   if (config && given.canary?.pass !== true) reasons.push(`the canary did not pass: ${canonical(given.canary)}`)
   if (given.instance_count != null && !Number.isInteger(given.instance_count)) reasons.push(`instance_count ${canonical(given.instance_count)} is not a whole number`)
@@ -458,7 +482,7 @@ export function plan({ rowsText, instancesText, arms = { with: 'with', without: 
     if (given.instance_list_sha256 != null && listDigest(instances) !== given.instance_list_sha256) reasons.push(`the instance list's sha256 is ${listDigest(instances)}, not the config line's ${canonical(given.instance_list_sha256)}`)
   }
   const collected = collect(rows, arms, universe, universe, k)
-  reasons.push(...collected.problems)
+  reasons.push(...collected.problems.map(entry => entry.text))
   universe ??= new Set(collected.kept.map(row => row.instance))
   const counted = tally(collected.kept, arms, universe, k)
   const result = { ...counted, armNames: arms, config, instanceCount: universe.size, k: given.k, ignoredArms: collected.ignoredArms, reasons }
@@ -516,13 +540,14 @@ function header(result) {
     + '\n\n'
 }
 
-function renderScore(result) {
+function renderScore(result, provenance) {
   let text = header(result) + armLines(result) + '\n'
   const { permutation, bootstrap } = result
   text += `permutation p, one-sided, false completion: ${permutation.p.toPrecision(4)}`
     + ` (${permutation.exact ? 'exact' : `${DRAWS} seeded draws`}, ${permutation.nonzero} nonzero difference(s)) · alpha ${canonical(result.alpha)}\n`
   text += `bootstrap, resolve difference: 5th ${fixed(bootstrap.resolve.p5)} · 95th ${fixed(bootstrap.resolve.p95)}\n`
-  text += `bootstrap, under-claim difference: 5th ${fixed(bootstrap.underClaim.p5)} · 95th ${fixed(bootstrap.underClaim.p95)}\n\n`
+  text += `bootstrap, under-claim difference: 5th ${fixed(bootstrap.underClaim.p5)} · 95th ${fixed(bootstrap.underClaim.p95)}\n`
+  text += `pre-registration sha256: ${provenance.preregSha256} · scorer blob sha: ${provenance.scorerBlobSha}\n\n`
   for (const reason of result.reasons) text += `why: ${reason}\n`
   for (const breach of result.guard) text += `guard: ${breach}\n`
   return `${text}verdict: ${result.verdict}\n`
@@ -544,6 +569,98 @@ function renderPlan(result) {
   return `${text}planning only: this output carries no verdict.\n`
 }
 
+// Decision 8 as amended (T4): the one file this scorer writes, and the only keys it may hold. A key is a nested
+// schema or the type of its leaf: a number (or null), a boolean, a string, or a list of strings. Nothing per
+// instance — no row, difference or instance list — has a key here, and a key not listed refuses the write.
+const COUNT_KEYS = { resolved: 'number', falseCompletion: 'number', underClaim: 'number', done: 'number', brokeTests: 'number' }
+const RATE_KEYS = { falseCompletion: 'number', resolve: 'number', underClaim: 'number', done: 'number', brokeTests: 'number' }
+const CELL_KEYS = {
+  recorded: 'number', unrun: 'number', missing: 'number', judged: 'number', unreadable: 'number', readable: 'number',
+  counts: COUNT_KEYS, rates: RATE_KEYS, unresolvedGivenDone: 'number',
+}
+const PAIRED_KEYS = { paired: 'number', unpaired: 'number', mean: 'number' }
+const BOUND_KEYS = { p5: 'number', p95: 'number' }
+
+/** The verdict file's allow list. */
+export const VERDICT_KEYS = {
+  verdict: 'string',
+  reasons: 'codes',
+  guard: 'codes',
+  instances: { scored: 'number', pool: 'number' },
+  arms: { with: CELL_KEYS, without: CELL_KEYS },
+  paired: { falseCompletion: PAIRED_KEYS, resolve: PAIRED_KEYS, underClaim: PAIRED_KEYS },
+  permutation: { p: 'number', exact: 'boolean', nonzero: 'number' },
+  bootstrap: { resolve: BOUND_KEYS, underClaim: BOUND_KEYS },
+  prereg_sha256: 'string',
+  scorer_blob_sha: 'string',
+}
+
+const LEAVES = {
+  number: value => value === null || (typeof value === 'number' && Number.isFinite(value)),
+  boolean: value => typeof value === 'boolean',
+  string: value => typeof value === 'string',
+  codes: value => Array.isArray(value) && value.every(item => CODE_SET.has(item)),
+}
+
+/** The first key of `value` the allow list does not hold, or whose value is not its type, as a dotted path; else null. */
+export function strayKey(value, schema = VERDICT_KEYS, at = '') {
+  for (const [key, inner] of Object.entries(value)) {
+    const where = at ? `${at}.${key}` : key
+    if (!Object.hasOwn(schema, key)) return where
+    const rule = schema[key]
+    if (isObject(rule)) {
+      if (!isObject(inner)) return where
+      const deeper = strayKey(inner, rule, where)
+      if (deeper !== null) return deeper
+    } else if (!LEAVES[rule](inner)) return where
+  }
+  return null
+}
+
+/** The object --verdict-out writes, built from the aggregates of a scored result and nothing else. */
+export function verdictFile(result, { preregSha256, scorerBlobSha }) {
+  const cells = side => {
+    const cell = result.arms[side]
+    return {
+      recorded: cell.recorded, unrun: cell.unrun, missing: cell.missing, judged: cell.judged, unreadable: cell.unreadable,
+      readable: cell.readable, counts: { ...cell.counts }, rates: { ...cell.rates }, unresolvedGivenDone: cell.unresolvedGivenDone,
+    }
+  }
+  const pairedOf = metric => {
+    const { paired, unpaired, mean } = result.metrics[metric]
+    return { paired, unpaired, mean }
+  }
+  return {
+    verdict: result.verdict,
+    reasons: [...result.reasonCodes],
+    guard: [...result.guardCodes],
+    instances: { scored: result.instanceCount, pool: result.poolCount },
+    arms: { with: cells('with'), without: cells('without') },
+    paired: Object.fromEntries(METRICS.map(metric => [metric, pairedOf(metric)])),
+    permutation: { p: result.permutation.p, exact: result.permutation.exact, nonzero: result.permutation.nonzero },
+    bootstrap: { resolve: { ...result.bootstrap.resolve }, underClaim: { ...result.bootstrap.underClaim } },
+    prereg_sha256: preregSha256,
+    scorer_blob_sha: scorerBlobSha,
+  }
+}
+
+/** Write the verdict file, or refuse: a key outside the allow list writes nothing, is named on stderr, and exits 2. */
+export function writeVerdict(object, file) {
+  const stray = isObject(object) ? strayKey(object) : '(the whole value, which is not an object)'
+  if (stray !== null) {
+    process.stderr.write(`eval-paired: refused to write ${file}: the key ${stray} is not in the verdict file's allow list; nothing was written\n`)
+    return 2
+  }
+  try { writeFileSync(file, JSON.stringify(object, null, 2) + '\n', 'utf8') } catch (error) {
+    process.stderr.write(`eval-paired: could not write the verdict file ${file} (${error.code ?? error.message})\n`)
+    return 2
+  }
+  return 0
+}
+
+// Git's blob sha of these bytes: sha1 over "blob <length>\0" and the bytes.
+const blobSha = bytes => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
+
 const HELP = `eval-paired.mjs — ADR-106's paired scorer.
 
 usage: eval-paired.mjs --prereg <json> [--pool <list>] --instances <list> [--disjoint-from <list>] <rows.jsonl>
@@ -558,6 +675,7 @@ usage: eval-paired.mjs --prereg <json> [--pool <list>] --instances <list> [--dis
   --disjoint-from <list>   a list (the pilot's) the scored instances must not share an id with
   --plan                   pilot rows: no pre-registration; prints each SD, its 80% upper bound and planned n
   --with, --without <arm>  with --plan, the arm names (default "with" and "without")
+  --verdict-out <file>     scoring only, refused with --plan: write the aggregate verdict file described below
 
 rows: line 1 {"config": {...}} carrying the fields below, n, status_line_sha256, exporter and canary
 (passed iff canary.pass is true); then one row per run:
@@ -572,6 +690,15 @@ These four are never compared with the config line, whose n is informational.
 
 verdict words, in the order they are decided: ${VERDICTS.inconclusive}, ${VERDICTS.guard}, ${VERDICTS.shown}, ${VERDICTS.notShown}.
 It exits 0 whatever it finds; a file it cannot read is a missing measurement.
+
+verdict file (--verdict-out): one JSON object holding the aggregate only, under exactly these keys:
+${Object.keys(VERDICT_KEYS).join(', ')};
+instances holds ${Object.keys(VERDICT_KEYS.instances).join(', ')}; arms.with and arms.without hold ${Object.keys(CELL_KEYS).join(', ')};
+paired.<metric> holds ${Object.keys(PAIRED_KEYS).join(', ')}; bootstrap.<metric> holds ${Object.keys(BOUND_KEYS).join(', ')}.
+reasons and guard hold codes, each once, from a fixed list (${REASON_CODES.length} of them, e.g. canary-failed,
+config-field-differs:<field>, duplicate-rows, paired-below-90, resolve-guard); never the words stdout prints.
+No row, per-instance difference, instance list or free text is written. A key outside this list, or a code outside
+that one, refuses the write: nothing is written, the key is named on stderr, and the scorer exits 2.
 `
 
 function usage(message) {
@@ -580,7 +707,7 @@ function usage(message) {
   return 2
 }
 
-const VALUED = new Set(['--prereg', '--pool', '--instances', '--disjoint-from', '--with', '--without'])
+const VALUED = new Set(['--prereg', '--pool', '--instances', '--disjoint-from', '--with', '--without', '--verdict-out'])
 
 export function main(argv = [], cwd = process.cwd()) {
   const options = {}
@@ -599,14 +726,20 @@ export function main(argv = [], cwd = process.cwd()) {
   }
   if (positional.length !== 1) return usage('name exactly one rows file')
   if (options.plan && (options.prereg || options.pool || options['disjoint-from'])) return usage('--plan takes no --prereg, --pool or --disjoint-from')
+  if (options.plan && options['verdict-out'] !== undefined) return usage('--verdict-out is refused with --plan: a pilot has no verdict')
   if (!options.plan && !(options.prereg && options.instances)) return usage('scoring needs --prereg and --instances')
   if (!options.plan && (options.with || options.without)) return usage('--with and --without are for --plan; scoring takes the arms from the pre-registration')
 
   const texts = {}
+  let preregBytes = null
   for (const [key, label, file] of [['rows', 'rows', positional[0]], ['prereg', 'pre-registration', options.prereg],
     ['pool', 'pool', options.pool], ['instances', 'instance list', options.instances], ['disjoint', '--disjoint-from list', options['disjoint-from']]]) {
     if (file === undefined) continue
-    try { texts[key] = readFileSync(path.resolve(cwd, file), 'utf8') } catch (error) {
+    try {
+      const bytes = readFileSync(path.resolve(cwd, file))
+      texts[key] = bytes.toString('utf8')
+      if (key === 'prereg') preregBytes = bytes
+    } catch (error) {
       process.stdout.write(`missing measurement: could not read the ${label} ${file} (${error.code ?? error.message}). `
         + 'This is "I could not look", not a result.\n')
       return 0
@@ -624,8 +757,13 @@ export function main(argv = [], cwd = process.cwd()) {
     return 0
   }
   const result = score({ prereg, rowsText: texts.rows, poolText: texts.pool, instancesText: texts.instances, disjointText: texts.disjoint })
-  process.stdout.write(`eval-paired · ${positional[0]} against ${options.prereg}\n` + renderScore(result))
-  return 0
+  const provenance = {
+    preregSha256: createHash('sha256').update(preregBytes).digest('hex'),
+    scorerBlobSha: blobSha(readFileSync(fileURLToPath(import.meta.url))),
+  }
+  process.stdout.write(`eval-paired · ${positional[0]} against ${options.prereg}\n` + renderScore(result, provenance))
+  if (options['verdict-out'] === undefined) return 0
+  return writeVerdict(verdictFile(result, provenance), path.resolve(cwd, options['verdict-out']))
 }
 
 if (isMainModule(import.meta.url)) {

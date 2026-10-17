@@ -3,14 +3,15 @@
 // the test made (CLAUDE.md §9). Each check that can come out clean is shown coming out dirty beside it
 // (CLAUDE.md §4).
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 
 import {
   DECISION_2_FIELDS, bootstrapPercentiles, chiSquareQuantile, judge, listDigest, main, permutationP, plan, score,
-  sdUpperBound,
+  REASON_CODES, sdUpperBound, writeVerdict,
 } from '../scripts/eval-paired.mjs'
 
 const made = []
@@ -100,6 +101,22 @@ function files(parts) {
   }
   return out
 }
+
+// A call with its stderr captured, for the refusals that speak there.
+function quietly(call) {
+  const err = []
+  const real = process.stderr.write.bind(process.stderr)
+  process.stderr.write = chunk => { err.push(String(chunk)); return true }
+  let code
+  try { code = call() } finally { process.stderr.write = real }
+  return { code, err: err.join('') }
+}
+
+// Every leaf of a JSON object as a dotted path, sorted; a list is a leaf.
+const leafPaths = (value, at = '') => Object.entries(value).flatMap(([key, inner]) => {
+  const where = at ? `${at}.${key}` : key
+  return inner !== null && typeof inner === 'object' && !Array.isArray(inner) ? leafPaths(inner, where) : [where]
+}).sort()
 
 const VERDICT_WORDS = /shown|inconclusive|guard not met/i
 
@@ -517,4 +534,120 @@ test('the planning output names each SD, its upper bound and the n it implies', 
   assert.match(refused.text, /model/)
   assert.doesNotMatch(refused.text, VERDICT_WORDS)
   assert.doesNotMatch(refused.text, /planned n/)
+})
+
+test('the verdict file holds only the aggregate, and any other key is refused', () => {
+  // ADR-106 Decision 8 as amended (T4): the one file the scorer writes holds the aggregate and nothing per instance.
+  const pool = ids(40)
+  const rows = world(pool, 1, drop)
+  const paths = files({
+    'prereg.json': JSON.stringify(preregFor(pool, 1)), 'pool.txt': listText(pool),
+    'rows.jsonl': rowsText(rowsConfigFor(pool, 1), rows),
+    'canary.jsonl': rowsText(rowsConfigFor(pool, 1, { canary: { pass: false } }), rows),
+  })
+  const directory = dirname(paths['rows.jsonl'])
+  const scoring = ['--prereg', paths['prereg.json'], '--pool', paths['pool.txt'], '--instances', paths['pool.txt']]
+  const out = join(directory, 'verdict-main-synthetic.json')
+  const printed = runMain([...scoring, '--verdict-out', out, paths['rows.jsonl']])
+  assert.equal(printed.code, 0)
+  const written = JSON.parse(readFileSync(out, 'utf8'))
+
+  const cell = ['judged', 'missing', 'readable', 'recorded', 'unreadable', 'unresolvedGivenDone', 'unrun',
+    ...['brokeTests', 'done', 'falseCompletion', 'resolved', 'underClaim'].map(key => `counts.${key}`),
+    ...['brokeTests', 'done', 'falseCompletion', 'resolve', 'underClaim'].map(key => `rates.${key}`)]
+  const expected = [
+    ...['with', 'without'].flatMap(side => cell.map(key => `arms.${side}.${key}`)),
+    'bootstrap.resolve.p5', 'bootstrap.resolve.p95', 'bootstrap.underClaim.p5', 'bootstrap.underClaim.p95',
+    'guard', 'instances.pool', 'instances.scored',
+    ...['falseCompletion', 'resolve', 'underClaim'].flatMap(metric => ['mean', 'paired', 'unpaired'].map(key => `paired.${metric}.${key}`)),
+    'permutation.exact', 'permutation.nonzero', 'permutation.p', 'prereg_sha256', 'reasons', 'scorer_blob_sha', 'verdict',
+  ].sort()
+  assert.deepEqual(leafPaths(written), expected)
+  assert.equal(written.verdict, 'SHOWN')
+  assert.match(printed.text, /^verdict: SHOWN$/m)
+  assert.equal(written.instances.scored, 40)
+  assert.equal(written.permutation.p, 1 / 1024)
+  const preregSha = createHash('sha256').update(readFileSync(paths['prereg.json'])).digest('hex')
+  const scorer = readFileSync(new URL('../scripts/eval-paired.mjs', import.meta.url))
+  const blob = createHash('sha1').update(`blob ${scorer.length}\0`).update(scorer).digest('hex')
+  assert.equal(written.prereg_sha256, preregSha)
+  assert.equal(written.scorer_blob_sha, blob)
+  assert.ok(printed.text.includes(`pre-registration sha256: ${preregSha} · scorer blob sha: ${blob}`), 'the printed sha-256s are the written ones')
+  const fileText = readFileSync(out, 'utf8')
+  for (const id of pool) assert.ok(!fileText.includes(id), `${id} reached the verdict file`)
+
+  // An INCONCLUSIVE verdict is written with its reasons.
+  const failedOut = join(directory, 'verdict-canary.json')
+  assert.equal(runMain([...scoring, '--verdict-out', failedOut, paths['canary.jsonl']]).code, 0)
+  const failed = JSON.parse(readFileSync(failedOut, 'utf8'))
+  assert.equal(failed.verdict, 'INCONCLUSIVE')
+  assert.match(failed.reasons.join('\n'), /canary/)
+
+  // Without --verdict-out the scorer writes nothing and exits 0; with --plan the flag is refused.
+  const before = readdirSync(directory).sort()
+  assert.equal(runMain([...scoring, paths['rows.jsonl']]).code, 0)
+  assert.deepEqual(readdirSync(directory).sort(), before, 'a verdict-only run wrote a file')
+  const planOut = join(directory, 'verdict-plan.json')
+  const refusedPlan = quietly(() => main(['--plan', '--with', 'P', '--without', 'A', '--verdict-out', planOut, paths['rows.jsonl']]))
+  assert.equal(refusedPlan.code, 2)
+  assert.match(refusedPlan.err, /--verdict-out is refused with --plan/)
+  assert.equal(existsSync(planOut), false)
+
+  // DIRTY twin: the writer handed anything per instance writes nothing, names the key and exits 2.
+  const stray = [
+    [{ ...written, rows }, /the key rows is not in/],
+    [{ ...written, rows: pool }, /the key rows is not in/],
+    [{ ...written, instance_list: pool }, /the key instance_list is not in/],
+    [{ ...written, instances: pool }, /the key instances is not in/],
+    [{ ...written, paired: { ...written.paired, falseCompletion: { ...written.paired.falseCompletion, diffs: [-1, 0] } } }, /the key paired\.falseCompletion\.diffs is not in/],
+    [{ ...written, reasons: [{ instance: pool[0] }] }, /the key reasons is not in/],
+  ]
+  const target = join(directory, 'verdict-stray.json')
+  for (const [object, named] of stray) {
+    const refused = quietly(() => writeVerdict(object, target))
+    assert.equal(refused.code, 2, String(named))
+    assert.match(refused.err, named)
+    assert.equal(existsSync(target), false, 'a refused write leaves no file')
+  }
+  // Twin: the same writer handed the aggregate alone writes it.
+  const clean = join(directory, 'verdict-clean.json')
+  assert.equal(quietly(() => writeVerdict(written, clean)).code, 0)
+  assert.deepEqual(JSON.parse(readFileSync(clean, 'utf8')), written)
+
+  // The empty key is a key (Codex review of PR #26): `{"": "", rows}` is refused, not written.
+  const empty = join(directory, 'verdict-empty-key.json')
+  const emptyKey = quietly(() => writeVerdict({ '': '', ...written, rows }, empty))
+  assert.equal(emptyKey.code, 2)
+  assert.equal(existsSync(empty), false, 'an empty key let the write through')
+  // A reason is a code from REASON_CODES, never the words stdout prints.
+  const worded = quietly(() => writeVerdict({ ...written, reasons: [`the canary did not pass: ${pool[0]}`] }, empty))
+  assert.equal(worded.code, 2)
+  assert.match(worded.err, /the key reasons is not in/)
+  assert.equal(existsSync(empty), false)
+
+  // No free text from the run reaches the file, through main() (Codex review of PR #26): every reason is a code.
+  const transcript = 'SYNTHETIC TRANSCRIPT: the agent wrote the patch and said it was done'
+  const payload = `SYNTHETIC MODEL OUTPUT ${'{"turn": "x", "text": "y"}'.repeat(40)}`
+  const leaky = files({
+    'prereg.json': JSON.stringify(preregFor(pool, 1)), 'pool.txt': listText(pool),
+    'duplicates.jsonl': rowsText(rowsConfigFor(pool, 1), [...rows, ...rows.filter(row => row.arm === 'P')]),
+    'transcript.jsonl': rowsText(rowsConfigFor(pool, 1, { canary: { pass: false, transcript } }), rows),
+    'payload.jsonl': rowsText(rowsConfigFor(pool, 1, { scaffold: { name: 'headless', flags: ['--print'], payload } }), rows),
+  })
+  const leakyScoring = ['--prereg', leaky['prereg.json'], '--pool', leaky['pool.txt'], '--instances', leaky['pool.txt']]
+  for (const [rowsFile, code] of [['duplicates.jsonl', 'duplicate-rows'], ['transcript.jsonl', 'canary-failed'], ['payload.jsonl', 'config-field-differs:scaffold']]) {
+    const target = join(dirname(leaky[rowsFile]), `verdict-${rowsFile}.json`)
+    const run = runMain([...leakyScoring, '--verdict-out', target, leaky[rowsFile]])
+    assert.equal(run.code, 0, rowsFile)
+    assert.match(run.text, /^verdict: INCONCLUSIVE$/m, rowsFile)
+    const body = readFileSync(target, 'utf8')
+    const verdict = JSON.parse(body)
+    assert.equal(verdict.verdict, 'INCONCLUSIVE')
+    assert.deepEqual(verdict.reasons, [code], `${rowsFile}: one code, each once`)
+    assert.ok(verdict.reasons.every(entry => REASON_CODES.includes(entry)))
+    for (const id of pool) assert.ok(!body.includes(id), `${rowsFile}: ${id} reached the verdict file`)
+    assert.ok(!body.includes('SYNTHETIC'), `${rowsFile}: run text reached the verdict file`)
+  }
+  // Twin: stdout keeps the words the file leaves out.
+  assert.ok(runMain([...leakyScoring, leaky['duplicates.jsonl']]).text.includes(`a duplicate row: instance ${pool[0]}`))
 })

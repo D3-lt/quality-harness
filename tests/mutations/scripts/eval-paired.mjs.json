@@ -119,6 +119,36 @@
       "from": "  if (prereg.k != null && !isRepeatCount(prereg.k))",
       "to": "  if (false)",
       "only": "^(?:a run is scored only against its committed pre-registration)$"
+    },
+    {
+      "label": "paired: the verdict file's allow list holds no per-instance key",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "    if (!Object.hasOwn(schema, key)) return where",
+      "to": "    if (!Object.hasOwn(schema, key)) continue",
+      "only": "^(?:the verdict file holds only the aggregate, and any other key is refused)$"
+    },
+    {
+      "label": "paired: the verdict file's reasons are codes, never the words the run printed",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "    reasons: [...result.reasonCodes],",
+      "to": "    reasons: [...result.reasons],",
+      "only": "^(?:the verdict file holds only the aggregate, and any other key is refused)$"
+    },
+    {
+      "label": "paired: an empty key is a stray key, not a clean walk",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "  if (stray !== null) {",
+      "to": "  if (stray) {",
+      "only": "^(?:the verdict file holds only the aggregate, and any other key is refused)$"
     }
   ]
 }

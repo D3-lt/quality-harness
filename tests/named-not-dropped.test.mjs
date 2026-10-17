@@ -154,6 +154,46 @@ test('a row is split the way GFM splits it, and only a reason after a dash keeps
     ['src/a.js', 'src/b.js', 'src/c.js'])
 })
 
+// The paths one Accepted record's single task governs, from that task's whole text.
+const AFFECTED = '# Task T1\n\n## Affected Files\n\n'
+const governedBy = (name, task) => {
+  const files = { 'docs/adr/ADR-001-a.md': ACCEPTED(1), 'docs/adr/ADR-001-a/tasks/T1-x.md': task }
+  return [...adrCorpus(tree(name, files), { tracked: Object.keys(files) })[0].governs].sort()
+}
+
+test('a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe', () => {
+  const piped = AFFECTED + '| File | Change | Why |\n|---|---|---|\n'
+  // A row GFM reads without its leading pipe is a row: an edit governs, and its read twin does not.
+  assert.deepEqual(governedBy('pipeless-row', piped + '`src/a.js` | edit | x |\n`src/b.js` | read | x |\n'), ['src/a.js'])
+  // A table with no edge pipes anywhere has its Change column too.
+  assert.deepEqual(governedBy('pipeless-table', AFFECTED + 'File | Change | Why\n--- | --- | ---\n`src/a.js` | read | x\n`src/b.js` | edit | x\n'), ['src/b.js'])
+  // Only the delimiter under a header opens a table: a body row shaped like a header and a delimiter is data, so the
+  // Change column stays the first header's, and `src/a.js`'s Change is `edit`.
+  assert.deepEqual(governedBy('body-delimiter', AFFECTED + '| File | Why | Change |\n| --- | --- | --- |\nnote | Change | Why\n--- | --- | ---\n| `src/a.js` | read | edit |\n'), ['src/a.js'])
+  // A delimiter whose cell count is not its header's opens no table, so no cell is Change and the row keeps its path.
+  assert.deepEqual(governedBy('count-mismatch', AFFECTED + '| File | Change |\n|---|---|---|\n| `src/a.js` | read |\n'), ['src/a.js'])
+  // Inside a table a line with no pipe is a one-cell row (GFM example 202) and keeps its path; after a blank line the
+  // same line is a paragraph and governs nothing.
+  assert.deepEqual(governedBy('one-cell-row', piped + '| `src/a.js` | read | x |\n`src/b.js`\n\n`src/c.js`\n'), ['src/b.js'])
+  // A blank line ends the table, so a read row after it has no Change column and keeps its path; above it, its twin is dropped.
+  assert.deepEqual(governedBy('blank-ends', piped + '| `src/a.js` | read | x |\n\n| `src/b.js` | read | x |\n'), ['src/b.js'])
+  // Another block ends the table too: a list item under it is not a row of it.
+  assert.deepEqual(governedBy('block-ends', piped + '| `src/a.js` | read | x |\n- `src/b.js` | read | x\n'), ['src/b.js'])
+})
+
+test('a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing', () => {
+  const table = '| File | Change |\n|---|---|\n| `src/a.js` | edit |\n'
+  assert.deepEqual(governedBy('fence-heading', AFFECTED + '```md\n# Example\n| `src/x.js` | edit |\n```\n\n' + table), ['src/a.js'])
+  assert.deepEqual(governedBy('fence-start', '# Task T1\n\n```md\n## Affected Files\n\n| `src/x.js` | edit |\n```\n\n## Affected Files\n\n' + table), ['src/a.js'])
+})
+
+test('a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path', () => {
+  // A backticked cell with a space stays prose: a real corpus wrote an acceptance command there (lifecycle.test.mjs).
+  const cells = ['`src/a b.js`', '`Dockerfile`', '`<path>`', '(compile)', 'run the tests', 'Makefile', 'src/c.js']
+  assert.deepEqual(governedBy('spellings', AFFECTED + '| File | Change |\n|---|---|\n' + cells.map(cell => `| ${cell} | edit |\n`).join('')),
+    ['Dockerfile', 'src/c.js'])
+})
+
 test('corpus-report counts a record named in lower case', () => {
   const entry = name => ({ name, isFile: () => true })
   assert.equal(recordCount('x', () => [entry('ADR-001-a.md'), entry('adr-002-b.md'), entry('notes.md')]), 2)

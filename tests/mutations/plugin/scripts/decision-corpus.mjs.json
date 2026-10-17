@@ -26,7 +26,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (/^#{1,6}\\s+\\S/.test(line)) break",
+      "from": "    if (!fenced && /^#{1,6}\\s+\\S/.test(line)) break",
       "to": "    if (false) break",
       "only": "^(?:decisions reach the code: what governs a file, and what was killed there|reported: the layouts and scale a real corpus actually has)$"
     },
@@ -106,8 +106,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (/\\s/.test(cell) || !/[./\\\\]/.test(cell)) continue",
-      "to": "    if (false) continue",
+      "from": "  if (!first || /^file$/i.test(first) || /^</.test(first) || /\\s/.test(first) || !/[./\\\\]/.test(first)) return null",
+      "to": "  if (!first || /^file$/i.test(first) || /^</.test(first)) return null",
       "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
     },
     {
@@ -1546,7 +1546,7 @@
       "label": "§381 item 14: a row the Change column marks as only read governs nothing",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (cells.length === headerCells && READ_ONLY_CHANGE.test(",
+      "from": "    if (change >= 0 && READ_ONLY_CHANGE.test(",
       "to": "    if (false && READ_ONLY_CHANGE.test(",
       "only": "^a file a task only reads is not one its record governs$"
     },
@@ -1554,16 +1554,16 @@
       "label": "§381 item 14: the Change column is found from the table's header",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "changeColumn = previous.findIndex(header => /^change$/i.test(header))",
-      "to": "changeColumn = -1",
+      "from": "change: cells.findIndex(header => /^change$/i.test(header))",
+      "to": "change: -1",
       "only": "^a file a task only reads is not one its record governs$"
     },
     {
       "label": "§381 item 14: emphasis around a Change word is read through",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "(cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim()",
-      "to": "(cells[changeColumn] ?? '').trim()",
+      "from": "READ_ONLY_CHANGE.test(cells[change].replace(/[*`_]/g, '').trim())",
+      "to": "READ_ONLY_CHANGE.test(cells[change].trim())",
       "only": "^a file a task only reads is not one its record governs$"
     },
     {
@@ -1607,20 +1607,116 @@
       "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
     },
     {
-      "label": "§381 item 14 review: a table ends at its first non-table line",
+      "label": "§381 item 14 review: a table ends at a blank line or another block",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "{ changeColumn = -1; headerCells = 0; previous = []; continue }",
-      "to": "continue",
-      "only": "^a Change cell that goes on to describe an edit still governs, and each table has its own Change column$"
+      "from": "    if (table && (!line || BLOCK_START.test(line))) table = null",
+      "to": "    if (false) table = null",
+      "only": "^(?:a Change cell that goes on to describe an edit still governs, and each table has its own Change column|a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe)$"
     },
     {
       "label": "§381 item 14 verification: a row whose cell count is not its header's keeps its path",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": ["tests/named-not-dropped.test.mjs"],
-      "from": "    if (cells.length === headerCells && READ_ONLY_CHANGE.test(",
-      "to": "    if (READ_ONLY_CHANGE.test(",
+      "from": "      if (cells.length === table.cells) change = table.change",
+      "to": "      if (cells.length > table.change) change = table.change",
       "only": "^a row is split the way GFM splits it, and only a reason after a dash keeps a read-only word read-only$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a header with no leading pipe opens a table",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (!table && !UNESCAPED_PIPE.test(line)) continue",
+      "to": "    if (!table && !line.startsWith('|')) continue",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: inside a table a line with no pipe is a one-cell row",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (!table && !UNESCAPED_PIPE.test(line)) continue",
+      "to": "    if (!UNESCAPED_PIPE.test(line)) continue",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: only the delimiter under a header opens a table",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (table) {",
+      "to": "    if (table && !SEPARATOR_ROW.test((lines[i + 1] ?? '').trim())) {",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a delimiter opens a table only with its header's cell count",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "      if (SEPARATOR_ROW.test(next) && tableCells(next).length === cells.length) {",
+      "to": "      if (SEPARATOR_ROW.test(next)) {",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a blank line ends a table",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (table && (!line || BLOCK_START.test(line))) table = null",
+      "to": "    if (table && BLOCK_START.test(line)) table = null",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: another block ends a table",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (table && (!line || BLOCK_START.test(line))) table = null",
+      "to": "    if (table && !line) table = null",
+      "only": "^a table is one header, the delimiter under it and its rows to a blank line or block, and a row needs no leading pipe$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a fenced heading does not end the section",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    if (!fenced && /^#{1,6}\\s+\\S/.test(line)) break",
+      "to": "    if (/^#{1,6}\\s+\\S/.test(line)) break",
+      "only": "^a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a fenced heading does not start the section",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "  const start = lines.findIndex(([line, fenced]) => !fenced && new RegExp(",
+      "to": "  const start = lines.findIndex(([line, fenced]) => new RegExp(",
+      "only": "^a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a fenced line is no row",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "    body.push(fenced ? '' : line)",
+      "to": "    body.push(line)",
+      "only": "^a fence in Affected Files is an example: its heading neither starts nor ends the section, and its table governs nothing$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a backticked cell is a path without an extension",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "to": "  if (ticked !== undefined && /[./\\\\]/.test(ticked)) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a backticked placeholder is not a path",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "to": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) ? ticked : null",
+      "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
+    },
+    {
+      "label": "Codex review of the 3.8.40 plan: a backticked cell with a space is not a path",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/named-not-dropped.test.mjs"],
+      "from": "  if (ticked !== undefined) return ticked && !/\\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null",
+      "to": "  if (ticked !== undefined) return ticked && !/^[<(]/.test(ticked) ? ticked : null",
+      "only": "^a backticked first cell with no space is a path, an extension or not; an unticked one must still look like a path$"
     }
   ]
 }

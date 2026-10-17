@@ -457,14 +457,17 @@ function referencesWithProvenance(text) {
 // JavaScript has no `\Z`: `(?=^##\s|\Z)` requires a literal Z, so the lookahead
 // never matched and every section read came back empty — silently, which is the
 // only way a corpus-reading feature can ship looking like an empty corpus.
+// A heading inside a fence is an example: it neither starts nor ends the section, and a fenced line comes back blank,
+// since a fence is a block of its own and none of its lines is a table row. A fenced `# Example` ended the section
+// before the real table, whose paths were lost (the Codex review of the 3.8.40 plan).
 function markdownSection(text, heading) {
-  const lines = text.split('\n')
-  const start = lines.findIndex(line => new RegExp(`^#{1,6}\\s+${heading}\\s*$`, 'i').test(line))
+  const lines = fencedLines(text)
+  const start = lines.findIndex(([line, fenced]) => !fenced && new RegExp(`^#{1,6}\\s+${heading}\\s*$`, 'i').test(line))
   if (start < 0) return ''
   const body = []
-  for (const line of lines.slice(start + 1)) {
-    if (/^#{1,6}\s+\S/.test(line)) break
-    body.push(line)
+  for (const [line, fenced] of lines.slice(start + 1)) {
+    if (!fenced && /^#{1,6}\s+\S/.test(line)) break
+    body.push(fenced ? '' : line)
   }
   return body.join('\n')
 }
@@ -890,11 +893,14 @@ function declaredGoverns(text) {
 // (except the import)`, `read; then add the guard` — still governs (the Codex review of
 // v3.8.36..v3.8.38). Measured 2026-10-16 over the 307 task files this repository tracks:
 // `read` 9, `none` 3, `none — already correct` 1, and no other read-only cell. Each
-// table's Change column is its own header's, read at its separator row, and a table with
-// none keeps every row (the recorded review of v3.8.36..1721d2e6).
+// table's Change column is its own header's, and a table with none keeps every row (the
+// recorded review of v3.8.36..1721d2e6).
 const READ_ONLY_WORD = '(?:read|none|unchanged|no change|read[- ]only)'
 const READ_ONLY_CHANGE = new RegExp(`^${READ_ONLY_WORD}\\.?(?:\\s*\\(\\s*${READ_ONLY_WORD}\\s*\\)\\.?)?(?:\\s+[—–]\\s+\\S.*)?$`, 'i')
 const SEPARATOR_ROW = /^\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/
+const UNESCAPED_PIPE = /(?<!\\)\|/
+// What begins another block, and so ends a table: a block quote, a list item, a thematic break.
+const BLOCK_START = /^(?:>|[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)/
 // A row's cells as GFM splits them: at every pipe a backslash does not escape, the leading and trailing pipes optional.
 // Splitting at every raw `|` let an escaped pipe and a missing trailing pipe cancel, so the count matched the header's
 // and the wrong cell was read as Change (the Codex review of v3.8.36..v3.8.38).
@@ -913,33 +919,47 @@ function tableCells(line) {
   if (text.startsWith('|')) cells.shift()
   return cells
 }
+// The path a row's first cell names, or null. A backticked cell with no space in it is a path as written, an extension
+// or not: `Dockerfile` was lost (the Codex review of the 3.8.40 plan). One with a space is not, since on a real corpus
+// cell 0 of neighbouring tables held `! rg -iq 'MCP stdio' README.md`, and nothing here tells a command from a path
+// with a space in it (BACKLOG §381). An unticked cell must look like a path too: that corpus also produced
+// `(T3's two tests)` and `(compile)`, every one reported as a governed path, so an unticked `Makefile` is not read.
+function rowPath(first) {
+  const ticked = first.match(/`([^`]+)`/)?.[1].trim()
+  if (ticked !== undefined) return ticked && !/\s/.test(ticked) && !/^[<(]/.test(ticked) ? ticked : null
+  if (!first || /^file$/i.test(first) || /^</.test(first) || /\s/.test(first) || !/[./\\]/.test(first)) return null
+  return first
+}
+// A table as GFM reads one: a header row, the delimiter row under it with as many cells, then body rows until a blank
+// line or another block. No row needs a leading pipe, and inside a table a line with no pipe at all is a one-cell row
+// (GFM example 202). A line shaped like a delimiter inside a body is data, so a body row cannot redirect the Change
+// column; a delimiter whose count is not its header's opens no table. A row that needed a leading pipe lost its path,
+// and so did a table with no edge pipes (BACKLOG §381; the Codex review of the 3.8.40 plan).
 function affectedFiles(text) {
-  const section = markdownSection(text, 'Affected Files')
-  if (!section) return []
+  const lines = markdownSection(text, 'Affected Files').split('\n')
   const paths = []
-  let changeColumn = -1
-  let headerCells = 0
-  let previous = []
-  for (const line of section.split('\n')) {
-    if (!line.trim().startsWith('|')) { changeColumn = -1; headerCells = 0; previous = []; continue }
+  let table = null
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (table && (!line || BLOCK_START.test(line))) table = null
+    if (!table && !UNESCAPED_PIPE.test(line)) continue
     const cells = tableCells(line)
-    if (SEPARATOR_ROW.test(line.trim())) {
-      changeColumn = previous.findIndex(header => /^change$/i.test(header))
-      headerCells = previous.length
-      continue
+    let change = -1
+    if (table) {
+      // A row with more or fewer cells than its header cannot say which cell is its Change, so it keeps its path (the
+      // verification of 271a698b).
+      if (cells.length === table.cells) change = table.change
+    } else {
+      const next = (lines[i + 1] ?? '').trim()
+      if (SEPARATOR_ROW.test(next) && tableCells(next).length === cells.length) {
+        table = { cells: cells.length, change: cells.findIndex(header => /^change$/i.test(header)) }
+        i++
+      }
     }
-    previous = cells
-    const first = cells[0] ?? ''
-    const cell = first.match(/`([^`]+)`/)?.[1] ?? first
-    if (!cell || /^-+$/.test(cell) || /^file$/i.test(cell) || /^</.test(cell)) continue
-    // A path, not prose. On a real corpus, cell 0 of neighbouring tables produced
-    // `(T3's two tests)`, `(compile)` and `! rg -iq 'MCP stdio' README.md`, every
-    // one reported as a governed path. A cell with a space in it is a sentence.
-    if (/\s/.test(cell) || !/[./\\]/.test(cell)) continue
-    // A row with more or fewer cells than its header cannot say which cell is its Change, so it keeps its path (the
-    // verification of 271a698b).
-    if (cells.length === headerCells && READ_ONLY_CHANGE.test((cells[changeColumn] ?? '').replace(/[*`_]/g, '').trim())) continue
-    paths.push(cell)
+    const path = rowPath(cells[0] ?? '')
+    if (path === null) continue
+    if (change >= 0 && READ_ONLY_CHANGE.test(cells[change].replace(/[*`_]/g, '').trim())) continue
+    paths.push(path)
   }
   return paths
 }

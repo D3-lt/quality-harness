@@ -1389,6 +1389,32 @@ test('a mutant that did not land, or landed twice, is refused instead of scored'
   assert.equal(readTask(copy).split('## Mutation Log')[1].trim(), '')
 })
 
+// ADR-107 T2: a writer refuses an edit that did nothing, and writes all its rows or none. `--from` equal to `--to` used
+// to "apply", run the fence on unchanged code and record a verdict about a mutation that never happened; and a task with a
+// Mutation Log but no Verification Log got its mutant row written before the clean run's row was refused.
+test('a mutant that changes nothing, or a task with nowhere for its clean run, is refused before anything is written', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  const target = join(copy, 'ADR-001-selftest.md')
+  const before = readFileSync(target, 'utf8')
+  const task = readTask(copy)
+  const same = verify(copy, ['--cwd', '.', '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Alternatives Considered', '--to', '## Alternatives Considered', '--why', 'probe'])
+  expectExit(same, 2, 'a mutant whose --to is its --from changes nothing')
+  assert.match(same.stdout + same.stderr, /MUTANT DID NOTHING/)
+  assert.equal(readFileSync(target, 'utf8'), before, 'the target is untouched')
+  assert.equal(readTask(copy), task, 'nothing is recorded')
+
+  writeTask(copy, readTask(copy).replace(/^## Verification Log\n[\s\S]*?(?=^## Mutation Log)/m, ''))
+  const noLog = readTask(copy)
+  assert.doesNotMatch(noLog, /^## Verification Log/m)
+  const half = mutate(copy)
+  expectExit(half, 2, 'a task with no Verification Log cannot take the clean run a mutant records')
+  assert.match(half.stdout + half.stderr, /no ## Verification Log section/)
+  assert.equal(readTask(copy), noLog, 'not even the Mutation Log row is written')
+  assert.equal(readFileSync(target, 'utf8'), before, 'the target is untouched')
+})
+
 test('a fence that never returns is UNRUN, and writes nothing', () => {
   // docs/BACKLOG.md §54. Only `sweep_corpus` had a timeout; the recording runs
   // did not, so three call sites carried two contracts — and because the run is

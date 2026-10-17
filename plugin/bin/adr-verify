@@ -1509,9 +1509,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # file had been mutated and the whole fence had run. Nothing was lost (the
     # restore is in a `finally`), but doing minutes of work to report a one-line
     # authoring error is the wrong order.
-    if not re.search(r"^## Mutation Log\s*$", text, re.M):
-        fail(f"{task.name}: no ## Mutation Log section — add one (see "
-             f"the bundled task-template.md) before recording mutants.")
+    # Both sections a mutant run writes to, read the way `append_entry` reads them (fence-aware): a mutant row written and
+    # then a clean run refused for want of a Verification Log left half the evidence on disk (ADR-107 T2).
+    for section in ("Mutation Log", "Verification Log"):
+        if section_span(text, section) is None:
+            fail(f"{task.name}: no ## {section} section — add one (see "
+                 f"the bundled task-template.md) before recording mutants.")
 
     cwd = Path(cwd).resolve()
     target = Path(rel) if looks_absolute(rel) else (cwd / rel)
@@ -1537,6 +1540,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     if n != 1:
         fail(f"MUTANT NOT UNIQUE: --from text appears {n} times in {rel}. "
              f"Extend it until it selects exactly the one site you mean.")
+    if frm == to:
+        fail(f"MUTANT DID NOTHING: --to is the same text as --from, so {rel} would be written unchanged. "
+             f"Nothing was run — a verdict about a mutation that never happened is not evidence (ADR-107 T2).")
 
     # A DIRECTIVE WEARS A COMMENT'S SYNTAX. `//go:build readcostspec` is lexically
     # a comment and semantically a build constraint: restoring it removes whole

@@ -1474,6 +1474,22 @@
       "from": "    unread = [(q, why) for q in walked for why in (special_file_problem(q),) if why]",
       "to": "    unread = []",
       "only": "^adr-verify --sweep names a task that is not a regular file$"
+    },
+    {
+      "label": "verify, ADR-107 T2: a mutant whose --to is its --from is refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    if frm == to:\n        fail(f\"MUTANT DID NOTHING",
+      "to": "    if False:\n        fail(f\"MUTANT DID NOTHING",
+      "only": "^a mutant that changes nothing, or a task with nowhere for its clean run, is refused before anything is written$"
+    },
+    {
+      "label": "verify, ADR-107 T2: a mutant run checks for the Verification Log before it writes",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "    for section in (\"Mutation Log\", \"Verification Log\"):",
+      "to": "    for section in (\"Mutation Log\",):",
+      "only": "^a mutant that changes nothing, or a task with nowhere for its clean run, is refused before anything is written$"
     }
   ]
 }

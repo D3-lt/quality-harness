@@ -74,6 +74,29 @@ fail-open that catalogue closed), the skills, the templates, and `scripts/` (rep
 the core spawns a detached process; a session that switches implementation loses a ledger row either could read; the
 Go binary is selected by anything other than `hooks.json`.
 
+## Amendment, 2026-10-17: Decision 4 is narrowed
+
+Accepted by the owner the same day ("yes amend"), after T1's builder found that Decision 4 contradicts ADR-080 and the
+owner asked whether the rules are damaging or helping.
+
+Decision 4 forbade every detached process on the strength of one benchmark pair lost to a `git status` that held
+`.git/index.lock` after a session ended. Two records each removed a measured wait by detaching work:
+- ADR-080: PreToolUse:Bash averaged 1.6-3.5 s and reached 45.6 s, and one commit waited 44.9 s, 43.3 s of it in the
+  artifact batch (two adopters' transcripts, 2026-10-01).
+- ADR-065: branch-state averaged 1,609 ms per prompt, max 7,462 ms, nearly all of it `gh` on the network (2026-09-26).
+
+Forbidding detachment brings both waits back. The harm Decision 4 was written against is now removed at its source: since
+b1a67b6d every read-only `git` the plugin runs sets `GIT_OPTIONAL_LOCKS=0`, so a background child takes no index lock.
+
+**Decision 4 now reads:** the core detaches work only where an accepted record measured the wait it removes (today ADR-080's
+artifact pass and ADR-065's refresh). Each such child runs under a deadline, takes the machine lease where the Node path
+does (ADR-077), is reaped at SessionEnd, and never holds a git lock. The core owns no daemon. "The core spawns a detached
+process" in **This fails if** becomes "the core spawns a detached process no record measured, or one that outlives its
+deadline or holds a git lock".
+
+What remains of detachment's cost is cleanup, and each part is bounded and filed: a test removing a directory while a
+child still writes there (BACKLOG §380), and a Windows kill that does not take a process's children (BACKLOG §381).
+
 ## Alternatives Considered
 
 - **(a) Rust.** The owner's stated preference. Not taken for this record: `mrw`'s grammar and ledger would need a second

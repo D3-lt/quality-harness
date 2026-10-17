@@ -66,7 +66,7 @@ go build -o "$(mktemp -d)/qh" ./cmd/qh \
 
 - No golden is re-recorded to match the binary; a mismatch is a port defect.
 - The Node path is byte-identical before and after this task (the goldens run against it too).
-- The binary starts no detached process (ADR-110, Decision 4); the refresh runs bounded or is skipped and said.
+- The binary starts no detached process except where ADR-110's amended Decision 4 allows one (ADR-080's artifact pass, ADR-065's refresh), each under a deadline, reaped at SessionEnd, and holding no git lock.
 - The ledger formats are unchanged; a row written by either implementation is read by both.
 
 ## Risks

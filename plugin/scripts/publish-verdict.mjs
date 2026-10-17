@@ -342,9 +342,10 @@ export function publishUnchecked(input, requested, env = process.env) {
   if (requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') return
   // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
   // evidence than advice). A command that merely mentions the words is warned.
+  const invoked = publishCommandIn(input.tool_input?.command)
   let verdict = publishVerdict({
     cwd: input.cwd, session: input.session_id, observation: requested.observation,
-    invoked: publishCommandIn(input.tool_input?.command),
+    invoked,
     commitOnly: commitOnlyCommand(input.tool_input?.command),
     stagesFirst: stagesBeforeCommit(input.tool_input?.command),
   })
@@ -387,9 +388,12 @@ export function publishUnchecked(input, requested, env = process.env) {
     }
   }
   // A denial has to happen on every attempt. Saying it once and then allowing
-  // the same command is the warning's dedupe applied to a refusal.
-  if (!verdict.deny && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === verdict.key)) return
-  queueAction({ rule: 'P', key: verdict.key, detail: verdict.detail, deny: verdict.deny, text: verdict.text })
+  // the same command is the warning's dedupe applied to a refusal. The dedupe key is the tree's, so it
+  // names what was said as well: a mention already told here must not silence the advice a refusal
+  // softened to (BACKLOG §381).
+  const key = invoked === null ? `${verdict.key}:mention` : verdict.key
+  if (!verdict.deny && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
+  queueAction({ rule: 'P', key, detail: verdict.detail, deny: verdict.deny, text: verdict.text })
 }
 
 // ADR-104 Decision 2: the git directory a path's repository keeps, as git resolves it, after

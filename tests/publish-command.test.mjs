@@ -1620,3 +1620,12 @@ test('a stand-in for the verb is never run by a sink body', { skip: FRESH_BASH ?
   // DIRTY twin: the rows that stay mentions can run it.
   for (const command of ["sh <<'EOF'\ngit push\nEOF", 'cat <<EOF | sh\n$(git push)\nEOF', "cat <<'EOF' | sh\ngit push\nEOF"]) assert.notEqual(run(command), '', command)
 })
+
+// ── The advisory dedupe keys on the tree, so what was said first must not silence what is said next ──
+test('a mention on a tree does not silence the advice a softened refusal gets there', () => {
+  const armed = armedSession('dedupe-kind-')
+  assert.match(armed.tell('echo push'), /only mentions commit or push/)
+  assert.match(armed.tell('git push'), /names commit or push/, 'advice for a publish is not the mention already said')
+  // The dedupe itself stays: the same publish, said again on this tree, is not repeated.
+  assert.equal(armed.tell('git push'), '')
+})

@@ -277,8 +277,14 @@
       "name": "echo \"git commit\"",
       "exit": 0,
       "signal": null,
-      "stdout": "",
-      "stderr": ""
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first."
+        },
+        "systemMessage": "quality-harness advised the agent: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push —… (full text in the transcript)"
+      },
+      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first."
     },
     {
       "name": "echo git push",
@@ -846,6 +852,18 @@
         "event": "action.emitted",
         "rule": "P",
         "key": "<sha>:<sha>:0",
+        "detail": {
+          "tree": "<sha>",
+          "revision": 0
+        },
+        "channel": "both",
+        "recipient": "main"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "P",
+        "key": "<sha>:<sha>:0:mention",
         "detail": {
           "tree": "<sha>",
           "revision": 0

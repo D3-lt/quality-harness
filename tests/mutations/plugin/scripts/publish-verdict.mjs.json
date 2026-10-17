@@ -615,6 +615,14 @@
       "from": "  const command = withoutSinkBodies(given)",
       "to": "  const command = given",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "§381 dedupe: a mention already told does not silence a publish's advice",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/publish-command.test.mjs"],
+      "from": "  const key = invoked === null ? `${verdict.key}:mention` : verdict.key",
+      "to": "  const key = verdict.key",
+      "only": "^a mention on a tree does not silence the advice a softened refusal gets there$"
     }
   ]
 }

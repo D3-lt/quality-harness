@@ -924,15 +924,21 @@ function tableCells(line) {
   if (text.startsWith('|')) cells.shift()
   return cells
 }
-// The path a row's first cell names, or null. A backticked cell with no space in it is a path as written, an extension
-// or not, a leading parenthesis included: `Dockerfile` was lost (the Codex review of the 3.8.40 plan), and so, for a
-// while, was `(data).json` (the Codex review of v3.8.39..1d991b64). One with a space is not, since on a real corpus
-// cell 0 of neighbouring tables held `! rg -iq 'MCP stdio' README.md`, and nothing here tells a command from a path
-// with a space in it (BACKLOG §381). An unticked cell must look like a path too: that corpus also produced
-// `(T3's two tests)` and `(compile)`, every one reported as a governed path, so an unticked `Makefile` is not read.
+// The path a row's first cell names, or null. A backticked cell with no space in it is a path as written, a leading
+// parenthesis included: `(data).json` was lost for a while (the Codex review of v3.8.39..1d991b64). A backticked name
+// with no `.` or separator is a path only when it is the whole cell: `Dockerfile` alone was lost (the Codex review of the
+// 3.8.40 plan), and an identifier in a sentence, ``catches `SomeError` from …``, was then read as a path, three phantom
+// paths on an outside corpus at 7f9aa041. One with a space is not a path, since on a real corpus cell 0 of
+// neighbouring tables held `! rg -iq 'MCP stdio' README.md`, and nothing here tells a command from a path with a space
+// in it (BACKLOG §381). An unticked cell must look like a path too: that corpus also produced `(T3's two tests)` and
+// `(compile)`, every one reported as a governed path, so an unticked `Makefile` is not read.
 function rowPath(first) {
-  const ticked = first.match(/`([^`]+)`/)?.[1].trim()
-  if (ticked !== undefined) return ticked && !/\s/.test(ticked) && !/^</.test(ticked) ? ticked : null
+  const span = first.match(/`([^`]+)`/)
+  const ticked = span?.[1].trim()
+  if (ticked !== undefined) {
+    if (!ticked || /\s/.test(ticked) || /^</.test(ticked)) return null
+    return /[./\\]/.test(ticked) || first === span[0] ? ticked : null
+  }
   if (!first || /^file$/i.test(first) || /^</.test(first) || /\s/.test(first) || !/[./\\]/.test(first)) return null
   return first
 }

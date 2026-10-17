@@ -223,6 +223,16 @@ test('a backticked first cell with no space is a path, an extension or not; an u
     ['(data).json', '(src)/a.js', 'Dockerfile', 'src/c.js'])
 })
 
+// A backticked name with no extension or separator is a path only when it is the whole cell. A prose cell naming an
+// identifier governed a phantom path in an outside corpus at 7f9aa041 (three of seven new entries); a twin with an
+// extension in the same prose keeps the 3.8.39 reading.
+test('a backticked name without an extension is a path only when it is the whole cell', () => {
+  const cells = ['`Makefile`', 'any call site that catches `SomeError` from `run`', '`other-repo` login screen',
+    'existing tests asserting old `field_name`', 'the loader in `src/load.js`']
+  assert.deepEqual(governedBy('whole-cell', AFFECTED + '| File | Change |\n|---|---|\n' + cells.map(cell => `| ${cell} | edit |\n`).join('')),
+    ['Makefile', 'src/load.js'])
+})
+
 test('corpus-report counts a record named in lower case', () => {
   const entry = name => ({ name, isFile: () => true })
   assert.equal(recordCount('x', () => [entry('ADR-001-a.md'), entry('adr-002-b.md'), entry('notes.md')]), 2)

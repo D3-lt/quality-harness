@@ -17,8 +17,8 @@ that could not run their tests: no `qh-check` passed in 54 plugin attempts, and 
 calls). So the plugin's two claimed mechanisms, catching an unverified or regressing change and planning work through
 specs, records and tasks, were both out of reach. The bench peer (tool-multipathreadwrite, 2026-10-18) can run instances
 inside their swebench containers through command shims, so a check can pass on the unmodified tree; it needs its own ADR,
-a pilot, the end of Stage 5 and the owner's word on the price (its estimate, unmeasured: 240 attempts, 25–40 machine
-hours, a quarter of a week's usage limit).
+a pilot, the end of Stage 5 and the owner's word on the price (its estimate for one block of 40 per model and three arms,
+unmeasured: 240 attempts, 25–40 machine hours, a quarter of a week's usage limit; Decision 5 may need several blocks).
 
 This record pre-registers that stage and what its result decides, before any of its rows exist.
 
@@ -35,29 +35,51 @@ This record pre-registers that stage and what its result decides, before any of 
 1. **Arms, one configuration each, per model (Sonnet 5.5 and Opus 5.5, never pooled):** A, the plain session; P, A plus
    this plugin at the first tag that carries ADR-111; W, P plus one prompt line asking the agent to run
    `/quality-harness:work` before anything else. k = 1. Every arm runs in the instance's container through the bench's
-   shims, with the same `.quality-harness.json` written before the base commit, whose `check` is the repository's own
-   runner over the test files the base commit already has, never a scope derived from FAIL_TO_PASS, PASS_TO_PASS or the
-   test patch.
-2. **Instances:** the pilot verifies that each candidate's check passes on its unmodified tree; one that does not is
-   dropped, and the record says how many and which rule dropped them (never which ids, CLAUDE.md §6). The scored set is
-   one block of 40 per model from the pool that survives, pre-registered as a list digest.
-3. **Endpoints, per pair (P against A, W against A):** primary, false-completion incidence (ADR-106 Decision 5); co-primary,
-   broken-tests incidence (the oracle's `broke_tests`: a PASS_TO_PASS test that passed before the patch fails after it);
-   guards as ADR-106 Decision 6. Level: one-sided p < 0.0125 for each primary, the Bonferroni level of two endpoints by two
-   arms, read once per model.
-4. **What a pair shows:** PAYS when either primary is SHOWN (mean paired difference below zero at that level) and neither
-   guard is GUARD NOT MET; otherwise ADR-106's words.
-5. **The kill criterion, pre-registered.** If no pair on either model PAYS, a new record shrinks the always-on hooks to what
-   costs nothing on an ordinary turn (the publish refusal of ADR-061 and the reviewer guard of ADR-060, which are
-   sanctioned refusals, stay), ADR-111 is withdrawn or reverted, and the lifecycle stays opt-in skills. If W PAYS and P does
-   not, the lifecycle earns a way to be invoked by default, decided in a new record. If P PAYS, ADR-110's port resumes with
-   the proven rules.
-6. **What is committed:** as ADR-106 Decision 8's exception: one verdict file per model and pair, aggregates only; and
+   shims, with the same `.quality-harness.json` written before the base commit. Its `check` comes from the repository
+   alone, never from FAIL_TO_PASS, PASS_TO_PASS or the test patch, in one of two forms the pilot chooses by a rule fixed
+   here: the repository's whole runner when, over the pilot's instances, it is green on the unmodified tree for at least
+   80% of them and its median wall time under emulation is at most a quarter of the attempt budget; otherwise a check
+   scoped from the paths the agent changes, which ADR-111 defers, so the stage then waits for that scope and is
+   pre-registered again.
+2. **The pool and the instances:** the source pool is tool-multipathreadwrite ADR-162's 191 instances, taken in their
+   order and excluding ADR-106's pilot. An instance whose chosen check is not green on its unmodified tree is dropped; the
+   record says how many and by which rule, never which (CLAUDE.md §6). The pre-registration carries the surviving list's
+   digest. Opus recalled hidden test names on 19 of block 1's instances, so every verdict is reported beside the
+   pair-symmetric recall sensitivity row ADR-106 T3 used (an instance is dropped from both arms of a pair when either arm's
+   attempt on that model recalled); that row never decides.
+3. **The attempt budget is pre-registered:** the same wall-time and turn caps for every arm, set from the pilot by a rule
+   fixed here: three times W's median pilot wall time and turns, and never below Stage 5's 1200 s and 60 turns. A run that
+   reaches either cap is `limit` and counts against its arm as an unresolved run with no done claim (ADR-106 Decision 4).
+4. **Endpoints, per pair (P against A, W against A):** co-primaries false-completion incidence (ADR-106 Decision 5) and
+   broken-tests incidence (the harness's `broke_tests`: a PASS_TO_PASS test that passed before the patch fails after it);
+   guards as ADR-106 Decision 6.
+5. **Blocks and looks, because one block cannot show anything.** Block 1's base rates per 40 were false completion 6
+   (Opus A) and 5 (Sonnet A), broken tests 2 and 6. With k = 1 the exact sign-flip p when every discordant pair favours
+   the plugin is 0.5 to the number of pairs, so six false completions removed entirely give 0.0156, and two broken tests
+   can never be shown: a single block's absence of an effect is the test's lack of power, not the plugin's. So the stage
+   runs blocks of 40 in pool order, with a look after each, up to the surviving pool. At each look, per pair and model:
+   - **PAYS** when either co-primary's mean paired difference is below zero at one-sided p < 0.0125 / L_max (two
+     endpoints by two arms, Bonferroni over the planned looks, L_max the surviving pool's block count) and neither guard
+     is GUARD NOT MET;
+   - **FUTILE** when, for both co-primaries, the 95th percentile of a seeded paired bootstrap of the improvement (A minus
+     the arm) is below the useful effect: 0.05 for false completion and 0.03 for broken tests, fixed here;
+   - otherwise open. A pair that is PAYS or FUTILE stops; the stage ends when every pair has stopped or the pool is spent,
+     and a pair still open then is INCONCLUSIVE.
+6. **What the verdicts decide, pre-registered.**
+   - Every pair on both models FUTILE: a new record shrinks the always-on hooks to what costs nothing on an ordinary turn
+     (the sanctioned refusals of ADR-061 and ADR-060 stay), ADR-111 is withdrawn or reverted, and the lifecycle stays
+     opt-in skills.
+   - W PAYS on a model and P does not: the lifecycle earns a way to be invoked by default, decided in a new record.
+   - P PAYS on a model: ADR-110's port resumes with the proven rules.
+   - Anything else, including INCONCLUSIVE: no automatic consequence; the owner decides with the verdicts in hand. Absence
+     of PAYS alone never shrinks anything.
+7. **What is committed:** as ADR-106 Decision 8's exception: one verdict file per model and pair, aggregates only; and
    `docs/BENCHMARKS.md` quotes each verdict with its configuration and date.
 
-**This fails if** the scorer can return PAYS on an incomplete or mismatched configuration, on a pair whose broken-tests
-endpoint was computed from a scope the dataset chose, or without a pre-registration committed before the stage's first
-counted attempt. Data that could make the kill criterion fire exists only once the stage runs.
+**This fails if** the scorer can return PAYS or FUTILE on an incomplete or mismatched configuration, or without a
+pre-registration committed before the stage's first counted attempt; if the declared check's scope is derived from
+anything the dataset chose about the instance's tests; or if a consequence in Decision 6 is taken on a verdict other than
+the one it names. Data that could produce any verdict exists only once the stage runs.
 
 ## Alternatives Considered
 
@@ -76,7 +98,7 @@ ADR. This repository has no architecture document.
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `eval-paired.mjs` output and `--verdict-out` keys | a broken-tests endpoint with its permutation p and bootstrap percentiles, and the word PAYS | T1 | T3, `docs/BENCHMARKS.md` |
+| `eval-paired.mjs` output and `--verdict-out` keys | a broken-tests endpoint with its permutation p and bootstrap percentiles, and the words PAYS and FUTILE at a look | T1 | T3, `docs/BENCHMARKS.md` |
 | `prereg-<pair>-<model>.json` | four new pre-registrations | T2 | T3 |
 
 ## Inter-task Contracts
@@ -93,7 +115,9 @@ See `tasks/README.md`.
 ## Consequences
 
 - **Positive:** the plugin is measured where its mechanism can work, and the result decides its scope in advance.
-- **Negative:** a quarter of a week's usage limit and 25–40 machine hours (the peer's estimate, unmeasured).
+- **Negative:** about a quarter of a week's usage limit and 25–40 machine hours per block (the peer's estimate,
+  unmeasured), up to the surviving pool's block count when a pair stays open; the owner approves the price for the whole
+  pool.
 - **Neutral:** these numbers are not comparable with Stage 5's, since A also gains runnable tests.
 
 ## Out of Scope
@@ -106,8 +130,9 @@ See `tasks/README.md`.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| W hits the turn or time cap on one-shot fixes | Med | Med | the bench records `limit` as a result; the pilot measures it before n is fixed |
-| Few instances have a green baseline | Med | High | the pilot counts them; a pool below 40 per model is reported and the stage waits for the owner |
+| W hits the turn or time cap on one-shot fixes | Med | Med | Decision 3 sets the caps from the pilot and counts `limit` against the arm |
+| The whole-suite check selects for small, clean suites | Med | High | Decision 1's rule: below 80% green or over a quarter of the budget, the stage waits for a scoped check |
+| The stage runs the whole pool before every pair stops | Med | High | the owner approves the price for the whole pool, not one block |
 | Emulated containers make attempts slow | High | Med | the pilot's timing goes to the owner before the price is approved |
 
 ## Rollback

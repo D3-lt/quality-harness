@@ -19,13 +19,13 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The scorer reads broken tests as an endpoint, and says PAYS | pending | none — no spec | `node --test tests/eval-paired.test.mjs` (each named test passes once, nothing skipped) |
+| T1 | The scorer reads broken tests as an endpoint, and says PAYS or FUTILE at a look | pending | none — no spec | `node --test tests/eval-paired.test.mjs` (each named test passes once, nothing skipped) |
 | T2 | The pilot verifies green baselines, and the pre-registrations are committed | pending | none — no spec | human-observed: the pilot's sign-off line |
-| T3 | The main run, its verdict and what the kill criterion decides | pending | none — no spec | human-observed: the main run's sign-off line |
+| T3 | The stage's looks, its verdicts and what they decide | pending | none — no spec | human-observed: the main run's sign-off line |
 
 ## Contract Coupling
 
 | Producer | Contract | Consumer(s) | Ordering note |
 |----------|----------|-------------|---------------|
-| T1 | the broken-tests endpoint and PAYS | T2, T3 | T1 before T2 |
+| T1 | the broken-tests endpoint, PAYS and FUTILE at a look | T2, T3 | T1 before T2 |
 | T2 | `prereg-<pair>-<model>.json` | T3 | T2 before T3 |

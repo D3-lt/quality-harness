@@ -13,8 +13,8 @@
 ## Goal
 
 The pilot shows which candidate instances have a check green on the unmodified tree and what an attempt costs per arm;
-then one pre-registration per pair and model is committed before the stage's first counted attempt (ADR-112, Decisions 1
-to 3).
+then one pre-registration per pair and model is committed before the stage's first counted attempt, carrying the check's
+form, the attempt budget and the surviving list's digest that Decisions 1 to 3 fix by rule (ADR-112, Decisions 1 to 5).
 
 ## Affected Files
 

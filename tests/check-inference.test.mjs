@@ -41,4 +41,6 @@ test('a manifest that does not configure pytest infers nothing from these rungs'
   assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\ndescription = """\n[tool.pytest.ini_options]\n"""\n' }), none, 'inside a TOML multi-line string')
   assert.deepEqual(inferredIn({ 'pyproject.toml': "[project]\nreadme = '''\n[tool.pytest.ini_options]\n'''\n" }), none, 'inside a TOML literal multi-line string')
   assert.deepEqual(inferredIn({ 'setup.cfg': '[metadata]\nlong_description =\n    [tool:pytest]\n' }), none, 'an indented INI continuation value')
+  // The Claude-host review of the lexer: an escaped quote before two quotes does not close a multi-line basic string.
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\nx = """\na \\""" still inside\n[tool.pytest.ini_options]\n"""\n' }), none, 'an escaped quote inside a multi-line basic string')
 })

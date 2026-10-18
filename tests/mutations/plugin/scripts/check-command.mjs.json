@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §383: an escaped quote does not close a multi-line basic string",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
+      "from": "          if (open === '\"\"\"' && line[scan] === '\\\\') { scan += 1; continue }",
+      "to": "          if (false) { scan += 1; continue }",
+      "only": "^(?:a manifest that does not configure pytest infers nothing from these rungs)$"
+    },
+    {
       "label": "Codex verification: a TOML comment opens no multi-line string",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [

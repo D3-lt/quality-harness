@@ -61,7 +61,12 @@ function opensSection(text, header, syntax) {
     let at = 0
     while (at < line.length) {
       if (open !== null) {
-        const end = line.indexOf(open, at)
+        // A basic multi-line string honours escapes, so \""" is an escaped quote and two more, not its close.
+        let end = -1
+        for (let scan = at; scan <= line.length - 3; scan += 1) {
+          if (open === '"""' && line[scan] === '\\') { scan += 1; continue }
+          if (line.startsWith(open, scan)) { end = scan; break }
+        }
         if (end < 0) break
         open = null
         at = end + 3

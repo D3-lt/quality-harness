@@ -481,7 +481,7 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false, checkEvent = null, baselineVerdict = null } = {}) {
+function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false, checkEvent = null, baselineVerdict = null, treeMoved = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
@@ -507,7 +507,10 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
     : orderUnknown
       ? 'which check ran last on this turn\'s work could not be established, so it is not known to be checked.'
       : couldNotLook
-        ? couldNotStartOpening(checkEvent)
+        // BACKLOG §383: a run the tree changed under is not one that could not start, so it is asked for again.
+        ? (treeMoved
+          ? 'the latest `qh-check` on this turn\'s work proves nothing about it: the tree changed while it ran (its trees before and after differ), so run it again once the tree holds still.'
+          : couldNotStartOpening(checkEvent))
       : checkEvent === 'check.failed'
         // ADR-111 T2: a red check said as "no qh-check has passed" read like no check at all, and two Stage 5 attempts
         // ended done after one.
@@ -521,7 +524,7 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
         : 'this turn ends on an unchecked tree.'
   // ADR-108 T1: a check that could not start is reported, not asked for again, so the sentence that asks for `qh-check` is not said.
   return `quality-harness: ${opening} ${listed}`
-    + `${unseenPathNote(outside)}${couldNotLook && COULD_NOT_START[checkEvent] ? '' : ` ${sentence}`}`
+    + `${unseenPathNote(outside)}${couldNotLook && COULD_NOT_START[checkEvent] && !treeMoved ? '' : ` ${sentence}`}`
 }
 
 // ADR-111 T2: what a turn end says where no check is declared or inferred and the tree changed. It names no path: the
@@ -736,7 +739,8 @@ export function completionJudgement(facts, input) {
       const latest = observation?.ok === true ? latestCheckFor(log, observation.tree) : null
       const attributable = latest?.event === 'check.failed' && latest.command === check
         && latest.before?.tree === observation.tree && latest.after?.tree === observation.tree
-      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: latest?.event ?? null, baselineVerdict: attributable ? facts.baselineVerdict ?? null : null }) })
+      const treeMoved = typeof latest?.before?.tree === 'string' && typeof latest?.after?.tree === 'string' && latest.before.tree !== latest.after.tree
+      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: latest?.event ?? null, baselineVerdict: attributable ? facts.baselineVerdict ?? null : null, treeMoved }) })
     }
   }
   const unchecked = commits.filter(commit => {

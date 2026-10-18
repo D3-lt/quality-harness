@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §383: a run the tree moved under is told apart from one that could not start",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "      const treeMoved = typeof latest?.before?.tree === 'string' && typeof latest?.after?.tree === 'string' && latest.before.tree !== latest.after.tree",
+      "to": "      const treeMoved = false",
+      "only": "^(?:a check the tree moved under is to be run again, not reported as could-not-start)$"
+    },
+    {
+      "label": "BACKLOG §383: a run the tree moved under is asked for again",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/adr-108.test.mjs"
+      ],
+      "from": "couldNotLook && COULD_NOT_START[checkEvent] && !treeMoved ? '' :",
+      "to": "couldNotLook && COULD_NOT_START[checkEvent] ? '' :",
+      "only": "^(?:a check the tree moved under is to be run again, not reported as could-not-start)$"
+    },
+    {
       "label": "Codex v3.8.44 review: a committed change is a change",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -632,7 +652,7 @@
       "tests": [
         "tests/adr-108.test.mjs"
       ],
-      "from": "${couldNotLook && COULD_NOT_START[checkEvent] ? '' :",
+      "from": "${couldNotLook && COULD_NOT_START[checkEvent] && !treeMoved ? '' :",
       "to": "${false ? '' :",
       "only": "^a check that could not start is reported once as evidence-limited, not run again$"
     },

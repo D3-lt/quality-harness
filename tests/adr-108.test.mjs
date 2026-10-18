@@ -129,3 +129,13 @@ test('a write the observed tree cannot contain is never named unchanged, and a n
   runHook(box, nested, 's3', edit(path.join(nested, 'vendor', '.git', 'config')))
   assert.doesNotMatch(said(runHook(box, nested, 's3', stop)), new RegExp(W), 'a write under a nested .git is not named')
 })
+
+// BACKLOG §383 (2026-10-18): a full check passed while this session committed beside it, so its trees before and after
+// differed and it read as unproven, and the turn end said "do not run it again on this tree". A run the tree moved under is
+// not one that could not start: it is to be run again once the tree holds still.
+test('a check the tree moved under is to be run again, not reported as could-not-start', { skip }, t => {
+  const said = turnEnd(t, 'sh -c "echo x >> src/moved.js"')
+  assert.match(said, /the tree changed while it ran/)
+  assert.match(said, /Run `qh-check`/, 'it is asked to run the check again')
+  assert.doesNotMatch(said, /do not run it again|EVIDENCE-LIMITED/, 'it is not told to stop checking')
+})

@@ -290,6 +290,14 @@ test('a mention of push before the turn end does not silence it, and a real publ
   const publish = turn('commit', 'git commit -am x')
   assert.match(publish.before, /names commit or push/, 'a real commit is advised on this tree')
   assert.equal(publish.end, '', 'the turn end does not repeat what the publish advice said (ADR-060)')
+  // A commit into a repository the command creates, and one into another repository, are advised with the same condition.
+  const fresh = turn('fresh', 'R=$(mktemp -d) && cd "$R" && git init -q && git add -A && git commit -m x')
+  assert.match(fresh.before, /repository the same command creates/, 'the fresh-repository advice is given')
+  assert.match(fresh.end, /Changed paths: src\/a\.js/, 'a fresh-repository advice does not silence the turn end')
+  const other = fixtureRepo(box, 'other', BASE)
+  const foreign = turn('foreign', `git -C ${other} commit -am x`)
+  assert.match(foreign.before, /another repository is advised/, 'the other-repository advice is given')
+  assert.match(foreign.end, /Changed paths: src\/a\.js/, 'an other-repository advice does not silence the turn end')
 })
 
 // Declared last on purpose: node:test runs one file's tests in order, so this reads what every scenario above sent. Run alone

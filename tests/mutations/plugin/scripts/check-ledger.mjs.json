@@ -11,10 +11,10 @@
     {
       "label": "Stage 5 dedupe: a commit into a fresh or another repository names this tree",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/completion-judgement.test.mjs"],
+      "tests": ["tests/completion-judgement.test.mjs", "tests/hook-goldens.test.mjs"],
       "from": "const ABOUT_ANOTHER_PUBLISH = /:(?:mention|fresh|foreign)$/",
       "to": "const ABOUT_ANOTHER_PUBLISH = /:(?:mention)$/",
-      "only": "^(?:turn end: a publish advice about a mention, a fresh repository or another repository does not stand for this tree)$"
+      "only": "^(?:turn end: a publish advice about a mention, a fresh repository or another repository does not stand for this tree|a mention of push before the turn end does not silence it, and a real publish advice still does)$"
     },
     {
       "label": "ADR-103 T3: a row written after this run is not its history",

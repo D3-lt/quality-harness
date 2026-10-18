@@ -19,6 +19,14 @@ function inferredIn(files) {
 test('pytest configured in pyproject.toml or setup.cfg is inferred', () => {
   assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\nname = "x"\n\n[tool.pytest.ini_options]\naddopts = "-q"\n' }), { command: 'pytest', origin: 'inferred' })
   assert.deepEqual(inferredIn({ 'setup.cfg': '[metadata]\nname = x\n\n[tool:pytest]\ntestpaths = tests\n', 'setup.py': 'from setuptools import setup\nsetup()\n' }), { command: 'pytest', origin: 'inferred' })
+  // Codex verification review: a delimiter inside a comment or an ordinary string opens no multi-line string, so the header
+  // after it is still read.
+  const pytest = { command: 'pytest', origin: 'inferred' }
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '# an example delimiter """\n[tool.pytest.ini_options]\n' }), pytest, 'a delimiter in a comment')
+  assert.deepEqual(inferredIn({ 'pyproject.toml': "[project]\nnote = 'has \"\"\" inside'\n[tool.pytest.ini_options]\n" }), pytest, 'a delimiter in a literal string')
+  assert.deepEqual(inferredIn({ 'pyproject.toml': "[project]\nnote = \"has ''' inside\"\n[tool.pytest.ini_options]\n" }), pytest, 'a literal delimiter in a basic string')
+  assert.deepEqual(inferredIn({ 'pyproject.toml': "[project]\nnote = \"a \\\" ''' b\"\n[tool.pytest.ini_options]\n" }), pytest, 'a delimiter after an escaped quote in a basic string')
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\ndescription = """one line"""\n[tool.pytest.ini_options]\n' }), pytest, 'a multi-line string closed on its own line')
 })
 
 test('a manifest that does not configure pytest infers nothing from these rungs', () => {

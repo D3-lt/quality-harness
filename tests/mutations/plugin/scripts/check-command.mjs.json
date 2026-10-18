@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "Codex verification: a TOML comment opens no multi-line string",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
+      "from": "      } else if (line[at] === '#') {",
+      "to": "      } else if (false) {",
+      "only": "^(?:pytest configured in pyproject\\.toml or setup\\.cfg is inferred)$"
+    },
+    {
+      "label": "Codex verification: a TOML literal string opens no multi-line string",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
+      "from": "      } else if (line[at] === \"'\") {",
+      "to": "      } else if (false) {",
+      "only": "^(?:pytest configured in pyproject\\.toml or setup\\.cfg is inferred)$"
+    },
+    {
+      "label": "Codex verification: a TOML basic string opens no multi-line string",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
+      "from": "      } else if (line[at] === '\"') {",
+      "to": "      } else if (false) {",
+      "only": "^(?:pytest configured in pyproject\\.toml or setup\\.cfg is inferred)$"
+    },
+    {
+      "label": "Codex verification: an escaped quote does not end a TOML basic string",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
+      "from": "        while (at < line.length && line[at] !== '\"') at += line[at] === '\\\\' ? 2 : 1",
+      "to": "        while (at < line.length && line[at] !== '\"') at += 1",
+      "only": "^(?:pytest configured in pyproject\\.toml or setup\\.cfg is inferred)$"
+    },
+    {
       "label": "Codex v3.8.44 review: a TOML multi-line string holds no section",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [

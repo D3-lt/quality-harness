@@ -49,16 +49,37 @@ const PYTEST_SECTIONS = [
   ['pyproject.toml', /^[ \t]*\[tool\.pytest\.ini_options\][ \t]*(?:#.*)?$/, 'toml'],
   ['setup.cfg', /^\[tool:pytest\][ \t]*(?:[#;].*)?$/, 'ini'],
 ]
-// Whether a line outside every TOML multi-line string is the header. A delimiter counts once per occurrence, and one kind
-// is ignored while the other is open.
+// Whether a line outside every TOML multi-line string is the header. Each line is lexed as TOML lexes it: a `#` outside a
+// string ends the line, a single-line basic or literal string is skipped whole (escapes in a basic one too), and only a
+// delimiter seen outside both opens a multi-line string, which ends at the same delimiter (Codex verification review: a
+// `"""` in a comment or an ordinary string hid a real header after it).
 function opensSection(text, header, syntax) {
   if (syntax !== 'toml') return text.split(/\r?\n/).some(line => header.test(line))
   let open = null
   for (const line of text.split(/\r?\n/)) {
     if (open === null && header.test(line)) return true
-    for (const delimiter of line.match(/"""|'''/g) ?? []) {
-      if (open === null) open = delimiter
-      else if (open === delimiter) open = null
+    let at = 0
+    while (at < line.length) {
+      if (open !== null) {
+        const end = line.indexOf(open, at)
+        if (end < 0) break
+        open = null
+        at = end + 3
+      } else if (line.startsWith('"""', at) || line.startsWith("'''", at)) {
+        open = line.slice(at, at + 3)
+        at += 3
+      } else if (line[at] === '#') {
+        break
+      } else if (line[at] === '"') {
+        at += 1
+        while (at < line.length && line[at] !== '"') at += line[at] === '\\' ? 2 : 1
+        at += 1
+      } else if (line[at] === "'") {
+        const end = line.indexOf("'", at + 1)
+        at = end < 0 ? line.length : end + 1
+      } else {
+        at += 1
+      }
     }
   }
   return false

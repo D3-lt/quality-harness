@@ -9,6 +9,32 @@ import { appendEvent, readEvents } from './event-log.mjs'
 import path from 'node:path'
 import { logIncomplete } from './check-ledger.mjs'
 import { emitJson } from './hook-queue.mjs'
+import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { checkCommandOrigin } from './check-command.mjs'
+
+// ADR-111 T3: the project's check on the tree this session began with, started detached so no hook waits on it (ADR-080),
+// and written to its own ledger by `qh-check --baseline`. Startup only, and only where a check is named. The tree is the one
+// recorded when the session started. QUALITY_HARNESS_BASELINE_RUNNER=off turns it off, and a path stands in for qh-check.
+function startBaseline(input) {
+  const setting = process.env.QUALITY_HARNESS_BASELINE_RUNNER
+  if (setting === 'off') return
+  const started = readEvents(input.cwd, input.session_id).find(entry => entry.event === 'session.started')
+  const tree = started?.observation?.ok === true ? started.observation.tree : null
+  if (typeof tree !== 'string') return
+  const { command, origin } = checkCommandOrigin(input.cwd ?? process.cwd())
+  if (!command || origin === 'refused' || origin === 'unproven') return
+  const runner = setting || fileURLToPath(new URL('./qh-check.mjs', import.meta.url))
+  try {
+    // untimed-spawn: detached on purpose — qh-check bounds its own run (QUALITY_HARNESS_CHECK_TIMEOUT)
+    const child = spawn(process.execPath, [runner, '--baseline', tree], {
+      cwd: path.resolve(input.cwd ?? process.cwd()), detached: true, stdio: 'ignore', windowsHide: true,
+    })
+    // Before any return: a spawn that fails emits `error` later, and unheard it is an uncaught exception in the hook.
+    child.on('error', () => {})
+    child.unref()
+  } catch { /* a baseline that cannot start costs the session nothing but the baseline */ }
+}
 
 const ARMING_NOTE = "quality-harness: git's own refusal of an unchecked commit or push has not run yet in this "
   + 'session: it takes effect from the next prompt, and until then the text refusal applies (ADR-068).'
@@ -78,6 +104,7 @@ export function onSessionStart(input, recorded) {
     else if (!tied && note) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
       + 'so what was unverified before it is unknown here (ADR-005).')
   } else if (input.source === 'startup' || input.source === undefined) {
+    startBaseline(input)
     const previous = previousSessionNotice(input.cwd)
     if (previous) sections.push(previous)
   }

@@ -15,7 +15,7 @@ import { isMainModule } from './main-module.mjs'
 import { firstMentionHere } from './session-notes.mjs'
 import { projectConfigProblem, proseSpecs } from './project-config.mjs'
 import { checkCommandOrigin, fastCheckCommand } from './check-command.mjs'
-import { checkEventName, latestFastPass, passedAlready, slowRunLineAfter } from './check-ledger.mjs'
+import { baselineFor, checkEventName, latestFastPass, passedAlready, slowRunLineAfter } from './check-ledger.mjs'
 import { observe, observeBudgetMs } from './tree-facts.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
@@ -24,7 +24,7 @@ import { PROSE_HINT, onlyTextChangedSince, previousPassHead, proseHintMs } from 
 import { fastCheckHint } from './fast-check-hint.mjs'
 import { checkTimeoutMs, runLaunched } from './check-child.mjs'
 import { takeTurn } from './check-lease.mjs'
-import { classifyRun, recordRun, recordSkip, reuseByProse, runRecord } from './check-record.mjs'
+import { classifyRun, recordBaseline, recordRun, recordSkip, reuseByProse, runRecord } from './check-record.mjs'
 import { once } from './lazily.mjs'
 
 const KEEP_BYTES = 64 * 1024
@@ -107,6 +107,39 @@ export function checkPlan(facts, { fast, again, env }) {
   return { command, origin, prose, notes: prose.problem ? [`qh-check: ${prose.problem}\n`] : [], already: rerun ? null : facts.passed() }
 }
 
+// The load option as handed in (ADR-075 T1): a pass taken on a saturated machine is not attributable, and the record says so
+// without changing the exit or the verdict. An option passed is used as given, so a 0 or a NaN is read as invalid, not
+// replaced by the host's.
+const loadOptions = (loadavg, cores) => ({ ...(loadavg !== undefined ? { loadavg } : {}), ...(cores !== undefined ? { cores } : {}) })
+
+// The last KEEP_BYTES of the check's output, for the verdict: a test runner prints its summary at the end.
+function tailKeeper() {
+  let kept = Buffer.alloc(0)
+  return {
+    keep: chunk => {
+      kept = Buffer.concat([kept, chunk])
+      if (kept.length > KEEP_BYTES) kept = kept.subarray(kept.length - KEEP_BYTES)
+    },
+    kept: () => kept,
+  }
+}
+
+// The run itself, shared by a check and a baseline. Released after runLaunched returns, not on the signal: a check still
+// closing keeps its lease. A launch that could not be built did not start.
+async function runReleasing({ launch, run, held, leaseStep, lease, look }) {
+  let ran
+  let besideAtEnd = null
+  try {
+    ran = launch
+      ? await runLaunched(launch, run)
+      : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
+    besideAtEnd = look ? look() : null
+  } finally {
+    if (held) leaseStep('release', () => lease.release(held))
+  }
+  return { ...ran, besideAtEnd }
+}
+
 export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule, beforeReuse = () => {} } = {}) {
   const facts = checkFacts({ cwd, env, fast })
   const plan = checkPlan(facts, { fast, again, env })
@@ -132,29 +165,17 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   // The load at both ends of the check (ADR-075 T1): a pass taken on a saturated machine is
   // not attributable, and the record says so without changing the exit or the verdict.
   // An option passed is used as given, so a 0 or a NaN is read as invalid, not replaced by the host's.
-  const load = { ...(loadavg !== undefined ? { loadavg } : {}), ...(cores !== undefined ? { cores } : {}) }
+  const load = loadOptions(loadavg, cores)
   const loadAtStart = sampleLoad(load)
   // The previous full pass's HEAD, read before this run's own row exists: the hint compares against it.
   const previousHead = !fast && git === true && prose.specs.length === 0 ? previousPassHead(root, command) : null
   const before = { ...observeNow(), at: startedAt, load: loadAtStart.load }
-  let kept = Buffer.alloc(0)
-  const keep = chunk => {
-    kept = Buffer.concat([kept, chunk])
-    if (kept.length > KEEP_BYTES) kept = kept.subarray(kept.length - KEEP_BYTES)
-  }
-  const launch = checkLaunch(command, platform, env)
-  // Released after runLaunched returns, not on the signal: a check still closing keeps its lease.
-  let ran
-  let besideAtEnd = null
-  try {
-    ran = launch
-      ? await runLaunched(launch, { root, env, platform, timeoutMs: checkTimeoutMs(env), stdout, stderr, keep })
-      : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
-    besideAtEnd = look()
-  } finally {
-    if (held) leaseStep('release', () => lease.release(held))
-  }
-  const { ended, received } = ran
+  const tail = tailKeeper()
+  const { ended, received, besideAtEnd } = await runReleasing({
+    launch: checkLaunch(command, platform, env), run: { root, env, platform, timeoutMs: checkTimeoutMs(env), stdout, stderr, keep: tail.keep },
+    held, leaseStep, lease, look,
+  })
+  const kept = tail.kept()
   for (const line of besideAtEnd ? lease.besideLines(besideAtEnd) : []) stderr.write(`qh-check: at its end, ${line}\n`)
   const after = { ...observeNow(), at: new Date().toISOString(), load: sampleLoad(load).load }
   const { signal, exit, verdict } = classifyRun({ ended, received, kept, command })
@@ -184,6 +205,48 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     return 127
   }
   return exit ?? 1
+}
+
+// ADR-111 T3: the project's check on the tree the session began with, kept in baseline.jsonl and read by the turn end alone
+// (Decision 1's correction). It runs in the repository as any check does and binds its verdict to `tree` only when the tree
+// before and after the run are that tree; a run the agent's edits overlapped is kept unbound and says nothing. It never reads
+// or writes checks.jsonl, so it cannot stand in for a pass, and it does not wait for the machine lease: a busy machine
+// leaves no baseline, which says nothing.
+export async function runBaseline({ tree, cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, lease = leaseModule } = {}) {
+  const facts = checkFacts({ cwd, env, fast: false })
+  const { root, git } = facts
+  const { command, origin } = facts.named()
+  if (git !== true || !command || origin === 'refused' || origin === 'unproven' || facts.configProblem()) {
+    stderr.write('qh-check: no baseline: this repository names no check that can run here.\n')
+    return 2
+  }
+  if (baselineFor(root, tree, command)) {
+    stderr.write(`qh-check: a baseline of \`${command}\` on ${tree.slice(0, 12)} is already kept.\n`)
+    return 0
+  }
+  const admission = await takeTurn({ lease, env, wait: false, command, root, stderr })
+  if (admission.code !== undefined) return admission.code
+  const { held, leaseStep, waitedMs } = admission
+  const load = loadOptions(loadavg, cores)
+  const loadAtStart = sampleLoad(load)
+  const startedAt = new Date().toISOString()
+  const before = { ...observe(root), at: startedAt, load: loadAtStart.load }
+  const tail = tailKeeper()
+  const ran = await runReleasing({
+    launch: checkLaunch(command, platform, env), run: { root, env, platform, timeoutMs: checkTimeoutMs(env), stdout, stderr, keep: tail.keep },
+    held, leaseStep, lease, look: null,
+  })
+  const kept = tail.kept()
+  const after = { ...observe(root), at: new Date().toISOString(), load: sampleLoad(load).load }
+  const { signal, exit, verdict } = classifyRun({ ended: ran.ended, received: ran.received, kept, command })
+  const bound = before.ok === true && after.ok === true && before.tree === tree && after.tree === tree
+  const record = {
+    ...runRecord({ id: randomUUID(), git, command, origin, before, after, run: { exit, signal, verdict }, cores: loadAtStart.cores,
+      contended: contention(before.load, after.load, loadAtStart.cores), beside: null, besideAtEnd: null, waitedMs, prose: { specs: [] } }),
+    baseline: { tree, bound },
+  }
+  recordBaseline({ record, root, stderr })
+  return 0
 }
 
 // ADR-100 T2. `git commit` arguments that commit a tree other than the index, refused before the check: a pathspec (after
@@ -300,10 +363,21 @@ if (isMainModule(import.meta.url)) {
   // Everything after `--commit` is git's (ADR-100 T2).
   const at = all.indexOf('--commit')
   const argv = at >= 0 ? all.slice(0, at) : all
-  const unknown = argv.filter(word => !['--wait', '--again', '--fast'].includes(word))
+  // ADR-111 T3: `--baseline <tree>` takes the tree it is about, as SessionStart observed it.
+  const b = argv.indexOf('--baseline')
+  const tree = b >= 0 ? argv[b + 1] : null
+  const unknown = argv.filter((word, index) => !['--wait', '--again', '--fast', '--baseline'].includes(word) && !(b >= 0 && index === b + 1))
+  const usage = 'usage: qh-check [--wait] [--again] [--fast] [--commit <git commit arguments>] | qh-check --baseline <tree>\n'
   if (unknown.length) {
-    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\nusage: qh-check [--wait] [--again] [--fast] [--commit <git commit arguments>]\n`)
+    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\n${usage}`)
     process.exitCode = 2
+  } else if (b >= 0) {
+    if (typeof tree !== 'string' || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(tree) || at >= 0 || argv.length !== 2) {
+      process.stderr.write(`qh-check: --baseline takes one tree hash and nothing else\n${usage}`)
+      process.exitCode = 2
+    } else {
+      process.exitCode = await runBaseline({ tree })
+    }
   } else if (at >= 0) {
     process.exitCode = await runCommit({ args: all.slice(at + 1), wait: argv.includes('--wait'), again: argv.includes('--again') })
   } else {

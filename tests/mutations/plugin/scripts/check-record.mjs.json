@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-111 T3: a baseline is written to its own ledger",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "    appendFileSync(path.join(directory, 'baseline.jsonl'), `${JSON.stringify(record)}\\n`, 'utf8')",
+      "to": "    appendFileSync(path.join(directory, 'checks.jsonl'), `${JSON.stringify(record)}\\n`, 'utf8')",
+      "only": "^(?:qh-check --baseline records against the starting tree and holds no git lock)$"
+    },
+    {
       "label": "§295.24: a check a signal ended records no verdict",
       "file": "plugin/scripts/check-record.mjs",
       "tests": [

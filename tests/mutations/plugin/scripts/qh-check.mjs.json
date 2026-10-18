@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-111 T3: a baseline binds only to the tree it ran on",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "  const bound = before.ok === true && after.ok === true && before.tree === tree && after.tree === tree",
+      "to": "  const bound = before.ok === true && after.ok === true",
+      "only": "^(?:qh-check --baseline records against the starting tree and holds no git lock)$"
+    },
+    {
+      "label": "ADR-111 T3: a baseline is taken once per tree",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "  if (baselineFor(root, tree, command)) {",
+      "to": "  if (false) {",
+      "only": "^(?:qh-check --baseline records against the starting tree and holds no git lock)$"
+    },
+    {
       "label": "ADR-103 T1: a project that declares a fastCheck is not told to declare one",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": ["tests/fast-check-hint.test.mjs"],
@@ -157,7 +177,7 @@
       "tests": [
         "tests/lease.test.mjs"
       ],
-      "from": "    besideAtEnd = look()",
+      "from": "    besideAtEnd = look ? look() : null",
       "to": "    besideAtEnd = null",
       "only": "^a run beside others names and records them, and its exit and verdict are its own$"
     },

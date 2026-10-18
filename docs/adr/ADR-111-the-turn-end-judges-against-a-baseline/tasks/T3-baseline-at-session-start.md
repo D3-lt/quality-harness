@@ -48,7 +48,8 @@ node --test tests/baseline.test.mjs
 | `qh-check --baseline records against the starting tree and holds no git lock` | `tests/baseline.test.mjs` | the mode | — | S1, S2 |
 | `only a startup SessionStart starts the baseline, and it waits for nothing` | `tests/baseline.test.mjs` | the start | — | S1, S2 |
 | `a green baseline and a red current run name the regression; a red baseline names the inherited red` | `tests/baseline.test.mjs` | both sentences and the no-record twin | — | S1, S3 |
-| `a baseline pass leaves the same-tree skip and the publish verdict as they were` | `tests/baseline.test.mjs` | the class audit | — | S1, S4 |
+| `a baseline pass leaves the same-tree skip as it was` | `tests/baseline.test.mjs` | the class audit's discriminating reader (the publish verdict says nothing of a tree unchanged since the session began) | — | S1, S4 |
+| `a session whose check was green at its start and is red after an edit is told the change broke it` | `tests/baseline.test.mjs` | the selection: SessionStart's default runner is qh-check, end to end | — | S2, S3 |
 
 ## Reachability
 
@@ -60,6 +61,14 @@ node --test tests/baseline.test.mjs
 | 4 — it is used | ADR-112's arms |
 
 ## Mutation Log
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · a run whose tree is not the asked tree is bound to it · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/check-record.mjs` · a baseline is written to the ledger a pass is read from · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · a baseline is taken again on a tree that already has one · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · an unbound row stands for a kept baseline · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/on-session-start.mjs` · SessionStart no longer starts the baseline · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/on-session-start.mjs` · a repository with no check starts a baseline · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · a green baseline under a red run is not said as a regression · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
+- 2026-10-18 · 93978b02* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · the turn end never reads the baseline ledger · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe
 
 ## Invariants
 
@@ -81,3 +90,28 @@ Stop if the baseline cannot run without a git lock, or if any hook would have to
 - Per-test comparison (deferred: docs/BACKLOG.md §383)
 
 ## Verification Log
+- 2026-10-18 · 93978b02* · exit 1 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:6207 · test-lock-sha256:dde7fe11f6afa9887b25735e3908041d24ca3bf5f8ba65af7506430ec36900ff · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJYSBiYXNlbGluZSBwYXNzIGxlYXZlcyB0aGUgc2FtZS10cmVlIHNraXAgYW5kIHRoZSBwdWJsaXNoIHZlcmRpY3QgYXMgdGhleSB3ZXJlCWZiN2E2NGQwNDkyMDdhYmEwN2MyNmJlNTYxYzlmOTQwYjgyYTBlNzQ4ZTQ2N2QwNTFkY2I3NmM3YTU5MzI0YWQKYm9keQl0ZXN0cy9iYXNlbGluZS50ZXN0Lm1qcwlhIGdyZWVuIGJhc2VsaW5lIGFuZCBhIHJlZCBjdXJyZW50IHJ1biBuYW1lIHRoZSByZWdyZXNzaW9uOyBhIHJlZCBiYXNlbGluZSBuYW1lcyB0aGUgaW5oZXJpdGVkIHJlZAkzMmJmMjBmMjEzZmEwZDUxZWY5ZDk5ZjRiN2MxZTIxNTJkZDI3MjdjNTcxMTI0MGM5NTkzNDhkZjZkYzEwOTNlCmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJb25seSBhIHN0YXJ0dXAgU2Vzc2lvblN0YXJ0IHN0YXJ0cyB0aGUgYmFzZWxpbmUsIGFuZCBpdCB3YWl0cyBmb3Igbm90aGluZwk2YWZiYjE3MDA4OTUxMWFiMTdhZTVjZDY0NzMwZmM1ODIxZTgyMWRhMWE1MTEyNGYwMjU2NzhkNGE2NWE4MGM2CmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJcWgtY2hlY2sgLS1iYXNlbGluZSByZWNvcmRzIGFnYWluc3QgdGhlIHN0YXJ0aW5nIHRyZWUgYW5kIGhvbGRzIG5vIGdpdCBsb2NrCTAxM2FkNzQ2MGU2NjcyNTBmYTNkYWJhMTczMWU5MDY3NGNlZDIyN2ZjMzA2OTdhN2I5YzJhNjhlMWVlYTM5NDY
+  ```
+  --- last 10 line(s) of stdout (of 82 after folding 82 raw)
+  test at tests/baseline.test.mjs:82:1
+  ✖ a baseline pass leaves the same-tree skip and the publish verdict as they were (378.47475ms)
+    TypeError [Error]: Cannot read properties of undefined (reading 'verdict')
+        at TestContext.<anonymous> (file://~/CursorProjects/quality-harness/tests/baseline.test.mjs:87:53)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ```
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3464
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3457
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3600
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3436
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3470
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3528
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3433
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3492
+- 2026-10-18 · 93978b02* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:0 · test-lock-sha256:faf17eab4836933c6f2c43b4f81ad25d95dad521830e34ab2da535d1ebc1ef8e · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJYSBiYXNlbGluZSBwYXNzIGxlYXZlcyB0aGUgc2FtZS10cmVlIHNraXAgYXMgaXQgd2FzCTllMjhmMmUxZWIzZmFmOGE5NTdiYjEzM2ViNDJiY2NjOWRkYjRkNzAxNDYwNzc0N2MxYTAzZTk4YTU2NGZlYWQKYm9keQl0ZXN0cy9iYXNlbGluZS50ZXN0Lm1qcwlhIGdyZWVuIGJhc2VsaW5lIGFuZCBhIHJlZCBjdXJyZW50IHJ1biBuYW1lIHRoZSByZWdyZXNzaW9uOyBhIHJlZCBiYXNlbGluZSBuYW1lcyB0aGUgaW5oZXJpdGVkIHJlZAkzMmJmMjBmMjEzZmEwZDUxZWY5ZDk5ZjRiN2MxZTIxNTJkZDI3MjdjNTcxMTI0MGM5NTkzNDhkZjZkYzEwOTNlCmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJYSBzZXNzaW9uIHdob3NlIGNoZWNrIHdhcyBncmVlbiBhdCBpdHMgc3RhcnQgYW5kIGlzIHJlZCBhZnRlciBhbiBlZGl0IGlzIHRvbGQgdGhlIGNoYW5nZSBicm9rZSBpdAlkZGQ5NjI0OTIyNjNkZjRlN2U1ZWZjODEyNmU5ZGM5MWZiNGM0NmQ2NWYyYzcxNTZkYWZhNTIzZDhhZDBkMjA0CmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJb25seSBhIHN0YXJ0dXAgU2Vzc2lvblN0YXJ0IHN0YXJ0cyB0aGUgYmFzZWxpbmUsIGFuZCBpdCB3YWl0cyBmb3Igbm90aGluZwk2YWZiYjE3MDA4OTUxMWFiMTdhZTVjZDY0NzMwZmM1ODIxZTgyMWRhMWE1MTEyNGYwMjU2NzhkNGE2NWE4MGM2CmJvZHkJdGVzdHMvYmFzZWxpbmUudGVzdC5tanMJcWgtY2hlY2sgLS1iYXNlbGluZSByZWNvcmRzIGFnYWluc3QgdGhlIHN0YXJ0aW5nIHRyZWUgYW5kIGhvbGRzIG5vIGdpdCBsb2NrCTRmOTExOTBkMjU5MDNhNTUxYTEzMDVmNjUxNzFmNGI3OGQwNzc0OGZiMzI2YjIxYTBjZmMwNzZhYThhMzUwYWI · test-lock-kind:replace
+- 2026-10-18 · 93978b02* · exit 0 · `node --test tests/baseline.test.mjs` · acceptance-sha256:69ab4ef07f342b7786d28e49fe97fafbbaec4a9b49ee63f3dc365a454a6bf5fe · ms:3420
+- 2026-10-18 · human-observed · observed and signed off by the Claude session mac-quality-harness-main-dev on 2026-10-18. S4: mrw read --grep 'checks\.jsonl|baseline\.jsonl' plugin/scripts/ core/ names baseline.jsonl in two places only, check-record.mjs recordBaseline (the writer) and check-ledger.mjs baselineFor (the reader), and baselineFor has two callers, completionFacts and qh-check's once-per-tree test; no reader of checks.jsonl in Node or the Go core reads it. S5, macOS at load 2.5 on 10 cores: SessionStart median over 7 runs 102 ms before T3, 101 ms with the baseline off, 104 ms with it on; the baseline run itself took 1057 ms for a one-second check, bound and passed. On a corpus the run costs what its check costs: in this repository the check is scripts/selftest.sh, measured today at about 210 s, so each startup session here runs it once, detached and under the machine lease. Every catalogue mutant on the five changed sources ran, 187 RED.

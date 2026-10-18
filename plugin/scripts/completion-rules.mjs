@@ -7,6 +7,7 @@ import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents } from './event-log.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
 import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
+import { baselineFor } from './check-ledger.mjs'
 import { gitRepositoryLookup, mark, sameObservation, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
@@ -480,7 +481,7 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false, checkEvent = null } = {}) {
+function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false, checkEvent = null, baselineVerdict = null } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
@@ -511,6 +512,10 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
         // ADR-111 T2: a red check said as "no qh-check has passed" read like no check at all, and two Stage 5 attempts
         // ended done after one.
         ? 'the last `qh-check` on this turn\'s work failed, so a done claim now contradicts it; fix what fails, or say in your final message that it fails and why.'
+          // ADR-111 T3: the check on the tree the session began with tells the change's red from the machine's.
+          + (baselineVerdict === 'passed' ? ' It passed on the tree this session began with and fails now: this change broke it.'
+            : baselineVerdict === 'failed' ? ' It was already red on the tree this session began with, so this red says nothing about the change; compare what fails, or declare a check that is green here.'
+              : '')
       : paths.length || !held
         ? 'this turn ends with work no `qh-check` has passed on.'
         : 'this turn ends on an unchecked tree.'
@@ -673,6 +678,9 @@ export function completionFacts(input, ended) {
   }
   return {
     log, observation, check, root, baseline, writes, status, commits,
+    // ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger, read here so the
+    // judgement reaches no file. Null when no bound baseline is kept for that tree and this command.
+    baselineVerdict: root !== null && baseline?.ok === true && check && check !== 'refused' ? baselineFor(root, baseline.tree, check)?.verdict ?? null : null,
     unchangedWrites: writesThatChangedNothing(log, ended, root),
     sentence: once(() => runTheCheckSentence(input.cwd)),
     locationKey: () => canonical(root ?? path.resolve(input.cwd ?? process.cwd())),
@@ -721,7 +729,7 @@ export function completionJudgement(facts, input) {
     if (!emittedFor(log, 'R1', key, channel, recipient)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: observation?.ok === true ? latestCheckFor(log, observation.tree)?.event ?? null : null }) })
+      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: observation?.ok === true ? latestCheckFor(log, observation.tree)?.event ?? null : null, baselineVerdict: facts.baselineVerdict ?? null }) })
     }
   }
   const unchecked = commits.filter(commit => {

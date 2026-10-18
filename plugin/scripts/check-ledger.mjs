@@ -8,6 +8,22 @@ import { outsideRoot } from './decision-corpus.mjs'
 import { spawnSync } from 'node:child_process'
 import { gitRepositoryRoot, observe, observeBudgetMs, observedClean, sameObservation } from './tree-facts.mjs'
 
+// ADR-111 T3: the baseline kept for a tree and a command, or null: the last bound row of baseline.jsonl, the ledger a
+// session-start check is written to (Decision 1's correction). Only the turn end reads it, so no reader of a pass can be
+// handed a baseline; a row whose tree moved during its run is unbound and is never returned.
+export function baselineFor(root, tree, command) {
+  let text
+  try { text = readFileSync(path.join(stateDir(root), 'baseline.jsonl'), 'utf8') } catch { return null }
+  let found = null
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let row
+    try { row = JSON.parse(line) } catch { continue }
+    if (row?.baseline?.bound === true && row.baseline.tree === tree && row.command === command && typeof row.verdict === 'string') found = row
+  }
+  return found
+}
+
 /**
  * ledgerPass reads one check ledger strictly (ADR-101 T2): `checks.jsonl` for the full check, `fast-checks.jsonl` for the
  * fast one, the same rules for both. The LATEST row `match` accepts, by position, must grade `check.passed`, and no write

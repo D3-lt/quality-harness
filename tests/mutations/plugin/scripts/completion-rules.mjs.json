@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-111 T3: a green baseline under a red run is a regression",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "          + (baselineVerdict === 'passed' ?",
+      "to": "          + (baselineVerdict === 'never' ?",
+      "only": "^(?:a green baseline and a red current run name the regression; a red baseline names the inherited red|a session whose check was green at its start and is red after an edit is told the change broke it)$"
+    },
+    {
+      "label": "ADR-111 T3: the turn end reads the baseline ledger",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "    baselineVerdict: root !== null && baseline?.ok === true",
+      "to": "    baselineVerdict: false && baseline?.ok === true",
+      "only": "^(?:a session whose check was green at its start and is red after an edit is told the change broke it)$"
+    },
+    {
       "label": "ADR-111 T2: a changed tree with no known check is said",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/completion-judgement.test.mjs"],

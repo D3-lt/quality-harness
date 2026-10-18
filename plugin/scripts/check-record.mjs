@@ -103,6 +103,20 @@ export function recordSkip({ already, command, prose, root, stderr }) {
   }
 }
 
+// ADR-111 T3: a baseline goes to its own ledger, where no reader of a pass looks (Decision 1's correction). A ledger that
+// cannot be written is said, and changes nothing else.
+export function recordBaseline({ record, root, stderr }) {
+  try {
+    const directory = stateDir(root)
+    mkdirSync(directory, { recursive: true })
+    appendFileSync(path.join(directory, 'baseline.jsonl'), `${JSON.stringify(record)}\n`, 'utf8')
+    stderr.write(`qh-check: baseline of \`${record.command}\` on ${record.baseline.tree.slice(0, 12)}: `
+      + `${record.baseline.bound ? record.verdict : 'unbound, since the tree was not that tree before and after the run'}.\n`)
+  } catch (failure) {
+    stderr.write(`qh-check: the baseline could not be recorded (${failure.code ?? failure.message}).\n`)
+  }
+}
+
 // Said on STDERR, once, after the record exists; the record is the check's and the sentence is for whoever ran it.
 export function recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr }) {
   try {

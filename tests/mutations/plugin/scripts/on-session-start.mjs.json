@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-111 T3: a startup SessionStart starts the baseline",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "    startBaseline(input)",
+      "to": "    void startBaseline",
+      "only": "^(?:only a startup SessionStart starts the baseline, and it waits for nothing|a session whose check was green at its start and is red after an edit is told the change broke it)$"
+    },
+    {
+      "label": "ADR-111 T3: no check, no baseline",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "  if (!command || origin === 'refused' || origin === 'unproven') return",
+      "to": "  if (origin === 'refused' || origin === 'unproven') return",
+      "only": "^(?:only a startup SessionStart starts the baseline, and it waits for nothing)$"
+    },
+    {
       "label": "publish-hook: SessionStart offers the hook",
       "file": "plugin/scripts/on-session-start.mjs",
       "tests": [

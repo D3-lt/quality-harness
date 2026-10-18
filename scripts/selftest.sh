@@ -41,6 +41,10 @@ export QUALITY_HARNESS_ARTIFACT_PASS_RUNNER=inline
 # The same for SessionEnd, which hands its work to a detached copy of the hook (plugin/scripts/lifecycle.mjs `endsBehind`);
 # tests/session-end-behind.test.mjs starts the detached copy explicitly.
 export QUALITY_HARNESS_SESSION_END_RUNNER=inline
+# ADR-111 T3: and for the session-start baseline, a detached `qh-check --baseline` that would otherwise outlive every test that
+# starts a session with a check (tests/late-baseline.test.mjs's cleanup met one, 2026-10-18). tests/baseline.test.mjs chooses
+# its runner explicitly.
+export QUALITY_HARNESS_BASELINE_RUNNER=off
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008 split the two: the tests live in the repository, the thing they

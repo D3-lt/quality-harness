@@ -227,6 +227,10 @@ const READERS = {
   // a torn session log is named UNPROVEN and the look is PARTIAL — a lost line can lower a count, never
   // pass for one read whole.
   ledgerReport: { tested: 'tests/ledger-report.test.mjs' },
+  // ADR-111 T3. NOT executed. It reads the log only for `session.started` and the tree it observed: a torn log that lost
+  // that line starts no baseline, which says nothing, and a baseline is written to its own ledger, which no reader of a pass
+  // reads. A lost line can take a baseline away, never make one up or certify a tree.
+  startBaseline: { unexecuted: 'ADR-111 T3 — needs a fixture that tears the session log before SessionStart reads it' },
 }
 
 test('every reader of the session log is driven above, or says why a lost line cannot flatter it', () => {

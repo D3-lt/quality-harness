@@ -22,7 +22,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | Inference reads pytest's own configuration | done | none — no spec | `node --test tests/check-inference.test.mjs` (each named test passes once, nothing skipped) |
 | T2 | A red check is said as red, and no check is one line | done | none — no spec | `node --test tests/completion-judgement.test.mjs tests/hook-goldens.test.mjs` (each named test passes once, nothing skipped) |
-| T3 | The baseline is taken at session start and read at the turn end | pending | none — no spec | `node --test tests/baseline.test.mjs` (each named test passes once, nothing skipped) |
+| T3 | The baseline is taken at session start and read at the turn end | done | none — no spec | `node --test tests/baseline.test.mjs` (each named test passes once, nothing skipped) |
 | T4 | The Go core's missing rules are named, not broken | done | none — no spec | `node --test tests/qh-core-parity.test.mjs tests/hook-goldens.test.mjs` (each named test passes once, nothing skipped) |
 
 ## Contract Coupling

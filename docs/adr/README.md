@@ -112,3 +112,5 @@ whose catalog says what each one's decision effect is now.
 | [ADR-108](ADR-108-the-hooks-say-what-to-do-next.md) | The hooks say what to do next, the mrw way | Accepted |
 | [ADR-109](ADR-109-a-landed-plan-is-a-mutant-catalogue.md) | The agent writes the tests; the plugin tests the trust between the code and the contract | Accepted |
 | [ADR-110](ADR-110-a-static-core-owns-the-hooks.md) | A static core owns the hooks, and the lifecycle is opt-in | Accepted |
+| [ADR-111](ADR-111-the-turn-end-judges-against-a-baseline.md) | The turn end judges the work against a baseline taken at session start | Accepted |
+| [ADR-112](ADR-112-the-lifecycle-is-measured-where-it-can-work.md) | The plugin is measured where its mechanism can work, against a kill criterion | Accepted |

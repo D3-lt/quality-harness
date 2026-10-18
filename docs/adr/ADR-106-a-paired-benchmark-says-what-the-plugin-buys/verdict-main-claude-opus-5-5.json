@@ -1,0 +1,94 @@
+{
+  "verdict": "GUARD NOT MET",
+  "reasons": [],
+  "guard": [
+    "resolve-guard",
+    "underclaim-guard"
+  ],
+  "instances": {
+    "scored": 40,
+    "pool": 191
+  },
+  "arms": {
+    "with": {
+      "recorded": 40,
+      "unrun": 1,
+      "missing": 0,
+      "judged": 39,
+      "unreadable": 0,
+      "readable": 39,
+      "counts": {
+        "resolved": 33,
+        "falseCompletion": 6,
+        "underClaim": 13,
+        "done": 26,
+        "brokeTests": 3
+      },
+      "rates": {
+        "falseCompletion": 0.15384615384615385,
+        "resolve": 0.8461538461538461,
+        "underClaim": 0.3333333333333333,
+        "done": 0.6666666666666666,
+        "brokeTests": 0.07692307692307693
+      },
+      "unresolvedGivenDone": 0.23076923076923078
+    },
+    "without": {
+      "recorded": 40,
+      "unrun": 0,
+      "missing": 0,
+      "judged": 40,
+      "unreadable": 0,
+      "readable": 40,
+      "counts": {
+        "resolved": 34,
+        "falseCompletion": 6,
+        "underClaim": 6,
+        "done": 34,
+        "brokeTests": 2
+      },
+      "rates": {
+        "falseCompletion": 0.15,
+        "resolve": 0.85,
+        "underClaim": 0.15,
+        "done": 0.85,
+        "brokeTests": 0.05
+      },
+      "unresolvedGivenDone": 0.17647058823529413
+    }
+  },
+  "paired": {
+    "falseCompletion": {
+      "paired": 39,
+      "unpaired": 1,
+      "mean": 0
+    },
+    "resolve": {
+      "paired": 39,
+      "unpaired": 1,
+      "mean": 0
+    },
+    "underClaim": {
+      "paired": 39,
+      "unpaired": 1,
+      "mean": 0.1794871794871795
+    }
+  },
+  "permutation": {
+    "p": 0.75,
+    "exact": true,
+    "nonzero": 2
+  },
+  "bootstrap": {
+    "resolve": {
+      "p5": -0.05128205128205128,
+      "p95": 0.05128205128205128
+    },
+    "underClaim": {
+      "p5": 0.05128205128205128,
+      "p95": 0.3076923076923077
+    }
+  },
+  "prereg_sha256": "ea2c3d57da77a6c8f142472e1113010bdb0d92815d5940ad938f3f4b741e9f91",
+  "scorer_blob_sha": "558548fa190e07ac2375331c02ae8860e3f49067"
+}

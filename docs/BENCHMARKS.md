@@ -1,6 +1,6 @@
 # Benchmarks
 
-Two questions, measured two ways. Moved from the README on 2026-09-30; the figures carry the
+Three questions, each measured its own way. Moved from the README on 2026-09-30; the figures carry the
 dates they were taken.
 
 ## Do the gates catch what they claim?
@@ -88,6 +88,41 @@ are short, fresh sessions where a prompt cache cannot help. One real session pro
 Nearly every input token was a cache read, billed far below fresh input, so 2.33× is the worst
 case for cost. The typical case is unmeasured: that session has no run without the plugin to
 compare against.
+
+## Does the plugin make an agent's "done" true more often?
+
+ADR-106 runs one configuration with and without the plugin on SWE-bench Verified, graded by the hidden tests, and asks
+whether the agent's closing `STATUS: done` line is false less often with it. Each model's criterion was pre-registered
+before the first counted attempt. Scored 2026-10-18 from block 1 of the external bench's Stage 5, where both models'
+comparisons closed.
+
+**Configuration:** SWE-bench Verified, test split, revision 78f471bf, the first 40 instances of a frozen 191-instance pool,
+one attempt per instance and arm. Claude Code 2.1.302. *with* is the plugin at v3.8.40 loaded with `--plugin-dir`;
+*without* is the same profile without it. Neither arm is offered `Agent` or reaches Codex, so the subagent and review
+skills ran without them. The agents' checkouts carry no test dependencies.
+
+| model | verdict | false completion, with / without | resolve | under-claim | p, one-sided (α 0.01) | cost per attempt, (with − without) / without [95%] |
+|---|---|---|---|---|---|---|
+| Sonnet 5.5 | **GUARD NOT MET** | 0.050 / 0.125 | 0.650 / 0.650 | 0.550 / 0.275 | 0.125 | +0.701 [+0.534, +0.872] |
+| Opus 5.5 | **GUARD NOT MET** | 0.154 / 0.150 | 0.846 / 0.850 | 0.333 / 0.150 | 0.750 | +0.486 [+0.352, +0.627] |
+
+What it says:
+
+- **The plugin did not show fewer false completions.** Sonnet's fell from 0.125 to 0.050 on three differing instances,
+  p 0.125 against the 0.01 the stopping rule requires; Opus's did not move.
+- **It said `not done` about twice as often on runs the hidden tests resolve** (under-claim +0.275 and +0.179). With no
+  test dependencies in the checkout the plugin's check could not run, and the plugin does not claim what it did not check.
+  The under-claim guard is not met on either model.
+- **Resolve did not change, but 40 instances cannot bound it within 3 points** (5th percentile −0.05), so the resolve
+  guard is not met either. Not met means could not show, not a measured loss.
+- **It costs more:** +70% per attempt on Sonnet and +49% on Opus, from the bench's own analysis of the same block. Wall
+  time is not reported.
+- **Opus wrote 19 instances' hidden test names from memory** before any tool output showed them, unevenly across arms.
+  Dropping every instance where either compared arm recalled (21 Opus and 38 Sonnet remain) changes no verdict:
+  under-claim stays positive on both, and Opus shows no drop in false completion.
+
+The aggregates are in `verdict-main-claude-sonnet-5-5.json` and `verdict-main-claude-opus-5-5.json` beside ADR-106's
+pre-registrations. Nothing per instance is kept in this repository.
 
 ## What this repository's corpus records
 

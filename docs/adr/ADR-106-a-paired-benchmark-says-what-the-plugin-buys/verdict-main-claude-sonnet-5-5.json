@@ -1,0 +1,94 @@
+{
+  "verdict": "GUARD NOT MET",
+  "reasons": [],
+  "guard": [
+    "resolve-guard",
+    "underclaim-guard"
+  ],
+  "instances": {
+    "scored": 40,
+    "pool": 191
+  },
+  "arms": {
+    "with": {
+      "recorded": 40,
+      "unrun": 0,
+      "missing": 0,
+      "judged": 40,
+      "unreadable": 0,
+      "readable": 40,
+      "counts": {
+        "resolved": 26,
+        "falseCompletion": 2,
+        "underClaim": 22,
+        "done": 6,
+        "brokeTests": 6
+      },
+      "rates": {
+        "falseCompletion": 0.05,
+        "resolve": 0.65,
+        "underClaim": 0.55,
+        "done": 0.15,
+        "brokeTests": 0.15
+      },
+      "unresolvedGivenDone": 0.3333333333333333
+    },
+    "without": {
+      "recorded": 40,
+      "unrun": 0,
+      "missing": 0,
+      "judged": 40,
+      "unreadable": 0,
+      "readable": 40,
+      "counts": {
+        "resolved": 26,
+        "falseCompletion": 5,
+        "underClaim": 11,
+        "done": 20,
+        "brokeTests": 6
+      },
+      "rates": {
+        "falseCompletion": 0.125,
+        "resolve": 0.65,
+        "underClaim": 0.275,
+        "done": 0.5,
+        "brokeTests": 0.15
+      },
+      "unresolvedGivenDone": 0.25
+    }
+  },
+  "paired": {
+    "falseCompletion": {
+      "paired": 40,
+      "unpaired": 0,
+      "mean": -0.075
+    },
+    "resolve": {
+      "paired": 40,
+      "unpaired": 0,
+      "mean": 0
+    },
+    "underClaim": {
+      "paired": 40,
+      "unpaired": 0,
+      "mean": 0.275
+    }
+  },
+  "permutation": {
+    "p": 0.125,
+    "exact": true,
+    "nonzero": 3
+  },
+  "bootstrap": {
+    "resolve": {
+      "p5": -0.05,
+      "p95": 0.05
+    },
+    "underClaim": {
+      "p5": 0.125,
+      "p95": 0.425
+    }
+  },
+  "prereg_sha256": "1692e40e7fd99e8622956541a77ef94158602562f362ea93083f76d1c620899a",
+  "scorer_blob_sha": "558548fa190e07ac2375331c02ae8860e3f49067"
+}

@@ -537,8 +537,14 @@ export function namedByReview(log, key, channel = null, recipient = null) {
 
 // P already said this tree is unchecked, before the command ran. Saying it again
 // at the end of the same turn is the repetition ADR-060 closed (BACKLOG §217).
+// Only a publish from this tree has said it: an advice about a mention, a commit
+// into a repository the command creates, or one into another repository says "if
+// it does publish, run qh-check first", which the agent reads as not met, and
+// counting it kept a changed tree's turn end silent (Stage 5, 2026-10-18).
+const ABOUT_ANOTHER_PUBLISH = /:(?:mention|fresh|foreign)$/
 export function namedByPublish(log, tree, revision) {
   return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P'
+    && !(typeof entry.key === 'string' && ABOUT_ANOTHER_PUBLISH.test(entry.key))
     && entry.detail?.tree === tree && entry.detail?.revision === revision)
 }
 

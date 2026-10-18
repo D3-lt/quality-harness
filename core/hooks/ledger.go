@@ -621,8 +621,14 @@ func namedByReview(log Log, key string, channel, recipient string) bool {
 	return false
 }
 
+// aboutAnotherPublish: a P advice about a mention, a fresh repository or another repository names no publish from this tree.
+var aboutAnotherPublish = regexp.MustCompile(`:(?:mention|fresh|foreign)$`)
+
 func namedByPublish(log Log, tree any, revision int) bool {
 	for _, e := range log.E {
+		if key, ok := get(e, "key").(string); ok && aboutAnotherPublish.MatchString(key) {
+			continue
+		}
 		if strict(get(e, "event"), "action.emitted") && strict(get(e, "rule"), "P") &&
 			strict(dig(e, "detail", "tree"), tree) && strict(dig(e, "detail", "revision"), float64(revision)) {
 			return true

@@ -267,6 +267,31 @@ function uncoveredHooks(hooksJson, sent) {
   return missing
 }
 
+// Stage 5, 2026-10-18: an Opus attempt edited a tracked file, ran `git stash push …; git stash pop`, and ended `STATUS: done`.
+// PreToolUse advised that command as a mention of push, and the turn end counted that advice as having said the tree was
+// unchecked, so it said nothing. Asserted on what each implementation prints rather than a stored transcript, so a regression
+// cannot be recorded as the expected answer.
+test('a mention of push before the turn end does not silence it, and a real publish advice still does', { skip }, t => {
+  const box = sandbox(t)
+  const turn = (name, command) => {
+    const repo = fixtureRepo(box, name, BASE)
+    const file = path.join(repo, 'src', 'a.js')
+    runHook(box, repo, name, { hook_event_name: 'SessionStart', source: 'startup' })
+    writeFileSync(file, 'export const a = 2\n')
+    runHook(box, repo, name, { hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: file, old_string: '1', new_string: '2' }, tool_response: { filePath: file, success: true } })
+    const before = runHook(box, repo, name, bash(command))
+    const end = runHook(box, repo, name, { hook_event_name: 'Stop', last_assistant_message: 'Fixed it.\nSTATUS: done' })
+    const said = run => run.stdout?.hookSpecificOutput?.additionalContext ?? run.stdout?.hookSpecificOutput?.permissionDecisionReason ?? ''
+    return { before: said(before), end: said(end) }
+  }
+  const mention = turn('stash', 'git stash push -q src/a.js; git stash pop -q')
+  assert.match(mention.before, /only mentions commit or push/, 'the command is advised as a mention')
+  assert.match(mention.end, /Changed paths: src\/a\.js/, 'the turn end still names the unchecked work')
+  const publish = turn('commit', 'git commit -am x')
+  assert.match(publish.before, /names commit or push/, 'a real commit is advised on this tree')
+  assert.equal(publish.end, '', 'the turn end does not repeat what the publish advice said (ADR-060)')
+})
+
 // Declared last on purpose: node:test runs one file's tests in order, so this reads what every scenario above sent. Run alone
 // (a name filter), it sees nothing sent and is red, which is the honest answer to "did the goldens reach every hook".
 test('every registered hook event has a golden', { skip }, () => {

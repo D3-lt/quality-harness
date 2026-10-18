@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { completionJudgement } from '../plugin/scripts/completion-rules.mjs'
 import { mark } from '../plugin/scripts/tree-facts.mjs'
+import { revisionFor } from '../plugin/scripts/check-ledger.mjs'
 
 const T = 'tree-now'
 const observations = {
@@ -120,4 +121,26 @@ test('turn end: each property fails on a judgement that breaks it', () => {
   assert.ok(walk(dropsR4).broken['something that could not be looked at is said, once, as R4'].length > 0)
   assert.ok(walk(speaksWithoutCheck).broken['no check, no finding'].length > 0)
   assert.ok(walk(trustsCutLog).broken['a log not read whole is `could-not-look`, never a pass'].length > 0)
+})
+
+// A publish advice names this tree only when the command published from it. The words "commit" or "push" in a command
+// (`git stash push`, a heredoc plan, an echo), a commit into a repository the command creates, and a commit into another
+// repository are each advised with "if it does publish, run qh-check first": a condition the agent reads as not met. Counting
+// them as R1 already said kept a turn that changed this tree and claimed done silent (Stage 5, an Opus attempt, 2026-10-18).
+test('turn end: a publish advice about a mention, a fresh repository or another repository does not stand for this tree', () => {
+  const start = { event: 'session.started', observation: { ok: true, tree: 'tree-before', index: 'tree-before', head: 'h0' } }
+  const said = suffix => {
+    const log = Object.assign([start], { complete: true })
+    const revision = revisionFor(log, observations.observed)
+    log.push({ event: 'action.emitted', rule: 'P', key: `${T}:${T}:${revision}${suffix}`, detail: { tree: T, revision } })
+    const facts = {
+      log, observation: observations.observed, check: 'sh check.sh', root: '/repo', baseline: start.observation,
+      writes: [], status: ['a.js'], commits: [],
+      sentence: () => 'RUN-SENTENCE', locationKey: () => '/repo', nudge: () => null,
+    }
+    return completionJudgement(facts, { hook_event_name: 'Stop', cwd: '/repo', last_assistant_message: 'Fixed it.\nSTATUS: done' })
+      .actions.some(action => action.rule === 'R1')
+  }
+  assert.equal(said(''), false, 'a publish advised on this tree has said it; R1 does not repeat it (ADR-060)')
+  for (const suffix of [':mention', ':fresh', ':foreign']) assert.equal(said(suffix), true, `a P advice keyed ${suffix} silenced R1`)
 })

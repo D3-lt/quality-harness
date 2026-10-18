@@ -147,8 +147,8 @@ test('turn end: a publish advice about a mention, a fresh repository or another 
 
 // ADR-111 T2. Stage 5: two attempts with the plugin claimed done after a red or unstarted check, and the turn end said "no
 // qh-check has passed on" the work, the words it says when no check ran at all.
-function endOfTurn({ check = 'sh check.sh', tree = [], start = baselines['started elsewhere'], status = ['a.js'], extra = [] } = {}) {
-  const log = Object.assign([...start, ...tree, ...extra], { complete: true })
+function endOfTurn({ check = 'sh check.sh', tree = [], start = baselines['started elsewhere'], status = ['a.js'], extra = [], complete = true } = {}) {
+  const log = Object.assign([...start, ...tree, ...extra], { complete })
   const facts = {
     log, observation: observations.observed, check, root: '/repo', baseline: start[0]?.observation,
     writes: [], status, commits: [],
@@ -174,5 +174,10 @@ test('turn end: a changed tree with no known check is said once, and an unchange
   const again = endOfTurn({ check: null, extra: [{ event: 'action.emitted', rule: 'R5', key: first[0].key }] })
   assert.deepEqual(again, [], 'said once per tree')
   assert.deepEqual(endOfTurn({ check: null, start: baselines['started at this tree'] }), [], 'a tree the session began with is not a change')
-  assert.deepEqual(endOfTurn({ check: null, status: [] }), [], 'no changed path, nothing to say')
+  assert.deepEqual(endOfTurn({ check: null, status: [], start: baselines['started at this tree'] }), [], 'nothing changed, nothing to say')
+  // Codex review of v3.8.44..3c42f633: a change committed before the turn ended leaves no dirt, and is still a change; a start
+  // nobody observed, or a log read in part, supports no "changed since this session began".
+  assert.deepEqual(endOfTurn({ check: null, status: [] }).map(action => action.rule), ['R5'], 'a committed change is a change')
+  assert.deepEqual(endOfTurn({ check: null, start: baselines['no start'] }), [], 'no observed start, no claim about one')
+  assert.deepEqual(endOfTurn({ check: null, complete: false }), [], 'a log read in part makes no claim about the start')
 })

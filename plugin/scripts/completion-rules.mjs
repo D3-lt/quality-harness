@@ -715,7 +715,9 @@ export function completionJudgement(facts, input) {
   // silent false completions), so it is said once per tree. A refused declaration is a check that does not count, not a
   // project that named none.
   if (!check) {
-    const moved = observation?.ok === true && status.length > 0 && (baseline?.ok !== true || observation.tree !== baseline.tree)
+    // The start must have been observed, in a log read whole, for "since this session began" to be said; and a change
+    // committed before the turn ended leaves no dirt but is a change (Codex review of v3.8.44..3c42f633).
+    const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log) && observation.tree !== baseline.tree
     if (moved && !quiet && !emittedFor(log, 'R5', observation.tree, channel, recipient)) {
       actions.push({ rule: 'R5', key: observation.tree, text: NO_CHECK_TEXT })
     }
@@ -729,7 +731,12 @@ export function completionJudgement(facts, input) {
     if (!emittedFor(log, 'R1', key, channel, recipient)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: observation?.ok === true ? latestCheckFor(log, observation.tree)?.event ?? null : null, baselineVerdict: facts.baselineVerdict ?? null }) })
+      // ADR-111 T3: the baseline speaks only for a red run of the same command whose tree held still through it and is
+      // this tree; anything else is not this change's red (Codex review of v3.8.44..3c42f633).
+      const latest = observation?.ok === true ? latestCheckFor(log, observation.tree) : null
+      const attributable = latest?.event === 'check.failed' && latest.command === check
+        && latest.before?.tree === observation.tree && latest.after?.tree === observation.tree
+      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: latest?.event ?? null, baselineVerdict: attributable ? facts.baselineVerdict ?? null : null }) })
     }
   }
   const unchecked = commits.filter(commit => {

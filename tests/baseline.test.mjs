@@ -62,7 +62,7 @@ test('only a startup SessionStart starts the baseline, and it waits for nothing'
   assert.equal(readFileSync(marker, 'utf8').trim().split('\n').length, 1, 'only a startup with a known check starts one')
 })
 
-function turnEnd(baselineVerdict, checks = [{ event: 'check.failed', after: { tree: 'now' }, seq: 1 }]) {
+function turnEnd(baselineVerdict, checks = [{ event: 'check.failed', command: 'sh check.sh', before: { tree: 'now' }, after: { tree: 'now' }, seq: 1 }]) {
   const start = { event: 'session.started', observation: { ok: true, tree: 'start', index: 'start', head: 'h0' } }
   const facts = {
     log: Object.assign([start, ...checks], { complete: true }), observation: { ok: true, tree: 'now', index: 'now', head: 'h1' },
@@ -81,6 +81,10 @@ test('a green baseline and a red current run name the regression; a red baseline
   }
   // A green current run is not a regression, whatever the baseline said.
   assert.doesNotMatch(turnEnd('passed', [{ event: 'check.passed', after: { tree: 'now' }, seq: 1 }]), /this change broke it/)
+  // Codex review of v3.8.44..3c42f633: the red run must be the same command, on a tree that held still through it.
+  const red = extra => [{ event: 'check.failed', command: 'sh check.sh', before: { tree: 'now' }, after: { tree: 'now' }, seq: 1, ...extra }]
+  assert.doesNotMatch(turnEnd('passed', red({ command: 'sh other.sh' })), /this change broke it/, 'another command proves nothing about this one')
+  assert.doesNotMatch(turnEnd('passed', red({ before: { tree: 'elsewhere' } })), /this change broke it/, 'a run the tree moved under is not this tree')
 })
 
 // The publish verdict says nothing of a tree unchanged since the session began (ADR-060), so it cannot show the difference;
@@ -110,4 +114,20 @@ test('a session whose check was green at its start and is red after an edit is t
   assert.notEqual(runQhCheck(box, repo).exit, 0)
   const end = runHook(box, repo, 'e1', { hook_event_name: 'Stop', last_assistant_message: 'Fixed it.\nSTATUS: done' }, live)
   assert.match(JSON.stringify(end.stdout), /passed on the tree this session began with and fails now: this change broke it/)
+})
+
+// Codex review of v3.8.44..3c42f633: QUALITY_HARNESS_WAIT=1 made a detached baseline wait up to half an hour for its turn.
+test('a baseline never waits for its turn, whatever the environment asks', { skip }, async t => {
+  const box = sandbox(t)
+  const repo = project(box, 'nowait')
+  const states = []
+  const lease = {
+    leaseDir: () => box.tmp, take: (_dir, held) => { states.push(held.state); return { file: path.join(box.tmp, 'held') } },
+    observe: () => null, release: () => {}, besideLines: () => [],
+    admit: () => { states.push('admitted after waiting'); return { ok: true } },
+  }
+  const { runBaseline } = await import('../plugin/scripts/qh-check.mjs')
+  const sink = { write: () => true }
+  await runBaseline({ tree: observe(repo).tree, cwd: repo, env: { ...process.env, QUALITY_HARNESS_WAIT: '1' }, lease, stdout: sink, stderr: sink })
+  assert.deepEqual(states, ['running'])
 })

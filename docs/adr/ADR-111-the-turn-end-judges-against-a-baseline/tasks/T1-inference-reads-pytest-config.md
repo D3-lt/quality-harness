@@ -54,6 +54,8 @@ node --test tests/check-inference.test.mjs
 - 2026-10-18 · ff1fcf59* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · the pyproject.toml rung no longer recognises [tool.pytest.ini_options] · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
 - 2026-10-18 · ff1fcf59* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · the setup.cfg rung no longer recognises [tool:pytest] · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
 - 2026-10-18 · ff1fcf59* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · the header no longer has to open a line, so a comment or a string that mentions it infers pytest · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
+- 2026-10-18 · 3c42f633* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · a header inside a TOML multi-line string reads as a section · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
+- 2026-10-18 · 3c42f633* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · an indented INI continuation value reads as a section · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
 
 ## Invariants
 
@@ -91,3 +93,6 @@ Stop if a rung would need a TOML or INI parser beyond a line-anchored header mat
 - 2026-10-18 · ff1fcf59* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:243
 - 2026-10-18 · ff1fcf59* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:245
 - 2026-10-18 · ff1fcf59* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:240
+- 2026-10-18 · 3c42f633* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:0 · test-lock-sha256:14408c3194de7441a95aeb2be0d8f0fed8404a84f6ad7fb0329f3671dc64c708 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY2hlY2staW5mZXJlbmNlLnRlc3QubWpzCWEgbWFuaWZlc3QgdGhhdCBkb2VzIG5vdCBjb25maWd1cmUgcHl0ZXN0IGluZmVycyBub3RoaW5nIGZyb20gdGhlc2UgcnVuZ3MJNjQwNWViMjJiMDI3Zjc0ZjBhYzM0YTIyNWZhNzI5YTQ5OGQ5NDhjMjNmZGFlZGVjZmFiY2ViYWQ4MDMwZWIxMwpib2R5CXRlc3RzL2NoZWNrLWluZmVyZW5jZS50ZXN0Lm1qcwlweXRlc3QgY29uZmlndXJlZCBpbiBweXByb2plY3QudG9tbCBvciBzZXR1cC5jZmcgaXMgaW5mZXJyZWQJYWE0N2FkYzkwMjQ3MTkzMzA2ZDBkOWYwYmVlNjJjOTBkMzk4MzYyZTY2ZDI5M2ViNjdjZDI2ZGQ0NThlYjE1ZQ · test-lock-kind:replace
+- 2026-10-18 · 3c42f633* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:253
+- 2026-10-18 · 3c42f633* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:249

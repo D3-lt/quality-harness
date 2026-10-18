@@ -210,8 +210,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
 // ADR-111 T3: the project's check on the tree the session began with, kept in baseline.jsonl and read by the turn end alone
 // (Decision 1's correction). It runs in the repository as any check does and binds its verdict to `tree` only when the tree
 // before and after the run are that tree; a run the agent's edits overlapped is kept unbound and says nothing. It never reads
-// or writes checks.jsonl, so it cannot stand in for a pass, and it does not wait for the machine lease: a busy machine
-// leaves no baseline, which says nothing.
+// or writes checks.jsonl, so it cannot stand in for a pass. It never waits for its turn, whatever QUALITY_HARNESS_WAIT says
+// (Codex review of v3.8.44..3c42f633): the lease names it to the heavy runs beside it, and it runs.
 export async function runBaseline({ tree, cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, lease = leaseModule } = {}) {
   const facts = checkFacts({ cwd, env, fast: false })
   const { root, git } = facts
@@ -224,7 +224,7 @@ export async function runBaseline({ tree, cwd = process.cwd(), env = process.env
     stderr.write(`qh-check: a baseline of \`${command}\` on ${tree.slice(0, 12)} is already kept.\n`)
     return 0
   }
-  const admission = await takeTurn({ lease, env, wait: false, command, root, stderr })
+  const admission = await takeTurn({ lease, env: { ...env, QUALITY_HARNESS_WAIT: '0' }, wait: false, command, root, stderr })
   if (admission.code !== undefined) return admission.code
   const { held, leaseStep, waitedMs } = admission
   const load = loadOptions(loadavg, cores)

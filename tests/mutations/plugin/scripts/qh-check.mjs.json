@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "Codex v3.8.44 review: a baseline never waits for its turn",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "  const admission = await takeTurn({ lease, env: { ...env, QUALITY_HARNESS_WAIT: '0' }, wait: false, command, root, stderr })",
+      "to": "  const admission = await takeTurn({ lease, env, wait: false, command, root, stderr })",
+      "only": "^(?:a baseline never waits for its turn, whatever the environment asks)$"
+    },
+    {
       "label": "ADR-111 T3: a baseline binds only to the tree it ran on",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": [

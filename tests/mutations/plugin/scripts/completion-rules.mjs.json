@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "Codex v3.8.44 review: a committed change is a change",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/completion-judgement.test.mjs"
+      ],
+      "from": "    const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log) && observation.tree !== baseline.tree",
+      "to": "    const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log) && observation.tree !== baseline.tree && status.length > 0",
+      "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
+    },
+    {
+      "label": "Codex v3.8.44 review: a log read in part makes no claim about the start",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/completion-judgement.test.mjs"
+      ],
+      "from": "    const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log) && observation.tree !== baseline.tree",
+      "to": "    const moved = observation?.ok === true && baseline?.ok === true && observation.tree !== baseline.tree",
+      "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
+    },
+    {
+      "label": "Codex v3.8.44 review: the red run must be the same command",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "      const attributable = latest?.event === 'check.failed' && latest.command === check",
+      "to": "      const attributable = latest?.event === 'check.failed'",
+      "only": "^(?:a green baseline and a red current run name the regression; a red baseline names the inherited red)$"
+    },
+    {
+      "label": "Codex v3.8.44 review: the red run must hold its tree still",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/baseline.test.mjs"
+      ],
+      "from": "        && latest.before?.tree === observation.tree && latest.after?.tree === observation.tree",
+      "to": "        && latest.after?.tree === observation.tree",
+      "only": "^(?:a green baseline and a red current run name the regression; a red baseline names the inherited red)$"
+    },
+    {
       "label": "ADR-111 T3: a green baseline under a red run is a regression",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -48,8 +88,8 @@
       "label": "ADR-111 T2: a tree the session began with is not a change",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/completion-judgement.test.mjs"],
-      "from": "    const moved = observation?.ok === true && status.length > 0 && (baseline?.ok !== true || observation.tree !== baseline.tree)",
-      "to": "    const moved = observation?.ok === true && status.length > 0",
+      "from": "    const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log) && observation.tree !== baseline.tree",
+      "to": "    const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log)",
       "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
     },
     {
@@ -602,8 +642,8 @@
       "tests": [
         "tests/adr-108.test.mjs"
       ],
-      "from": "checkEvent: observation?.ok === true ? latestCheckFor",
-      "to": "checkEvent: false ? latestCheckFor",
+      "from": "checkEvent: latest?.event ?? null",
+      "to": "checkEvent: null",
       "only": "^a check that could not start is reported once as evidence-limited, not run again$"
     },
     {

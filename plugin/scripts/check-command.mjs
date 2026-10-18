@@ -43,10 +43,26 @@ const PROJECT_CHECKS = [
   { file: 'phpunit.xml', command: 'php vendor/bin/phpunit' },
   { file: 'phpunit.xml.dist', command: 'php vendor/bin/phpunit' },
 ]
+// The header opens a line outside any value (Codex review of v3.8.44..3c42f633): a TOML header inside a multi-line string
+// is text, and an INI line that starts with whitespace continues the value above it, so setup.cfg's header starts the line.
 const PYTEST_SECTIONS = [
-  ['pyproject.toml', /^[ \t]*\[tool\.pytest\.ini_options\][ \t]*(?:#.*)?$/m],
-  ['setup.cfg', /^[ \t]*\[tool:pytest\][ \t]*(?:[#;].*)?$/m],
+  ['pyproject.toml', /^[ \t]*\[tool\.pytest\.ini_options\][ \t]*(?:#.*)?$/, 'toml'],
+  ['setup.cfg', /^\[tool:pytest\][ \t]*(?:[#;].*)?$/, 'ini'],
 ]
+// Whether a line outside every TOML multi-line string is the header. A delimiter counts once per occurrence, and one kind
+// is ignored while the other is open.
+function opensSection(text, header, syntax) {
+  if (syntax !== 'toml') return text.split(/\r?\n/).some(line => header.test(line))
+  let open = null
+  for (const line of text.split(/\r?\n/)) {
+    if (open === null && header.test(line)) return true
+    for (const delimiter of line.match(/"""|'''/g) ?? []) {
+      if (open === null) open = delimiter
+      else if (open === delimiter) open = null
+    }
+  }
+  return false
+}
 
 /**
  * The check a project declares in `.quality-harness.json`, if it declares one.
@@ -316,10 +332,10 @@ export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
   // pytest configured in a manifest's own section, not a file of its own (ADR-111 T1). A Stage 5 attempt in a repository
   // whose pytest lived in setup.cfg's [tool:pytest] had no inferred check, and the turn end said nothing. The header must
   // open a line: one inside a comment or a string is a mention, not a configuration.
-  for (const [file, header] of PYTEST_SECTIONS) {
+  for (const [file, header, syntax] of PYTEST_SECTIONS) {
     let text
     try { text = readFileSync(path.join(root, file), 'utf8') } catch { continue }
-    if (header.test(text)) return { command: 'pytest', origin: 'inferred' }
+    if (opensSection(text, header, syntax)) return { command: 'pytest', origin: 'inferred' }
   }
   const packaged = packageManagerCommand(root)
   if (packaged) return { command: packaged, origin: 'inferred' }

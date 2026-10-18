@@ -51,6 +51,9 @@ node --test tests/check-inference.test.mjs
 | 4 — it is used | ADR-112's arms |
 
 ## Mutation Log
+- 2026-10-18 · ff1fcf59* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · the pyproject.toml rung no longer recognises [tool.pytest.ini_options] · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
+- 2026-10-18 · ff1fcf59* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · the setup.cfg rung no longer recognises [tool:pytest] · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
+- 2026-10-18 · ff1fcf59* · mutant killed · exit 1 · `plugin/scripts/check-command.mjs` · the header no longer has to open a line, so a comment or a string that mentions it infers pytest · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f
 
 ## Invariants
 
@@ -71,3 +74,20 @@ Stop if a rung would need a TOML or INI parser beyond a line-anchored header mat
 - Script runners with no manifest, such as `bin/test` (permanent: boundary: nothing in the tree says it is the test runner; ADR-111 Decision 4 says no check is known)
 
 ## Verification Log
+- 2026-10-18 · ff1fcf59* · exit 1 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:195 · test-lock-sha256:4ac55cc229f72f25003c3d786af4e56310ecbcd1918ca647262a05ea912e47f5 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY2hlY2staW5mZXJlbmNlLnRlc3QubWpzCWEgbWFuaWZlc3QgdGhhdCBkb2VzIG5vdCBjb25maWd1cmUgcHl0ZXN0IGluZmVycyBub3RoaW5nIGZyb20gdGhlc2UgcnVuZ3MJNjI1ZTY0MWZiYjljODdjMWMxZjdmNDM5YjhhZjhiYzQ3MjZkMTNiYmE5ZjNkYjE4MWZiNThiMmIzY2Y4ZmE3ZApib2R5CXRlc3RzL2NoZWNrLWluZmVyZW5jZS50ZXN0Lm1qcwlweXRlc3QgY29uZmlndXJlZCBpbiBweXByb2plY3QudG9tbCBvciBzZXR1cC5jZmcgaXMgaW5mZXJyZWQJYWE0N2FkYzkwMjQ3MTkzMzA2ZDBkOWYwYmVlNjJjOTBkMzk4MzYyZTY2ZDI5M2ViNjdjZDI2ZGQ0NThlYjE1ZQ
+  ```
+  --- last 10 line(s) of stdout (of 37 after folding 37 raw)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: { command: null, origin: 'none' },
+      expected: { command: 'pytest', origin: 'inferred' },
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-10-18 · ff1fcf59* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:243
+- 2026-10-18 · ff1fcf59* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:245
+- 2026-10-18 · ff1fcf59* · exit 0 · `node --test tests/check-inference.test.mjs` · acceptance-sha256:2752bdf4d160cf2dc0c9e84a9eb1ab014fc89243d0f75835bd0228b2c24aba7f · ms:240

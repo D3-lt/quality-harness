@@ -43,6 +43,10 @@ const PROJECT_CHECKS = [
   { file: 'phpunit.xml', command: 'php vendor/bin/phpunit' },
   { file: 'phpunit.xml.dist', command: 'php vendor/bin/phpunit' },
 ]
+const PYTEST_SECTIONS = [
+  ['pyproject.toml', /^[ \t]*\[tool\.pytest\.ini_options\][ \t]*(?:#.*)?$/m],
+  ['setup.cfg', /^[ \t]*\[tool:pytest\][ \t]*(?:[#;].*)?$/m],
+]
 
 /**
  * The check a project declares in `.quality-harness.json`, if it declares one.
@@ -308,6 +312,14 @@ export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
     if (existsSync(path.join(root, candidate.file))) {
       return { command: candidate.command, origin: 'inferred' }
     }
+  }
+  // pytest configured in a manifest's own section, not a file of its own (ADR-111 T1). A Stage 5 attempt in a repository
+  // whose pytest lived in setup.cfg's [tool:pytest] had no inferred check, and the turn end said nothing. The header must
+  // open a line: one inside a comment or a string is a mention, not a configuration.
+  for (const [file, header] of PYTEST_SECTIONS) {
+    let text
+    try { text = readFileSync(path.join(root, file), 'utf8') } catch { continue }
+    if (header.test(text)) return { command: 'pytest', origin: 'inferred' }
   }
   const packaged = packageManagerCommand(root)
   if (packaged) return { command: packaged, origin: 'inferred' }

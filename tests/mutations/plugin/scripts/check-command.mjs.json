@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "ADR-111 T1: pyproject.toml's [tool.pytest.ini_options] infers pytest",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": ["tests/check-inference.test.mjs"],
+      "from": "  ['pyproject.toml', /^[ \\t]*\\[tool\\.pytest\\.ini_options\\][ \\t]*(?:#.*)?$/m],",
+      "to": "  ['pyproject.toml', /^[ \\t]*\\[tool\\.pytest\\.ini_options_off\\][ \\t]*(?:#.*)?$/m],",
+      "only": "^(?:pytest configured in pyproject.toml or setup.cfg is inferred)$"
+    },
+    {
+      "label": "ADR-111 T1: setup.cfg's [tool:pytest] infers pytest",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": ["tests/check-inference.test.mjs"],
+      "from": "  ['setup.cfg', /^[ \\t]*\\[tool:pytest\\][ \\t]*(?:[#;].*)?$/m],",
+      "to": "  ['setup.cfg', /^[ \\t]*\\[tool:pytest_off\\][ \\t]*(?:[#;].*)?$/m],",
+      "only": "^(?:pytest configured in pyproject.toml or setup.cfg is inferred)$"
+    },
+    {
+      "label": "ADR-111 T1: the pytest header must open a line",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": ["tests/check-inference.test.mjs"],
+      "from": "  ['pyproject.toml', /^[ \\t]*\\[tool\\.pytest\\.ini_options\\][ \\t]*(?:#.*)?$/m],",
+      "to": "  ['pyproject.toml', /[ \\t]*\\[tool\\.pytest\\.ini_options\\]/m],",
+      "only": "^(?:a manifest that does not configure pytest infers nothing from these rungs)$"
+    },
+    {
       "label": "advisory: a verify script is the project's named check",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [

@@ -1,0 +1,31 @@
+// ADR-111 T1. A Python repository that configures pytest only in pyproject.toml or setup.cfg had no inferred check, so the
+// turn end said nothing at all (Stage 5, 2026-10-18: an attempt in a repository whose pytest lives in setup.cfg's
+// [tool:pytest]). The section header is the signal, at the start of a line; a manifest that only mentions it is not.
+import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import test from 'node:test'
+import { checkCommandOrigin } from '../plugin/scripts/check-command.mjs'
+
+function inferredIn(files) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-infer-'))
+  try {
+    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(dir, name), text)
+    return checkCommandOrigin(dir, { ok: true, root: dir })
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+
+test('pytest configured in pyproject.toml or setup.cfg is inferred', () => {
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\nname = "x"\n\n[tool.pytest.ini_options]\naddopts = "-q"\n' }), { command: 'pytest', origin: 'inferred' })
+  assert.deepEqual(inferredIn({ 'setup.cfg': '[metadata]\nname = x\n\n[tool:pytest]\ntestpaths = tests\n', 'setup.py': 'from setuptools import setup\nsetup()\n' }), { command: 'pytest', origin: 'inferred' })
+})
+
+test('a manifest that does not configure pytest infers nothing from these rungs', () => {
+  const none = { command: null, origin: 'none' }
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\nname = "x"\n' }), none)
+  assert.deepEqual(inferredIn({ 'setup.cfg': '[metadata]\nname = x\n' }), none)
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '# [tool.pytest.ini_options] is configured elsewhere\n[project]\nname = "x"\n' }), none, 'a header inside a comment')
+  assert.deepEqual(inferredIn({ 'pyproject.toml': '[project]\ndescription = "see [tool.pytest.ini_options]"\n' }), none, 'a header inside a string')
+  assert.deepEqual(inferredIn({ 'setup.cfg': '[metadata]\nlong = uses [tool:pytest] upstream\n' }), none, 'a header mid-line')
+})

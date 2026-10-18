@@ -52,6 +52,15 @@ them faster and leaves both gaps; the owner chose to prove one rule changes outc
    detached, under the machine lease and the project's fence deadline, on the tree the session began with. It records
    `check.passed` or `check.failed` with `baseline: true` against that tree, holding no git lock. A turn end that finds
    no baseline record yet says nothing new; it never waits for one.
+   **Correction, before T3 (2026-10-18, the owner's choice of "Separate ledger").** The baseline is written to its own
+   ledger, `baseline.jsonl` beside `checks.jsonl`, not to `checks.jsonl` with a flag. A read-only map of the code found
+   about fifteen readers of `checks.jsonl` rows in the Node path and the Go core (the same-tree skip, the publish verdict,
+   R1 and R2, the status line, SessionEnd's verdict, slow-run medians among them), and an importer that copies a fixed
+   list of fields into the session log and would have dropped the flag; one reader left unfiltered would let a baseline
+   certify the agent's tree. A separate ledger, as `fast-checks.jsonl` is for `--fast`, is seen by no existing reader, so
+   a baseline cannot certify anything; only the turn end reads it. A run is bound to the starting tree only when the tree
+   before it, the tree after it and the session's starting tree are one tree; a run the agent's edits overlapped is kept
+   as unbound and says nothing. Its bound is `qh-check`'s own (`QUALITY_HARNESS_CHECK_TIMEOUT`).
 2. **The turn end reads it (T3).** With a baseline record for the session's starting tree and a check run on the current
    tree:
    - baseline passed, current failed: "the check passed on the tree this session began with and fails now: this change
@@ -105,7 +114,7 @@ keeps its one reason to change. `core/` is unchanged (Decision 6). This reposito
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `checks.jsonl` row | gains `baseline: true` on a baseline run | `qh-check --baseline` (T3) | the turn end (T3), `release-evidence` ignores it |
+| `baseline.jsonl` (beside `checks.jsonl`) | new ledger: one row per baseline run, bound to the starting tree or marked unbound | `qh-check --baseline` (T3) | the turn end (T3) only |
 | `qh-check --baseline` | new flag | T3 | `lifecycle.mjs` SessionStart (T3) |
 | R1 text | two baseline sentences and a red-check lead | T2, T3 | the agent |
 | no-check turn end | one line | T2 | the agent |

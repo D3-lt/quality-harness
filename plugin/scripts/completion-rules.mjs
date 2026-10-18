@@ -507,6 +507,10 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
       ? 'which check ran last on this turn\'s work could not be established, so it is not known to be checked.'
       : couldNotLook
         ? couldNotStartOpening(checkEvent)
+      : checkEvent === 'check.failed'
+        // ADR-111 T2: a red check said as "no qh-check has passed" read like no check at all, and two Stage 5 attempts
+        // ended done after one.
+        ? 'the last `qh-check` on this turn\'s work failed, so a done claim now contradicts it; fix what fails, or say in your final message that it fails and why.'
       : paths.length || !held
         ? 'this turn ends with work no `qh-check` has passed on.'
         : 'this turn ends on an unchecked tree.'
@@ -514,6 +518,12 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
   return `quality-harness: ${opening} ${listed}`
     + `${unseenPathNote(outside)}${couldNotLook && COULD_NOT_START[checkEvent] ? '' : ` ${sentence}`}`
 }
+
+// ADR-111 T2: what a turn end says where no check is declared or inferred and the tree changed. It names no path: the
+// working tree's dirt is not this turn's writes, and the paths the agent touched are its own to name (ADR-005).
+const NO_CHECK_TEXT = 'quality-harness: the tree changed since this session began, and no check is known here (none is '
+  + 'declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the '
+  + 'project\'s check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified.'
 
 // ADR-108 T1: what the Stop finding says when the latest check on the work could not observe it. Naming the verdict it
 // read and what to do instead of running it again is what mrw's refusals do; an event it does not know keeps the older words.
@@ -688,15 +698,21 @@ export function completionJudgement(facts, input) {
   // A finding said only to the user has not been said to the agent: each audience is counted on its own (ADR-096).
   const channel = channelOf(input.hook_event_name, facts.turnEnd)
   const recipient = input.agent_id ? 'subagent' : 'main'
-  // The opt-in today's advice already requires: a project that named no check
-  // cannot be asked to run one (reported from redash-api, 2026-08-26). A refused
-  // declaration is a check that does not count, not a project that named none.
-  if (!check) return { claim, actions }
-
   const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
     ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]
   const quiet = (docsOnly(changed) && evidenceLimited(input.last_assistant_message))
     || (input.hook_event_name === 'Stop' && interimResponse(input.last_assistant_message))
+  // A project that named no check cannot be asked to run one (reported from redash-api, 2026-08-26), so no rule that needs
+  // a check runs. But a changed tree there is not a verified one, and saying nothing hid it (ADR-111 T2: two of Stage 5's
+  // silent false completions), so it is said once per tree. A refused declaration is a check that does not count, not a
+  // project that named none.
+  if (!check) {
+    const moved = observation?.ok === true && status.length > 0 && (baseline?.ok !== true || observation.tree !== baseline.tree)
+    if (moved && !quiet && !emittedFor(log, 'R5', observation.tree, channel, recipient)) {
+      actions.push({ rule: 'R5', key: observation.tree, text: NO_CHECK_TEXT })
+    }
+    return { claim, actions }
+  }
   const revision = revisionFor(log, observation)
   const treeUnchecked = observation?.ok === true && checkStanding(log, observation.tree) !== 'passed'
     && (baseline?.ok !== true || observation.tree !== baseline.tree)

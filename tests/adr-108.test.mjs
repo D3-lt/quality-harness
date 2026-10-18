@@ -29,9 +29,11 @@ test('a check that could not start is reported once as evidence-limited, not run
   assert.match(unstarted, /do not run it again on this tree/)
   assert.match(unstarted, /declaring the real command as check in \.quality-harness\.json/)
   assert.doesNotMatch(unstarted, /Run `qh-check`/, 'it is not also asked to run the check again')
-  // Dirty twins: a check that ran and FAILED, and a tree no check ran on, keep the sentence they had.
-  for (const [name, text] of [['a failed check', turnEnd(t, 'exit 1')], ['no check at all', turnEnd(t, 'node --version', { ran: false })]]) {
-    assert.match(text, /this turn ends with work no `qh-check` has passed on\./, `${name} keeps its opening`)
+  // Dirty twins: a check that ran and FAILED, and a tree no check ran on, are asked to run the check and are not told to
+  // report evidence-limited. Since ADR-111 T2 a failed check leads with its failure; a tree no check ran on keeps its opening.
+  const twins = [['a failed check', turnEnd(t, 'exit 1'), /the last `qh-check` on this turn's work failed/], ['no check at all', turnEnd(t, 'node --version', { ran: false }), /this turn ends with work no `qh-check` has passed on\./]]
+  for (const [name, text, opening] of twins) {
+    assert.match(text, opening, `${name} has its own opening`)
     assert.match(text, /Run `qh-check`/, `${name} is still asked to run the check`)
     assert.doesNotMatch(text, /EVIDENCE-LIMITED|do not run it again/, `${name} is not told to report evidence-limited`)
   }

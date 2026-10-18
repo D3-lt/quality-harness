@@ -7,7 +7,7 @@
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-060-advisories-react-to-observed-events.md, docs/adr/ADR-077-a-heavy-run-holds-a-lease-and-names-its-neighbours.md, docs/adr/ADR-080-no-hook-waits-on-the-artifact-pass.md, docs/adr/ADR-096-turn-end-findings-reach-the-agent.md, docs/adr/ADR-106-a-paired-benchmark-says-what-the-plugin-buys.md, docs/adr/ADR-110-a-static-core-owns-the-hooks.md
 **Governs:** None — declared by its tasks
 **Enforced-by:** None — declared by its tasks; each task adds catalogue mutants on the rule it changes.
-**Invalidates:** ADR-110 — T2 and T3 wait until ADR-112's verdict on this record, and new turn-end rules are written in the Node path only until then (Decision 5)
+**Invalidates:** ADR-110 — T2 and T3 wait until ADR-112's verdict on this record, and new turn-end rules are written in the Node path only until then (Decision 6); and, added 2026-10-18 while executing T2, ADR-060 (T1–T7) and ADR-105 (T1), whose locked test `a repository without a check hears no completion advisory` pinned the silence Decision 4 reverses, and ADR-108 (T1, T2), whose locked test pinned a failed check keeping the "no qh-check has passed" opening Decision 3 replaces
 **Served-path change:** at the end of a turn that changed code, the agent is told whether the project's check was already red on the tree the session began with, and when it was green there and is red now, that the change broke it; where no check is known, it is told so instead of nothing.
 
 ## Context
@@ -65,6 +65,11 @@ them faster and leaves both gaps; the owner chose to prove one rule changes outc
    per tree: "no check is declared or inferred here, so nothing verified this change; declare one as `check` in
    `.quality-harness.json`". This reverses the 2026-08-26 opt-in ("a project that named no check cannot be asked to run
    one") in the one case where it hid a changed tree, and keeps it otherwise: no rule that needs a check runs.
+   **Correction, while executing T2 (2026-10-18).** The words shipped differ from the quoted ones: the line names no path,
+   because the working tree's dirt is not this turn's writes, and it says "no check is known here (none is declared in a
+   readable `.quality-harness.json`, and none could be inferred)", because a declaration in a file that cannot be read is
+   not one this plugin observed to be absent (ADR-005). The trigger is R1's (the tree differs from the session's start),
+   since the status the turn end holds does not mark untracked files apart.
 5. **Inference reads pytest's own configuration (T1).** `[tool.pytest.ini_options]` in `pyproject.toml` and
    `[tool:pytest]` in `setup.cfg` infer `pytest`, beside `pytest.ini` and `tox.ini`.
 6. **The Go core is frozen at its parity (T4).** Until ADR-112's verdict, the rules above are written in the Node path
@@ -148,3 +153,5 @@ them, since each reads `check.passed` / `check.failed` by tree.
 
 - [ ] ADR-112's verdict on this record, and whether its kill criterion applies.
 - [x] Owner decision: Accepted by the owner, 2026-10-18 ("Accepted").
+- [x] Found executing T2, 2026-10-18: this record's `Invalidates:` named only ADR-110 when it was written. Decision 4 reverses what ADR-060 T1–T7 and ADR-105 T1 lock in `a repository without a check hears no completion advisory` (tests/observed-events.test.mjs); the authoring step that greps accepted records for what a change consumes was not done for that clause. T2 changed that test's body to assert R5 and nothing else, kept its title because ADR-060 T5's Tests table names it (a comment says how to read it), and relocked those eight tasks with `adr-verify --relock --replace-hashes`, as ADR-094 T4 did for the same tasks; the header now names them.
+- [x] Found executing T2, 2026-10-18, by running every catalogue mutant on completion-rules.mjs (§18): ADR-108 T1's test `a check that could not start is reported once as evidence-limited, not run again` holds a dirty twin asserting that a failed check "keeps its opening". Decision 3 replaces that opening, so the twin now asserts the failed check's own opening and still asks for the check; ADR-108 T1 and T2, which lock it, were relocked the same way. Two older catalogue mutants (`advisory: a project that names no check hears nothing`, `C: a project with no check gets no finding`) aimed at the removed early return and went STALE; both now aim at the no-check block's return.

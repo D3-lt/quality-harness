@@ -1,6 +1,38 @@
 {
   "mutations": [
     {
+      "label": "ADR-111 T2: a changed tree with no known check is said",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/completion-judgement.test.mjs"],
+      "from": "      actions.push({ rule: 'R5', key: observation.tree, text: NO_CHECK_TEXT })",
+      "to": "      void NO_CHECK_TEXT",
+      "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
+    },
+    {
+      "label": "ADR-111 T2: a failed check is said as failed",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/completion-judgement.test.mjs"],
+      "from": "      : checkEvent === 'check.failed'",
+      "to": "      : checkEvent === 'check.never'",
+      "only": "^(?:turn end: a failed check is said as failed, not as unchecked)$"
+    },
+    {
+      "label": "ADR-111 T2: the no-check line is said once per tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/completion-judgement.test.mjs"],
+      "from": "    if (moved && !quiet && !emittedFor(log, 'R5', observation.tree, channel, recipient)) {",
+      "to": "    if (moved && !quiet) {",
+      "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
+    },
+    {
+      "label": "ADR-111 T2: a tree the session began with is not a change",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/completion-judgement.test.mjs"],
+      "from": "    const moved = observation?.ok === true && status.length > 0 && (baseline?.ok !== true || observation.tree !== baseline.tree)",
+      "to": "    const moved = observation?.ok === true && status.length > 0",
+      "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
+    },
+    {
       "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -26,8 +58,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (!check) return { claim, actions }\n\n  const changed",
-      "to": "  if (false) return { claim, actions }\n\n  const changed",
+      "from": "    return { claim, actions }\n  }\n  const revision",
+      "to": "  }\n  const revision",
       "only": "^(?:reported: a project that names no check hears nothing from the evidence gates)$"
     },
     {
@@ -406,8 +438,8 @@
       "tests": [
         "tests/completion-judgement.test.mjs"
       ],
-      "from": "  if (!check) return { claim, actions }",
-      "to": "  if (false) return { claim, actions }",
+      "from": "    return { claim, actions }\n  }\n  const revision",
+      "to": "  }\n  const revision",
       "only": "^turn end: no combination of facts breaks a property an answer must have$"
     },
     {

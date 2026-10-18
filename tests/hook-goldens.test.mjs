@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
-import { GO_LACKS, exercised, expectGolden, fixtureRepo, goSkipFor, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox, staleLacks } from './hook-golden.mjs'
+import { GO_GOLDENS, GO_LACKS, exercised, expectGolden, fixtureRepo, goSkip, goSkipFor, goldenFile, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox, staleGoGoldens, staleLacks } from './hook-golden.mjs'
 
 const skip = process.platform === 'win32' && 'transcripts are recorded on POSIX (BACKLOG section 375)'
 const CONFIG = '{"check":"sh check.sh","fastCheck":"sh check.sh"}\n'
@@ -298,6 +298,36 @@ test('a mention of push before the turn end does not silence it, and a real publ
   const foreign = turn('foreign', `git -C ${other} commit -am x`)
   assert.match(foreign.before, /another repository is advised/, 'the other-repository advice is given')
   assert.match(foreign.end, /Changed paths: src\/a\.js/, 'an other-repository advice does not silence the turn end')
+})
+
+// ADR-111 T2, through the hook: a red check is said as failed at the turn end, and a changed tree in a project with no
+// declared or inferred check is said once instead of not at all.
+test('a red check then done, and a changed tree with no check then done, are said at the turn end', { skip: skip || goSkip('a red check then done, and a changed tree with no check then done, are said at the turn end') }, t => {
+  const box = sandbox(t)
+  const end = (repo, name) => {
+    const file = path.join(repo, 'src', 'a.js')
+    runHook(box, repo, name, { hook_event_name: 'SessionStart', source: 'startup' })
+    writeFileSync(file, 'export const a = 2\n')
+    runHook(box, repo, name, { hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: file, old_string: '1', new_string: '2' }, tool_response: { filePath: file, success: true } })
+    return repo
+  }
+  const stop = (repo, name) => runHook(box, repo, name, { hook_event_name: 'Stop', last_assistant_message: 'Fixed it.\nSTATUS: done' }).stdout?.hookSpecificOutput?.additionalContext ?? ''
+  const red = end(fixtureRepo(box, 'red', { ...BASE, 'check.sh': 'exit 1\n' }), 'red')
+  assert.notEqual(runQhCheck(box, red).exit, 0, 'the check is red')
+  assert.match(stop(red, 'red'), /the last `qh-check` on this turn's work failed/)
+  const bare = end(fixtureRepo(box, 'bare', { 'src/a.js': 'export const a = 1\n' }), 'bare')
+  assert.match(stop(bare, 'bare'), /the tree changed since this session began, and no check is known here/)
+})
+
+// ADR-111 T2: where the frozen Go core answers a recorded scenario the older way, its transcript is kept beside the shared one
+// and named with the rule it lacks, so the rest of that scenario still runs against Go; a Go golden that went stale is red.
+test('a Go golden is kept only where the frozen core answers differently, and names the rule it lacks', () => {
+  assert.match(goldenFile('go', 'checks'), /goldens[\\/]go[\\/]checks\.json$/)
+  assert.doesNotMatch(goldenFile('node', 'checks'), /[\\/]go[\\/]/, 'the Node path reads the shared golden')
+  assert.doesNotMatch(goldenFile('go', 'orientation'), /[\\/]go[\\/]/, 'a golden Go answers the same way is shared')
+  assert.deepEqual(staleGoGoldens(new Map([['orientation', 'ADR-000']])), ['orientation'], 'a named Go golden with no file is stale')
+  assert.deepEqual(staleGoGoldens(), [], 'every Go golden exists and differs from the shared one')
+  for (const [name, why] of GO_GOLDENS) assert.match(why, /ADR-\d+/, `${name} names the record whose rule Go lacks`)
 })
 
 // ADR-111 T4: the Go core is frozen at its parity while the Node path gains rules. A test of a rule Go lacks is skipped by

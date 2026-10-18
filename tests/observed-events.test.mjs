@@ -635,12 +635,16 @@ test('the scripted session advises as its step table lists', () => {
   assert.equal(counts.rows, rows.length + 1)
 })
 
+// ADR-111 T2 reversed the 2026-08-26 silence in one case: a tree that changed in a project with no declared or inferred
+// check is said, as R5, once per tree. No rule that needs a check speaks, and the claim rows still read `no-check`. The
+// title is the one ADR-060 T5's Tests table names, and that record is history: read it as "no completion advisory but R5".
 test('a repository without a check hears no completion advisory', () => {
   const run = scriptedSession(false)
   for (const entry of run.steps) {
-    assert.deepEqual(entry.rules, [], entry.label + ' delivered ' + entry.rules.join(', '))
-    assert.ok(entry.quiet, entry.label + ' said: ' + entry.said)
+    assert.ok(entry.rules.every(rule => rule === 'R5'), entry.label + ' delivered ' + entry.rules.join(', '))
+    if (!entry.rules.length) assert.ok(entry.quiet, entry.label + ' said: ' + entry.said)
   }
+  assert.ok(run.steps.some(entry => entry.rules.includes('R5')), 'a changed tree with no check is said')
   const rows = claimRows(run.session)
   assert.ok(rows.length > 0)
   assert.deepEqual([...new Set(rows.map(row => row.evidence))], ['no-check'])

@@ -21,7 +21,9 @@ const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'c
 // ADR-111 T4: the rules the Node path has and the Go core does not yet, keyed by the title of the test that exercises
 // each, with the record that added it. Under QUALITY_HARNESS_HOOK_IMPL=go those tests skip with this reason, and every other
 // test runs against Go exactly as before. The list is the port's debt while ADR-110 waits on ADR-112's verdict.
-export const GO_LACKS = new Map([])
+export const GO_LACKS = new Map([
+  ['a red check then done, and a changed tree with no check then done, are said at the turn end', 'ADR-111 T2'],
+])
 export function goSkipFor(impl, lacks, name) {
   return impl === 'go' && lacks.has(name) ? `the Go core lacks this rule yet (${lacks.get(name)}; ADR-111 Decision 6)` : false
 }
@@ -156,9 +158,26 @@ export function normaliser(box, repos = []) {
   }
 }
 
-// Compare a transcript with its golden. QH_GOLDEN_UPDATE=1 writes it, and says so.
+// ADR-111 T2: a transcript the frozen Go core still answers the older way is kept under goldens/go/, named here with the
+// rule it lacks, and a Go run is compared with that one; every other golden is shared. A Go golden that is missing, or
+// that no longer differs from the shared one, is stale (staleGoGoldens).
+export const GO_GOLDENS = new Map([
+  ['checks', 'ADR-111 T2: the no-check line at the unreadable-config turn end'],
+])
+export function goldenFile(impl, name) {
+  return path.join(impl === 'go' && GO_GOLDENS.has(name) ? path.join(goldenDir, 'go') : goldenDir, `${name}.json`)
+}
+export function staleGoGoldens(goldens = GO_GOLDENS) {
+  return [...goldens.keys()].filter(name => {
+    const own = path.join(goldenDir, 'go', `${name}.json`)
+    const shared = path.join(goldenDir, `${name}.json`)
+    return !existsSync(own) || !existsSync(shared) || readFileSync(own, 'utf8') === readFileSync(shared, 'utf8')
+  })
+}
+
+// Compare a transcript with its golden. QH_GOLDEN_UPDATE=1 writes the shared one, and says so.
 export function expectGolden(assert, name, actual) {
-  const file = path.join(goldenDir, `${name}.json`)
+  const file = UPDATE ? path.join(goldenDir, `${name}.json`) : goldenFile(IMPL, name)
   const text = `${JSON.stringify(actual, null, 2)}\n`
   if (UPDATE) {
     mkdirSync(goldenDir, { recursive: true })

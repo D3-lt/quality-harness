@@ -73,8 +73,14 @@
       "name": "turn end",
       "exit": 0,
       "signal": null,
-      "stdout": "",
-      "stderr": ""
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "Stop",
+          "additionalContext": "quality-harness: the tree changed since this session began, and no check is known here (none is declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
+        },
+        "systemMessage": "quality-harness: the tree changed since this session began, and no check is known here (none is declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
+      },
+      "stderr": "quality-harness: the tree changed since this session began, and no check is known here (none is declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
     }
   ],
   "checks": [
@@ -486,6 +492,14 @@
         "blob": "bd08a2cb054bcde7cde47c92cd33aa8dc8c9385a1e141659bf22169e9fb2e21d",
         "complete": true,
         "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R5",
+        "key": "<sha>",
+        "channel": "both",
+        "recipient": "main"
       }
     ],
     "skips.jsonl": [

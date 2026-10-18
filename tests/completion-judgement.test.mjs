@@ -74,7 +74,7 @@ const PROPERTIES = {
   },
   'a tree or a listing that could not be looked at is `could-not-look`': (s, r) => (!looked(s) && r.claim.evidence !== 'could-not-look' ? `evidence ${r.claim.evidence} over something that could not be looked at` : null),
   'a log not read whole is `could-not-look`, never a pass': (s, r) => (looked(s) && !s.whole && r.claim.evidence !== 'could-not-look' ? `evidence ${r.claim.evidence} over a cut log` : null),
-  'no check, no finding': (s, r) => (!s.check && r.actions.length ? 'spoke for a project with no check' : null),
+  'no check, only the no-check line': (s, r) => (!s.check && r.actions.some(action => action.rule !== 'R5') ? 'spoke for a project with no check' : null),
   'something that could not be looked at is said, once, as R4': (s, r) => {
     if (!s.check || (looked(s) && s.whole)) return null
     return r.actions.filter(action => action.rule === 'R4').length === 1 ? null : 'could-not-look was not said exactly once'
@@ -84,7 +84,7 @@ const PROPERTIES = {
     return r.actions.length ? 'nagged a verified state' : null
   },
   'a cut log is never accused of "no qh-check has passed"': (s, r) => (!s.whole && r.actions.some(action => /no `qh-check` has passed/.test(action.text)) ? 'accused over a cut log' : null),
-  'every finding has a rule, a key and words': (s, r) => (r.actions.some(action => action.rule !== undefined && (!['R1', 'R2', 'R4'].includes(action.rule) || !action.key || !action.text)) ? 'a finding without a rule, key or text' : null),
+  'every finding has a rule, a key and words': (s, r) => (r.actions.some(action => action.rule !== undefined && (!['R1', 'R2', 'R4', 'R5'].includes(action.rule) || !action.key || !action.text)) ? 'a finding without a rule, key or text' : null),
   'a write git could not see is reported': (s, r) => (s.check && s.writes.length && !r.actions.some(action => action.rule === 'R1') && !(s.message === messages.question) ? 'an unseen write went unsaid' : null),
 }
 
@@ -119,7 +119,7 @@ test('turn end: each property fails on a judgement that breaks it', () => {
   const trustsCutLog = (facts, input) => completionJudgement({ ...facts, log: Object.assign([...facts.log], { complete: true }) }, input)
   assert.ok(walk(alwaysVerified).broken['`verified` needs everything looked at, a log read whole, a check, a checked tree and no unseen write'].length > 0)
   assert.ok(walk(dropsR4).broken['something that could not be looked at is said, once, as R4'].length > 0)
-  assert.ok(walk(speaksWithoutCheck).broken['no check, no finding'].length > 0)
+  assert.ok(walk(speaksWithoutCheck).broken['no check, only the no-check line'].length > 0)
   assert.ok(walk(trustsCutLog).broken['a log not read whole is `could-not-look`, never a pass'].length > 0)
 })
 
@@ -143,4 +143,36 @@ test('turn end: a publish advice about a mention, a fresh repository or another 
   }
   assert.equal(said(''), false, 'a publish advised on this tree has said it; R1 does not repeat it (ADR-060)')
   for (const suffix of [':mention', ':fresh', ':foreign']) assert.equal(said(suffix), true, `a P advice keyed ${suffix} silenced R1`)
+})
+
+// ADR-111 T2. Stage 5: two attempts with the plugin claimed done after a red or unstarted check, and the turn end said "no
+// qh-check has passed on" the work, the words it says when no check ran at all.
+function endOfTurn({ check = 'sh check.sh', tree = [], start = baselines['started elsewhere'], status = ['a.js'], extra = [] } = {}) {
+  const log = Object.assign([...start, ...tree, ...extra], { complete: true })
+  const facts = {
+    log, observation: observations.observed, check, root: '/repo', baseline: start[0]?.observation,
+    writes: [], status, commits: [],
+    sentence: () => 'RUN-SENTENCE', locationKey: () => '/repo', nudge: () => null,
+  }
+  return completionJudgement(facts, { hook_event_name: 'Stop', cwd: '/repo', last_assistant_message: 'Fixed it.\nSTATUS: done' }).actions
+}
+
+test('turn end: a failed check is said as failed, not as unchecked', () => {
+  const red = endOfTurn({ tree: treeChecks.failed }).find(action => action.rule === 'R1')
+  assert.match(red.text, /the last `qh-check` on this turn's work failed/)
+  assert.match(red.text, /a done claim now contradicts it/)
+  assert.doesNotMatch(red.text, /no `qh-check` has passed/)
+  const none = endOfTurn({ tree: treeChecks.none }).find(action => action.rule === 'R1')
+  assert.match(none.text, /no `qh-check` has passed/, 'with no check run, the older words stand')
+})
+
+test('turn end: a changed tree with no known check is said once, and an unchanged one is not', () => {
+  const first = endOfTurn({ check: null })
+  assert.deepEqual(first.map(action => action.rule), ['R5'])
+  assert.match(first[0].text, /the tree changed since this session began, and no check is known here/)
+  assert.doesNotMatch(first[0].text, /a\.js/, 'it names no path: the dirt is not this turn\'s writes')
+  const again = endOfTurn({ check: null, extra: [{ event: 'action.emitted', rule: 'R5', key: first[0].key }] })
+  assert.deepEqual(again, [], 'said once per tree')
+  assert.deepEqual(endOfTurn({ check: null, start: baselines['started at this tree'] }), [], 'a tree the session began with is not a change')
+  assert.deepEqual(endOfTurn({ check: null, status: [] }), [], 'no changed path, nothing to say')
 })

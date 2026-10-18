@@ -1,6 +1,6 @@
 # ADR-111: The turn end judges the work against a baseline taken at session start
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-18
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner, 2026-10-18, after ADR-106's verdict: "so, the plugin in essence does not help … the specific which must have been the core does not trigger and not work", then, on the recommendation to prove one rule changes outcomes before porting more to Go, "go all"
@@ -147,3 +147,4 @@ them, since each reads `check.passed` / `check.failed` by tree.
 ## Follow-ups
 
 - [ ] ADR-112's verdict on this record, and whether its kill criterion applies.
+- [x] Owner decision: Accepted by the owner, 2026-10-18 ("Accepted").

@@ -1,6 +1,6 @@
 # ADR-112: The plugin is measured where its mechanism can work, against a kill criterion
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-18
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner, 2026-10-18, on measuring the lifecycle in checkouts whose tests can run ("both", then "go all")
@@ -142,3 +142,4 @@ None — measurement only; nothing on the served path changes until a later reco
 ## Follow-ups
 
 - [ ] The owner's word on the price, after the pilot.
+- [x] Owner decision: Accepted by the owner, 2026-10-18 ("Accepted"). The price stays open: it is asked after the pilot, as T2 S2 says.

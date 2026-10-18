@@ -18,6 +18,19 @@ const UPDATE = process.env.QH_GOLDEN_UPDATE === '1'
 const IMPL = process.env.QUALITY_HARNESS_HOOK_IMPL === 'go' ? 'go' : 'node'
 const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'core', 'bin', 'qh')
 
+// ADR-111 T4: the rules the Node path has and the Go core does not yet, keyed by the title of the test that exercises
+// each, with the record that added it. Under QUALITY_HARNESS_HOOK_IMPL=go those tests skip with this reason, and every other
+// test runs against Go exactly as before. The list is the port's debt while ADR-110 waits on ADR-112's verdict.
+export const GO_LACKS = new Map([])
+export function goSkipFor(impl, lacks, name) {
+  return impl === 'go' && lacks.has(name) ? `the Go core lacks this rule yet (${lacks.get(name)}; ADR-111 Decision 6)` : false
+}
+export const goSkip = name => goSkipFor(IMPL, GO_LACKS, name)
+// A name the list skips that no test carries is a stale entry, and a stale entry hides nothing it can be seen hiding.
+export function staleLacks(lacks, sources) {
+  return [...lacks.keys()].filter(name => !sources.some(text => text.includes(`test('${name}'`) || text.includes(`test("${name}"`)))
+}
+
 // One directory holds everything a scenario touches, so a hook that reaches for the home directory, the temp
 // directory or the plugin data directory finds this run's and nothing of the machine's.
 export function sandbox(t) {

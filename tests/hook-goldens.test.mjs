@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
-import { exercised, expectGolden, fixtureRepo, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
+import { GO_LACKS, exercised, expectGolden, fixtureRepo, goSkipFor, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox, staleLacks } from './hook-golden.mjs'
 
 const skip = process.platform === 'win32' && 'transcripts are recorded on POSIX (BACKLOG section 375)'
 const CONFIG = '{"check":"sh check.sh","fastCheck":"sh check.sh"}\n'
@@ -298,6 +298,18 @@ test('a mention of push before the turn end does not silence it, and a real publ
   const foreign = turn('foreign', `git -C ${other} commit -am x`)
   assert.match(foreign.before, /another repository is advised/, 'the other-repository advice is given')
   assert.match(foreign.end, /Changed paths: src\/a\.js/, 'an other-repository advice does not silence the turn end')
+})
+
+// ADR-111 T4: the Go core is frozen at its parity while the Node path gains rules. A test of a rule Go lacks is skipped by
+// name under the Go runner, with its reason, and every other test runs against Go as before; a name nothing tests is red.
+test('a rule the Go core lacks is skipped by name with its reason, and a stale name is red', () => {
+  const lacks = new Map([['a listed rule', 'ADR-111 T2']])
+  assert.match(String(goSkipFor('go', lacks, 'a listed rule')), /Go core lacks .*ADR-111 T2/)
+  assert.equal(goSkipFor('go', lacks, 'an unlisted rule'), false, 'an unlisted test still runs against Go')
+  assert.equal(goSkipFor('node', lacks, 'a listed rule'), false, 'the Node path is never skipped')
+  const sources = ['tests/hook-goldens.test.mjs', 'tests/qh-core-parity.test.mjs'].map(file => readFileSync(path.join(pluginDir, '..', file), 'utf8'))
+  assert.deepEqual(staleLacks(new Map([['no test has this title', 'r']]), sources), ['no test has this title'])
+  assert.deepEqual(staleLacks(GO_LACKS, sources), [], 'every name the list skips is a test that exists')
 })
 
 // Declared last on purpose: node:test runs one file's tests in order, so this reads what every scenario above sent. Run alone

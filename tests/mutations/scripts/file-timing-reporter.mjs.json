@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 6641c951..4db47214: an empty suite is not a test",
+      "file": "scripts/file-timing-reporter.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "details?.type !== 'suite' && !own",
+      "to": "!own",
+      "only": "^(?:a row that misses a collected file, an empty suite, and a comment between jobs are each seen)$"
+    },
+    {
       "label": "ADR-113 T5: a skip with no reason is named",
       "file": "scripts/file-timing-reporter.mjs",
       "tests": [

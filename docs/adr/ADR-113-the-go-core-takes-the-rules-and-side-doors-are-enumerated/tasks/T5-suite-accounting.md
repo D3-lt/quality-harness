@@ -66,6 +66,18 @@ node --test tests/suite-accounting.test.mjs
 - 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · an unreadable workflow reads as every job present · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
 - 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · matrix jobs are not expanded · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
 - 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `tests/helpers/require.mjs` · a required capability that is missing still skips · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · a row missing a collected file passes · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `scripts/file-timing-reporter.mjs` · an empty suite counts as a test · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · a comment between jobs hides the jobs after it · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · 4db47214* · mutant survived · exit 0 · `scripts/release-evidence.mjs` · an inline job reads as no job · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-19 · 4db47214* · mutant survived · exit 0 · `scripts/release-evidence.mjs` · an inline job beside a block job reads as a shorter list · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · an inline job beside a block job reads as a shorter list · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
 
 ## Invariants
 
@@ -111,3 +123,9 @@ Stop if a change would add a refusal outside the two sanctioned ones, or if pari
 - 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:805
 - 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:787
 - 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:791
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:952
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:961
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:1045
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:951
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:978
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:994

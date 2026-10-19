@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 6641c951..4db47214: a row missing a collected file is unrun",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "const found = collected.filter(file => !byFile.has(file))",
+      "to": "const found = [].filter(file => !byFile.has(file))",
+      "only": "^(?:a row that misses a collected file, an empty suite, and a comment between jobs are each seen)$"
+    },
+    {
       "label": "ADR-113 T5: a test file outside the glob is unreached",
       "file": "scripts/suite-accounting.mjs",
       "tests": [
@@ -36,7 +46,7 @@
       "tests": [
         "tests/suite-accounting.test.mjs"
       ],
-      "from": "!excused && COLLECTED.test(entry.file) && entry.tests === 0",
+      "from": "!excused && COLLECTED.test(entry.file) && count(entry) === 0",
       "to": "false",
       "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
     },
@@ -46,7 +56,7 @@
       "tests": [
         "tests/suite-accounting.test.mjs"
       ],
-      "from": "!((byFile.get(excused.carriedBy)?.tests ?? 0) > 0)",
+      "from": "!(count(byFile.get(excused.carriedBy)) > 0)",
       "to": "false",
       "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
     },
@@ -56,7 +66,7 @@
       "tests": [
         "tests/suite-accounting.test.mjs"
       ],
-      "from": "if (excused && entry.tests > 0) {",
+      "from": "if (excused && count(entry) > 0) {",
       "to": "if (false) {",
       "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
     }

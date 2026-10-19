@@ -3,7 +3,7 @@
 // to the command it ran as well as to the tree, through the hook, so QUALITY_HARNESS_HOOK_IMPL=go holds the Go core to it.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -88,4 +88,22 @@ test('every side door is allow-listed with its reason, and a new one fails', { s
   })
   assert.equal(dirty.status, 1, `${dirty.stdout}${dirty.stderr}`)
   assert.match(dirty.stdout, /unlisted writer plugin\/scripts\/x\.mjs/)
+})
+
+// The Codex review of 6641c951..4db47214: a listed file that could not be read was skipped, and the sweep exited 0 having
+// read less than it listed. Now it is UNRUN and names the file; a file gone from the disk holds nothing and is not.
+test('a listed file the sweep cannot read is UNRUN, not swept clean', { skip: (skip || (process.getuid?.() === 0 && 'root reads a file whose mode forbids it')) }, t => {
+  const box = sandbox(t)
+  const NONE_JSON = `${JSON.stringify(NONE)}\n`
+  const doors = fixtureRepo(box, 'unreadable', { 'plugin/scripts/x.mjs': 'export const x = 1\n', 'plugin/scripts/gone.mjs': 'export const y = 1\n', 'scripts/side-doors.json': NONE_JSON, 'plugin/hooks/hooks.json': '{"hooks":{}}\n' })
+  const sweepAt = () => spawnSync(process.execPath, [path.join(repoRoot, 'scripts', 'side-door-sweep.mjs')], {
+    cwd: doors, encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, QUALITY_HARNESS_SIDE_DOOR_ROOT: doors },
+  })
+  rmSync(path.join(doors, 'plugin', 'scripts', 'gone.mjs'))
+  assert.equal(sweepAt().status, 0, 'a listed file gone from the disk holds no door')
+  chmodSync(path.join(doors, 'plugin', 'scripts', 'x.mjs'), 0o000)
+  const run = sweepAt()
+  chmodSync(path.join(doors, 'plugin', 'scripts', 'x.mjs'), 0o644)
+  assert.equal(run.status, 2, `${run.stdout}${run.stderr}`)
+  assert.match(run.stderr, /UNRUN — could not read plugin\/scripts\/x\.mjs/)
 })

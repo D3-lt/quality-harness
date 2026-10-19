@@ -42,23 +42,53 @@ var mutationTools = map[string]bool{"Edit": true, "Write": true, "MultiEdit": tr
 
 const mrwWrite = "mcp__mrw__mrw_write"
 
-var mrwPlanHeader = regexp.MustCompile(`(?m)^@@ (\S+) `)
+var mrwPlanHeader = regexp.MustCompile(`^@@ (\S+) \S+ (\S+)`)
+var mrwPatchFile = regexp.MustCompile(`(?m)^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+?)\s*$`)
 
-// mrwPlanPaths: the paths an mrw MCP write names, from its plan's hunk headers, each once (hook-record.mjs's).
-func mrwPlanPaths(plan any) []string {
-	text, ok := plan.(string)
+// mrwWritePaths is hook-record.mjs's: the paths an mrw MCP write names, each once, and false where its input does not name
+// them (a grep/sub or ast-grep write, a search_replace document).
+func mrwWritePaths(toolInput any) ([]string, bool) {
+	if !isUndefined(get(toolInput, "grep")) || !isUndefined(get(toolInput, "ast_grep")) {
+		return nil, false
+	}
+	plan, ok := get(toolInput, "plan").(string)
 	if !ok {
-		return nil
+		return nil, false
+	}
+	format := "plan"
+	if f := get(toolInput, "format"); !nullish(f) {
+		format = jsString(f)
+	}
+	var found []string
+	switch format {
+	case "plan":
+		lines := regexp.MustCompile(`\r?\n`).Split(plan, -1)
+		for at, line := range lines {
+			header := mrwPlanHeader.FindStringSubmatch(line)
+			if header == nil {
+				continue
+			}
+			found = append(found, header[1])
+			if header[2] == "rename" && at+1 < len(lines) && jsTrim(lines[at+1]) != "" {
+				found = append(found, jsTrim(lines[at+1]))
+			}
+		}
+	case "apply_patch":
+		for _, m := range mrwPatchFile.FindAllStringSubmatch(plan, -1) {
+			found = append(found, m[1])
+		}
+	default:
+		return nil, false
 	}
 	seen := map[string]bool{}
 	var out []string
-	for _, m := range mrwPlanHeader.FindAllStringSubmatch(text, -1) {
-		if !seen[m[1]] {
-			seen[m[1]] = true
-			out = append(out, m[1])
+	for _, file := range found {
+		if !seen[file] {
+			seen[file] = true
+			out = append(out, file)
 		}
 	}
-	return out
+	return out, len(out) > 0
 }
 
 var shellTools = map[string]bool{"Bash": true, "PowerShell": true}
@@ -355,9 +385,14 @@ func recordHookEvent(input *Obj) *recorded {
 	hook := strOr(input.Get("hook_event_name"))
 	if hook == "PostToolUse" {
 		if strOr(input.Get("tool_name")) == mrwWrite {
-			// One record per path the plan names; the first is what the hook hands on.
+			// One record per path the write names; the first is what the hook hands on. A write whose files cannot be named
+			// is recorded with none, so it counts as unseen until a check passes after it.
+			paths, named := mrwWritePaths(input.Get("tool_input"))
+			if !named {
+				return &recorded{entry: recordUnnamedWrite(input)}
+			}
 			var first *Obj
-			for _, file := range mrwPlanPaths(dig(input, "tool_input", "plan")) {
+			for _, file := range paths {
 				one := input.Clone()
 				one.Set("tool_input", O("file_path", file))
 				if entry := recordFileWritten(one); entry != nil && first == nil {

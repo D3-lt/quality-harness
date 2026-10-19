@@ -46,9 +46,12 @@ export default async function* fileTiming(source) {
     if (!file) continue
     const key = nameOf(path.resolve(file))
     let entry = files.get(key)
-    if (!entry) files.set(key, entry = { ms: 0, tests: 0, failed: 0, skipped: 0, reasonless: [] })
+    if (!entry) files.set(key, entry = { ms: 0, tests: 0, cases: 0, failed: 0, skipped: 0, reasonless: [] })
     // ADR-113 T5: a skip node gives no string for is a skip with no reason, at any depth; it is named so the gate can say it.
     if (event.type === 'test:pass' && event.data.skip === true && typeof name === 'string') entry.reasonless.push(name)
+    // A test case at any depth, the file's own entry and every suite left out: a file of empty suites registered no test.
+    const own = nesting === 0 && typeof name === 'string' && nameOf(path.resolve(name)) === key
+    if ((event.type === 'test:pass' || event.type === 'test:fail') && details?.type !== 'suite' && !own) entry.cases += 1
     if (nesting !== 0 || (event.type !== 'test:pass' && event.type !== 'test:fail')) continue
     if (event.type === 'test:fail') entry.failed += 1
     // The file's own entry is named for the file, in whichever form: it fails when the file does not load, and is not a test.
@@ -61,6 +64,7 @@ export default async function* fileTiming(source) {
     file,
     ms: Math.round(entry.ms),
     tests: entry.tests,
+    cases: entry.cases,
     failed: entry.failed,
     skipped: entry.skipped,
     reasonless: entry.reasonless,

@@ -113,8 +113,20 @@ function main(argv) {
     process.stderr.write(`side-door-sweep: UNRUN — ${error.message}\n`)
     return 2
   }
-  const read = file => { try { return readFileSync(path.join(ROOT, file), 'utf8') } catch { return null } }
+  // A listed file that cannot be read may hold a door, so the sweep is UNRUN (the Codex review of 6641c951..4db47214); one
+  // that is gone from the disk holds nothing.
+  const unreadable = []
+  const read = file => {
+    try { return readFileSync(path.join(ROOT, file), 'utf8') } catch (error) {
+      if (error?.code !== 'ENOENT') unreadable.push(`${file} (${error?.code ?? error?.message})`)
+      return null
+    }
+  }
   const result = sweep({ files: listedFiles.stdout.split('\0').filter(Boolean), read, hooks, allow })
+  if (unreadable.length) {
+    process.stderr.write(`side-door-sweep: UNRUN — could not read ${unreadable.join(', ')}, so what they hold was not swept\n`)
+    return 2
+  }
   if (argv.includes('--json')) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
   else {
     for (const site of result.unlisted) process.stdout.write(`side-door-sweep: unlisted ${site.key} — add it to scripts/side-doors.json with its reason, or close it\n`)

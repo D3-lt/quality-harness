@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 6641c951..4db47214: an mrw write whose files cannot be named is recorded unseen",
+      "file": "plugin/scripts/hook-record.mjs",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": "if (paths === null) return recordUnnamedWrite(input)",
+      "to": "if (paths === null) return null",
+      "only": "^(?:an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen)$"
+    },
+    {
+      "label": "Codex review of 6641c951..4db47214: an apply_patch write names its files",
+      "file": "plugin/scripts/hook-record.mjs",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": "} else if (format === 'apply_patch') {",
+      "to": "} else if (false) {",
+      "only": "^(?:an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen)$"
+    },
+    {
+      "label": "Codex review of 6641c951..4db47214: a rename writes its destination",
+      "file": "plugin/scripts/hook-record.mjs",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": "if (header[2] === 'rename' && lines[at + 1]?.trim()) found.push(lines[at + 1].trim())",
+      "to": "if (false) found.push('')",
+      "only": "^(?:an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen)$"
+    },
+    {
       "label": "ADR-113 T2: an mrw write is recorded with its plan's paths",
       "file": "plugin/scripts/hook-record.mjs",
       "tests": [

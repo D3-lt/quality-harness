@@ -85,3 +85,27 @@ test('every test file is reached, runs a test, and every skip names its reason',
   assert.equal(releaseEvidence(['a'.repeat(40)], { ...quiet, fetch: () => run(all.slice(1)), declared: () => declared }), 1, 'a declared job the run lacks is not a pass')
   assert.equal(releaseEvidence(['a'.repeat(40)], { ...quiet, fetch: () => run(all), declared: () => null }), 2, 'a workflow that cannot be read is could-not-look')
 })
+
+// The Codex review of 6641c951..4db47214: a row that left a collected file out passed, a file of empty suites counted as one
+// that ran a test, and an unindented comment between jobs hid every job after it from release evidence.
+test('a row that misses a collected file, an empty suite, and a comment between jobs are each seen', t => {
+  const box = mkdtempSync(path.join(tmpdir(), 'qh-accounting-'))
+  t.after(() => rmSync(box, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))
+  mkdirSync(path.join(box, 'tests'))
+  writeFileSync(path.join(box, 'tests', 'suites.test.mjs'), "import { describe } from 'node:test'\ndescribe('empty suite', () => {})\n")
+  writeFileSync(path.join(box, 'tests', 'one.test.mjs'), "import { describe, it } from 'node:test'\ndescribe('a suite', () => { it('a test', () => {}) })\n")
+  const times = path.join(box, 'times.jsonl')
+  const ran = node([path.join(repoRoot, 'scripts', 'run-tests.mjs'), '--times', times, '--', 'tests/suites.test.mjs', 'tests/one.test.mjs'], { cwd: box, env: { ...process.env, QH_SELFTEST_ROOT: box } })
+  assert.equal(ran.status, 0, `${ran.stdout}${ran.stderr}`)
+  const row = JSON.parse(readFileSync(times, 'utf8').trim().split('\n').at(-1))
+  assert.deepEqual(rowFindings(row, {}).map(found => `${found.kind} ${found.text.split(' ')[0]}`), ['zero tests/suites.test.mjs'],
+    'a file of empty suites registered no test; a suite holding one did')
+  assert.deepEqual(rowFindings(row, {}, ['tests/suites.test.mjs', 'tests/one.test.mjs', 'tests/gone.test.mjs']).map(found => found.kind).sort(), ['unrun', 'zero'],
+    'a collected file the row does not hold is not known to have run')
+  assert.deepEqual(rowFindings({ files: [{ file: 'tests/one.test.mjs' }] }, {}).map(found => found.kind), ['unreadable'], 'an entry with no count')
+  // A comment or a blank line between jobs is neither the end of the jobs nor a job; a top-level key after them is the end.
+  assert.deepEqual(declaredJobs('jobs:\n  build:\n    runs-on: x\n\n# the second job\n  test:\n    runs-on: x\n'), ['build', 'test'])
+  assert.deepEqual(declaredJobs('jobs:\n  build:\n    runs-on: x\nenv:\n  test: 1\n'), ['build'])
+  assert.equal(declaredJobs('jobs:\n  build: { runs-on: x }\n  test:\n    runs-on: x\n'), null, 'a job this cannot read is could-not-look, not a shorter list')
+  assert.equal(declaredJobs('jobs:\nenv:\n'), null, 'a jobs block with no job')
+})

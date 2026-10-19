@@ -302,8 +302,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "fastSeen: ledgerRecordCount(input.cwd, 'fast-checks.jsonl')",
-      "to": "fastSeen: ledgerRecordCount(input.cwd, 'checks.jsonl')",
+      "from": "fastSeen: ledgerRecordCount(cwd, 'fast-checks.jsonl')",
+      "to": "fastSeen: ledgerRecordCount(cwd, 'checks.jsonl')",
       "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
     },
     {

@@ -1,6 +1,6 @@
 // Translate one hook into its named event, observe, and append both (ADR-060 T1). Moved out of lifecycle.mjs unchanged
 // (BACKLOG section 375, stage B4). It decides nothing: what a rule says about the event is the rule's.
-import { importCheckRecords, lateBaselineAllowed, recordFileWritten } from './check-ledger.mjs'
+import { importCheckRecords, lateBaselineAllowed, recordFileWritten, recordUnnamedWrite } from './check-ledger.mjs'
 import { SHELL_TOOLS, containsCommitOrPush, mentionsCommitOrPush } from './publish-verdict.mjs'
 import { appendEvent, readEvents, stateDir } from './event-log.mjs'
 import { randomUUID } from 'node:crypto'
@@ -14,10 +14,29 @@ import path from 'node:path'
 export const MRW_WRITE = 'mcp__mrw__mrw_write'
 export const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', MRW_WRITE])
 
-// ADR-113 T2: the paths an mrw MCP write names, from its plan's hunk headers (`@@ <path> <address> <op>`), each once.
-export function mrwPlanPaths(plan) {
-  if (typeof plan !== 'string') return []
-  return [...new Set([...plan.matchAll(/^@@ (\S+) /gm)].map(match => match[1]))]
+// ADR-113 T2: the paths an mrw MCP write names, each once, or null where its input does not name them. A native plan names
+// them in its hunk headers, and a rename's destination in the line after; an apply_patch document in its File and Move
+// lines. A grep/sub or ast-grep write finds its files when it runs, and a search_replace document is not read here, so
+// those are null (the Codex review of 6641c951..4db47214: they were recorded as no write at all).
+export function mrwWritePaths(toolInput) {
+  const input = toolInput ?? {}
+  if (input.grep !== undefined || input.ast_grep !== undefined || typeof input.plan !== 'string') return null
+  const found = []
+  const format = input.format ?? 'plan'
+  if (format === 'plan') {
+    const lines = input.plan.split(/\r?\n/)
+    lines.forEach((line, at) => {
+      const header = /^@@ (\S+) \S+ (\S+)/.exec(line)
+      if (!header) return
+      found.push(header[1])
+      if (header[2] === 'rename' && lines[at + 1]?.trim()) found.push(lines[at + 1].trim())
+    })
+  } else if (format === 'apply_patch') {
+    for (const match of input.plan.matchAll(/^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+?)\s*$/gm)) found.push(match[1])
+  } else {
+    return null
+  }
+  return found.length ? [...new Set(found)] : null
 }
 
 export function hasBackgroundWork(input) {
@@ -41,9 +60,12 @@ export function recordHookEvent(input) {
   if (typeof session !== 'string' || !session || typeof input.cwd !== 'string') return null
   const hook = input.hook_event_name
   if (hook === 'PostToolUse') {
-    // One record per path the plan names, as one Edit gives one; the first is what the hook hands on.
+    // One record per path the write names, as one Edit gives one; the first is what the hook hands on. A write whose
+    // files cannot be named is recorded with none, so it counts as unseen until a check passes after it.
     if (input.tool_name === MRW_WRITE) {
-      return mrwPlanPaths(input.tool_input?.plan).map(file => recordFileWritten({ ...input, tool_input: { file_path: file } })).find(Boolean) ?? null
+      const paths = mrwWritePaths(input.tool_input)
+      if (paths === null) return recordUnnamedWrite(input)
+      return paths.map(file => recordFileWritten({ ...input, tool_input: { file_path: file } })).find(Boolean) ?? null
     }
     return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
   }

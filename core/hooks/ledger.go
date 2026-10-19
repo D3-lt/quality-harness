@@ -416,6 +416,16 @@ func recordFileWritten(input *Obj) *Obj {
 	return entry
 }
 
+// recordUnnamedWrite is check-ledger.mjs's: a write whose files its input does not name, recorded with no path, which every
+// reader of an unseen write counts until a check passes after it.
+func recordUnnamedWrite(input *Obj) *Obj {
+	cwd := strOr(input.Get("cwd"))
+	entry := O("event", "file.written", "path", nil, "observable", false, "tool", input.Get("tool_name"),
+		"checksSeen", ledgerRecordCount(cwd, "checks.jsonl"), "fastSeen", ledgerRecordCount(cwd, "fast-checks.jsonl"))
+	appendEvent(cwd, input.Get("session_id"), entry)
+	return entry
+}
+
 // ledgerRecordCount is how many records a ledger holds, counted as the importer numbers them; nil when it cannot be read.
 func ledgerRecordCount(cwd, file string) any {
 	text, err := os.ReadFile(filepath.Join(stateDir(cwd), file))

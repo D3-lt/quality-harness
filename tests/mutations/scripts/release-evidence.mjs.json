@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 6641c951..4db47214: a comment between jobs hides none",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "if (/^\\s*(?:#|$)/.test(line)) continue",
+      "to": "if (false) continue",
+      "only": "^(?:a row that misses a collected file, an empty suite, and a comment between jobs are each seen)$"
+    },
+    {
+      "label": "Codex review of 6641c951..4db47214: an inline job makes the list unreadable",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "if (/^ {2}[A-Za-z0-9_-]+:\\s*[^\\s#]/.test(line)) return null",
+      "to": "if (false) return null",
+      "only": "^(?:a row that misses a collected file, an empty suite, and a comment between jobs are each seen)$"
+    },
+    {
       "label": "ADR-113 T5: a run lacking a declared job is not a pass",
       "file": "scripts/release-evidence.mjs",
       "tests": [

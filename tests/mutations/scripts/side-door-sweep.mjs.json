@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 6641c951..4db47214: an unreadable listed file is UNRUN",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/side-door-sweep.test.mjs"
+      ],
+      "from": "if (unreadable.length) {",
+      "to": "if (false) {",
+      "only": "^(?:a listed file the sweep cannot read is UNRUN, not swept clean)$"
+    },
+    {
       "label": "ADR-113 T3: a writer of a ledger or a task log is found",
       "file": "scripts/side-door-sweep.mjs",
       "tests": [

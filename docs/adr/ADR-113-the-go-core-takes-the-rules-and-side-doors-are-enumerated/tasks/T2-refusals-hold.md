@@ -65,6 +65,9 @@ node --test tests/refusals-hold.test.mjs
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-10-19 · ba02e831* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · the turn end reads an unreadable declaration as no check · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `plugin/scripts/hook-record.mjs` · an mrw write whose files cannot be named is no write at all · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `plugin/scripts/hook-record.mjs` · an apply_patch write names no file · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `plugin/scripts/hook-record.mjs` · a rename does not write its destination · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848
 
 ## Invariants
 
@@ -107,3 +110,6 @@ Stop if a change would add a refusal outside the two sanctioned ones, or if pari
 - 2026-10-19 · ba02e831* · exit 0 · `node --test tests/refusals-hold.test.mjs` · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848 · ms:1513
 - 2026-10-19 · ba02e831* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848 · ms:0 · test-lock-sha256:41de9d48ae6062657cb8b24552b789a42296f5fe160e817b884bb4c5f8f2885a · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcmVmdXNhbHMtaG9sZC50ZXN0Lm1qcwlhIGJyb2tlbiBjb25maWcgYW5kIGFuIG1ydyB3cml0ZSBhcmUgc2VlbiBieSBib3RoIHJlZnVzYWxzCTQ5MWE1ZTIwNzI5NzkwZTYwYTZmMzhhYWUxZWQ5ZTQ3NGU2NGY5ZjE4NGY1MzMwMmJlZDgyMzk2MDNhZGRjYmI · test-lock-kind:replace
 - 2026-10-19 · ba02e831* · exit 0 · `node --test tests/refusals-hold.test.mjs` · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848 · ms:1926
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/refusals-hold.test.mjs` · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848 · ms:4007
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/refusals-hold.test.mjs` · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848 · ms:3557
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/refusals-hold.test.mjs` · acceptance-sha256:0f577834db0b0ad6880c8109cb43d2065c159194985f47d796ac80093cf50848 · ms:3588

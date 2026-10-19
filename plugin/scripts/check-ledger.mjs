@@ -352,10 +352,7 @@ export function recordFileWritten(input) {
   const absolute = canonicalFile(path.resolve(input.cwd, target))
   // How many records each ledger held when this write happened. Only a pass recorded
   // AFTER it can cover it; the importer may append an earlier pass later in the log.
-  const entry = {
-    event: 'file.written', path: absolute, observable: false,
-    checksSeen: ledgerRecordCount(input.cwd, 'checks.jsonl'), fastSeen: ledgerRecordCount(input.cwd, 'fast-checks.jsonl'),
-  }
+  const entry = { event: 'file.written', path: absolute, observable: false, ...ledgerCounts(input.cwd) }
   // The spelling the tool was given, kept when canonicalising changed it: a path under a directory link that leads out
   // of the tree is canonicalised to its target, and the inside spelling is the only evidence the write was ours to see
   // (a Codex review of ADR-094).
@@ -390,6 +387,18 @@ export function recordFileWritten(input) {
   appendEvent(input.cwd, input.session_id, entry)
   return entry
 }
+
+// A write whose files its input does not name (an mrw grep/sub write): recorded with no path, which every reader of an unseen
+// write counts until a check passes after it (`unobservableWrites`, `unseenWriteSince`).
+export function recordUnnamedWrite(input) {
+  const entry = { event: 'file.written', path: null, observable: false, tool: input.tool_name, ...ledgerCounts(input.cwd) }
+  appendEvent(input.cwd, input.session_id, entry)
+  return entry
+}
+
+// How many records each ledger held when a write happened. Only a pass recorded AFTER it can cover it; the importer may append
+// an earlier pass later in the log.
+const ledgerCounts = cwd => ({ checksSeen: ledgerRecordCount(cwd, 'checks.jsonl'), fastSeen: ledgerRecordCount(cwd, 'fast-checks.jsonl') })
 
 // The number of records in a ledger (`checks.jsonl` or `fast-checks.jsonl`), counted
 // the way `importCheckRecords` numbers `seq`. Null when the file exists and cannot be

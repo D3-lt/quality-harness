@@ -57,3 +57,29 @@ test('a broken config and an mrw write are seen by both refusals', { skip }, t =
   assert.ok(routes('PreToolUse', 'lifecycle.mjs'), 'PreToolUse routes an mrw write to the lifecycle hook')
   assert.ok(routes('PostToolUse', 'lifecycle.mjs'), 'PostToolUse routes an mrw write to the lifecycle hook')
 })
+
+// The Codex review of 6641c951..4db47214: only a native plan's headers were read, so a write in mrw's other forms was no write
+// at all to the record, and a check that passed before it could stand for the tree after it. Each form is a write now, and one
+// whose files the input does not name is recorded with no path, which counts as unseen until a check passes after it.
+test('an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen', { skip }, t => {
+  const box = sandbox(t)
+  const written = (name, toolInput) => {
+    const repo = fixtureRepo(box, name, { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+    runHook(box, repo, name, { hook_event_name: 'SessionStart', source: 'startup' })
+    runHook(box, repo, name, { hook_event_name: 'PostToolUse', tool_name: 'mcp__mrw__mrw_write', tool_input: toolInput, tool_response: { ok: true } })
+    return Object.entries(ledgers(repo)).filter(([file]) => file.startsWith('sessions/')).flatMap(([, rows]) => rows)
+      .filter(row => row.event === 'file.written').map(row => (row.path === null ? null : path.basename(row.path)))
+  }
+  assert.deepEqual(written('patch', { format: 'apply_patch', plan: '*** Begin Patch\n*** Update File: src/a.js\n@@\n-x\n+y\n*** Add File: src/c.js\n+z\n*** End Patch\n' }), ['a.js', 'c.js'])
+  assert.deepEqual(written('renamed', { plan: '@@ src/a.js - rename\nsrc/b.js\n' }), ['a.js', 'b.js'], 'a rename writes its destination too')
+  assert.deepEqual(written('sub', { grep: '\\bx\\b', sub: 'y' }), [null], 'a grep/sub write names no file, and is recorded as unseen')
+  assert.deepEqual(written('aider', { format: 'search_replace', plan: 'src/a.js\n<<<<<<< SEARCH\nx\n=======\ny\n>>>>>>> REPLACE\n' }), [null])
+  // The twin: a native plan names its file, as T2 recorded it.
+  assert.deepEqual(written('native', { plan: '@@ src/a.js 1 replace\ny\n' }), ['a.js'])
+  // And an unseen write is outstanding at the turn end, where a named one in the tree is not.
+  const repo = fixtureRepo(box, 'outstanding', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'o1', { hook_event_name: 'SessionStart', source: 'startup' })
+  runHook(box, repo, 'o1', { hook_event_name: 'PostToolUse', tool_name: 'mcp__mrw__mrw_write', tool_input: { grep: 'x', sub: 'y' }, tool_response: { ok: true } })
+  const ended = said(runHook(box, repo, 'o1', { hook_event_name: 'Stop', last_assistant_message: 'Done.' })).additionalContext ?? ''
+  assert.match(ended, /no `qh-check` has passed on/, 'a write the record cannot place is unchecked work')
+})

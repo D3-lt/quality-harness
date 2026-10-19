@@ -59,6 +59,7 @@ node --test tests/side-door-sweep.test.mjs && go build -C core -o bin/qh ./cmd/q
 - 2026-10-19 · 6d9a9e9b* · mutant killed · exit 1 · `scripts/side-door-sweep.mjs` · the gate exits 0 over an unlisted site · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66
 - 2026-10-19 · 6d9a9e9b* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · a fast pass of another command lets a commit through · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66
 - 2026-10-19 · 6d9a9e9b* · mutant killed · exit 1 · `core/hooks/ledger.go` · the Go core lets a fast pass of another command through · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66
+- 2026-10-19 · 4db47214* · mutant killed · exit 1 · `scripts/side-door-sweep.mjs` · an unreadable listed file is swept clean · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66
 
 ## Invariants
 
@@ -101,3 +102,4 @@ Stop if a change would add a refusal outside the two sanctioned ones, or if pari
 - 2026-10-19 · 6d9a9e9b* · exit 0 · `node --test tests/side-door-sweep.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/side-door-sweep.test.mjs` · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66 · ms:3529
 - 2026-10-19 · 6d9a9e9b* · exit 0 · `node --test tests/side-door-sweep.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/side-door-sweep.test.mjs` · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66 · ms:3373
 - 2026-10-19 · 6d9a9e9b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66 · ms:0 · test-lock-sha256:ce89d2029ee846a2b49f30ae4d9c89af53336fe9de7ec42b423ac1b6e4fc22a1 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc2lkZS1kb29yLXN3ZWVwLnRlc3QubWpzCWV2ZXJ5IHNpZGUgZG9vciBpcyBhbGxvdy1saXN0ZWQgd2l0aCBpdHMgcmVhc29uLCBhbmQgYSBuZXcgb25lIGZhaWxzCTMxODA5NmU2NmExMmExNjBkMGE1ZGU5YjdhNWYyMWMyMDUwNjZjNmZkZmZjYjFkOGEzZDRlZGYxNzM3NmY5NGY · test-lock-kind:replace
+- 2026-10-19 · 4db47214* · exit 0 · `node --test tests/side-door-sweep.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/side-door-sweep.test.mjs` · acceptance-sha256:bc7fb39302ad5eecde2c0bb05524a63a26041c10193322cbc5636b51d8e94d66 · ms:4129

@@ -13,7 +13,7 @@
 //   node scripts/suite-accounting.mjs [--row <file>]
 //
 // Exit: 0 every file accounted for · 1 a finding · 2 could not run (no git listing, or a row that cannot be read).
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -46,18 +46,25 @@ export function unreached({ files, read }) {
   })
 }
 
-export function rowFindings(row, exempt = EXEMPT) {
+// `collected` is every file the selftest glob runs: each must have an entry, or what the row says about the run is partial.
+// A file's count is its test cases, suites left out (`cases`, from scripts/file-timing-reporter.mjs; `tests` for an older row),
+// since a file of empty suites registered no test (the Codex review of 6641c951..4db47214).
+export function rowFindings(row, exempt = EXEMPT, collected = []) {
   const files = Array.isArray(row?.files) ? row.files : null
-  if (!files) return [{ kind: 'unreadable', text: 'the run left no per-file row, so what it ran cannot be counted' }]
+  if (!files || files.some(entry => typeof entry?.file !== 'string' || !Number.isInteger(entry.tests))) {
+    return [{ kind: 'unreadable', text: 'the run left no per-file row it could be counted from' }]
+  }
   const byFile = new Map(files.map(entry => [entry.file, entry]))
-  const found = []
+  const count = entry => (Number.isInteger(entry?.cases) ? entry.cases : (entry?.tests ?? 0))
+  const found = collected.filter(file => !byFile.has(file))
+    .map(file => ({ kind: 'unrun', text: `${file} is collected and has no entry in this run's row, so whether it ran is not known` }))
   for (const entry of files) {
     const excused = exempt[entry.file]
-    if (excused && entry.tests > 0) {
-      found.push({ kind: 'stale', text: `${entry.file} ran ${entry.tests} test(s) of its own, so its exemption (${excused.why}) is stale; remove it` })
-    } else if (excused && !((byFile.get(excused.carriedBy)?.tests ?? 0) > 0)) {
+    if (excused && count(entry) > 0) {
+      found.push({ kind: 'stale', text: `${entry.file} ran ${count(entry)} test(s) of its own, so its exemption (${excused.why}) is stale; remove it` })
+    } else if (excused && !(count(byFile.get(excused.carriedBy)) > 0)) {
       found.push({ kind: 'uncarried', text: `${entry.file} is exempt because ${excused.why}, and ${excused.carriedBy} ran no test in this run` })
-    } else if (!excused && COLLECTED.test(entry.file) && entry.tests === 0) {
+    } else if (!excused && COLLECTED.test(entry.file) && count(entry) === 0) {
       found.push({ kind: 'zero', text: `${entry.file} registered no test, so it passed having checked nothing` })
     }
     for (const name of entry.reasonless ?? []) {
@@ -80,7 +87,7 @@ function main(argv) {
   if (at >= 0) {
     let row = null
     try { row = JSON.parse(readFileSync(argv[at + 1], 'utf8').trim().split('\n').at(-1)) } catch { /* said below */ }
-    const counted = rowFindings(row)
+    const counted = rowFindings(row, EXEMPT, files.filter(file => COLLECTED.test(file) && existsSync(path.join(ROOT, file))))
     if (counted.some(found => found.kind === 'unreadable')) {
       process.stderr.write(`suite-accounting: UNRUN — ${counted[0].text}\n`)
       return 2

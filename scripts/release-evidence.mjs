@@ -457,7 +457,12 @@ export function declaredJobs(text) {
   const unquote = value => value.trim().replace(/^(['"])(.*)\1$/, '$2')
   const jobs = []
   for (const line of lines.slice(start + 1)) {
+    // A comment or a blank line at any indent is neither the end of the mapping nor a job (the Codex review of
+    // 6641c951..4db47214: an unindented comment hid every job after it). A job written inline is not read here, and a
+    // jobs block this cannot read whole is null, never a shorter list.
+    if (/^\s*(?:#|$)/.test(line)) continue
     if (/^\S/.test(line)) break
+    if (/^ {2}[A-Za-z0-9_-]+:\s*[^\s#]/.test(line)) return null
     const key = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line)
     if (key) { jobs.push({ name: key[1], matrix: {} }); continue }
     const job = jobs.at(-1)
@@ -467,6 +472,7 @@ export function declaredJobs(text) {
     const axis = /^ {8}([A-Za-z0-9_-]+):\s*\[(.*)\]\s*$/.exec(line)
     if (axis) job.matrix[axis[1]] = axis[2].split(',').map(unquote).filter(Boolean)
   }
+  if (!jobs.length) return null
   const expand = (name, matrix) => {
     const ref = /\$\{\{\s*matrix\.([A-Za-z0-9_-]+)\s*\}\}/.exec(name)
     if (!ref || !matrix[ref[1]]) return [name]

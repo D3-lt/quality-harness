@@ -89,10 +89,10 @@ test('a file node names in two path forms is one row, holding all its tests', as
       const tests = [one('test:pass', 'one', 300), one('test:pass', 'two', 100)]
       // CLEAN: the file's own event first, in the given form; its tests in another.
       assert.deepEqual(await rowOf([own('test:enqueue', linkFile), ...tests, own('test:pass', linkFile)]),
-        [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 0, skipped: 0, reasonless: [] }], testsFile)
+        [{ file: 'slow.test.mjs', ms: 400, tests: 2, cases: 2, failed: 0, skipped: 0, reasonless: [] }], testsFile)
       // DIRTY twin: its tests come first, and the file's own event that ends it fails (a file that did not finish loading).
       assert.deepEqual(await rowOf([...tests, own('test:fail', linkFile)]),
-        [{ file: 'slow.test.mjs', ms: 400, tests: 2, failed: 1, skipped: 0, reasonless: [] }], testsFile)
+        [{ file: 'slow.test.mjs', ms: 400, tests: 2, cases: 2, failed: 1, skipped: 0, reasonless: [] }], testsFile)
     }
   } finally {
     if (saved === undefined) delete process.env.QH_SELFTEST_ROOT

@@ -52,6 +52,24 @@ func powershellDestinations(c *shellCommand) []string {
 	found := []string{}
 	settled := false
 	after := ""
+	// A comma list is one argument: a word that continues one is read as the word that began it was. last and open are
+	// "", "yes" or "no".
+	last, open := "", ""
+	elements := func(text string) []string {
+		parts := []string{}
+		for _, part := range strings.Split(text, ",") {
+			if part = strings.TrimSpace(part); part != "" {
+				parts = append(parts, part)
+			}
+		}
+		return parts
+	}
+	yes := func(b bool) string {
+		if b {
+			return "yes"
+		}
+		return "no"
+	}
 	for at := 1; at < len(c.argv); at++ {
 		word := c.argv[at]
 		literal := !containsInt(c.dynamic, at)
@@ -64,26 +82,42 @@ func powershellDestinations(c *shellCommand) []string {
 				settled = true
 			}
 			if colon != nil {
-				if !content && colon[1] != "" && literal {
-					found = append(found, colon[1])
+				if !content && literal {
+					found = append(found, elements(colon[1])...)
 				}
-				after = ""
-			} else if content {
-				after = "content"
+				last, open, after = yes(!content), "", ""
+				if strings.HasSuffix(colon[1], ",") {
+					open = last
+				}
 			} else {
-				after = "value"
+				last, open = "", ""
+				if content {
+					after = "content"
+				} else {
+					after = "value"
+				}
 			}
 			continue
 		}
-		if literal && after != "content" {
-			if after == "value" || !settled {
-				found = append(found, word)
-			}
-			if colon != nil && colon[1] != "" {
-				found = append(found, colon[1])
-			}
+		var candidate bool
+		switch {
+		case open != "":
+			candidate = open == "yes"
+		case strings.HasPrefix(word, ",") && last != "":
+			candidate = last == "yes"
+		default:
+			candidate = after != "content" && (after == "value" || !settled)
 		}
-		after = ""
+		if candidate && literal {
+			found = append(found, elements(word)...)
+		}
+		if colon != nil && literal {
+			found = append(found, elements(colon[1])...)
+		}
+		last, open, after = yes(candidate), "", ""
+		if strings.HasSuffix(word, ",") {
+			open = last
+		}
 	}
 	return found
 }

@@ -166,7 +166,7 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "        if (!content && colon[1] && literal) found.push(colon[1])",
+      "from": "        if (!content && literal) found.push(...elements(colon[1]))",
       "to": "        void 0",
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     },
@@ -176,8 +176,8 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (literal && after !== 'content') {",
-      "to": "    if (literal) {",
+      "from": "    const candidate = continues ? (open ?? last) : after !== 'content' && (after === 'value' || !settled)",
+      "to": "    const candidate = continues ? (open ?? last) : (after === 'value' || !settled)",
       "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
     },
     {
@@ -196,8 +196,8 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "      } else after = content ? 'content' : 'value'",
-      "to": "      } else after = 'content'",
+      "from": "        after = content ? 'content' : 'value'",
+      "to": "        after = 'content'",
       "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
     },
     {
@@ -226,9 +226,29 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "      if (colon && colon[1]) found.push(colon[1])",
+      "from": "    if (colon && literal) found.push(...elements(colon[1]))",
       "to": "      void 0",
       "only": "^(?:a PowerShell prefix or a quoted word cannot turn a destination into content)$"
+    },
+    {
+      "label": "ADR-117 fourth verification: a word that continues a comma list is read as the list began",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    const continues = open !== null || (word.startsWith(',') && last !== null)",
+      "to": "    const continues = false",
+      "only": "^(?:a PowerShell comma list continues whatever it began as)$"
+    },
+    {
+      "label": "ADR-117 fourth verification: each element of a comma word is a candidate",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "  const elements = text => text.split(',').map(part => part.trim()).filter(Boolean)",
+      "to": "  const elements = text => [text]",
+      "only": "^(?:a PowerShell comma list continues whatever it began as)$"
     }
   ]
 }

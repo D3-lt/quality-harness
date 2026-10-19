@@ -208,3 +208,24 @@ test('a PowerShell prefix or a quoted word cannot turn a destination into conten
     'Out-File -FilePath notes.txt -InputObject .git/quality-harness/checks.jsonl',
   ]) assert.notEqual(pre(command).permissionDecision, 'deny', `${command} passes`)
 })
+
+// The fourth verification review of 9e2e2c1c: a comma list is one argument to PowerShell, so a word that continues it after a
+// destination named in full is another destination, and one that continues a content value is still content.
+test('a PowerShell comma list continues whatever it began as', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'fifth', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'fifth', { hook_event_name: 'SessionStart', source: 'startup' })
+  mkdirSync(path.join(repo, '.git', 'quality-harness'), { recursive: true })
+  const pre = command => said(runHook(box, repo, 'fifth', { hook_event_name: 'PreToolUse', tool_name: 'PowerShell', tool_input: { command } }))
+  for (const command of [
+    'Set-Content -Path notes.txt, .git/quality-harness/checks.jsonl -Value x',
+    'Set-Content -Path notes.txt , .git/quality-harness/checks.jsonl -Value x',
+    'Add-Content -LP notes.txt,.git/quality-harness/checks.jsonl -Value x',
+    'Set-Content -Path:notes.txt,.git/quality-harness/checks.jsonl -Value x',
+    'Set-Content notes.txt, .git/quality-harness/checks.jsonl x',
+  ]) assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused`)
+  for (const command of [
+    'Set-Content -Path notes.txt -Value a, .git/quality-harness/checks.jsonl',
+    'Set-Content -Path notes.txt, other.txt -Value x',
+  ]) assert.notEqual(pre(command).permissionDecision, 'deny', `${command} passes`)
+})

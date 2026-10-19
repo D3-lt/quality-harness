@@ -32,6 +32,12 @@ function powershellDestinations(c) {
   const found = []
   let settled = false
   let after = null
+  // A comma list is one argument (`-Path a, b`): a word that continues one is read as the word that began it was, a
+  // destination or content (the fourth verification review of 9e2e2c1c). `last` is how the word before was read, and `open`
+  // the same while that word left the list open with a trailing comma.
+  let last = null
+  let open = null
+  const elements = text => text.split(',').map(part => part.trim()).filter(Boolean)
   for (let at = 1; at < c.argv.length; at++) {
     const word = c.argv[at]
     const literal = !c.dynamic.includes(at)
@@ -42,15 +48,23 @@ function powershellDestinations(c) {
       const content = prefixOf(name, POWERSHELL_CONTENT, 2)
       if (POWERSHELL_NAMED.has(name)) settled = true
       if (colon) {
-        if (!content && colon[1] && literal) found.push(colon[1])
+        if (!content && literal) found.push(...elements(colon[1]))
+        last = !content
+        open = colon[1].endsWith(',') ? last : null
         after = null
-      } else after = content ? 'content' : 'value'
+      } else {
+        after = content ? 'content' : 'value'
+        last = null
+        open = null
+      }
       continue
     }
-    if (literal && after !== 'content') {
-      if (after === 'value' || !settled) found.push(word)
-      if (colon && colon[1]) found.push(colon[1])
-    }
+    const continues = open !== null || (word.startsWith(',') && last !== null)
+    const candidate = continues ? (open ?? last) : after !== 'content' && (after === 'value' || !settled)
+    if (candidate && literal) found.push(...elements(word))
+    if (colon && literal) found.push(...elements(colon[1]))
+    last = candidate
+    open = word.endsWith(',') ? candidate : null
     after = null
   }
   return found

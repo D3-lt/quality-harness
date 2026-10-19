@@ -92,6 +92,9 @@ test('a later hook\'s finding is not the last turn end\'s, and a moved state dir
   writeFileSync(path.join(repo, 'src', 'a.js'), 'y\n')
   runHook(box, repo, 's1', { hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: path.join(repo, 'src', 'a.js'), content: 'y\n' }, tool_response: { success: true } })
   runHook(box, repo, 's1', { hook_event_name: 'Stop', last_assistant_message: 'Done.' })
+  // The Codex review of aae06d72: a mention records no event before its advice, so its P must not read as the turn end's.
+  runHook(box, repo, 's1', { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'echo commit' } })
+  assert.deepEqual(JSON.parse(read(qh, repo, 'qh://turn-end/findings')).findings.map(f => f.rule), ['R1'], 'a mention\'s advice is not the turn end\'s')
   const refused = runHook(box, repo, 's1', { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -am x' } })
   assert.equal(refused.stdout?.hookSpecificOutput?.permissionDecision, 'deny', 'the later hook did say something')
   assert.deepEqual(JSON.parse(read(qh, repo, 'qh://turn-end/findings')).findings.map(f => f.rule), ['R1'], 'only the turn end\'s own')

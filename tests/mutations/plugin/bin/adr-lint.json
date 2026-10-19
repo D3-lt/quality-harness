@@ -1,13 +1,23 @@
 {
   "mutations": [
     {
+      "label": "§385: adjacent tables are read apart",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/readme-index-shape.test.mjs"
+      ],
+      "from": "        starts = sorted({0, *[at for at in range(len(block) - 1) if INDEX_DELIMITER.match(block[at + 1])]}) if block else []",
+      "to": "        starts = [0] if block else []",
+      "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
+    },
+    {
       "label": "§385: a table with no separator row is said",
       "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/readme-index-shape.test.mjs"
       ],
-      "from": "            if not (body and INDEX_DELIMITER.match(body[0])):",
-      "to": "            if False:",
+      "from": "    if not (body and INDEX_DELIMITER.match(body[0])):",
+      "to": "    if False:",
       "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
     },
     {
@@ -16,8 +26,8 @@
       "tests": [
         "tests/readme-index-shape.test.mjs"
       ],
-      "from": "                if listed and listed.group(1) in seen:",
-      "to": "                if False:",
+      "from": "        if listed and listed.group(1) in seen:",
+      "to": "        if False:",
       "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
     },
     {
@@ -26,8 +36,8 @@
       "tests": [
         "tests/readme-index-shape.test.mjs"
       ],
-      "from": "        if head and head[0].lower() in (\"id\", \"task\"):",
-      "to": "        if head:",
+      "from": "    if not (head and head[0].lower() in (\"id\", \"task\")):",
+      "to": "    if not head:",
       "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
     },
     {

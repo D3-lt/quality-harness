@@ -6206,26 +6206,33 @@ def check_index_shape(lines, errors):
         if "|" in line and line.strip():
             block.append(line)
             continue
-        head = pipe_cells(block[0]) if block else []
-        if head and head[0].lower() in ("id", "task"):
-            body = block[1:]
-            if not (body and INDEX_DELIMITER.match(body[0])):
-                errors.advise(f"README.md: row `{block[0].strip()}` heads a table with no separator row (`|---|`) under "
-                              f"it, so Markdown does not read it as a table. This index is derived: regenerate it from the "
-                              f"task files")
-            else:
-                body = body[1:]
-            seen = set()
-            for text in body:
-                cells = pipe_cells(text)
-                listed = re.fullmatch(r"\[?(T\d+)\]?(?:\([^)]*\))?", cells[0]) if cells else None
-                if listed and listed.group(1) in seen:
-                    errors.advise(f"README.md: {listed.group(1)} is listed twice in one table (`{text.strip()}`), so the "
-                                  f"index says two things about one task. This index is derived: regenerate it from the "
-                                  f"task files")
-                elif listed:
-                    seen.add(listed.group(1))
+        # Tables written with no blank line between them are one run of pipe lines: each header with its separator under it
+        # starts a table of its own (record.py reads adjacent README tables the same way; the Codex review of aae06d72).
+        starts = sorted({0, *[at for at in range(len(block) - 1) if INDEX_DELIMITER.match(block[at + 1])]}) if block else []
+        for at, start in enumerate(starts):
+            check_index_table(block[start:starts[at + 1] if at + 1 < len(starts) else len(block)], errors)
         block = []
+
+
+def check_index_table(table, errors):
+    head = pipe_cells(table[0])
+    if not (head and head[0].lower() in ("id", "task")):
+        return
+    body = table[1:]
+    if not (body and INDEX_DELIMITER.match(body[0])):
+        errors.advise(f"README.md: row `{table[0].strip()}` heads a table with no separator row (`|---|`) under it, so "
+                      f"Markdown does not read it as a table. This index is derived: regenerate it from the task files")
+    else:
+        body = body[1:]
+    seen = set()
+    for text in body:
+        cells = pipe_cells(text)
+        listed = re.fullmatch(r"\[?(T\d+)\]?(?:\([^)]*\))?", cells[0]) if cells else None
+        if listed and listed.group(1) in seen:
+            errors.advise(f"README.md: {listed.group(1)} is listed twice in one table (`{text.strip()}`), so the index says "
+                          f"two things about one task. This index is derived: regenerate it from the task files")
+        elif listed:
+            seen.add(listed.group(1))
 
 
 def reject_unknown_flags(known=()):

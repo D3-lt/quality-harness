@@ -140,6 +140,9 @@ func turnEndFindings(cwd string) (string, bool) {
 	for _, name := range observedHookEvents {
 		opens[name] = true
 	}
+	// A mention records no event before its advice, so a rule no turn end emits (P, R3) ends the findings too (the Codex review
+	// of aae06d72). The turn end's rules: completion-rules.mjs's R1, R2, R4, R5, W and N, and the artifact pass's A.
+	turnEndRules := map[string]bool{"R1": true, "R2": true, "R4": true, "R5": true, "W": true, "N": true, "A": true}
 	findings := []any{}
 	for _, e := range log.E[last+1:] {
 		name := strOr(get(e, "event"))
@@ -147,6 +150,9 @@ func turnEndFindings(cwd string) (string, bool) {
 			break
 		}
 		if name == "action.emitted" {
+			if !turnEndRules[strOr(get(e, "rule"))] {
+				break
+			}
 			findings = append(findings, O("rule", get(e, "rule"), "key", orNull(get(e, "key")), "channel", orNull(get(e, "channel")),
 				"recipient", orNull(get(e, "recipient")), "at", orNull(get(e, "at"))))
 		}

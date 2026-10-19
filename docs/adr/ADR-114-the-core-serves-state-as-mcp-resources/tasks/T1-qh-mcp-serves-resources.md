@@ -55,6 +55,7 @@ node --test tests/qh-mcp-resources.test.mjs
 - 2026-10-19 · 2f70ffdd* · mutant killed · exit 1 · `core/hooks/mcp.go` · a notification is answered · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4
 - 2026-10-19 · f79c600d* · mutant killed · exit 1 · `core/hooks/mcp.go` · a later hook's finding is served as the last turn end's · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4
 - 2026-10-19 · f79c600d* · mutant killed · exit 1 · `core/hooks/mcp.go` · a moved state directory hides the branch-state snapshot · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4
+- 2026-10-19 · aae06d72* · mutant killed · exit 1 · `core/hooks/mcp.go` · a mention's P is served as the turn end's · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4
 
 ## Invariants
 
@@ -94,3 +95,4 @@ Stop if ADR-114 is not Accepted.
 - 2026-10-19 · b26ebd8a* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4 · ms:0 · test-lock-sha256:d2b658058be030e1a13ef83eb448e060f3a3a2b20cb4fdc0629c03fc3ca965f3 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcWgtbWNwLXJlc291cmNlcy50ZXN0Lm1qcwllYWNoIHJlc291cmNlIHNheXMgd2hhdCBpdHMgbGVkZ2VyIGhvbGRzLCBhbmQgYW4gdW5yZWFkYWJsZSBvbmUgc2F5cyBzbwljZDk1MTA5NGE0OGU1MTQ3Zjc2MzgyNWE4ZDM4MzU5ODE4ODI4MWYxNjRkNTI5ZGJkZDlhMDczMjQyZjE0YzIz · test-lock-kind:replace
 - 2026-10-19 · f79c600d* · exit 0 · `node --test tests/qh-mcp-resources.test.mjs` · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4 · ms:2988
 - 2026-10-19 · f79c600d* · exit 0 · `node --test tests/qh-mcp-resources.test.mjs` · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4 · ms:2843
+- 2026-10-19 · aae06d72* · exit 0 · `node --test tests/qh-mcp-resources.test.mjs` · acceptance-sha256:42a2fb6c0682b557ce8969965b4ae3bf510b9a25ba589d188bd75a8f863018f4 · ms:3047

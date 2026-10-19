@@ -391,7 +391,13 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
   # owner sat right beside its tasks/ directory. Widen only when the record is
   # genuinely not there.
   if [ "${#candidates[@]}" -eq 0 ]; then
-    collect_owning_adrs "$(dirname "$parent")"
+    # Never above the repository: one directory up from a top-level folder is outside it, and a record another session left
+    # there (the shared temp directory, 2026-10-19) is not this task's owner. Outside any repository the widening stands.
+    widen=$(dirname "$parent")
+    top=$(git -C "$tdir" rev-parse --show-toplevel 2>/dev/null) || top=''
+    if [ -z "$top" ] || [[ "$(cd "$widen" 2>/dev/null && pwd -P)/" == "$(cd "$top" 2>/dev/null && pwd -P)/"* ]]; then
+      collect_owning_adrs "$widen"
+    fi
   fi
   shopt -u nullglob
   if [ "${#candidates[@]}" -ne 1 ]; then

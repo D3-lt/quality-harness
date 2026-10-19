@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "dispatch: the owning-ADR search stops at the repository root",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/owner-search-root.test.mjs"
+      ],
+      "from": "    if [ -z \"$top\" ] || [[",
+      "to": "    if true || [[",
+      "only": "^(?:the owning-ADR search stops at the repository root)$"
+    },
+    {
       "label": "dispatch: a Tasks/README.md is a tasks index in any case (§285)",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [

@@ -46,4 +46,10 @@ test('a tasks index with no separator row, or a task listed twice, is said', t =
   const bare = said(t, ['ID | Title | Status', 'T1 | one | pending', 'T1 | one | done'])
   assert.match(bare, /no separator row/, bare)
   assert.match(bare, /T1 is listed twice in one table/, bare)
+  // The Codex review of aae06d72: tables with no blank line between them are separate tables, as record.py reads them.
+  const order = ['| Wave | Task | Depends-on |', '|------|------|------------|', '| 1 | T1 | none |']
+  const adjacentTwice = said(t, [...order, HEADER, SEPARATOR, row('pending'), row('done')])
+  assert.match(adjacentTwice, /T1 is listed twice in one table/, 'an index right under an order table is still read')
+  const adjacentOnce = said(t, [HEADER, SEPARATOR, row('pending'), HEADER, SEPARATOR, row('pending')])
+  assert.doesNotMatch(adjacentOnce, /listed twice/, 'two adjacent tables listing T1 once each')
 })

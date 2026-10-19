@@ -23,6 +23,7 @@ An Edit, Write, MultiEdit, NotebookEdit or mrw MCP write, or a parsed redirect o
 | `plugin/scripts/shell-words.mjs`, `core/hooks/shellwords.go`, `core/hooks/parity_test.go`, `tests/qh-core-parity.test.mjs` | edit | each command keeps its output redirections' targets (`writes`), compared between the lexers |
 | `CLAUDE.md` §3, `.claude/rules/03-gates-advise.md`, `README.md`, `plugin/README.md`, `tests/turn-end-delivery.test.mjs` | edit | three refusals are sanctioned; ADR-096's tasks relocked for the changed assertion |
 | `tests/mutations/plugin/scripts/*.json` | add, edit | catalogue entries |
+| `plugin/scripts/event-log.mjs` | edit | `repositoryStateDir` exported, so the guard covers the repository's own state directory under a state root (the Codex review of aae06d72..90b9ceaf) |
 
 ## Ordered Steps
 
@@ -64,6 +65,14 @@ node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh 
 - 2026-10-19 · f07020a3* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · the Go core does not read a sh -c string · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 - 2026-10-19 · f07020a3* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · the Go core ignores a cd · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 - 2026-10-19 · f07020a3* · mutant killed · exit 1 · `core/hooks/publish.go` · the Go core does not warn under the opt-out · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads a substitution · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go keeps the directory before a cd · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go keeps PowerShell path separators · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads the PowerShell writers · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads search_replace and walk paths · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go guards the repository state directory under a state root · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go follows a link at the leaf · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 90b9ceaf* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go folds case on macOS and Windows · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 
 ## Invariants
 
@@ -109,3 +118,11 @@ Stop if a reading command is refused in the twin table.
 - 2026-10-19 · f07020a3* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:3763
 - 2026-10-19 · f07020a3* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:3834
 - 2026-10-19 · f07020a3* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:3769
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6468
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6361
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6179
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6321
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6211
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6141
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6178
+- 2026-10-19 · 90b9ceaf* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:6167

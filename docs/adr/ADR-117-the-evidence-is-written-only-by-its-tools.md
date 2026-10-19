@@ -95,3 +95,4 @@ Revert the tasks' commits; the opt-out turns the refusal off without a revert.
 
 - [x] Owner decision: Accepted, 2026-10-19, so the third refusal is sanctioned (CLAUDE.md §3).
 - [ ] The owner sets a ruleset on `main` requiring the selftest checks; T3 then reads it as protected.
+- [x] The Codex review of aae06d72..90b9ceaf, 2026-10-19: twelve findings. The nine forms the guard missed are now read, in Node and in Go. A task HEAD does not hold needs a receipt for every row, and receipts match by digest, so a moved task keeps its rows. The repository's own state directory is guarded under a state root. The forge read takes every page and calls an unreadable rule could-not-look. A missing door list fails the sweep. The owning-ADR search is bounded at the root for both of its searches. Decision 1 stands as written; the forms the guard still does not read are BACKLOG §387, and the boundary door names them.

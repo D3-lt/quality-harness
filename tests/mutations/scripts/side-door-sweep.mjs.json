@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 review: a missing door list fails",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  if (!Array.isArray(doors)) return { counts, problems:",
+      "to": "  if (false) return { counts, problems:",
+      "only": "^(?:every page of main's rules is read, a rule it cannot read is could-not-look, and a missing door list fails)$"
+    },
+    {
       "label": "ADR-117 T3: an open door fails the sweep",
       "file": "scripts/side-door-sweep.mjs",
       "tests": [

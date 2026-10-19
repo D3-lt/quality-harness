@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 review: a task HEAD does not hold is not could-not-look",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "        return listed.returncode == 0 and not listed.stdout.strip()",
+      "to": "        return False",
+      "only": "^(?:a task HEAD does not hold still needs a receipt for every row, and a moved task keeps its receipts)$"
+    },
+    {
+      "label": "ADR-117 review: a digest-less row in a new task is judged here",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "            if row.strip() not in held and not (judged and stamped and not stamped.group(\"digest\")):",
+      "to": "            if row.strip() not in held and not (stamped and not stamped.group(\"digest\")):",
+      "only": "^(?:a task HEAD does not hold still needs a receipt for every row, and a moved task keeps its receipts)$"
+    },
+    {
       "label": "ADR-117 T2: an unreceipted row is refused",
       "file": "plugin/bin/adr-lint",
       "tests": [

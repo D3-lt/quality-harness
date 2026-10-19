@@ -88,7 +88,7 @@ export function stateDir(cwd, options = {}) {
   return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base
 }
 
-function repositoryStateDir(cwd, { spawn = true } = {}) {
+export function repositoryStateDir(cwd, { spawn = true } = {}) {
   const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
   const key = `${directory ?? String(cwd)}:${spawn}`
   if (stateDirectories.has(key)) return stateDirectories.get(key)

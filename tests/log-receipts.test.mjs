@@ -135,3 +135,25 @@ test('a hand-typed uncommitted log row is refused, and every row adr-verify writ
   add(loose.task, 'Verification Log', typed(rows(task, 'Verification Log')[0]))
   assert.doesNotMatch(said(lint(loose.dir)), NO_RECEIPT)
 })
+
+// The Codex review of aae06d72..90b9ceaf: a task HEAD does not hold read as could-not-look, so a new or renamed task took a
+// typed row, digest or none. Proven absent from HEAD is not could-not-look. A receipt names its row by digest alone, so a
+// task moved after adr-verify wrote its rows keeps them.
+test('a task HEAD does not hold still needs a receipt for every row, and a moved task keeps its receipts', () => {
+  const { dir, task } = corpus()
+  git(dir, 'rm', '-q', '--cached', 'tasks/T1-fixture.md')
+  git(dir, 'commit', '-qm', 'the task is new')
+  const run = gate('adr-verify', dir, ['tasks/T1-fixture.md', '--cwd', '.'])
+  assert.equal(run.status, 0, said(run))
+  assert.doesNotMatch(said(lint(dir)), NO_RECEIPT, 'a row adr-verify wrote into a new task passes')
+  const before = readFileSync(task, 'utf8')
+  for (const row of [typed(rows(task, 'Verification Log')[0]), '- 2026-01-01 · abc1234 · exit 0 · `echo "1 passed in 0.01s"`']) {
+    add(task, 'Verification Log', row)
+    assert.match(said(lint(dir)), NO_RECEIPT, `a typed row in a task HEAD does not hold is refused: ${row}`)
+    writeFileSync(task, before)
+  }
+  // The receipts name another path for the same rows, as they would after a move: the rows still pass.
+  const state = hookState(dir)
+  writeFileSync(path.join(state, 'receipts.jsonl'), receipts(state).map(r => `${JSON.stringify({ ...r, task: 'tasks/T1-moved.md' })}\n`).join(''))
+  assert.doesNotMatch(said(lint(dir)), NO_RECEIPT, 'a receipt is matched by its row, wherever the task now is')
+})

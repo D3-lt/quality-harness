@@ -13,7 +13,7 @@ import { fixtureRepo, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const skip = process.platform === 'win32' && 'the fixtures run sh checks, as the goldens do (BACKLOG section 375)'
 const ALLOW = JSON.parse(readFileSync(path.join(repoRoot, 'scripts', 'side-doors.json'), 'utf8'))
-const NONE = { writingTools: [], sites: { writer: {}, spawn: {}, tool: {} } }
+const NONE = { writingTools: [], sites: { writer: {}, spawn: {}, tool: {} }, doors: [] }
 const NO_HOOKS = { hooks: {} }
 // A planted tree: only the files given, with no hooks and an empty list unless a case names them.
 const planted = (files, { hooks = NO_HOOKS, allow = NONE } = {}) => sweep({ files: Object.keys(files), read: file => files[file], hooks, allow })

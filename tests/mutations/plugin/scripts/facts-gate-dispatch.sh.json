@@ -6,8 +6,8 @@
       "tests": [
         "tests/owner-search-root.test.mjs"
       ],
-      "from": "    if [ -z \"$top\" ] || [[",
-      "to": "    if true || [[",
+      "from": "  if in_repository \"$parent\"; then collect_owning_adrs \"$parent\"; fi",
+      "to": "  collect_owning_adrs \"$parent\"",
       "only": "^(?:the owning-ADR search stops at the repository root)$"
     },
     {

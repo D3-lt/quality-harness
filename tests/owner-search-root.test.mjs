@@ -39,4 +39,8 @@ test('the owning-ADR search stops at the repository root', { skip }, t => {
   writeFileSync(path.join(repo, 'docs', 'sub', 'task.md'), TASK)
   writeFileSync(path.join(repo, 'ADR-001-x.md'), RECORD.replace('ADR-163: A stray', 'ADR-001: The owner'))
   assert.doesNotMatch(said(path.join(repo, 'docs', 'sub', 'task.md')), /ADR ownership/, 'the owner one directory up, inside the repository')
+  // A task at the repository's root: its parent is already outside, so the first search is bounded too.
+  writeFileSync(path.join(repo, 'task.md'), TASK)
+  const rootTask = said(path.join(repo, 'task.md'))
+  assert.doesNotMatch(rootTask, /adr163/, 'a task at the root does not take an owner from the directory above it')
 })

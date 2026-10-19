@@ -376,6 +376,29 @@ def committed_lines(path, run=None):
         return None
 
 
+def head_absent(path, run=None):
+    """Whether git answers that HEAD holds no file at `path`: a task added, or moved, since the last commit.
+
+    ADR-117 T2 and the Codex review of aae06d72..90b9ceaf: `committed_lines` answers None for that as it does for "could
+    not look", and a rule that reads None as could-not-look let a new task take a typed row. False wherever git did not
+    answer, HEAD holds the file, or there is no HEAD yet, so nothing is accused that git did not say."""
+    runner = run or (lambda argv, cwd: subprocess.run(
+        argv, cwd=cwd, capture_output=True, text=True, timeout=10,
+        encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW))
+    target = Path(path)
+    directory = target.parent if target.parent != Path("") else Path(".")
+    try:
+        top = runner(["git", "-C", str(directory), "rev-parse", "--show-toplevel"], None)
+        if top.returncode != 0:
+            return False
+        root = Path(top.stdout.strip())
+        relative = target.resolve().relative_to(root.resolve()).as_posix()
+        listed = runner(["git", "-C", str(root), "ls-tree", "--name-only", "HEAD", "--", relative], None)
+        return listed.returncode == 0 and not listed.stdout.strip()
+    except Exception:
+        return False
+
+
 VLOG_LEGACY_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)`$")
@@ -2646,13 +2669,14 @@ def claimed_done_ids(readme_text, infos):
     return readme_done + [t for t in own_done_claims(infos or {}) if t not in readme_done]
 
 
-def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests):
+def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent):
     """ADR-117 T2: a log row the committed file does not hold is refused unless an adr-verify receipt names it.
 
     Every task, done or not: a typed red row in a pending task reads later as the red half of a cycle that did not
-    happen. Both logs, since a Mutation Log row is what `done` asks for beside the pass. A digest-less row is left to
-    its own refusal in check_verification, so it is not told twice. `None` from either reader is could-not-look and
-    accuses nothing (ADR-005): no repository, no committed file, a receipts file that could not be read."""
+    happen. Both logs, since a Mutation Log row is what `done` asks for beside the pass. A task HEAD does not hold has
+    every row uncommitted, digest or none; otherwise a digest-less row is left to its own refusal in check_verification,
+    so it is not told twice. Could-not-look accuses nothing (ADR-005): no repository, git silent, a receipts file that
+    could not be read."""
     for tid, inf in sorted(infos.items()):
         if inf.get("path") is None:
             continue
@@ -2661,13 +2685,16 @@ def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_di
         if not rows:
             continue
         known = committed(inf["path"])
-        if known is None:
-            continue
+        judged = known is not None
+        if not judged:
+            if not absent(inf["path"]):
+                continue
+            known = frozenset()
         held = {ln.strip() for ln in known}
         fresh = []
         for row in rows:
             stamped = VLOG_TIMED_RE.match(row)
-            if row.strip() not in held and not (stamped and not stamped.group("digest")):
+            if row.strip() not in held and not (judged and stamped and not stamped.group("digest")):
                 fresh.append(row)
         names = receipts(inf["path"]) if fresh else None
         for row in [] if names is None else fresh:

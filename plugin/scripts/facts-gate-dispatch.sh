@@ -383,7 +383,13 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
   adr_ref=$(bom_free "$f" | sed -nE '1s/^# (Task )?(ADR-[^: ]+).*/\2/p')
   candidates=()
   shopt -s nullglob
-  collect_owning_adrs "$parent"
+  # Never above the repository: one directory up from a top-level folder is outside it, and a record another session left
+  # there (the shared temp directory, 2026-10-19) is not this task's owner. That holds for the first search as well as the
+  # widened one: a task at the repository's root has its parent outside it (the Codex review of aae06d72..90b9ceaf).
+  # Outside any repository both searches stand.
+  top=$(git -C "$tdir" rev-parse --show-toplevel 2>/dev/null) || top=''
+  in_repository() { [ -z "$top" ] || [[ "$(cd "$1" 2>/dev/null && pwd -P)/" == "$(cd "$top" 2>/dev/null && pwd -P)/"* ]]; }
+  if in_repository "$parent"; then collect_owning_adrs "$parent"; fi
   # A record that owns its own directory is unambiguous inside it. Widening to
   # the directory above pulls in every unrelated record, and the id filter can
   # only rescue that when every one is titled `# ADR-<id>`: measured 2026-08-25,
@@ -391,11 +397,8 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
   # owner sat right beside its tasks/ directory. Widen only when the record is
   # genuinely not there.
   if [ "${#candidates[@]}" -eq 0 ]; then
-    # Never above the repository: one directory up from a top-level folder is outside it, and a record another session left
-    # there (the shared temp directory, 2026-10-19) is not this task's owner. Outside any repository the widening stands.
     widen=$(dirname "$parent")
-    top=$(git -C "$tdir" rev-parse --show-toplevel 2>/dev/null) || top=''
-    if [ -z "$top" ] || [[ "$(cd "$widen" 2>/dev/null && pwd -P)/" == "$(cd "$top" 2>/dev/null && pwd -P)/"* ]]; then
+    if in_repository "$widen"; then
       collect_owning_adrs "$widen"
     fi
   fi

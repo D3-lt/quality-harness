@@ -233,13 +233,18 @@ export function fetchRun(sha, exec = execFileSync) {
  */
 export function mainProtection(exec = execFileSync) {
   const unknown = why => ({ state: 'unknown', text: `forge: COULD NOT LOOK at main's rules (${why}), so whether a push --no-verify from a script reaches main with nothing run is not known (ADR-117)` })
-  let rules
+  let pages
   try {
-    rules = JSON.parse(exec('gh', ['api', 'repos/{owner}/{repo}/rules/branches/main'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }))
+    // Every page, as one list of pages: a check on a later page is a check (the Codex review of aae06d72..90b9ceaf).
+    pages = JSON.parse(exec('gh', ['api', 'repos/{owner}/{repo}/rules/branches/main', '--paginate', '--slurp'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }))
   } catch (error) {
     return unknown(String(error?.message ?? error).split('\n', 1)[0])
   }
+  const rules = Array.isArray(pages) ? pages.flat() : pages
   if (!Array.isArray(rules)) return unknown('the answer is not a list of rules')
+  // A rule it cannot read is not a rule it read, so an answer it cannot tell from "no check" is could-not-look, not unprotected.
+  if (rules.some(rule => !rule || typeof rule !== 'object' || typeof rule.type !== 'string'
+    || (rule.type === 'required_status_checks' && !Array.isArray(rule.parameters?.required_status_checks)))) return unknown('a rule in the answer is not one it can read')
   const checks = rules.filter(rule => rule?.type === 'required_status_checks')
     .flatMap(rule => rule?.parameters?.required_status_checks ?? []).map(check => check?.context).filter(context => typeof context === 'string' && context)
   if (checks.length) return { state: 'protected', text: `forge: main requires ${checks.length} status check(s) before a push lands: ${checks.join(', ')} (ADR-117)` }

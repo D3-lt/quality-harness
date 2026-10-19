@@ -105,11 +105,13 @@ export function sweep({ files, read, hooks, allow }) {
 
 const DOOR_STATES = ['caught', 'boundary', 'open']
 
-/** Each door's state counted, and the doors that fail: open, a boundary with nowhere it closes, or a state not of the three. */
+/** Each door's state counted, and the doors that fail: open, a boundary with nowhere it closes, or a state not of the three.
+ * A list that is missing or not a list fails as well: a door nobody read is not a door that is closed. */
 export function doorStates(doors) {
   const counts = Object.fromEntries(DOOR_STATES.map(state => [state, 0]))
+  if (!Array.isArray(doors)) return { counts, problems: [{ id: '(doors)', why: 'is not a list in scripts/side-doors.json, so no door was read' }] }
   const problems = []
-  for (const door of Array.isArray(doors) ? doors : []) {
+  for (const door of doors) {
     if (Object.hasOwn(counts, door?.status)) counts[door.status] += 1
     if (door?.status === 'open') problems.push({ id: door.id, why: 'is open: catch it, or name where it closes as a boundary' })
     else if (door?.status === 'boundary' && !(typeof door.where === 'string' && door.where.trim())) problems.push({ id: door.id, why: 'is a boundary that names nowhere it closes' })

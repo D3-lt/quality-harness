@@ -2,35 +2,72 @@
 // fast-checks.jsonl and baseline.jsonl there, and adr-verify the receipts; a row an agent writes by hand reads exactly like one
 // they wrote, and a local gate cannot tell them apart (ADR-005, ADR-113). So a write into that directory the hook can see is
 // refused at PreToolUse: an Edit, Write, MultiEdit, NotebookEdit or mrw MCP write, and a shell command's output redirection or
-// `tee` file, `sh -c '…'` read the same way, relative targets resolved after a literal `cd`. A target built from a variable, a
-// program that writes the file itself, and `cd -` or `cd ~` before a relative target are not read: a boundary, not a pass.
+// `tee` file, read the same way inside a `$(…)` or backtick substitution and a `sh -c '…'` string. PowerShell is read with its
+// own path separator, and its Out-File, Set-Content, Add-Content and Tee-Object name the files they write. A target built from a
+// variable, a program that writes the file itself, and a string a command builds before running it are not read: a boundary,
+// not a pass (scripts/side-doors.json).
 import path from 'node:path'
-import { readFileSync } from 'node:fs'
-import { canonicalFile, nearestExistingDirectory, stateDir } from './event-log.mjs'
+import { readFileSync, realpathSync } from 'node:fs'
+import { canonicalFile, nearestExistingDirectory, repositoryStateDir, stateDir } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
 import { SHELL_NAMES, programName } from './publish-command.mjs'
 import { MRW_WRITE, MUTATION_TOOLS, mrwWritePaths } from './hook-record.mjs'
 import { SHELL_TOOLS } from './publish-verdict.mjs'
 import { gitRepositoryLookup } from './tree-facts.mjs'
 
-// The files a shell command writes, each with the directory a relative one lands in (null where that is not known).
-function shellTargets(command, base, depth = 0) {
+const POWERSHELL_WRITERS = new Set(['out-file', 'set-content', 'add-content', 'tee-object', 'sc', 'ac', 'tee'])
+const POWERSHELL_CD = new Set(['cd', 'chdir', 'set-location', 'sl', 'push-location', 'pushd'])
+
+// The files a shell command writes, each with every directory a relative one may land in. A `cd` in a subshell or a pipeline
+// does not persist and one in a list does, and which is which is not tracked here, so the directory before a `cd` stays a
+// candidate beside the one after it; null stands for a `cd` that could not be read. A redirection opens before its command
+// runs, so a `cd`'s own redirection lands where the `cd` started. Each substitution and `-c` string is shorter than the text
+// holding it, so the walk ends without a depth limit.
+function shellTargets(command, bases, powershell) {
   const found = []
   if (typeof command !== 'string') return found
-  for (const c of shellWords(command).commands) {
-    const name = programName(c.argv[0] ?? '')
-    if (name === 'cd') {
-      const to = c.argv[1]
-      base = c.argv.length === 2 && !c.dynamic.includes(1) && to !== '-' && !to.startsWith('~') && base !== null ? path.resolve(base, to) : null
+  let seen = bases
+  for (const c of shellWords(powershell ? command.replaceAll('\\', '/') : command).commands) {
+    const name = powershell ? programName(c.argv[0] ?? '').toLowerCase() : programName(c.argv[0] ?? '')
+    for (const write of c.writes ?? []) if (!write.dynamic) found.push({ file: write.target, bases: seen })
+    for (const inner of c.substitutions ?? []) found.push(...shellTargets(inner, seen, powershell))
+    if (name === 'cd' || (powershell && POWERSHELL_CD.has(name))) {
+      const at = c.argv.findIndex((word, index) => index > 0 && !word.startsWith('-'))
+      const to = at > 0 && !c.dynamic.includes(at) && c.argv[at] !== '-' && !c.argv[at].startsWith('~') ? c.argv[at] : null
+      seen = [...seen, ...(to === null ? [null] : seen.filter(base => base !== null).map(base => path.resolve(base, to)))]
       continue
     }
-    for (const write of c.writes ?? []) if (!write.dynamic) found.push({ file: write.target, base })
-    if (name === 'tee') {
-      for (let at = 1; at < c.argv.length; at++) if (!c.argv[at].startsWith('-') && !c.dynamic.includes(at)) found.push({ file: c.argv[at], base })
+    if (name === 'tee' || (powershell && POWERSHELL_WRITERS.has(name))) {
+      for (let at = 1; at < c.argv.length; at++) if (!c.argv[at].startsWith('-') && !c.dynamic.includes(at)) found.push({ file: c.argv[at], bases: seen })
     }
-    const inner = c.argv.indexOf('-c')
-    if (SHELL_NAMES.has(name) && depth < 3 && inner > 0 && typeof c.argv[inner + 1] === 'string' && !c.dynamic.includes(inner + 1)) {
-      found.push(...shellTargets(c.argv[inner + 1], base, depth + 1))
+    const inner = c.argv.findIndex(word => word === '-c' || (/^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) && SHELL_NAMES.has(name) && /pwsh|powershell/.test(name)))
+    if (SHELL_NAMES.has(name) && inner > 0 && typeof c.argv[inner + 1] === 'string' && !c.dynamic.includes(inner + 1)) {
+      found.push(...shellTargets(c.argv[inner + 1], seen, powershell || /pwsh|powershell/.test(name)))
+    }
+  }
+  return found
+}
+
+// The files an mrw MCP write names: mrwWritePaths's, and where it leaves them unknown, the file each search_replace block
+// names (after its marker, or on the last line outside a block) and the paths a grep or ast-grep walk starts at. A walk with
+// no paths starts at mrw's root, which never enters a `.git` and refuses a write there (mrw ADR-143).
+function mrwTargets(toolInput) {
+  const named = mrwWritePaths(toolInput)
+  if (named) return named
+  const input = toolInput ?? {}
+  const found = Array.isArray(input.paths) ? input.paths.filter(file => typeof file === 'string' && file) : []
+  if (input.format === 'search_replace' && typeof input.plan === 'string') {
+    let last = ''
+    let block = false
+    for (const line of input.plan.split(/\r\n|\r|\n/)) {
+      if (block) { block = line !== '>>>>>>> REPLACE'; continue }
+      if (line.trim().startsWith('```')) continue
+      if (line.startsWith('<<<<<<< SEARCH')) {
+        const file = line.slice('<<<<<<< SEARCH'.length).trim() || last
+        if (file) found.push(file)
+        last = file
+        block = true
+      } else if (line.trim()) last = line
     }
   }
   return found
@@ -40,19 +77,29 @@ function shellTargets(command, base, depth = 0) {
 export function ledgerWrite(input) {
   const cwd = input?.cwd
   if (typeof cwd !== 'string' || !cwd) return null
-  const dir = canonicalFile(path.resolve(stateDir(cwd)))
-  const inside = (file, base) => {
-    if (!path.isAbsolute(file) && base === null) return false
-    const relative = path.relative(dir, canonicalFile(path.resolve(base ?? cwd, file)))
+  // Every place the evidence is read from: the state directory and, under a state root, the repository's own as well, since
+  // adr-lint reads receipts from both (ADR-117 T2).
+  const dirs = [...new Set([stateDir(cwd), repositoryStateDir(cwd)].filter(Boolean).map(dir => canonicalFile(path.resolve(dir))))]
+  const within = (dir, file) => {
+    const relative = path.relative(dir, file)
     return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
   }
+  // A file as spelled, its directories made real, and where it exists, with a link at its leaf followed as well: a link
+  // outside the directory to a ledger inside it writes the ledger.
+  const lands = absolute => {
+    const places = [canonicalFile(absolute)]
+    try { places.push(realpathSync.native(absolute)) } catch { /* not there yet: its spelling is where it lands */ }
+    return places.some(file => dirs.some(dir => within(dir, file)))
+  }
+  const inside = (file, bases) => path.isAbsolute(file) ? lands(path.resolve(file)) : bases.some(base => base !== null && lands(path.resolve(base, file)))
   const tool = input.tool_name
-  if (tool === MRW_WRITE) return (mrwWritePaths(input.tool_input) ?? []).find(file => inside(file, cwd)) ?? null
+  const here = [path.resolve(cwd)]
+  if (tool === MRW_WRITE) return mrwTargets(input.tool_input).find(file => inside(file, here)) ?? null
   if (MUTATION_TOOLS.has(tool)) {
     const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path
-    return typeof file === 'string' && file && inside(file, cwd) ? file : null
+    return typeof file === 'string' && file && inside(file, here) ? file : null
   }
-  if (SHELL_TOOLS.has(tool)) return shellTargets(input.tool_input?.command, path.resolve(cwd)).find(t => inside(t.file, t.base))?.file ?? null
+  if (SHELL_TOOLS.has(tool)) return shellTargets(input.tool_input?.command, here, tool === 'PowerShell').find(t => inside(t.file, t.bases))?.file ?? null
   return null
 }
 

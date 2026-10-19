@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 review: every page of the rules is read",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  const rules = Array.isArray(pages) ? pages.flat() : pages",
+      "to": "  const rules = Array.isArray(pages) ? pages[0] ?? [] : pages",
+      "only": "^(?:every page of main's rules is read, a rule it cannot read is could-not-look, and a missing door list fails)$"
+    },
+    {
+      "label": "ADR-117 review: a rule it cannot read is could-not-look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  if (rules.some(rule => !rule",
+      "to": "  if (false && rules.some(rule => !rule",
+      "only": "^(?:every page of main's rules is read, a rule it cannot read is could-not-look, and a missing door list fails)$"
+    },
+    {
       "label": "ADR-117 T3: required checks are protection",
       "file": "scripts/release-evidence.mjs",
       "tests": [

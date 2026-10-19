@@ -81,3 +81,20 @@ test('the forge protection of main is said, and no door is open', t => {
   const reader = 'RECEIPTS = "receipts.jsonl"\nwith open(os.path.join(directory, RECEIPTS), encoding="utf-8") as source:\n    source.read()\n'
   assert.deepEqual(sweep({ files: ['plugin/lib/r.py'], read: () => reader, hooks: { hooks: {} }, allow: NONE }).unlisted, [])
 })
+
+// The Codex review of aae06d72..90b9ceaf: the forge read took one page and called a rule it could not read no rule, and a
+// door list that was missing or not a list read as no door open.
+test('every page of main\'s rules is read, a rule it cannot read is could-not-look, and a missing door list fails', () => {
+  const asked = []
+  const pages = answer => (command, args) => { asked.push(args); return answer }
+  assert.equal(mainProtection(pages(JSON.stringify([[{ type: 'deletion' }], [CHECKS]]))).state, 'protected', 'a check on the second page')
+  assert.ok(asked[0].includes('--paginate') && asked[0].includes('--slurp'), JSON.stringify(asked))
+  for (const answer of ['[null]', '[{}]', '[[{"type":"required_status_checks"}]]', '[[{"type":"required_status_checks","parameters":{}}]]']) {
+    assert.equal(mainProtection(pages(answer)).state, 'unknown', answer)
+  }
+  assert.equal(mainProtection(pages('[[{"type":"deletion"}],[]]')).state, 'unprotected', 'readable rules with no check')
+  for (const doors of [undefined, null, {}, 'open']) {
+    assert.deepEqual(doorStates(doors).problems.map(problem => problem.id), ['(doors)'], JSON.stringify(doors))
+  }
+  assert.deepEqual(doorStates([]).problems, [])
+})

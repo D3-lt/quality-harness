@@ -1,52 +1,137 @@
 // ledger-guard.mjs's (ADR-117 T1): a write into the session repository's state directory the hook can see is refused at
-// PreToolUse, and "ledgers": "warn" turns it into a warning. A target built from a variable, a program that writes the file
-// itself, and `cd -` or `cd ~` before a relative target are not read.
+// PreToolUse, and "ledgers": "warn" turns it into a warning. Substitutions and -c strings are read as the commands they are,
+// PowerShell with its own separator and writers; a target built from a variable and a program that writes the file itself are
+// not read.
 package hooks
 
 import (
+	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 )
 
-type shellTarget struct{ file, base string }
+type shellTarget struct {
+	file  string
+	bases []string // "" stands for a cd that could not be read
+}
 
-func shellWriteTargets(command, base string, depth int) []shellTarget {
+var powershellWriters = map[string]bool{"out-file": true, "set-content": true, "add-content": true, "tee-object": true, "sc": true, "ac": true, "tee": true}
+var powershellCd = map[string]bool{"cd": true, "chdir": true, "set-location": true, "sl": true, "push-location": true, "pushd": true}
+var powershellCommandFlag = regexp.MustCompile(`(?i)^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$`)
+
+// ledgerFoldCase is whether a containment test ignores case: macOS and Windows volumes read another spelling as the same
+// directory, and filepath.EvalSymlinks keeps the spelling it was given.
+var ledgerFoldCase = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+
+func isPowershell(name string) bool {
+	return strings.Contains(name, "pwsh") || strings.Contains(name, "powershell")
+}
+
+func shellWriteTargets(command string, bases []string, powershell bool) []shellTarget {
 	found := []shellTarget{}
+	if powershell {
+		command = strings.ReplaceAll(command, `\`, "/")
+	}
 	cmds, _ := shellWords(command)
+	seen := bases
 	for _, c := range cmds {
 		name := ""
 		if len(c.argv) > 0 {
 			name = programName(c.argv[0])
 		}
-		if name == "cd" {
-			if len(c.argv) == 2 && !containsInt(c.dynamic, 1) && c.argv[1] != "-" && !strings.HasPrefix(c.argv[1], "~") && base != "" {
-				base = resolveFrom(base, c.argv[1])
-			} else {
-				base = ""
-			}
-			continue
+		if powershell {
+			name = strings.ToLower(name)
 		}
 		for _, w := range c.writes {
 			if !w.dynamic {
-				found = append(found, shellTarget{w.target, base})
+				found = append(found, shellTarget{w.target, seen})
 			}
 		}
-		if name == "tee" {
+		for _, inner := range c.substitutions {
+			found = append(found, shellWriteTargets(inner, seen, powershell)...)
+		}
+		if name == "cd" || (powershell && powershellCd[name]) {
+			at := -1
+			for i := 1; i < len(c.argv); i++ {
+				if !strings.HasPrefix(c.argv[i], "-") {
+					at = i
+					break
+				}
+			}
+			next := append([]string{}, seen...)
+			if at > 0 && !containsInt(c.dynamic, at) && c.argv[at] != "-" && !strings.HasPrefix(c.argv[at], "~") {
+				for _, base := range seen {
+					if base != "" {
+						next = append(next, resolveFrom(base, c.argv[at]))
+					}
+				}
+			} else {
+				next = append(next, "")
+			}
+			seen = next
+			continue
+		}
+		if name == "tee" || (powershell && powershellWriters[name]) {
 			for at := 1; at < len(c.argv); at++ {
 				if !strings.HasPrefix(c.argv[at], "-") && !containsInt(c.dynamic, at) {
-					found = append(found, shellTarget{c.argv[at], base})
+					found = append(found, shellTarget{c.argv[at], seen})
 				}
 			}
 		}
 		inner := -1
 		for at, word := range c.argv {
-			if word == "-c" {
+			if word == "-c" || (shellNames[name] && isPowershell(name) && powershellCommandFlag.MatchString(word)) {
 				inner = at
 				break
 			}
 		}
-		if shellNames[name] && depth < 3 && inner > 0 && inner+1 < len(c.argv) && !containsInt(c.dynamic, inner+1) {
-			found = append(found, shellWriteTargets(c.argv[inner+1], base, depth+1)...)
+		if shellNames[name] && inner > 0 && inner+1 < len(c.argv) && !containsInt(c.dynamic, inner+1) {
+			found = append(found, shellWriteTargets(c.argv[inner+1], seen, powershell || isPowershell(name))...)
+		}
+	}
+	return found
+}
+
+// mrwTargets is ledger-guard.mjs's: mrwWritePaths, and where it leaves them unknown, each search_replace block's file and the
+// paths a grep or ast-grep walk starts at.
+func mrwTargets(toolInput any) []string {
+	if named, ok := mrwWritePaths(toolInput); ok {
+		return named
+	}
+	found := []string{}
+	if paths, ok := get(toolInput, "paths").([]any); ok {
+		for _, p := range paths {
+			if s, ok := p.(string); ok && s != "" {
+				found = append(found, s)
+			}
+		}
+	}
+	plan, ok := get(toolInput, "plan").(string)
+	if format, _ := get(toolInput, "format").(string); format != "search_replace" || !ok {
+		return found
+	}
+	last, block := "", false
+	for _, line := range regexp.MustCompile(`\r\n|\r|\n`).Split(plan, -1) {
+		if block {
+			block = line != ">>>>>>> REPLACE"
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			continue
+		}
+		if strings.HasPrefix(line, "<<<<<<< SEARCH") {
+			file := strings.TrimSpace(line[len("<<<<<<< SEARCH"):])
+			if file == "" {
+				file = last
+			}
+			if file != "" {
+				found = append(found, file)
+			}
+			last, block = file, true
+		} else if strings.TrimSpace(line) != "" {
+			last = line
 		}
 	}
 	return found
@@ -58,22 +143,51 @@ func ledgerWrite(input *Obj) string {
 	if !ok || cwd == "" {
 		return ""
 	}
-	dir := canonicalFile(resolvePath(stateDir(cwd)))
-	inside := func(file, base string) bool {
-		if !filepath.IsAbs(file) && base == "" {
-			return false
+	dirs := []string{}
+	for _, dir := range []string{stateDir(cwd), repositoryStateDir(cwd, true)} {
+		if dir != "" {
+			dirs = append(dirs, canonicalFile(resolvePath(dir)))
 		}
-		if base == "" {
-			base = cwd
+	}
+	within := func(dir, file string) bool {
+		if ledgerFoldCase {
+			dir, file = strings.ToLower(dir), strings.ToLower(file)
 		}
-		rel, err := filepath.Rel(dir, canonicalFile(resolveFrom(resolvePath(base), file)))
+		rel, err := filepath.Rel(dir, file)
 		return err == nil && (rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)))
 	}
+	lands := func(absolute string) bool {
+		places := []string{canonicalFile(absolute)}
+		if _, err := os.Lstat(absolute); err == nil {
+			if real, err := filepath.EvalSymlinks(absolute); err == nil {
+				places = append(places, real)
+			}
+		}
+		for _, file := range places {
+			for _, dir := range dirs {
+				if within(dir, file) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	inside := func(file string, bases []string) bool {
+		if filepath.IsAbs(file) {
+			return lands(resolvePath(file))
+		}
+		for _, base := range bases {
+			if base != "" && lands(resolveFrom(base, file)) {
+				return true
+			}
+		}
+		return false
+	}
+	here := []string{resolvePath(cwd)}
 	tool := strOr(input.Get("tool_name"))
 	if tool == mrwWrite {
-		paths, _ := mrwWritePaths(input.Get("tool_input"))
-		for _, file := range paths {
-			if inside(file, cwd) {
+		for _, file := range mrwTargets(input.Get("tool_input")) {
+			if inside(file, here) {
 				return file
 			}
 		}
@@ -84,15 +198,15 @@ func ledgerWrite(input *Obj) string {
 		if nullish(target) {
 			target = dig(input, "tool_input", "notebook_path")
 		}
-		if file, ok := target.(string); ok && file != "" && inside(file, cwd) {
+		if file, ok := target.(string); ok && file != "" && inside(file, here) {
 			return file
 		}
 		return ""
 	}
 	if shellTools[tool] {
 		command, _ := dig(input, "tool_input", "command").(string)
-		for _, t := range shellWriteTargets(command, resolvePath(cwd), 0) {
-			if inside(t.file, t.base) {
+		for _, t := range shellWriteTargets(command, here, tool == "PowerShell") {
+			if inside(t.file, t.bases) {
 				return t.file
 			}
 		}

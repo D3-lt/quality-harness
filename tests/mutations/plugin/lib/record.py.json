@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 review: a receipt is matched by its row alone",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "            if isinstance(receipt, dict) and isinstance(receipt.get(\"sha256\"), str):",
+      "to": "            if isinstance(receipt, dict) and receipt.get(\"task\") == place[1] and isinstance(receipt.get(\"sha256\"), str):",
+      "only": "^(?:a task HEAD does not hold still needs a receipt for every row, and a moved task keeps its receipts)$"
+    },
+    {
       "label": "ADR-117 T2: a written row leaves a receipt",
       "file": "plugin/lib/record.py",
       "tests": [

@@ -6,7 +6,7 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (name === 'tee') {",
+      "from": "    if (name === 'tee' || (powershell && POWERSHELL_WRITERS.has(name))) {",
       "to": "    if (false) {",
       "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
     },
@@ -16,7 +16,7 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "      found.push(...shellTargets(c.argv[inner + 1], base, depth + 1))",
+      "from": "      found.push(...shellTargets(c.argv[inner + 1], seen, powershell || /pwsh|powershell/.test(name)))",
       "to": "      void 0",
       "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
     },
@@ -26,9 +26,109 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (name === 'cd') {",
+      "from": "    if (name === 'cd' || (powershell && POWERSHELL_CD.has(name))) {",
       "to": "    if (false) {",
       "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    },
+    {
+      "label": "ADR-117 review: a cd's own redirection is read",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    for (const write of c.writes ?? []) if (!write.dynamic) found.push({ file: write.target, bases: seen })",
+      "to": "    for (const write of name === 'cd' ? [] : c.writes ?? []) if (!write.dynamic) found.push({ file: write.target, bases: seen })",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: a substitution is read",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    for (const inner of c.substitutions ?? []) found.push(...shellTargets(inner, seen, powershell))",
+      "to": "    void 0",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: the directory before a cd stays a candidate",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      seen = [...seen, ...(to === null ? [null] : seen.filter(base => base !== null).map(base => path.resolve(base, to)))]",
+      "to": "      seen = (to === null ? [null] : seen.filter(base => base !== null).map(base => path.resolve(base, to)))",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: PowerShell keeps its path separator",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "shellWords(powershell ? command.replaceAll('\\\\', '/') : command)",
+      "to": "shellWords(command)",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: PowerShell writers name their files",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (name === 'tee' || (powershell && POWERSHELL_WRITERS.has(name))) {",
+      "to": "    if (name === 'tee') {",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: an mrw write names its search_replace and walk files",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "  if (tool === MRW_WRITE) return mrwTargets(input.tool_input).find(file => inside(file, here)) ?? null",
+      "to": "  if (tool === MRW_WRITE) return (mrwWritePaths(input.tool_input) ?? []).find(file => inside(file, here)) ?? null",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: a search_replace block takes the line before it",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      } else if (line.trim()) last = line",
+      "to": "      } else if (false) last = line",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: a walk names its paths",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "  const found = Array.isArray(input.paths) ? input.paths.filter(file => typeof file === 'string' && file) : []",
+      "to": "  const found = []",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: the repository's own state directory is guarded under a state root",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "[stateDir(cwd), repositoryStateDir(cwd)]",
+      "to": "[stateDir(cwd)]",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 review: a link at the leaf is followed",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    try { places.push(realpathSync.native(absolute)) } catch {",
+      "to": "    try { void absolute } catch {",
+      "only": "^(?:the forms the review found are refused, and their data twins are not)$"
     }
   ]
 }

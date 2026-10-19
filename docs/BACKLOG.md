@@ -3308,3 +3308,16 @@ ADR-116 publishes `qh` as release assets and fetches the one a machine needs at 
 signs or notarises a binary. curl does not set macOS's quarantine attribute and a browser download does; whether a binary
 written by Node's fetch is stopped by Gatekeeper, or a Windows one by SmartScreen or Mark-of-the-Web, was not measured on
 2026-10-19. Left: measure both on a real fetched asset before ADR-110 T3 switches `hooks.json`, and sign if either stops it.
+
+## 387. OPEN 2026-10-19 — The ledger guard reads shell text, and the forms it does not read are a boundary, not a pass
+
+The Codex review of aae06d72..90b9ceaf found nine forms that both hooks let into the state directory: a `cd`'s own redirection, a
+`$(…)` or backtick substitution, a fourth nested `sh -c`, a `cd` in a subshell or a pipeline, a link at the leaf, a case alias
+on macOS (Go), a PowerShell redirect with `\`, PowerShell's writing cmdlets, and an mrw `search_replace` or `paths` write. Each
+is fixed and tested beside its data twin (tests/ledger-writes.test.mjs, both implementations). What stays outside, each found
+by reading the guard rather than measured: a command of redirections alone (`> checks.jsonl`), which the lexer drops before
+the guard sees it — it can only empty a file, and an emptied ledger or receipts file fails closed (no pass, every uncommitted
+row refused); a PowerShell backtick escape inside a path; other PowerShell cmdlets that write (`New-Item -Value`,
+`Copy-Item`, `Move-Item`); and any string a command builds before it runs (`eval "$x"`, a script, a program). Left: keep
+redirection-only commands in the lexer with their writes (both lexers, the parity test), and read `Copy-Item`/`Move-Item`
+destinations, if a run shows either used against a ledger.

@@ -3,7 +3,7 @@
 // row that refuses beside the row that must not). `"ledgers": "warn"` in .quality-harness.json advises instead. Through the
 // hook, so QUALITY_HARNESS_HOOK_IMPL=go holds the Go core to the same answers.
 import assert from 'node:assert/strict'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fixtureRepo, runHook, sandbox } from './hook-golden.mjs'
@@ -61,4 +61,59 @@ test('a write into the state directory is refused, and a read of it, the tools\'
   const advice = said(runHook(box, warned, 'warned', { hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: path.join(warned, '.git', 'quality-harness', 'checks.jsonl'), content: '{}\n' } }))
   assert.notEqual(advice.permissionDecision, 'deny', 'the opt-out does not refuse')
   assert.match(advice.additionalContext ?? '', /ledger guard.*"ledgers": "warn"/, JSON.stringify(advice))
+})
+
+// The Codex review of aae06d72..90b9ceaf: forms both hooks let through, each beside the twin that must still pass (§16). The
+// repository's own state directory is guarded under a state root as well, since adr-lint reads receipts from it there too.
+test('the forms the review found are refused, and their data twins are not', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'forms', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'forms', { hook_event_name: 'SessionStart', source: 'startup' })
+  const state = path.join(repo, '.git', 'quality-harness')
+  mkdirSync(state, { recursive: true })
+  writeFileSync(path.join(state, 'receipts.jsonl'), '')
+  const pre = (tool_name, tool_input, env = {}) => said(runHook(box, repo, 'forms', { hook_event_name: 'PreToolUse', tool_name, tool_input }, env))
+  const q = text => `'${text.replaceAll("'", "'\\''")}'`
+  const nested = [1, 2, 3, 4].reduce(inner => `sh -c ${q(inner)}`, 'echo x >> .git/quality-harness/checks.jsonl')
+  const link = path.join(box.tmp, 'innocent.txt')
+  symlinkSync(path.join(state, 'receipts.jsonl'), link)
+  const harmless = path.join(box.tmp, 'harmless.txt')
+  writeFileSync(path.join(box.tmp, 'elsewhere.txt'), '')
+  symlinkSync(path.join(box.tmp, 'elsewhere.txt'), harmless)
+  const refused = [
+    ['Bash', { command: 'cd . > .git/quality-harness/receipts.jsonl' }],
+    ['Bash', { command: 'echo "$(printf x >> .git/quality-harness/receipts.jsonl)"' }],
+    ['Bash', { command: 'echo `printf x >> .git/quality-harness/receipts.jsonl`' }],
+    ['Bash', { command: nested }],
+    ['Bash', { command: '(cd src); printf x >> .git/quality-harness/receipts.jsonl' }],
+    ['Bash', { command: 'cd src | true; printf x >> .git/quality-harness/receipts.jsonl' }],
+    ['Bash', { command: `printf x >> ${link}` }],
+    ['PowerShell', { command: 'Write-Output x > .git\\quality-harness\\receipts.jsonl' }],
+    ['PowerShell', { command: 'Set-Content -Path .git\\quality-harness\\checks.jsonl -Value x' }],
+    ['PowerShell', { command: "'x' | Out-File .git/quality-harness/checks.jsonl" }],
+    ['PowerShell', { command: 'Set-Location src; Add-Content ..\\.git\\quality-harness\\checks.jsonl x' }],
+    ['mcp__mrw__mrw_write', { format: 'search_replace', plan: '.git/quality-harness/receipts.jsonl\n<<<<<<< SEARCH\n=======\n{}\n>>>>>>> REPLACE\n' }],
+    ['mcp__mrw__mrw_write', { format: 'search_replace', plan: '<<<<<<< SEARCH .git/quality-harness/receipts.jsonl\n=======\n{}\n>>>>>>> REPLACE\n' }],
+    ['mcp__mrw__mrw_write', { grep: '^', sub: '{}', paths: ['.git/quality-harness/receipts.jsonl'] }],
+  ]
+  // A case-insensitive volume reads another spelling of the directory as the same one; a case-sensitive one has no such file.
+  if (existsSync(path.join(repo, '.git', 'QUALITY-HARNESS'))) refused.push(['Bash', { command: 'echo x >> .git/QUALITY-HARNESS/checks.jsonl' }])
+  for (const [tool, input] of refused) {
+    const answer = pre(tool, input)
+    assert.equal(answer.permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} is refused`)
+  }
+  const root = path.join(box.top, 'state-root')
+  const rooted = pre('Write', { file_path: path.join(state, 'receipts.jsonl'), content: '{}\n' }, { QUALITY_HARNESS_STATE_DIR: root })
+  assert.equal(rooted.permissionDecision, 'deny', 'under a state root the repository\'s own receipts are guarded too')
+  const passed = [
+    ['Bash', { command: "echo '$(printf x >> .git/quality-harness/receipts.jsonl)'" }],
+    ['Bash', { command: '(cd src); printf x > out.txt' }],
+    ['Bash', { command: 'cd src && echo x > notes.txt' }],
+    ['Bash', { command: `printf x >> ${harmless}` }],
+    ['PowerShell', { command: 'Set-Content -Path notes.txt -Value x' }],
+    ['PowerShell', { command: 'Get-Content .git\\quality-harness\\checks.jsonl' }],
+    ['mcp__mrw__mrw_write', { format: 'search_replace', plan: 'src/a.js\n<<<<<<< SEARCH\nx\n=======\ny\n>>>>>>> REPLACE\n' }],
+    ['mcp__mrw__mrw_write', { grep: '^x$', sub: 'y', paths: ['src'] }],
+  ]
+  for (const [tool, input] of passed) assert.notEqual(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} passes`)
 })

@@ -135,7 +135,8 @@ def receipt_digests(task):
 
     Read from the state directory and, under a state root, from the repository's own as well: a probe lints a
     repository under a root of its own, and the receipts its owner's adr-verify wrote are in the repository. An absent
-    file is no receipts, never could-not-look, or deleting it would switch the rule off."""
+    file is no receipts, never could-not-look, or deleting it would switch the rule off. A receipt is matched by its
+    row's digest alone, so a task moved after its rows were written keeps them; `task` is for the reader."""
     place = _repository_place(str(task))
     if not place:
         return None
@@ -153,7 +154,7 @@ def receipt_digests(task):
                 receipt = json.loads(line)
             except ValueError:
                 continue
-            if isinstance(receipt, dict) and receipt.get("task") == place[1] and isinstance(receipt.get("sha256"), str):
+            if isinstance(receipt, dict) and isinstance(receipt.get("sha256"), str):
                 found.add(receipt["sha256"])
     return found
 

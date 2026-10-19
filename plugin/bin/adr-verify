@@ -225,7 +225,7 @@ from record import sections_of, section_span, repeated_headings, unterminated_fe
 from record import os_reason  # noqa: E402
 from record import record_id, special_file_problem, title_line, NO_WINDOW, git_read_env, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
-from record import signoff_digest  # noqa: E402
+from record import signoff_digest, write_receipts  # noqa: E402
 from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402
 
 
@@ -814,6 +814,12 @@ def append_entry(task, text, block, section="Verification Log"):
     new = head + (body + "\n" if body else "") + block + "\n"
     tail = text[end:]
     write_source(task, text[:start] + new + ("\n" + tail if tail else ""), file_newline(task))
+    # ADR-117 T2: the receipt adr-lint asks of an uncommitted row. A receipt that could not be written is said, because
+    # the row it was for will be refused until it is committed.
+    problem = write_receipts(task, block, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"))
+    if problem:
+        print(f"[adr-verify] the row is written, and its receipt is not ({problem}): adr-lint refuses it until it "
+              f"is committed (ADR-117)", file=sys.stderr)
 
 
 def git_sha(cwd):

@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T2: an unreceipted row is refused",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "            if receipt_digest(row) not in names:",
+      "to": "            if False:",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
+      "label": "ADR-117 T2: adr-lint runs the receipt rule",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "            check_receipts(infos, errors)",
+      "to": "            pass",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
+      "label": "ADR-117 T2: a Mutation Log row is held to the rule",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "        rows += [b for b in inf.get(\"mlog\", []) if MLOG_RE.match(b) and b not in rows]",
+      "to": "        rows += []",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
       "label": "§385: adjacent tables are read apart",
       "file": "plugin/bin/adr-lint",
       "tests": [

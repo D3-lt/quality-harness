@@ -1,0 +1,137 @@
+// ADR-117 T2: every row adr-verify writes leaves a receipt in the repository's state directory, and adr-lint refuses a
+// row the committed file does not hold and no receipt names. Each run is over a copy of tests/fixtures/ok in the OS temp
+// directory, never over this checkout (CLAUDE.md §9). The dirty twins are beside the clean ones: a typed row, and a
+// receipts file taken away.
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const bin = path.join(repoRoot, 'plugin', 'bin')
+const made = []
+test.after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true, maxRetries: 5 }) })
+
+const FENCE = ['```bash', 'if grep -q "## Decisiun" ADR-001-selftest.md; then echo "1 failed in 0.01s"; exit 1; fi', 'echo "1 passed in 0.01s"', '```'].join('\n')
+const temp = () => {
+  const dir = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-receipts-')))
+  made.push(dir)
+  return dir
+}
+const git = (dir, ...args) => {
+  const run = spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stderr)
+}
+/** A copy of the ok fixture with this file's fence and a Mutation Log, committed unless `repo: false`. */
+function corpus({ repo = true } = {}) {
+  const dir = path.join(temp(), 'ok')
+  cpSync(path.join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  const task = path.join(dir, 'tasks', 'T1-fixture.md')
+  writeFileSync(task, `${readFileSync(task, 'utf8').replace(/```bash\n[\s\S]*?```/, FENCE).trimEnd()}\n\n## Mutation Log\n`)
+  if (repo) for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) git(dir, ...args)
+  return { dir, task }
+}
+// Through the interpreter, as Windows needs (CLAUDE.md §7); the state root is this test's to set or to leave out.
+const gate = (name, dir, args, root) => {
+  const env = { ...process.env }
+  delete env.QUALITY_HARNESS_STATE_DIR
+  if (root) env.QUALITY_HARNESS_STATE_DIR = root
+  return spawnSync('python3', [path.join(bin, name), ...args], { cwd: dir, env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+}
+const lint = (dir, root) => gate('adr-lint', dir, ['ADR-001-selftest.md', 'tasks'], root)
+const said = run => `${run.stdout}\n${run.stderr}`
+const NO_RECEIPT = /no adr-verify receipt names it/
+// The state directory as the hooks name it, which is the directory ADR-117 T1 guards.
+const hookState = (dir, root) => {
+  const saved = process.env.QUALITY_HARNESS_STATE_DIR
+  if (root) process.env.QUALITY_HARNESS_STATE_DIR = root
+  else delete process.env.QUALITY_HARNESS_STATE_DIR
+  try { return stateDir(dir) } finally { if (saved === undefined) delete process.env.QUALITY_HARNESS_STATE_DIR; else process.env.QUALITY_HARNESS_STATE_DIR = saved }
+}
+const pyState = (dir, root) => {
+  const env = { ...process.env }
+  delete env.QUALITY_HARNESS_STATE_DIR
+  if (root) env.QUALITY_HARNESS_STATE_DIR = root
+  const run = spawnSync('python3', ['-c', 'import sys; sys.path.insert(0, sys.argv[1]); from record import state_dir; print(state_dir(sys.argv[2]))', path.join(repoRoot, 'plugin', 'lib'), dir],
+    { env, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stderr)
+  return run.stdout.trim()
+}
+const receipts = state => (existsSync(path.join(state, 'receipts.jsonl')) ? readFileSync(path.join(state, 'receipts.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [])
+// A row typed by hand: an adr-verify row with its date moved, which no receipt names.
+const typed = row => row.replace(/^- \d{4}-\d{2}-\d{2} /, '- 2026-01-01 ')
+const rows = (task, section) => (readFileSync(task, 'utf8').split(`## ${section}`)[1] ?? '').split('\n## ')[0].split('\n').filter(line => /^- \d{4}-\d{2}-\d{2} · /.test(line))
+const add = (task, section, row) => {
+  const text = readFileSync(task, 'utf8')
+  const at = text.indexOf(`## ${section}`) + `## ${section}`.length
+  writeFileSync(task, `${text.slice(0, at)}\n\n${row}${text.slice(at)}`)
+}
+
+test('a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt', () => {
+  // The writer and the reader find the directory the hooks guard, with the state root set and without it.
+  const { dir, task } = corpus()
+  const root = temp()
+  assert.equal(pyState(dir), hookState(dir))
+  assert.equal(pyState(dir, root), hookState(dir, root))
+  const state = hookState(dir)
+
+  // A run, a recorded mutant and a hand-reported mutant each leave one receipt, and their uncommitted rows pass.
+  const run = gate('adr-verify', dir, ['tasks/T1-fixture.md', '--cwd', '.'])
+  assert.equal(run.status, 0, said(run))
+  const mutant = gate('adr-verify', dir, ['tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'ADR-001-selftest.md', '--from', '## Decision', '--to', '## Decisiun', '--why', 'the fence notices a broken Decision'])
+  assert.equal(mutant.status, 0, said(mutant))
+  const human = gate('adr-verify', dir, ['tasks/T1-fixture.md', '--cwd', '.', '--human-mutant', 'ADR-001-selftest.md', '--from', '## Decision', '--to', '## Decisiun', '--test', 'adr-lint-positive', '--test-exit', '1', '--why', 'a person broke the Decision heading'])
+  assert.equal(human.status, 0, said(human))
+  const written = [...rows(task, 'Verification Log'), ...rows(task, 'Mutation Log')]
+  assert.ok(written.length >= 3, written.join('\n'))
+  const kept = receipts(state)
+  assert.equal(kept.length, written.length, JSON.stringify(kept))
+  for (const receipt of kept) {
+    assert.equal(receipt.task, 'tasks/T1-fixture.md', 'the task is named relative to its repository, never by an absolute path')
+    assert.match(receipt.sha256, /^[0-9a-f]{64}$/)
+    assert.equal(typeof receipt.at, 'string')
+  }
+  const clean = lint(dir)
+  assert.equal(clean.status, 0, said(clean))
+  assert.doesNotMatch(said(clean), NO_RECEIPT)
+
+  // A typed row in either log is refused; the same row committed passes, since a committed row needs none.
+  for (const section of ['Verification Log', 'Mutation Log']) {
+    const before = readFileSync(task, 'utf8')
+    add(task, section, typed(rows(task, section)[0]))
+    const refused = lint(dir)
+    assert.equal(refused.status, 1, `${section}: ${said(refused)}`)
+    assert.match(said(refused), NO_RECEIPT, section)
+    writeFileSync(task, before)
+  }
+  add(task, 'Verification Log', typed(rows(task, 'Verification Log')[0]))
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-qm', 'rows')
+  const committed = lint(dir)
+  assert.equal(committed.status, 0, said(committed))
+
+  // Under a state root the receipts go there, and a probe linting under one still reads the repository's own.
+  const rooted = corpus()
+  assert.equal(gate('adr-verify', rooted.dir, ['tasks/T1-fixture.md', '--cwd', '.'], root).status, 0)
+  assert.equal(receipts(hookState(rooted.dir, root)).length, 1)
+  // The fixture's task is done with no mutant here, so the lint fails for that; what matters is the receipt rule.
+  assert.doesNotMatch(said(lint(rooted.dir, root)), NO_RECEIPT)
+  const probed = corpus()
+  assert.equal(gate('adr-verify', probed.dir, ['tasks/T1-fixture.md', '--cwd', '.']).status, 0)
+  assert.doesNotMatch(said(lint(probed.dir, temp())), NO_RECEIPT, 'a receipt in the repository counts under a probe\'s state root')
+
+  // The receipts taken away: the uncommitted row adr-verify wrote is refused, so deleting the file closes nothing.
+  rmSync(path.join(hookState(probed.dir), 'receipts.jsonl'))
+  const bare = lint(probed.dir)
+  assert.equal(bare.status, 1, said(bare))
+  assert.match(said(bare), NO_RECEIPT)
+
+  // Outside a repository there is no committed file and no state directory to look at, so nothing is accused.
+  const loose = corpus({ repo: false })
+  add(loose.task, 'Verification Log', typed(rows(task, 'Verification Log')[0]))
+  assert.doesNotMatch(said(lint(loose.dir)), NO_RECEIPT)
+})

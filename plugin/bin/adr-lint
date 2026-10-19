@@ -126,7 +126,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501,F401
 from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E402
 from record import git_read_env  # noqa: E402
-from record import signoff_binding, signoff_digest  # noqa: E402
+from record import signoff_binding, signoff_digest, receipt_digest, receipt_digests  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
 from record import gfm_table_cells, gfm_table_rows, gfm_rows, gfm_data_rows  # noqa: E402
@@ -2644,6 +2644,39 @@ def claimed_done_ids(readme_text, infos):
     beside a README saying pending or no README at all, past the lock, Status, filter and Produces checks."""
     readme_done = list(done_task_ids(readme_text)) if readme_text else []
     return readme_done + [t for t in own_done_claims(infos or {}) if t not in readme_done]
+
+
+def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests):
+    """ADR-117 T2: a log row the committed file does not hold is refused unless an adr-verify receipt names it.
+
+    Every task, done or not: a typed red row in a pending task reads later as the red half of a cycle that did not
+    happen. Both logs, since a Mutation Log row is what `done` asks for beside the pass. A digest-less row is left to
+    its own refusal in check_verification, so it is not told twice. `None` from either reader is could-not-look and
+    accuses nothing (ADR-005): no repository, no committed file, a receipts file that could not be read."""
+    for tid, inf in sorted(infos.items()):
+        if inf.get("path") is None:
+            continue
+        rows = [b for b in inf.get("vlog", []) if VLOG_RE.match(b)]
+        rows += [b for b in inf.get("mlog", []) if MLOG_RE.match(b) and b not in rows]
+        if not rows:
+            continue
+        known = committed(inf["path"])
+        if known is None:
+            continue
+        held = {ln.strip() for ln in known}
+        fresh = []
+        for row in rows:
+            stamped = VLOG_TIMED_RE.match(row)
+            if row.strip() not in held and not (stamped and not stamped.group("digest")):
+                fresh.append(row)
+        names = receipts(inf["path"]) if fresh else None
+        for row in [] if names is None else fresh:
+            if receipt_digest(row) not in names:
+                errors.append(
+                    f"{inf['path'].name}: {tid} has a log row that is not in the committed file, and no adr-verify "
+                    f"receipt names it — `{clipped(row.strip(), 120)}`. adr-verify leaves a receipt in the repository's "
+                    f"state directory for every row it writes; a row typed by hand is not evidence. Re-run "
+                    f"`adr-verify <task.md>` (ADR-117)")
 
 
 def check_verification(infos, readme_text, errors, committed=committed_lines):
@@ -6932,6 +6965,7 @@ def main():
         check_produced_symbols(infos, readme_text, errors, tracked_text(root, tracked))
         with errors.protected():
             check_verification(infos, readme_text, errors)
+            check_receipts(infos, errors)
             check_test_lock(infos, readme_text, errors, root, adr, tracked)
             check_task_status_vocabulary(infos, readme_text, errors)
 

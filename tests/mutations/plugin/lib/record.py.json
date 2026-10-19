@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T2: a written row leaves a receipt",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "    rows = [ln for ln in block.split(\"\\n\") if LOG_ROW_START_RE.match(ln.strip())]",
+      "to": "    rows = []",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
+      "label": "ADR-117 T2: a probe under a state root reads the repository receipts",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "    for directory in dict.fromkeys([_rooted(place[0]), place[0]]):",
+      "to": "    for directory in [_rooted(place[0])]:",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
+      "label": "ADR-117 T2: a deleted receipts file is no receipts, not could-not-look",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "        except FileNotFoundError:\n            continue\n        except OSError:\n            return None\n        for line in lines:",
+      "to": "        except FileNotFoundError:\n            return None\n        except OSError:\n            return None\n        for line in lines:",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
       "label": "ADR-113 T4: a sign-off on another Acceptance is stale",
       "file": "plugin/lib/record.py",
       "tests": [

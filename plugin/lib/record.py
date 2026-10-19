@@ -67,10 +67,105 @@ def git_read_env():
     writes, and not for a child that is not git."""
     return {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
 
+
+# ADR-117 T2: every log row adr-verify writes leaves a receipt, and adr-lint refuses an uncommitted row no receipt names.
+# The receipts live where the hooks keep the check ledgers (`stateDir` in plugin/scripts/event-log.mjs), because that is
+# the directory ADR-117 T1's ledger guard refuses an agent's writes into: `<absolute git dir>/quality-harness`, and under
+# QUALITY_HARNESS_STATE_DIR that root joined with the first 16 hex of the sha256 of that path, one place per repository.
+# tests/log-receipts.test.mjs compares this answer with the hooks' own.
+RECEIPTS_NAME = "receipts.jsonl"
+LOG_ROW_START_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · ")
+
+
+def _repository_place(start):
+    """(the repository's own state directory, `start`'s path inside the repository), or None when git cannot say."""
+    directory = start if os.path.isdir(start) else os.path.dirname(os.path.abspath(start))
+    try:
+        r = subprocess.run(["git", "-C", directory, "rev-parse", "--absolute-git-dir", "--show-prefix"],
+                           capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace",
+                           env=git_read_env(), **NO_WINDOW)
+    except Exception:
+        return None
+    lines = r.stdout.split("\n")
+    if r.returncode != 0 or len(lines) < 2 or not lines[0].strip():
+        return None
+    own = os.path.join(os.path.realpath(lines[0].strip()), "quality-harness")
+    inside = lines[1].strip() + ("" if os.path.isdir(start) else os.path.basename(start))
+    return own, inside
+
+
+def _rooted(own):
+    root = os.environ.get("QUALITY_HARNESS_STATE_DIR")
+    return os.path.join(os.path.abspath(root), hashlib.sha256(own.encode("utf-8")).hexdigest()[:16]) if root else own
+
+
+def state_dir(start):
+    """The state directory of the repository holding `start`, as the hooks name it, or None when git cannot say."""
+    place = _repository_place(start)
+    return _rooted(place[0]) if place else None
+
+
+def receipt_digest(row):
+    """What a receipt names a log row by: the sha256 of the row as written, without its surrounding whitespace."""
+    return hashlib.sha256(row.strip().encode("utf-8")).hexdigest()
+
+
+def write_receipts(task, block, now):
+    """Append a receipt for each log row in `block` to the state directory of `task`'s repository.
+
+    Returns what went wrong, as text, or None. Outside a repository nothing is written: there is no committed file
+    there for a row to be missing from, so adr-lint accuses nothing either (ADR-005)."""
+    rows = [ln for ln in block.split("\n") if LOG_ROW_START_RE.match(ln.strip())]
+    place = _repository_place(str(task)) if rows else None
+    if not place:
+        return None
+    directory = _rooted(place[0])
+    try:
+        os.makedirs(directory, exist_ok=True)
+        with open(os.path.join(directory, RECEIPTS_NAME), "a", encoding="utf-8", newline="\n") as out:
+            for row in rows:
+                out.write(json.dumps({"task": place[1], "sha256": receipt_digest(row), "at": now}, separators=(",", ":")) + "\n")
+    except OSError as error:
+        return f"{os.path.join(directory, RECEIPTS_NAME)}: {error.strerror or error}"
+    return None
+
+
+def receipt_digests(task):
+    """The row digests the receipts name for `task`, or None when it could not look.
+
+    Read from the state directory and, under a state root, from the repository's own as well: a probe lints a
+    repository under a root of its own, and the receipts its owner's adr-verify wrote are in the repository. An absent
+    file is no receipts, never could-not-look, or deleting it would switch the rule off."""
+    place = _repository_place(str(task))
+    if not place:
+        return None
+    found = set()
+    for directory in dict.fromkeys([_rooted(place[0]), place[0]]):
+        try:
+            with open(os.path.join(directory, RECEIPTS_NAME), encoding="utf-8", errors="replace") as source:
+                lines = source.read().split("\n")
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return None
+        for line in lines:
+            try:
+                receipt = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(receipt, dict) and receipt.get("task") == place[1] and isinstance(receipt.get("sha256"), str):
+                found.add(receipt["sha256"])
+    return found
+
 __all__ = [
     "sections_of",
     "NO_WINDOW",
     "git_read_env",
+    "state_dir",
+    "receipt_digest",
+    "write_receipts",
+    "receipt_digests",
+    "RECEIPTS_NAME",
     "section_span",
     "repeated_headings",
     "unterminated_fence",

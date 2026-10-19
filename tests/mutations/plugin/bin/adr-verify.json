@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T2: adr-verify asks for the receipt",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "    problem = write_receipts(task, block, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec=\"seconds\"))",
+      "to": "    problem = None",
+      "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
+    },
+    {
       "label": "ADR-113 T4: a sign-off names the Acceptance it signed",
       "file": "plugin/bin/adr-verify",
       "tests": [

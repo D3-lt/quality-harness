@@ -17,37 +17,41 @@ import { gitRepositoryLookup } from './tree-facts.mjs'
 
 const POWERSHELL_WRITERS = new Set(['out-file', 'set-content', 'add-content', 'tee-object', 'sc', 'ac', 'tee'])
 const POWERSHELL_CD = new Set(['cd', 'chdir', 'set-location', 'sl', 'push-location', 'pushd'])
-const POWERSHELL_DESTINATIONS = ['filepath', 'path', 'literalpath', 'pspath']
+const POWERSHELL_NAMED = new Set(['filepath', 'path', 'literalpath', 'pspath', 'lp'])
 const POWERSHELL_CONTENT = ['value', 'inputobject']
-// PowerShell takes a parameter by any prefix that names it (`-Lit`), and its value after a colon too (`-Path:x`).
+// PowerShell takes a parameter by any prefix that names it (`-Va`), and its value after a colon too (`-Path:x`).
 const prefixOf = (word, names, shortest = 1) => word.length >= shortest && names.some(full => full.startsWith(word))
 
-// The files a PowerShell writer may name. Which parameters are switches is not read here, since a list of them is a list
-// that misses one (`-vb`, the second verification review of 671827fa): every word after a parameter is a candidate, except
-// after one that carries content (`-Value`, `-InputObject`). A word after no parameter is the first positional, the
-// destination, unless a destination was named or a positional already given; then it is content.
+// The files a PowerShell writer may name. Telling a switch from a positional, or one prefix from another, is a guess an
+// attacker gets to choose (`-vb`, `-Fi` for -Filter, a quoted "-Value": the verification reviews of 671827fa and f7dc229c),
+// so very little is excluded. Every word is a candidate except the word straight after an unquoted parameter that carries
+// content (`-Value`, `-InputObject`), and a bare word after a destination named in full, which PowerShell binds as content.
+// A quoted word is never a parameter, but a quoted `-Path:"…"` still names its value. The price is an over-refusal of a
+// content word that is itself a ledger's path (BACKLOG §387).
 function powershellDestinations(c) {
   const found = []
   let settled = false
   let after = null
   for (let at = 1; at < c.argv.length; at++) {
-    const parameter = /^-([A-Za-z]+)(?::([\s\S]*))?$/.exec(c.argv[at])
+    const word = c.argv[at]
     const literal = !c.dynamic.includes(at)
+    const colon = /^-[A-Za-z]+:([\s\S]*)$/.exec(word)
+    const parameter = !c.quoted[at] && /^-([A-Za-z]+)(?::[\s\S]*)?$/.exec(word)
     if (parameter) {
       const name = parameter[1].toLowerCase()
       const content = prefixOf(name, POWERSHELL_CONTENT, 2)
-      if (name === 'lp' || prefixOf(name, POWERSHELL_DESTINATIONS)) settled = true
-      after = parameter[2] === undefined ? (content ? 'content' : 'value') : null
-      if (parameter[2] !== undefined && !content && parameter[2] && literal) found.push(parameter[2])
+      if (POWERSHELL_NAMED.has(name)) settled = true
+      if (colon) {
+        if (!content && colon[1] && literal) found.push(colon[1])
+        after = null
+      } else after = content ? 'content' : 'value'
       continue
     }
-    if (after !== null) {
-      if (after === 'value' && literal) found.push(c.argv[at])
-      after = null
-      continue
+    if (literal && after !== 'content') {
+      if (after === 'value' || !settled) found.push(word)
+      if (colon && colon[1]) found.push(colon[1])
     }
-    if (!settled && literal) found.push(c.argv[at])
-    settled = true
+    after = null
   }
   return found
 }

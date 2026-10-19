@@ -3327,3 +3327,9 @@ destinations, if a run shows either used against a ledger.
     found and the next commit fixes: a PowerShell destination after a colon, content values read as destinations, a walk
     starting above a guarded directory, a link to a file not yet there, committed rows refused after a task moved, and
     unreadable required checks. Still left: PowerShell backtick escapes and `Copy-Item`/`Move-Item`/`New-Item -Value`.
+  - **Narrowed again after the third verification review, of f7dc229c:** telling a switch from a positional, or one prefix
+    from another, let a chosen spelling hide the destination (`-Fi` for -Filter, a quoted `"-Value"`). The reader now
+    excludes only the word after an unquoted `-Value`/`-InputObject` and a bare word after a destination named in full.
+    Refused as the price, and left: a content word that is itself a ledger's path when no destination is named in full
+    (`Set-Content notes.txt <ledger path>`, `Set-Content -Force notes.txt <ledger path>`), and the same after a switch
+    (`Set-Content -Path notes.txt -Verbose <ledger path>`). Reopen when an ordinary session is shown refused by one.

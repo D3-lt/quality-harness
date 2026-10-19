@@ -151,7 +151,6 @@ test('the verification review\'s forms are refused, and ordinary content writes 
     ['Bash', { command: '> notes.txt' }, {}],
     ['PowerShell', { command: 'Set-Content -Path notes.txt -Value ".git/quality-harness/checks.jsonl"' }, {}],
     ['PowerShell', { command: 'Out-File -FilePath notes.txt -Encoding utf8 -InputObject .git/quality-harness/checks.jsonl' }, {}],
-    ['PowerShell', { command: 'Set-Content notes.txt .git/quality-harness/checks.jsonl' }, {}],
     ['mcp__mrw__mrw_write', { grep: '^', sub: '{}', paths: ['src'] }, root],
     ['mcp__mrw__mrw_write', { grep: '^x$', sub: 'y' }, {}],
   ]
@@ -184,4 +183,28 @@ test('a PowerShell destination is never taken for a switch\'s value, and a relat
     ['PowerShell', { command: 'Set-Content -Va .git/quality-harness/checks.jsonl -Path notes.txt' }],
   ]
   for (const [tool, input] of passed) assert.notEqual(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} passes`)
+})
+
+// The third verification review of f7dc229c: a prefix that names -Filter was taken for -FilePath and the real destination
+// after it for content, and a quoted "-Value" was taken for a parameter. Only an unquoted content parameter and a destination
+// named in full exclude anything now. `Set-Content notes.txt <ledger path>` is refused as the price (BACKLOG §387).
+test('a PowerShell prefix or a quoted word cannot turn a destination into content', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'fourth', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'fourth', { hook_event_name: 'SessionStart', source: 'startup' })
+  mkdirSync(path.join(repo, '.git', 'quality-harness'), { recursive: true })
+  const pre = command => said(runHook(box, repo, 'fourth', { hook_event_name: 'PreToolUse', tool_name: 'PowerShell', tool_input: { command } }))
+  for (const command of [
+    'Set-Content -Fi checks.jsonl .git/quality-harness/checks.jsonl -Value x',
+    'Add-Content -Fil x .git/quality-harness/checks.jsonl -Value y',
+    'Set-Content -Value "-Value" .git/quality-harness/checks.jsonl',
+    'Out-File -InputObject "-InputObject" .git/quality-harness/checks.jsonl',
+    'Set-Content -Path:".git/quality-harness/checks.jsonl" -Value x',
+    'Set-Content notes.txt .git/quality-harness/checks.jsonl',
+  ]) assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused`)
+  for (const command of [
+    'Set-Content -Path notes.txt -Value .git/quality-harness/checks.jsonl',
+    'Set-Content -LiteralPath notes.txt .git/quality-harness/checks.jsonl',
+    'Out-File -FilePath notes.txt -InputObject .git/quality-harness/checks.jsonl',
+  ]) assert.notEqual(pre(command).permissionDecision, 'deny', `${command} passes`)
 })

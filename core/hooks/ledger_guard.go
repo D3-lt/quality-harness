@@ -29,9 +29,10 @@ func isPowershell(name string) bool {
 	return strings.Contains(name, "pwsh") || strings.Contains(name, "powershell")
 }
 
-var powershellDestinationNames = []string{"filepath", "path", "literalpath", "pspath"}
+var powershellNamed = map[string]bool{"filepath": true, "path": true, "literalpath": true, "pspath": true, "lp": true}
 var powershellContentNames = []string{"value", "inputobject"}
-var powershellParameter = regexp.MustCompile(`^-([A-Za-z]+)(?::([\s\S]*))?$`)
+var powershellParameter = regexp.MustCompile(`^-([A-Za-z]+)(?::[\s\S]*)?$`)
+var powershellColon = regexp.MustCompile(`^-[A-Za-z]+:([\s\S]*)$`)
 
 func prefixOf(word string, names []string, shortest int) bool {
 	if len(word) < shortest {
@@ -45,46 +46,44 @@ func prefixOf(word string, names []string, shortest int) bool {
 	return false
 }
 
-// powershellDestinations is ledger-guard.mjs's: every word after a parameter is a candidate unless the parameter carries
-// content, and a word after none is the destination until one is named or given.
+// powershellDestinations is ledger-guard.mjs's: every word is a candidate except the word straight after an unquoted
+// content parameter, and a bare word after a destination named in full; a quoted word is never a parameter.
 func powershellDestinations(c *shellCommand) []string {
 	found := []string{}
 	settled := false
 	after := ""
 	for at := 1; at < len(c.argv); at++ {
-		parameter := powershellParameter.FindStringSubmatch(c.argv[at])
+		word := c.argv[at]
 		literal := !containsInt(c.dynamic, at)
-		if parameter != nil {
+		colon := powershellColon.FindStringSubmatch(word)
+		quoted := at < len(c.quoted) && c.quoted[at]
+		if parameter := powershellParameter.FindStringSubmatch(word); parameter != nil && !quoted {
 			name := strings.ToLower(parameter[1])
 			content := prefixOf(name, powershellContentNames, 2)
-			if name == "lp" || prefixOf(name, powershellDestinationNames, 1) {
+			if powershellNamed[name] {
 				settled = true
 			}
-			colon := strings.Contains(c.argv[at], ":")
-			switch {
-			case colon:
-				after = ""
-				if !content && parameter[2] != "" && literal {
-					found = append(found, parameter[2])
+			if colon != nil {
+				if !content && colon[1] != "" && literal {
+					found = append(found, colon[1])
 				}
-			case content:
+				after = ""
+			} else if content {
 				after = "content"
-			default:
+			} else {
 				after = "value"
 			}
 			continue
 		}
-		if after != "" {
-			if after == "value" && literal {
-				found = append(found, c.argv[at])
+		if literal && after != "content" {
+			if after == "value" || !settled {
+				found = append(found, word)
 			}
-			after = ""
-			continue
+			if colon != nil && colon[1] != "" {
+				found = append(found, colon[1])
+			}
 		}
-		if !settled && literal {
-			found = append(found, c.argv[at])
-		}
-		settled = true
+		after = ""
 	}
 	return found
 }

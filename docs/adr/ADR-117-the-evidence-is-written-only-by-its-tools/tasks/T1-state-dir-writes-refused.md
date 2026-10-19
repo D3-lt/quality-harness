@@ -82,6 +82,9 @@ node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh 
 - 2026-10-19 · 671827fa* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads every word after a parameter that carries no content · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 - 2026-10-19 · 671827fa* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go resolves a relative link from its real directory · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 - 2026-10-19 · 671827fa* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go keeps a content value out of the destinations · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · f7dc229c* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go never reads a quoted word as a parameter · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · f7dc229c* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads a bare word after a destination named in full as content · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · f7dc229c* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go keeps the word after a content parameter out · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 
 ## Invariants
 
@@ -144,3 +147,6 @@ Stop if a reading command is refused in the twin table.
 - 2026-10-19 · 671827fa* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:9514
 - 2026-10-19 · 671827fa* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:9236
 - 2026-10-19 · 671827fa* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:9888
+- 2026-10-19 · f7dc229c* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:10461
+- 2026-10-19 · f7dc229c* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:10311
+- 2026-10-19 · f7dc229c* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:10259

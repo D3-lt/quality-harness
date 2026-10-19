@@ -3292,3 +3292,11 @@ after it. A load average cannot tell the run's load from other work during the r
 unseen. A better signal is the run's own slowdown against its history: `selftest-files.jsonl` holds every file's time per run,
 and five full runs on 2026-10-19 took 202 to 209 s whatever the load. Left: a per-file baseline and a threshold nobody has
 measured (ADR-115, Alternatives).
+
+## 385. OPEN 2026-10-19 — adr-lint passes a tasks README whose index lost its separator row and lists a task twice
+
+Found executing ADR-115 T1: a write meant for T1's row replaced the table's `|----|…` separator instead, so the index read
+`| ID | … |` then T1 `done` then T1 `pending`. `python3 plugin/bin/adr-lint` on the record printed [PASS]. Two task rows
+with one id, one done and one pending, is a README that disagrees with itself; whether `done_task_ids` reads the first, the
+last or both is not checked here. The README is a derived index (CLAUDE.md §10), so the task files still win; the gap is that
+nothing says the index is malformed. Left: a test with a duplicated row and a missing separator, each said.

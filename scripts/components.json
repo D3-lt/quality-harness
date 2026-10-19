@@ -64,8 +64,8 @@
       { "kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'" }
     ] },
     "PostToolUse · mcp__mrw__mrw_write · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/hook-record.mjs", "token": "mrwPlanPaths" }
-    ], "reason": "an mrw MCP write is recorded with the paths its plan names, as an Edit's is (ADR-113 T2)" },
+      { "kind": "tool", "by": "plugin/scripts/hook-record.mjs", "token": "mrwWritePaths" }
+    ], "reason": "an mrw MCP write is recorded with the paths it names, as an Edit's is, and one whose files its input does not name with none (ADR-113 T2, the Codex review of 6641c951..4db47214)" },
     "PreCompact · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "readSessionNote" },
       { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "'context.compacting'" }

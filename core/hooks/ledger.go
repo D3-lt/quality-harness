@@ -83,8 +83,15 @@ type fastPass struct {
 	count   int
 }
 
+// latestFastPass is check-ledger.mjs's: the latest fast record on this tree, for the fastCheck declared now (ADR-113 T3).
 func latestFastPass(cwd, tree, root string) *fastPass {
-	pass := ledgerPass(cwd, "fast-checks.jsonl", "fastSeen", func(r *Obj) bool { return strict(dig(r, "after", "tree"), tree) }, root)
+	command := fastCheckCommand(root)
+	if command == "" {
+		return nil
+	}
+	pass := ledgerPass(cwd, "fast-checks.jsonl", "fastSeen", func(r *Obj) bool {
+		return strict(dig(r, "after", "tree"), tree) && strict(get(r, "command"), command)
+	}, root)
 	if pass == nil {
 		return nil
 	}

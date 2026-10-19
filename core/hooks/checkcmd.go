@@ -117,6 +117,20 @@ func readConfig(root string) any {
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
+// fastCheckCommand is check-command.mjs's (ADR-081): the fastCheck a project declares, a non-empty string that is not a
+// constant success, or "".
+func fastCheckCommand(root string) string {
+	fast, ok := get(readConfig(root), "fastCheck").(string)
+	if !ok {
+		return ""
+	}
+	fast = jsTrim(fast)
+	if fast == "" || constantSuccessCheck(fast) {
+		return ""
+	}
+	return fast
+}
+
 func declaredCheckCommand(directory string) string {
 	check, ok := get(readConfig(directory), "check").(string)
 	if ok && strings.TrimSpace(check) != "" {

@@ -7,6 +7,7 @@ import { appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEv
 import { outsideRoot } from './decision-corpus.mjs'
 import { spawnSync } from 'node:child_process'
 import { gitRepositoryRoot, observe, observeBudgetMs, observedClean, sameObservation } from './tree-facts.mjs'
+import { fastCheckCommand } from './check-command.mjs'
 
 // ADR-111 T3: the baseline kept for a tree and a command, or null: the last bound row of baseline.jsonl, the ledger a
 // session-start check is written to (Decision 1's correction). Only the turn end reads it, so no reader of a pass can be
@@ -59,13 +60,16 @@ export function ledgerPass(stateRoot, { file, seen, match, vetoRoot = stateRoot 
 
 /**
  * latestFastPass reads `fast-checks.jsonl`, which no reader of a full pass opens
- * (ADR-081): the LATEST fast record on this tree must grade as a pass. `count` is how
- * many fast records there are, which the publish advisory's key carries. A write git
- * cannot see, logged after that pass, answers null: the full skip's veto, read
- * against the fast ledger's own count (BACKLOG §343).
+ * (ADR-081): the LATEST fast record on this tree, for the fastCheck the project declares
+ * now, must grade as a pass. A row for another command is no fast pass of this one
+ * (ADR-113 T3). `count` is how many fast records there are, which the publish advisory's
+ * key carries. A write git cannot see, logged after that pass, answers null: the full
+ * skip's veto, read against the fast ledger's own count (BACKLOG §343).
  */
 export function latestFastPass(cwd, tree, root = cwd) {
-  const pass = ledgerPass(cwd, { file: 'fast-checks.jsonl', seen: 'fastSeen', match: record => record?.after?.tree === tree, vetoRoot: root })
+  const command = fastCheckCommand(root)
+  if (!command) return null
+  const pass = ledgerPass(cwd, { file: 'fast-checks.jsonl', seen: 'fastSeen', match: record => record?.after?.tree === tree && record.command === command, vetoRoot: root })
   return pass ? { command: pass.latest.command, count: pass.count } : null
 }
 

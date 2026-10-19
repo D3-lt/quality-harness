@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T3: a fast pass counts only for the fastCheck declared now",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": [
+        "tests/side-door-sweep.test.mjs"
+      ],
+      "from": " && record.command === command",
+      "to": "",
+      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+    },
+    {
       "label": "ADR-111 T3: only a bound row is a kept baseline",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [

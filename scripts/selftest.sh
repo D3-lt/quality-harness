@@ -237,6 +237,9 @@ node --check "$ROOT/scripts/workflow-parse.mjs"
 # or a local nothing in its own file reads is a finding, and a linter that cannot start is UNRUN
 # (exit 3); either one fails this run.
 bash "$REPO/scripts/unused-names.sh"
+# ADR-113 T3: a new writer of a check ledger or a task log, a new spawn of a publishing git verb, or a writing tool a hook
+# group does not see, fails until scripts/side-doors.json names it with its reason.
+node "$REPO/scripts/side-door-sweep.mjs"
 
 # §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of

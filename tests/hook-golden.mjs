@@ -16,7 +16,7 @@ const UPDATE = process.env.QH_GOLDEN_UPDATE === '1'
 // ADR-110 T1: the one seam that says which implementation a scenario runs. `go` spawns the static core, `qh hook <event>`, from
 // QUALITY_HARNESS_QH_BIN or the repository's core/bin/qh; anything else runs lifecycle.mjs exactly as before.
 const IMPL = process.env.QUALITY_HARNESS_HOOK_IMPL === 'go' ? 'go' : 'node'
-const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'core', 'bin', 'qh')
+const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'core', 'bin', process.platform === 'win32' ? 'qh.exe' : 'qh')
 
 // ADR-111 T4: the rules the Node path has and the Go core does not yet, keyed by the title of the test that exercises
 // each, with the record that added it. Under QUALITY_HARNESS_HOOK_IMPL=go those tests skip with this reason, and every other

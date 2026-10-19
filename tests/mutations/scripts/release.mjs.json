@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-115 T1: the end sample waits for the run own load to leave",
+      "file": "scripts/release.mjs",
+      "tests": [
+        "tests/release.test.mjs"
+      ],
+      "from": "(contended || !settled())",
+      "to": "(contended || !quietNow())",
+      "only": "^(?:a pass whose load falls to the core count after the run is not contended, and one that stays above it is|a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release)$"
+    },
+    {
+      "label": "ADR-115 T1: the settle wait is bounded at 4 minutes",
+      "file": "scripts/release.mjs",
+      "tests": [
+        "tests/release.test.mjs"
+      ],
+      "from": "const SETTLE_MS = 240_000",
+      "to": "const SETTLE_MS = 2_400_000",
+      "only": "^(?:a pass whose load falls to the core count after the run is not contended, and one that stays above it is|a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release)$"
+    },
+    {
+      "label": "ADR-115 T1: a machine saturated before the run is contention",
+      "file": "scripts/release.mjs",
+      "tests": [
+        "tests/release.test.mjs"
+      ],
+      "from": "const contended = contention(start.load, start.load, start.cores) === true",
+      "to": "const contended = false",
+      "only": "^(?:a pass whose load falls to the core count after the run is not contended, and one that stays above it is|a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release)$"
+    },
+    {
       "label": "release: a contended full check is taken again",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],

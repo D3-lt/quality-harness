@@ -20,6 +20,10 @@ import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
 // Every child's bound: the full check and the dead-code scan are the longest, well under an hour (CLAUDE.md §2).
+// ADR-115: after the check, the load is sampled this often, for at most this long, until it is at or below the core count. The
+// 1-minute average keeps about 2% of a load that stopped 4 minutes earlier, so what is left at the bound is other work.
+const SETTLE_POLL_MS = 30_000
+const SETTLE_MS = 240_000
 const CHILD_TIMEOUT_MS = 3_600_000
 const runsOf = sha => ['run', 'list', '--commit', sha, '--workflow', 'selftest.yml', '--json', 'databaseId,event,status,conclusion,headSha']
 const DISPATCHES = ['run', 'list', '--workflow', 'selftest.yml', '--event', 'workflow_dispatch', '--json', 'status,headSha', '--limit', '20']
@@ -87,10 +91,26 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   // only if the machine was not contended across it, sampled with qh-check's own `contention`. v3.8.25 was pushed on a pass
   // qh-check had itself recorded as unattributable (CLAUDE.md §18, BACKLOG). A contended pass is taken again once the load is
   // below the core count; a second one stops the release with nothing pushed. A load that cannot be read is not contended.
+  // ADR-115: the sample at exit held the run's own load, so every pass on a busy machine read as contended. The end sample
+  // is now taken once that load has decayed: the load is read every SETTLE_POLL_MS until it is at or below the core count, and
+  // a load still above it at SETTLE_MS is other work.
+  const quietNow = () => {
+    const sample = load()
+    return contention(sample.load, sample.load, sample.cores) !== true
+  }
+  const settled = () => {
+    const until = now() + SETTLE_MS
+    for (;;) {
+      if (quietNow()) return true
+      if (now() >= until) return false
+      sleep(SETTLE_POLL_MS)
+    }
+  }
   const fullCheck = () => {
     const start = load()
     const status = ran('node', ['plugin/scripts/qh-check.mjs', '--again'], true).status
-    return { status, contended: contention(start.load, load().load, start.cores) === true }
+    const contended = contention(start.load, start.load, start.cores) === true
+    return { status, contended: status === 0 && (contended || !settled()) }
   }
   let check = fullCheck()
   if (check.status === 0 && check.contended) {

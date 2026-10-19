@@ -1,13 +1,23 @@
 {
   "mutations": [
     {
+      "label": "unused-names: the test files go to biome a hundred at a time",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "    for ((at = 0; at < ${#tests[@]}; at += 100)); do",
+      "to": "    for ((at = 0; at < ${#tests[@]}; at += 1000)); do",
+      "only": "^(?:a file past the first hundred is read, and each batch gives its own verdict)$"
+    },
+    {
       "label": "unused names: a finding in plugin/ or scripts/ fails the run",
       "file": "scripts/unused-names.sh",
       "tests": [
         "tests/unused-names.test.mjs"
       ],
-      "from": "\"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${product[@]}\"",
-      "to": "\"${biome[@]}\" lint --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${product[@]}\"",
+      "from": "\"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${product[@]:at:100}\"",
+      "to": "\"${biome[@]}\" lint --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${product[@]:at:100}\"",
       "only": "^an unused name in product is a finding, named by file$"
     },
     {
@@ -16,8 +26,8 @@
       "tests": [
         "tests/unused-names.test.mjs"
       ],
-      "from": "\"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports \"${tests[@]}\"",
-      "to": "\"${biome[@]}\" lint --max-diagnostics=50 --only=correctness/noUnusedImports \"${tests[@]}\"",
+      "from": "\"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports \"${tests[@]:at:100}\"",
+      "to": "\"${biome[@]}\" lint --max-diagnostics=50 --only=correctness/noUnusedImports \"${tests[@]:at:100}\"",
       "only": "^an unused name in tests is a finding, named by file$"
     },
     {
@@ -36,8 +46,8 @@
       "tests": [
         "tests/unused-names.test.mjs"
       ],
-      "from": "--only=correctness/noUnusedImports \"${tests[@]}\"",
-      "to": "--only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${tests[@]}\"",
+      "from": "--only=correctness/noUnusedImports \"${tests[@]:at:100}\"",
+      "to": "--only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${tests[@]:at:100}\"",
       "only": "^a local inside a test is not a finding: only its imports are read$"
     },
     {

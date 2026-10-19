@@ -147,3 +147,15 @@ test('the gate, the release scan and every CI job that runs the tests are wired 
   const installs = new RegExp(`run:[^#\\n]*ruff==${pinned.replaceAll('.', '\\.')}(\\s|$)`)
   for (const job of testing) assert.match(steps(job), installs, `a job runs the tests without ruff==${pinned}:\n${job.split('\n')[0]}`)
 })
+
+// The windows job of 4db47214: biome's file list, passed through cmd.exe, outran its 8,191-character command line. The files
+// go a hundred at a time now, so a finding in a later batch must still be one, and every batch must give its own verdict.
+test('a file past the first hundred is read, and each batch gives its own verdict', () => {
+  const many = Object.fromEntries(Array.from({ length: 150 }, (_, at) => [`tests/many-${String(at).padStart(3, '0')}.test.mjs`, "export const c = 1\n"]))
+  const quiet = lint(project('batches-clean', { ...clean, ...many }))
+  assert.equal(quiet.status, 0, quiet.out)
+  assert.equal((quiet.out.match(/^Checked [1-9][0-9]* files? in /gm) ?? []).length, 3, 'one product batch and two test batches, each with its verdict')
+  const late = lint(project('batches-dirty', { ...clean, ...many, 'tests/zz-imports.test.mjs': findings.tests['tests/imports.test.mjs'] }))
+  assert.equal(late.status, 1, late.out)
+  assert.ok(late.out.includes('tests/zz-imports.test.mjs'), `the finding in the last batch is not named:\n${late.out}`)
+})

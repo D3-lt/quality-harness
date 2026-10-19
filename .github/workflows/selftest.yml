@@ -411,7 +411,8 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.mod
       - name: Build qh
-        run: go build -C core -o bin/qh ./cmd/qh
+        # Windows runs only a file named .exe: an extensionless qh there was ENOENT (the go core job of 4db47214).
+        run: go build -C core -o bin/qh${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/qh
       - name: Run the goldens and the parity test against the Go core
         env:
           QUALITY_HARNESS_HOOK_IMPL: go

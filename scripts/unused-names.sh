@@ -99,13 +99,19 @@ if [ "${#biome[@]}" -eq 0 ]; then
   echo "UNRUN: biome needs npx (Node.js)."
   unrun=1
 else
+  # Windows runs npx through cmd.exe, whose command line holds 8,191 characters: 262 test paths outran it ("The command line is
+  # too long", the windows job of 4db47214). So the files go a hundred at a time, each batch with its own verdict.
   if [ "${#product[@]}" -gt 0 ]; then
     echo "biome $BIOME_VERSION over ${#product[@]} file(s) outside tests/"
-    lint '^Checked [1-9][0-9]* files? in ' '^Found [1-9][0-9]* (errors?|warnings?)\.$' "${biome[@]}" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables "${product[@]}"
+    for ((at = 0; at < ${#product[@]}; at += 100)); do
+      lint '^Checked [1-9][0-9]* files? in ' '^Found [1-9][0-9]* (errors?|warnings?)\.$' "${biome[@]}" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables "${product[@]:at:100}"
+    done
   fi
   if [ "${#tests[@]}" -gt 0 ]; then
     echo "biome $BIOME_VERSION over ${#tests[@]} file(s) in tests/, imports only"
-    lint '^Checked [1-9][0-9]* files? in ' '^Found [1-9][0-9]* (errors?|warnings?)\.$' "${biome[@]}" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports "${tests[@]}"
+    for ((at = 0; at < ${#tests[@]}; at += 100)); do
+      lint '^Checked [1-9][0-9]* files? in ' '^Found [1-9][0-9]* (errors?|warnings?)\.$' "${biome[@]}" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports "${tests[@]:at:100}"
+    done
   fi
 fi
 

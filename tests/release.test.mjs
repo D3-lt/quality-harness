@@ -162,15 +162,16 @@ test('a forge that cannot be asked is not read as a release that is missing', ()
   assert.match(missing.said.join('\n'), /has no release/)
 })
 
-// v3.8.25 was pushed on a full check qh-check itself recorded as unattributable (load 18.01 on 10 cores; BACKLOG).
+// v3.8.25 was pushed on a full check qh-check itself recorded as unattributable (load 18.01 on 10 cores; BACKLOG). Since
+// ADR-115 the end sample is taken once the run's own load has decayed: the load after `[start]` is sampled every 30 s.
 test('a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release', () => {
-  const again = world({ origin: 'b'.repeat(40), loads: [12, 14, 3, 2, 2] })
+  const again = world({ origin: 'b'.repeat(40), loads: [12, 3, 2, 2] })
   assert.equal(again.run(), 0, again.said.join('\n'))
   assert.equal(again.state.checks, 2, 'the contended pass was taken again')
   assert.ok(again.calls.filter(line => line === 'node plugin/scripts/qh-check.mjs --again').length === 2, 'never a reused pass')
   assert.ok(pushed(again.calls))
   assert.match(again.said.join('\n'), /contended machine/)
-  const twice = world({ origin: 'b'.repeat(40), loads: [12, 14, 3, 11, 12] })
+  const twice = world({ origin: 'b'.repeat(40), loads: [12, 3, 2, 12] })
   assert.equal(twice.run(), 2, twice.said.join('\n'))
   assert.ok(!pushed(twice.calls) && !twice.calls.some(line => line.startsWith('gh ')), 'nothing left this machine')
   const quietWasNever = world({ origin: 'b'.repeat(40), loads: [12, 14, 15] })
@@ -179,4 +180,26 @@ test('a full check that passed on a contended machine is taken again when it is 
   const unread = world({ origin: 'b'.repeat(40), loads: [null] })
   assert.equal(unread.run(), 0, 'a load that cannot be read is not contended')
   assert.equal(unread.state.checks, 1)
+})
+
+// ADR-115: the end sample held the run's own load, so a busy machine read every pass as contended (5 runs on 2026-10-19
+// started at 6.1 to 8.7 and ended at 14.0 to 19.7 on 10 cores, each in 202 to 209 s). The load is sampled after the run until
+// it is at or below the core count, for at most 4 minutes: there, the load from everything else is too.
+test('a pass whose load falls to the core count after the run is not contended, and one that stays above it is', { timeout: 30_000 }, () => {
+  const falls = world({ origin: 'b'.repeat(40), loads: [7, 17, 13, 9] })
+  assert.equal(falls.run(), 0, falls.said.join('\n'))
+  assert.equal(falls.state.checks, 1, 'the run\'s own load is not contention')
+  assert.ok(pushed(falls.calls))
+  assert.doesNotMatch(falls.said.join('\n'), /contended/)
+  // Still above the count at the bound: other work. Taken again once quiet, and a second such pass stops the release.
+  const stays = world({ origin: 'b'.repeat(40), loads: [7, ...Array(9).fill(12), 2, 7, ...Array(9).fill(12)] })
+  assert.equal(stays.run(), 2, stays.said.join('\n'))
+  assert.equal(stays.state.checks, 2)
+  assert.ok(!pushed(stays.calls))
+  assert.match(stays.said.join('\n'), /contended machine twice/)
+  // The bound is 4 minutes: a load that falls on the ninth sample, at 4 minutes, is still in time, and one that falls on the
+  // tenth is not.
+  const late = world({ origin: 'b'.repeat(40), loads: [7, ...Array(8).fill(12), 9] })
+  assert.equal(late.run(), 0, late.said.join('\n'))
+  assert.equal(late.state.checks, 1)
 })

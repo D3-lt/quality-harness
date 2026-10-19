@@ -82,7 +82,9 @@ and this is not a tie, it is a loss.
 ## The command (ADR-100, 2026-10-13)
 
 `node scripts/release.mjs` performs the steps above from observations: the tag list for "bump", a full `qh-check --again`
-run here, taken again once the load is below the core count when it passed contended, `merge-base --is-ancestor` against `origin/main` for the push,
+run here, judged contended by its load at the start and by a sample taken once the run's own load has decayed (every 30 s,
+for at most 4 minutes, until it is at or below the core count; ADR-115: the sample at exit held the run's own load, so every
+pass on this busy machine read as contended), and taken again once the load is below the count when it passed contended, `merge-base --is-ancestor` against `origin/main` for the push,
 `gh run list --commit` for the push run and the dispatch, `release-evidence` for the verdict. It keeps no state file, so it
 can never disagree with what those say. The old "do not push while the release run is in flight" predates the event in the
 workflow's concurrency key (`.github/workflows/selftest.yml:19-21`): since then a push cancels only an earlier push run,

@@ -3300,3 +3300,10 @@ Found executing ADR-115 T1: a write meant for T1's row replaced the table's `|--
 with one id, one done and one pending, is a README that disagrees with itself; whether `done_task_ids` reads the first, the
 last or both is not checked here. The README is a derived index (CLAUDE.md §10), so the task files still win; the gap is that
 nothing says the index is malformed. Left: a test with a duplicated row and a missing separator, each said.
+
+## 386. OPEN 2026-10-19 — A fetched `qh` is unsigned, and whether quarantine or SmartScreen stops it is not measured
+
+ADR-116 publishes `qh` as release assets and fetches the one a machine needs at SessionStart. Neither this repository nor mrw
+signs or notarises a binary. curl does not set macOS's quarantine attribute and a browser download does; whether a binary
+written by Node's fetch is stopped by Gatekeeper, or a Windows one by SmartScreen or Mark-of-the-Web, was not measured on
+2026-10-19. Left: measure both on a real fetched asset before ADR-110 T3 switches `hooks.json`, and sign if either stops it.

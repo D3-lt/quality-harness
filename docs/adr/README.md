@@ -117,3 +117,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-113](ADR-113-the-go-core-takes-the-rules-and-side-doors-are-enumerated.md) | The Go core takes the hooks' rules, and the gaps between paths are enumerated | Accepted |
 | [ADR-114](ADR-114-the-core-serves-state-as-mcp-resources.md) | The core serves session state as MCP resources, and pushes nothing less | Accepted |
 | [ADR-115](ADR-115-a-release-judges-the-load-the-run-did-not-bring.md) | A release judges the load the run did not bring | Accepted |
+| [ADR-116](ADR-116-qh-ships-as-release-assets-fetched-and-verified.md) | `qh` ships as release assets, fetched and verified, with Node as the fallback | Accepted |

@@ -26,7 +26,8 @@ function powershellDestinations(c) {
   const found = []
   for (let at = 1; at < c.argv.length; at++) {
     if (c.dynamic.includes(at)) continue
-    const colon = /^-[A-Za-z]+:([\s\S]*)$/.exec(c.argv[at])
+    // PowerShell reads an en, em or horizontal-bar dash as a parameter's dash (the sixth verification review of 34e05f2b).
+    const colon = /^[-–—―][A-Za-z]+:([\s\S]*)$/.exec(c.argv[at])
     const text = colon ? colon[1] : c.argv[at]
     for (const file of [text, ...text.split(',').map(part => part.trim())]) if (file) found.push(file)
   }

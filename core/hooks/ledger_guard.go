@@ -29,7 +29,7 @@ func isPowershell(name string) bool {
 	return strings.Contains(name, "pwsh") || strings.Contains(name, "powershell")
 }
 
-var powershellColon = regexp.MustCompile(`^-[A-Za-z]+:([\s\S]*)$`)
+var powershellColon = regexp.MustCompile(`^[-\x{2013}\x{2014}\x{2015}][A-Za-z]+:([\s\S]*)$`)
 
 // powershellDestinations is ledger-guard.mjs's: every literal word, whole and split at its commas, and a colon's value.
 func powershellDestinations(c *shellCommand) []string {

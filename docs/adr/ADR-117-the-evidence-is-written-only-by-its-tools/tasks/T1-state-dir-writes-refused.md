@@ -90,6 +90,7 @@ node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh 
 - 2026-10-19 · 9cd08b8e* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads a PowerShell word whole · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 - 2026-10-19 · 9cd08b8e* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads each element of a PowerShell comma word · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 - 2026-10-19 · 9cd08b8e* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads a PowerShell colon value · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
+- 2026-10-19 · 34e05f2b* · mutant killed · exit 1 · `core/hooks/ledger_guard.go` · Go reads a Unicode dash as a parameter dash · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9
 
 ## Invariants
 
@@ -160,3 +161,4 @@ Stop if a reading command is refused in the twin table.
 - 2026-10-19 · 9cd08b8e* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:12044
 - 2026-10-19 · 9cd08b8e* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:11913
 - 2026-10-19 · 9cd08b8e* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:12036
+- 2026-10-19 · 34e05f2b* · exit 0 · `node --test tests/ledger-writes.test.mjs && go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/ledger-writes.test.mjs` · acceptance-sha256:4c65ac7b5c22ef8df1fc05b729f1050aaeb57adccb40c72f30cc7e214562e2a9 · ms:7961

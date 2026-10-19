@@ -199,6 +199,16 @@
       "from": "    const text = colon ? colon[1] : c.argv[at]",
       "to": "    const text = c.argv[at]",
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 sixth verification: a Unicode dash is a parameter's dash",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    const colon = /^[-–—―][A-Za-z]+:([\\s\\S]*)$/.exec(c.argv[at])",
+      "to": "    const colon = /^[-][A-Za-z]+:([\\s\\S]*)$/.exec(c.argv[at])",
+      "only": "^(?:a PowerShell parameter spelled with a Unicode dash names its colon value)$"
     }
   ]
 }

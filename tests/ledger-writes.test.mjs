@@ -255,3 +255,18 @@ test('a PowerShell path with a comma in it is read whole', { skip }, t => {
   assert.equal(pre(`Set-Content -Path "${target}" -Value x`).permissionDecision, 'deny', `${target} is refused`)
   assert.notEqual(pre('Set-Content -Path "notes,old.txt" -Value x').permissionDecision, 'deny', 'a file with a comma elsewhere passes')
 })
+
+// The sixth verification review of 34e05f2b: PowerShell reads an en, em or horizontal-bar dash as a parameter's dash, so
+// `–Path:<ledger>` names its value as `-Path:<ledger>` does.
+test('a PowerShell parameter spelled with a Unicode dash names its colon value', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'seventh', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'seventh', { hook_event_name: 'SessionStart', source: 'startup' })
+  mkdirSync(path.join(repo, '.git', 'quality-harness'), { recursive: true })
+  const pre = command => said(runHook(box, repo, 'seventh', { hook_event_name: 'PreToolUse', tool_name: 'PowerShell', tool_input: { command } }))
+  for (const dash of ['–', '—', '―']) {
+    const command = `Set-Content ${dash}Path:.git/quality-harness/checks.jsonl -Value x`
+    assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused`)
+  }
+  assert.notEqual(pre('Set-Content –Path:notes.txt -Value x').permissionDecision, 'deny', 'a Unicode-dash write elsewhere passes')
+})

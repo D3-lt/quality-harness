@@ -1,13 +1,33 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 0c137b89: a quiet sample after the bound does not count",
+      "file": "scripts/release.mjs",
+      "tests": [
+        "tests/release.test.mjs"
+      ],
+      "from": "      if (now() > until) return false",
+      "to": "      if (now() > until && !quietNow()) return false",
+      "only": "^(?:a sample after the settle bound does not count, and a pass whose start was not read is not judged)$"
+    },
+    {
+      "label": "Codex review of 0c137b89: an unread start is not judged",
+      "file": "scripts/release.mjs",
+      "tests": [
+        "tests/release.test.mjs"
+      ],
+      "from": "status === 0 && atStart !== null && (atStart || !settled())",
+      "to": "status === 0 && (atStart || !settled())",
+      "only": "^(?:a sample after the settle bound does not count, and a pass whose start was not read is not judged)$"
+    },
+    {
       "label": "ADR-115 T1: the end sample waits for the run own load to leave",
       "file": "scripts/release.mjs",
       "tests": [
         "tests/release.test.mjs"
       ],
-      "from": "(contended || !settled())",
-      "to": "(contended || !quietNow())",
+      "from": "(atStart || !settled())",
+      "to": "(atStart || !quietNow())",
       "only": "^(?:a pass whose load falls to the core count after the run is not contended, and one that stays above it is|a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release)$"
     },
     {
@@ -26,8 +46,8 @@
       "tests": [
         "tests/release.test.mjs"
       ],
-      "from": "const contended = contention(start.load, start.load, start.cores) === true",
-      "to": "const contended = false",
+      "from": "(atStart || !settled())",
+      "to": "(false || !settled())",
       "only": "^(?:a pass whose load falls to the core count after the run is not contended, and one that stays above it is|a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release)$"
     },
     {

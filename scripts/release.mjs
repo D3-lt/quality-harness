@@ -98,19 +98,22 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     const sample = load()
     return contention(sample.load, sample.load, sample.cores) !== true
   }
+  // A sample is read only while the bound holds: a sleep that resumed late took one outside it (the Codex review of 0c137b89).
   const settled = () => {
     const until = now() + SETTLE_MS
     for (;;) {
+      if (now() > until) return false
       if (quietNow()) return true
-      if (now() >= until) return false
       sleep(SETTLE_POLL_MS)
     }
   }
   const fullCheck = () => {
     const start = load()
     const status = ran('node', ['plugin/scripts/qh-check.mjs', '--again'], true).status
-    const contended = contention(start.load, start.load, start.cores) === true
-    return { status, contended: status === 0 && (contended || !settled()) }
+    // A start that cannot be read leaves the pair unjudged, which is not contended, as it was before ADR-115: a settle sample
+    // alone is half of a pair (the Codex review of 0c137b89).
+    const atStart = contention(start.load, start.load, start.cores)
+    return { status, contended: status === 0 && atStart !== null && (atStart || !settled()) }
   }
   let check = fullCheck()
   if (check.status === 0 && check.contended) {

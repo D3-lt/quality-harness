@@ -203,3 +203,15 @@ test('a pass whose load falls to the core count after the run is not contended, 
   assert.equal(late.run(), 0, late.said.join('\n'))
   assert.equal(late.state.checks, 1)
 })
+
+// The Codex review of 0c137b89: a quiet sample read after the bound counted, when a sleep resumed late; and an unread start was
+// judged by its settle samples alone, where before ADR-115 a pair with an unread half was not contended.
+test('a sample after the settle bound does not count, and a pass whose start was not read is not judged', () => {
+  const late = world({ origin: 'b'.repeat(40), loads: [7, 12, 9] })
+  let clock = 0
+  assert.equal(late.run({ now: () => clock, sleep: ms => { clock += ms * 9 } }), 0, late.said.join('\n'))
+  assert.equal(late.state.checks, 2, 'the first pass, whose quiet sample came after the bound, was taken again')
+  const unread = world({ origin: 'b'.repeat(40), loads: [null, 12] })
+  assert.equal(unread.run(), 0, unread.said.join('\n'))
+  assert.equal(unread.state.checks, 1, 'an unread start is not contended, whatever the samples after it')
+})

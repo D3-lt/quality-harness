@@ -53,6 +53,8 @@ node --test tests/release.test.mjs
 - 2026-10-19 · 47a6febe* · mutant killed · exit 1 · `scripts/release.mjs` · the end sample is taken at exit, with the run own load in it · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172
 - 2026-10-19 · 47a6febe* · mutant killed · exit 1 · `scripts/release.mjs` · a machine saturated before the run is not contention · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172
 - 2026-10-19 · 47a6febe* · mutant killed · exit 1 · `scripts/release.mjs` · the settle wait outlasts the 4-minute bound, so other work that ends late reads as quiet · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172
+- 2026-10-19 · a16c5356* · mutant killed · exit 1 · `scripts/release.mjs` · a quiet sample read after the bound counts · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172
+- 2026-10-19 · a16c5356* · mutant killed · exit 1 · `scripts/release.mjs` · an unread start is judged by its settle samples alone · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172
 
 ## Invariants
 
@@ -89,3 +91,5 @@ Stop if the change would touch `plugin/scripts/load.mjs` or `qh-check`.
 - 2026-10-19 · 47a6febe* · exit 0 · `node --test tests/release.test.mjs` · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172 · ms:245
 - 2026-10-19 · 47a6febe* · exit 0 · `node --test tests/release.test.mjs` · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172 · ms:247
 - 2026-10-19 · 47a6febe* · exit 0 · `node --test tests/release.test.mjs` · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172 · ms:242
+- 2026-10-19 · a16c5356* · exit 0 · `node --test tests/release.test.mjs` · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172 · ms:244
+- 2026-10-19 · a16c5356* · exit 0 · `node --test tests/release.test.mjs` · acceptance-sha256:4247e34de3a0acb6ddfa1120024e97e7175056c19102b763ae030b61016ea172 · ms:243

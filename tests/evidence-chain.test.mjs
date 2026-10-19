@@ -15,13 +15,14 @@ import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { setTimeout } from 'node:timers/promises'
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
+  appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
   rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
 import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -110,6 +111,14 @@ function markDone(copy) {
   const [vlog, ...tail] = after.split('## Mutation Log')
   const aged = vlog.replace(/^- \d{4}-\d{2}-\d{2} · /gm, '- 2026-09-12 · ')
   writeTask(copy, [head + '## Verification Log' + aged, ...tail].join('## Mutation Log'))
+  // adr-verify wrote these rows and left a receipt for each (ADR-117 T2); the date is the test's to move, so in a
+  // repository the receipt moves with it, as adr-verify would have written it for a row dated that day.
+  if (existsSync(join(copy, '.git'))) {
+    const rows = aged.split('\n').filter(line => /^- \d{4}-\d{2}-\d{2} · /.test(line.trim()))
+    const state = stateDir(copy)
+    mkdirSync(state, { recursive: true })
+    appendFileSync(join(state, 'receipts.jsonl'), rows.map(row => `${JSON.stringify({ task: 'tasks/T1-fixture.md', sha256: createHash('sha256').update(row.trim()).digest('hex'), at: '2026-09-12' })}\n`).join(''))
+  }
 }
 
 const lint = copy => run('adr-lint', ['ADR-001-selftest.md', 'tasks'], copy)

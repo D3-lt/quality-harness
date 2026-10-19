@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T3: required checks are protection",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  if (checks.length) return { state: 'protected'",
+      "to": "  if (false) return { state: 'protected'",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
+      "label": "ADR-117 T3: an answer that is not rules is could-not-look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  if (!Array.isArray(rules)) return unknown('the answer is not a list of rules')",
+      "to": "  if (!rules) return unknown('the answer is not a list of rules')",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
+      "label": "ADR-117 T3: release-evidence says the forge line",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  if (forge) log(forge().text)",
+      "to": "  void 0",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
       "label": "Codex review of 6641c951..4db47214: a comment between jobs hides none",
       "file": "scripts/release-evidence.mjs",
       "tests": [

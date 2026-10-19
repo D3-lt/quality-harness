@@ -1,6 +1,56 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T3: an open door fails the sweep",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "    if (door?.status === 'open') problems.push",
+      "to": "    if (false) problems.push",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
+      "label": "ADR-117 T3: a boundary names where it closes",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "    else if (door?.status === 'boundary' && !(typeof door.where === 'string' && door.where.trim()))",
+      "to": "    else if (false)",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
+      "label": "ADR-117 T3: a door problem fails the exit",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  return result.unlisted.length || result.stale.length || doors.problems.length ? 1 : 0",
+      "to": "  return result.unlisted.length || result.stale.length ? 1 : 0",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
+      "label": "ADR-117 T3: the receipts file is a ledger",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "const LEDGER = /(?:fast-checks|checks|baseline|receipts)",
+      "to": "const LEDGER = /(?:fast-checks|checks|baseline)",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
+      "label": "ADR-117 T3: a call inside open() is read through",
+      "file": "scripts/side-door-sweep.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  py: /\\bopen\\((?:[^()\\n]|\\([^()\\n]*\\))*",
+      "to": "  py: /\\bopen\\([^)\\n]*",
+      "only": "^(?:the forge protection of main is said, and no door is open)$"
+    },
+    {
       "label": "Codex review of 6641c951..4db47214: an unreadable listed file is UNRUN",
       "file": "scripts/side-door-sweep.mjs",
       "tests": [
@@ -66,7 +116,7 @@
       "tests": [
         "tests/side-door-sweep.test.mjs"
       ],
-      "from": "return result.unlisted.length || result.stale.length ? 1 : 0",
+      "from": "return result.unlisted.length || result.stale.length || doors.problems.length ? 1 : 0",
       "to": "return 0",
       "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
     }

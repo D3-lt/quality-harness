@@ -242,7 +242,7 @@ Why: `.claude/rules/13-releasing.md`
   names a publish as one). Pass `--no-check` for an intermediate write: by default every write runs
   the declared check, which here is the whole selftest.
   **Everywhere, not only here** (the owner, 2026-10-19: "with MRW cli we work twice as fast and consume up to 45% less
-  tokens. so use it everywhere"): scratchpad and CI logs, the ledgers under `.git/`, memory files and other checkouts are read
+  tokens. so use it everywhere"): scratchpad and CI logs, the ledgers in git's own directory, memory files and other checkouts are read
   with `mrw --root DIR read` (`--grep`, `--count`, a range, `:$`), never `tail`, `head`, `cat`, `sed -n`, `jq`, `node -e`, or
   `grep`/`rg`/`git grep` over contents.
 - **Every read of a range and every edit goes through `mrw`** — one call for many ranges across

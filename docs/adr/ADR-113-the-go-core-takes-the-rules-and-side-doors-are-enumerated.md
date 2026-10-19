@@ -98,3 +98,4 @@ Revert the tasks' commits; the Node path and the Go core are each whole at every
 ## Follow-ups
 
 - [x] Owner decision: Accepted with the approved plan, 2026-10-19.
+- [x] Its three open doors moved, 2026-10-19 (ADR-117 T3): forged-ledger-row is caught where the hook sees the write and a boundary for a program; hand-typed-log-row is caught by the receipts; push-no-verify-from-a-script is a boundary at the forge, which `release-evidence` reads. `scripts/side-doors.json` holds the states.

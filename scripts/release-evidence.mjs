@@ -227,6 +227,26 @@ export function fetchRun(sha, exec = execFileSync) {
 }
 
 /**
+ * ADR-117 T3: whether `main`'s rules require status checks. A push with --no-verify from a script skips every local hook,
+ * so it closes at the forge or not at all; this says which. It reads and judges nothing: the verdict is unchanged by it.
+ * `unknown` where gh is absent, offline or answers anything but a list of rules, said as COULD NOT LOOK (ADR-005).
+ */
+export function mainProtection(exec = execFileSync) {
+  const unknown = why => ({ state: 'unknown', text: `forge: COULD NOT LOOK at main's rules (${why}), so whether a push --no-verify from a script reaches main with nothing run is not known (ADR-117)` })
+  let rules
+  try {
+    rules = JSON.parse(exec('gh', ['api', 'repos/{owner}/{repo}/rules/branches/main'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }))
+  } catch (error) {
+    return unknown(String(error?.message ?? error).split('\n', 1)[0])
+  }
+  if (!Array.isArray(rules)) return unknown('the answer is not a list of rules')
+  const checks = rules.filter(rule => rule?.type === 'required_status_checks')
+    .flatMap(rule => rule?.parameters?.required_status_checks ?? []).map(check => check?.context).filter(context => typeof context === 'string' && context)
+  if (checks.length) return { state: 'protected', text: `forge: main requires ${checks.length} status check(s) before a push lands: ${checks.join(', ')} (ADR-117)` }
+  return { state: 'unprotected', text: "forge: main's rules require no status check, so a push --no-verify from a script reaches main with nothing run; a ruleset requiring the selftest checks closes it (ADR-117)" }
+}
+
+/**
  * Has anybody outside this repository run the readers being released? CLAUDE.md
  * §18: every defect that reached an adopter was in what a reader SAID about a
  * corpus we do not own, and the suite cannot read the whole output over a shape
@@ -557,7 +577,8 @@ export function tagAdvice(kind) {
 }
 
 // The CLI, exported with its readers as seams so the review question is shown asked from this path (ADR-100 T1).
-export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, log = console.log } = {}) {
+// A caller that hands in its own run hands in its own forge: the forge is asked by default only of the gh the run came from.
+export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, forge = fetch === fetchRun ? mainProtection : null, log = console.log } = {}) {
   const argument = classifyArgument(argv[0])
   if (argument.kind === 'help') {
     log(USAGE)
@@ -581,6 +602,8 @@ export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEv
   for (const j of result.jobs) {
     log(`  ${j.name}: ${j.status} ${j.conclusion ?? '-'}`)
   }
+  // ADR-117 T3: said whatever the verdict, since a push the forge does not check is open at every release.
+  if (forge) log(forge().text)
   const head = run?.headSha ? ` (${String(run.headSha).slice(0, 7)})` : ''
   // A green campaign is necessary, not sufficient: the readers it ships must have
   // been run by somebody else since the last tag (CLAUDE.md §18), and every plugin

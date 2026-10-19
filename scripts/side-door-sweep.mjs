@@ -2,10 +2,13 @@
 // ADR-113 T3: the side doors around the evidence, enumerated as a class (Decision 3). A guarantee that holds on the governed
 // path only is a guarantee about that path, and what goes around it is what this names. Three kinds of site, in what ships
 // (plugin/) and in the Go core (core/), each found by what the code does:
-//   - writer: a code file that names `checks.jsonl`, `fast-checks.jsonl`, `baseline.jsonl`, or a Verification or Mutation Log,
-//     outside a comment, and holds a file-write primitive;
+//   - writer: a code file that names `checks.jsonl`, `fast-checks.jsonl`, `baseline.jsonl`, `receipts.jsonl` (ADR-117 T2), or a
+//     Verification or Mutation Log, outside a comment, and holds a file-write primitive;
 //   - spawn: a git call whose arguments, on one line, name a verb that publishes or makes a commit;
 //   - tool: a tool that can write a file, against each command a PreToolUse or PostToolUse group runs, matchers read anchored.
+// Each door in the class carries a state (ADR-117 Decision 4): `caught`, where something here refuses or says it; `boundary`,
+// closed outside this plugin, with `where`; or `open`. An open door, a boundary with no place it closes, and a door with no
+// state fail the gate, so a door is never left open by being left unsaid.
 // Every site is in scripts/side-doors.json with its reason and what governs it; a site not listed fails, and so does an entry
 // no site matches. These are classifiers over code (CLAUDE.md §16): a writer that builds its ledger's name in another file, or
 // a git call split over lines, is not seen, so a site this does not find is not known to be absent. Files are what git lists
@@ -13,7 +16,7 @@
 //
 //   node scripts/side-door-sweep.mjs [--json]
 //
-// Exit: 0 every site listed · 1 a site unlisted or an entry stale · 2 could not run.
+// Exit: 0 every site listed and every door caught or bounded · 1 a site unlisted, an entry stale or a door open · 2 could not run.
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
@@ -22,10 +25,11 @@ import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 // QUALITY_HARNESS_SIDE_DOOR_ROOT names another repository to sweep, which is how the test shows the gate failing.
 const ROOT = process.env.QUALITY_HARNESS_SIDE_DOOR_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const LEDGER = /(?:fast-checks|checks|baseline)\.jsonl|\b(?:Verification|Mutation) Log\b/
+const LEDGER = /(?:fast-checks|checks|baseline|receipts)\.jsonl|\b(?:Verification|Mutation) Log\b/
 const WRITE = {
   js: /\b(?:appendFileSync|writeFileSync|appendFile|writeFile|createWriteStream|renameSync|copyFileSync)\s*\(/,
-  py: /\bopen\([^)\n]*['"][rb+]*[wax][rwxab+]*['"]|\.write_(?:text|bytes)\(|\bos\.(?:replace|rename)\(|\bshutil\.(?:copy\w*|move)\(/,
+  // One level of call inside open()'s arguments is read through, so `open(os.path.join(d, NAME), "a")` is a write.
+  py: /\bopen\((?:[^()\n]|\([^()\n]*\))*['"][rb+]*[wax][rwxab+]*['"]|\.write_(?:text|bytes)\(|\bos\.(?:replace|rename)\(|\bshutil\.(?:copy\w*|move)\(/,
   go: /\bos\.(?:WriteFile|OpenFile|Create|Rename)\(/,
   sh: />>|(?:^|[\s;|&])tee\s/,
 }
@@ -99,6 +103,21 @@ export function sweep({ files, read, hooks, allow }) {
   return { found, unlisted, stale }
 }
 
+const DOOR_STATES = ['caught', 'boundary', 'open']
+
+/** Each door's state counted, and the doors that fail: open, a boundary with nowhere it closes, or a state not of the three. */
+export function doorStates(doors) {
+  const counts = Object.fromEntries(DOOR_STATES.map(state => [state, 0]))
+  const problems = []
+  for (const door of Array.isArray(doors) ? doors : []) {
+    if (Object.hasOwn(counts, door?.status)) counts[door.status] += 1
+    if (door?.status === 'open') problems.push({ id: door.id, why: 'is open: catch it, or name where it closes as a boundary' })
+    else if (door?.status === 'boundary' && !(typeof door.where === 'string' && door.where.trim())) problems.push({ id: door.id, why: 'is a boundary that names nowhere it closes' })
+    else if (!Object.hasOwn(counts, door?.status)) problems.push({ id: door?.id, why: `has no state of ${DOOR_STATES.join(', ')}` })
+  }
+  return { counts, problems }
+}
+
 function main(argv) {
   const listedFiles = spawnSync('git', ['ls-files', '-z', '--', 'plugin', 'core'], { cwd: ROOT, encoding: 'utf8', timeout: 30_000, windowsHide: true })
   if (listedFiles.status !== 0) {
@@ -127,15 +146,16 @@ function main(argv) {
     process.stderr.write(`side-door-sweep: UNRUN — could not read ${unreadable.join(', ')}, so what they hold was not swept\n`)
     return 2
   }
-  if (argv.includes('--json')) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+  const doors = doorStates(allow.doors)
+  if (argv.includes('--json')) process.stdout.write(`${JSON.stringify({ ...result, doors }, null, 2)}\n`)
   else {
     for (const site of result.unlisted) process.stdout.write(`side-door-sweep: unlisted ${site.key} — add it to scripts/side-doors.json with its reason, or close it\n`)
     for (const site of result.stale) process.stdout.write(`side-door-sweep: stale ${site.key} — no site matches this entry; remove it\n`)
-    const open = (allow.doors ?? []).filter(door => door.status === 'open')
+    for (const problem of doors.problems) process.stdout.write(`side-door-sweep: door ${problem.id} ${problem.why}\n`)
     process.stdout.write(`side-door-sweep: ${result.found.length} site(s), ${result.unlisted.length} unlisted, ${result.stale.length} stale; `
-      + `${open.length} door(s) named open: ${open.map(door => door.id).join(', ') || 'none'}\n`)
+      + `doors: ${DOOR_STATES.map(state => `${doors.counts[state]} ${state}`).join(', ')}\n`)
   }
-  return result.unlisted.length || result.stale.length ? 1 : 0
+  return result.unlisted.length || result.stale.length || doors.problems.length ? 1 : 0
 }
 
 if (isMainModule(import.meta.url)) process.exitCode = main(process.argv.slice(2))

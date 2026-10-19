@@ -29,94 +29,23 @@ func isPowershell(name string) bool {
 	return strings.Contains(name, "pwsh") || strings.Contains(name, "powershell")
 }
 
-var powershellNamed = map[string]bool{"filepath": true, "path": true, "literalpath": true, "pspath": true, "lp": true}
-var powershellContentNames = []string{"value", "inputobject"}
-var powershellParameter = regexp.MustCompile(`^-([A-Za-z]+)(?::[\s\S]*)?$`)
 var powershellColon = regexp.MustCompile(`^-[A-Za-z]+:([\s\S]*)$`)
 
-func prefixOf(word string, names []string, shortest int) bool {
-	if len(word) < shortest {
-		return false
-	}
-	for _, full := range names {
-		if strings.HasPrefix(full, word) {
-			return true
-		}
-	}
-	return false
-}
-
-// powershellDestinations is ledger-guard.mjs's: every word is a candidate except the word straight after an unquoted
-// content parameter, and a bare word after a destination named in full; a quoted word is never a parameter.
+// powershellDestinations is ledger-guard.mjs's: every literal word, whole and split at its commas, and a colon's value.
 func powershellDestinations(c *shellCommand) []string {
 	found := []string{}
-	settled := false
-	after := ""
-	// A comma list is one argument: a word that continues one is read as the word that began it was. last and open are
-	// "", "yes" or "no".
-	last, open := "", ""
-	elements := func(text string) []string {
-		parts := []string{}
-		for _, part := range strings.Split(text, ",") {
-			if part = strings.TrimSpace(part); part != "" {
-				parts = append(parts, part)
-			}
-		}
-		return parts
-	}
-	yes := func(b bool) string {
-		if b {
-			return "yes"
-		}
-		return "no"
-	}
 	for at := 1; at < len(c.argv); at++ {
-		word := c.argv[at]
-		literal := !containsInt(c.dynamic, at)
-		colon := powershellColon.FindStringSubmatch(word)
-		quoted := at < len(c.quoted) && c.quoted[at]
-		if parameter := powershellParameter.FindStringSubmatch(word); parameter != nil && !quoted {
-			name := strings.ToLower(parameter[1])
-			content := prefixOf(name, powershellContentNames, 2)
-			if powershellNamed[name] {
-				settled = true
-			}
-			if colon != nil {
-				if !content && literal {
-					found = append(found, elements(colon[1])...)
-				}
-				last, open, after = yes(!content), "", ""
-				if strings.HasSuffix(colon[1], ",") {
-					open = last
-				}
-			} else {
-				last, open = "", ""
-				if content {
-					after = "content"
-				} else {
-					after = "value"
-				}
-			}
+		if containsInt(c.dynamic, at) {
 			continue
 		}
-		var candidate bool
-		switch {
-		case open != "":
-			candidate = open == "yes"
-		case strings.HasPrefix(word, ",") && last != "":
-			candidate = last == "yes"
-		default:
-			candidate = after != "content" && (after == "value" || !settled)
+		text := c.argv[at]
+		if colon := powershellColon.FindStringSubmatch(text); colon != nil {
+			text = colon[1]
 		}
-		if candidate && literal {
-			found = append(found, elements(word)...)
-		}
-		if colon != nil && literal {
-			found = append(found, elements(colon[1])...)
-		}
-		last, open, after = yes(candidate), "", ""
-		if strings.HasSuffix(word, ",") {
-			open = last
+		for _, file := range append([]string{text}, strings.Split(text, ",")...) {
+			if file = strings.TrimSpace(file); file != "" {
+				found = append(found, file)
+			}
 		}
 	}
 	return found

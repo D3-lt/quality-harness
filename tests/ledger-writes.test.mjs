@@ -3,6 +3,7 @@
 // row that refuses beside the row that must not). `"ledgers": "warn"` in .quality-harness.json advises instead. Through the
 // hook, so QUALITY_HARNESS_HOOK_IMPL=go holds the Go core to the same answers.
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
@@ -149,8 +150,8 @@ test('the verification review\'s forms are refused, and ordinary content writes 
   }
   const passed = [
     ['Bash', { command: '> notes.txt' }, {}],
-    ['PowerShell', { command: 'Set-Content -Path notes.txt -Value ".git/quality-harness/checks.jsonl"' }, {}],
-    ['PowerShell', { command: 'Out-File -FilePath notes.txt -Encoding utf8 -InputObject .git/quality-harness/checks.jsonl' }, {}],
+    ['PowerShell', { command: 'Set-Content -Path notes.txt -Value "hello"' }, {}],
+    ['PowerShell', { command: 'Out-File -FilePath notes.txt -Encoding utf8 -InputObject hello' }, {}],
     ['mcp__mrw__mrw_write', { grep: '^', sub: '{}', paths: ['src'] }, root],
     ['mcp__mrw__mrw_write', { grep: '^x$', sub: 'y' }, {}],
   ]
@@ -161,7 +162,7 @@ test('the verification review\'s forms are refused, and ordinary content writes 
 
 // The second verification review of 671827fa: a switch list consumed a destination as a switch's value (`-vb`), a one-letter
 // parameter went unread, a named destination's positional content was refused, and a relative link was resolved against
-// its logical parent rather than its real one. Every parameter value is now a candidate unless the parameter carries content.
+// its logical parent rather than its real one. Since the fifth verification nothing a PowerShell writer says is excluded.
 test('a PowerShell destination is never taken for a switch\'s value, and a relative link resolves from its real parent', { skip }, t => {
   const box = sandbox(t)
   const repo = fixtureRepo(box, 'third', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
@@ -179,15 +180,15 @@ test('a PowerShell destination is never taken for a switch\'s value, and a relat
   ]
   for (const [tool, input] of refused) assert.equal(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} is refused`)
   const passed = [
-    ['PowerShell', { command: 'Set-Content -Path notes.txt .git/quality-harness/checks.jsonl' }],
-    ['PowerShell', { command: 'Set-Content -Va .git/quality-harness/checks.jsonl -Path notes.txt' }],
+    ['PowerShell', { command: 'Set-Content -Path notes.txt hello' }],
+    ['PowerShell', { command: 'Set-Content -Va hello -Path notes.txt' }],
   ]
   for (const [tool, input] of passed) assert.notEqual(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} passes`)
 })
 
 // The third verification review of f7dc229c: a prefix that names -Filter was taken for -FilePath and the real destination
-// after it for content, and a quoted "-Value" was taken for a parameter. Only an unquoted content parameter and a destination
-// named in full exclude anything now. `Set-Content notes.txt <ledger path>` is refused as the price (BACKLOG §387).
+// after it for content, and a quoted "-Value" was taken for a parameter. Since the fifth verification nothing a PowerShell
+// writer says is excluded, so a content word that is itself a ledger's path is refused too (BACKLOG §387).
 test('a PowerShell prefix or a quoted word cannot turn a destination into content', { skip }, t => {
   const box = sandbox(t)
   const repo = fixtureRepo(box, 'fourth', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
@@ -204,8 +205,12 @@ test('a PowerShell prefix or a quoted word cannot turn a destination into conten
   ]) assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused`)
   for (const command of [
     'Set-Content -Path notes.txt -Value .git/quality-harness/checks.jsonl',
-    'Set-Content -LiteralPath notes.txt .git/quality-harness/checks.jsonl',
     'Out-File -FilePath notes.txt -InputObject .git/quality-harness/checks.jsonl',
+  ]) assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused, the price of excluding nothing`)
+  for (const command of [
+    'Set-Content -Path notes.txt -Value hello',
+    'Set-Content -LiteralPath notes.txt hello',
+    'Out-File -FilePath notes.txt -InputObject hello',
   ]) assert.notEqual(pre(command).permissionDecision, 'deny', `${command} passes`)
 })
 
@@ -223,9 +228,30 @@ test('a PowerShell comma list continues whatever it began as', { skip }, t => {
     'Add-Content -LP notes.txt,.git/quality-harness/checks.jsonl -Value x',
     'Set-Content -Path:notes.txt,.git/quality-harness/checks.jsonl -Value x',
     'Set-Content notes.txt, .git/quality-harness/checks.jsonl x',
+    'Set-Content -Value a, "b," .git/quality-harness/checks.jsonl',
+    'Set-Content -Value "a," .git/quality-harness/checks.jsonl',
   ]) assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused`)
   for (const command of [
-    'Set-Content -Path notes.txt -Value a, .git/quality-harness/checks.jsonl',
+    'Set-Content -Path notes.txt -Value a, b',
     'Set-Content -Path notes.txt, other.txt -Value x',
   ]) assert.notEqual(pre(command).permissionDecision, 'deny', `${command} passes`)
+})
+
+// The fifth verification review of 9cd08b8e: a quoted trailing comma opened a content list that swallowed the destination,
+// and splitting at commas lost a whole path that has one. Every word is now a candidate whole and split, nothing excluded.
+test('a PowerShell path with a comma in it is read whole', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'sixth', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'sixth', { hook_event_name: 'SessionStart', source: 'startup' })
+  const root = path.join(box.top, 'state,root')
+  const env = { QUALITY_HARNESS_STATE_DIR: root }
+  const pre = command => said(runHook(box, repo, 'sixth', { hook_event_name: 'PreToolUse', tool_name: 'PowerShell', tool_input: { command } }, env))
+  const keyed = path.join(repo, '.git', 'quality-harness', 'checks.jsonl')
+  assert.equal(pre(`Set-Content -Path "${keyed}" -Value x`).permissionDecision, 'deny', 'the repository\'s own state directory')
+  // The keyed directory under a root with a comma, named as event-log.mjs's stateDir names it: its whole path is the
+  // destination, and no fragment of it lands in a guarded directory.
+  const key = createHash('sha256').update(path.join(repo, '.git', 'quality-harness')).digest('hex').slice(0, 16)
+  const target = path.join(root, key, 'checks.jsonl')
+  assert.equal(pre(`Set-Content -Path "${target}" -Value x`).permissionDecision, 'deny', `${target} is refused`)
+  assert.notEqual(pre('Set-Content -Path "notes,old.txt" -Value x').permissionDecision, 'deny', 'a file with a comma elsewhere passes')
 })

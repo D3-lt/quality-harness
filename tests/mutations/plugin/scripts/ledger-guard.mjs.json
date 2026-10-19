@@ -161,46 +161,6 @@
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     },
     {
-      "label": "ADR-117 verification: a PowerShell value after a colon is read",
-      "file": "plugin/scripts/ledger-guard.mjs",
-      "tests": [
-        "tests/ledger-writes.test.mjs"
-      ],
-      "from": "        if (!content && literal) found.push(...elements(colon[1]))",
-      "to": "        void 0",
-      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
-    },
-    {
-      "label": "ADR-117 verification: a PowerShell content value is not a destination",
-      "file": "plugin/scripts/ledger-guard.mjs",
-      "tests": [
-        "tests/ledger-writes.test.mjs"
-      ],
-      "from": "    const candidate = continues ? (open ?? last) : after !== 'content' && (after === 'value' || !settled)",
-      "to": "    const candidate = continues ? (open ?? last) : (after === 'value' || !settled)",
-      "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
-    },
-    {
-      "label": "ADR-117 verification: a bare word after a destination named in full is content",
-      "file": "plugin/scripts/ledger-guard.mjs",
-      "tests": [
-        "tests/ledger-writes.test.mjs"
-      ],
-      "from": "      if (POWERSHELL_NAMED.has(name)) settled = true",
-      "to": "      if (false) settled = true",
-      "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
-    },
-    {
-      "label": "ADR-117 second verification: every word after a parameter that carries no content is a candidate",
-      "file": "plugin/scripts/ledger-guard.mjs",
-      "tests": [
-        "tests/ledger-writes.test.mjs"
-      ],
-      "from": "        after = content ? 'content' : 'value'",
-      "to": "        after = 'content'",
-      "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
-    },
-    {
       "label": "ADR-117 second verification: a relative link resolves from its real directory",
       "file": "plugin/scripts/ledger-guard.mjs",
       "tests": [
@@ -211,44 +171,34 @@
       "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
     },
     {
-      "label": "ADR-117 third verification: a quoted word is never a parameter",
+      "label": "ADR-117 fifth verification: a PowerShell word is a candidate whole",
       "file": "plugin/scripts/ledger-guard.mjs",
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    const parameter = !c.quoted[at] && /^-([A-Za-z]+)(?::[\\s\\S]*)?$/.exec(word)",
-      "to": "    const parameter = /^-([A-Za-z]+)(?::[\\s\\S]*)?$/.exec(word)",
-      "only": "^(?:a PowerShell prefix or a quoted word cannot turn a destination into content)$"
+      "from": "    for (const file of [text, ...text.split(',').map(part => part.trim())]) if (file) found.push(file)",
+      "to": "    for (const file of text.split(',').map(part => part.trim())) if (file) found.push(file)",
+      "only": "^(?:a PowerShell path with a comma in it is read whole)$"
     },
     {
-      "label": "ADR-117 third verification: a quoted -Path:\"…\" still names its value",
+      "label": "ADR-117 fifth verification: each element of a PowerShell comma word is a candidate",
       "file": "plugin/scripts/ledger-guard.mjs",
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (colon && literal) found.push(...elements(colon[1]))",
-      "to": "      void 0",
-      "only": "^(?:a PowerShell prefix or a quoted word cannot turn a destination into content)$"
-    },
-    {
-      "label": "ADR-117 fourth verification: a word that continues a comma list is read as the list began",
-      "file": "plugin/scripts/ledger-guard.mjs",
-      "tests": [
-        "tests/ledger-writes.test.mjs"
-      ],
-      "from": "    const continues = open !== null || (word.startsWith(',') && last !== null)",
-      "to": "    const continues = false",
+      "from": "    for (const file of [text, ...text.split(',').map(part => part.trim())]) if (file) found.push(file)",
+      "to": "    for (const file of [text]) if (file) found.push(file)",
       "only": "^(?:a PowerShell comma list continues whatever it began as)$"
     },
     {
-      "label": "ADR-117 fourth verification: each element of a comma word is a candidate",
+      "label": "ADR-117 fifth verification: a PowerShell colon value is a candidate",
       "file": "plugin/scripts/ledger-guard.mjs",
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "  const elements = text => text.split(',').map(part => part.trim()).filter(Boolean)",
-      "to": "  const elements = text => [text]",
-      "only": "^(?:a PowerShell comma list continues whatever it began as)$"
+      "from": "    const text = colon ? colon[1] : c.argv[at]",
+      "to": "    const text = c.argv[at]",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     }
   ]
 }

@@ -17,55 +17,18 @@ import { gitRepositoryLookup } from './tree-facts.mjs'
 
 const POWERSHELL_WRITERS = new Set(['out-file', 'set-content', 'add-content', 'tee-object', 'sc', 'ac', 'tee'])
 const POWERSHELL_CD = new Set(['cd', 'chdir', 'set-location', 'sl', 'push-location', 'pushd'])
-const POWERSHELL_NAMED = new Set(['filepath', 'path', 'literalpath', 'pspath', 'lp'])
-const POWERSHELL_CONTENT = ['value', 'inputobject']
-// PowerShell takes a parameter by any prefix that names it (`-Va`), and its value after a colon too (`-Path:x`).
-const prefixOf = (word, names, shortest = 1) => word.length >= shortest && names.some(full => full.startsWith(word))
-
-// The files a PowerShell writer may name. Telling a switch from a positional, or one prefix from another, is a guess an
-// attacker gets to choose (`-vb`, `-Fi` for -Filter, a quoted "-Value": the verification reviews of 671827fa and f7dc229c),
-// so very little is excluded. Every word is a candidate except the word straight after an unquoted parameter that carries
-// content (`-Value`, `-InputObject`), and a bare word after a destination named in full, which PowerShell binds as content.
-// A quoted word is never a parameter, but a quoted `-Path:"…"` still names its value. The price is an over-refusal of a
-// content word that is itself a ledger's path (BACKLOG §387).
+// The files a PowerShell writer may name: every literal word, whole and split at its commas, and the value after a colon
+// (`-Path:x`). Five verification rounds of ADR-117 (BACKLOG §387) found that each exclusion — a switch told from a
+// positional, one parameter prefix from another, content from a destination, a comma list's continuation — was a spelling
+// an agent could choose to hide a destination behind. So nothing is excluded, and a content word that is itself a ledger's
+// path is refused with the write it rides on, which an ordinary session does not send.
 function powershellDestinations(c) {
   const found = []
-  let settled = false
-  let after = null
-  // A comma list is one argument (`-Path a, b`): a word that continues one is read as the word that began it was, a
-  // destination or content (the fourth verification review of 9e2e2c1c). `last` is how the word before was read, and `open`
-  // the same while that word left the list open with a trailing comma.
-  let last = null
-  let open = null
-  const elements = text => text.split(',').map(part => part.trim()).filter(Boolean)
   for (let at = 1; at < c.argv.length; at++) {
-    const word = c.argv[at]
-    const literal = !c.dynamic.includes(at)
-    const colon = /^-[A-Za-z]+:([\s\S]*)$/.exec(word)
-    const parameter = !c.quoted[at] && /^-([A-Za-z]+)(?::[\s\S]*)?$/.exec(word)
-    if (parameter) {
-      const name = parameter[1].toLowerCase()
-      const content = prefixOf(name, POWERSHELL_CONTENT, 2)
-      if (POWERSHELL_NAMED.has(name)) settled = true
-      if (colon) {
-        if (!content && literal) found.push(...elements(colon[1]))
-        last = !content
-        open = colon[1].endsWith(',') ? last : null
-        after = null
-      } else {
-        after = content ? 'content' : 'value'
-        last = null
-        open = null
-      }
-      continue
-    }
-    const continues = open !== null || (word.startsWith(',') && last !== null)
-    const candidate = continues ? (open ?? last) : after !== 'content' && (after === 'value' || !settled)
-    if (candidate && literal) found.push(...elements(word))
-    if (colon && literal) found.push(...elements(colon[1]))
-    last = candidate
-    open = word.endsWith(',') ? candidate : null
-    after = null
+    if (c.dynamic.includes(at)) continue
+    const colon = /^-[A-Za-z]+:([\s\S]*)$/.exec(c.argv[at])
+    const text = colon ? colon[1] : c.argv[at]
+    for (const file of [text, ...text.split(',').map(part => part.trim())]) if (file) found.push(file)
   }
   return found
 }

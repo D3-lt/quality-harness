@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T5: a run lacking a declared job is not a pass",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "} else if (missing.length) {",
+      "to": "} else if (false) {",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: an unreadable workflow is could-not-look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "missingJobs(declared, result.jobs) : null",
+      "to": "missingJobs(declared, result.jobs) : []",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: matrix jobs are expanded",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "if (!ref || !matrix[ref[1]]) return [name]",
+      "to": "return [name]",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
       "label": "ADR-100 T1: a row with no base covers nothing",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/review-ledger.test.mjs"],

@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-113 T5: a test file outside the glob is unreached",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "&& TEST_SHAPED.test(file) && !COLLECTED.test(file)",
+      "to": "&& false",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: a Python file is reached only by name",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "if (file.endsWith('.py')) return !named(path.posix.basename(file))",
+      "to": "if (file.endsWith('.py')) return false",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: a name in a comment reaches nothing",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "!COMMENT.test(line)",
+      "to": "true",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: a file that registered no test fails",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "!excused && COLLECTED.test(entry.file) && entry.tests === 0",
+      "to": "false",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: an exemption needs a carrier that ran tests",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "!((byFile.get(excused.carriedBy)?.tests ?? 0) > 0)",
+      "to": "false",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: a stale exemption is named",
+      "file": "scripts/suite-accounting.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "if (excused && entry.tests > 0) {",
+      "to": "if (false) {",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    }
+  ]
+}

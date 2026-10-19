@@ -184,12 +184,10 @@ fi
 # transcript where it is told to, and exits 1 exactly when node --test would.
 runner_args=()
 [ "$concurrency" = default ] || runner_args+=(--concurrency "$concurrency")
-timing_rows=''
-if [ -n "$timing_ledger" ]; then
-  timing_rows=$(mktemp "${TMPDIR:-/tmp}/qh-file-times.XXXXXX") || timing_rows=''
-  if [ -n "$timing_rows" ]; then runner_args+=(--times "$timing_rows")
-  else printf 'selftest: per-file times not kept for this run (no temporary file)\n' >&2
-  fi
+# ADR-113 T5: the per-file row is taken on every run, kept or not: scripts/suite-accounting.mjs reads it below.
+timing_rows=$(mktemp "${TMPDIR:-/tmp}/qh-file-times.XXXXXX") || timing_rows=''
+if [ -n "$timing_rows" ]; then runner_args+=(--times "$timing_rows")
+else printf 'selftest: per-file times not taken for this run (no temporary file)\n' >&2
 fi
 if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
   runner_args+=(--tap "$QUALITY_HARNESS_TAP")
@@ -200,13 +198,18 @@ tests_status=0
 # shard file, so no slice goes unrun.
 (cd "$REPO" && QH_TEST_SHARDED=1 QH_SELFTEST_ROOT="$REPO" QH_SELFTEST_CONCURRENCY_SAID="$concurrency" QH_SELFTEST_LOAD_SAID="$load" \
   node scripts/run-tests.mjs ${runner_args[@]+"${runner_args[@]}"} -- "${test_files[@]}") || tests_status=$?
-if [ -n "$timing_rows" ]; then
+if [ -n "$timing_rows" ] && [ -n "$timing_ledger" ]; then
   if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$timing_ledger")" && cat "$timing_rows" >>"$timing_ledger"; then :
   else printf 'selftest: per-file times were not kept for this run\n' >&2
   fi
-  rm -f "$timing_rows"
 fi
-[ "$tests_status" = 0 ] || exit "$tests_status"
+if [ "$tests_status" != 0 ]; then rm -f "$timing_rows"; exit "$tests_status"; fi
+# ADR-113 T5: every tracked test file is reached by this run, none registered no test unless named exempt, and every skip names
+# its reason. A run with no per-file row is UNRUN here (exit 2), never a pass.
+accounting_status=0
+(cd "$REPO" && node scripts/suite-accounting.mjs --row "$timing_rows") || accounting_status=$?
+rm -f "$timing_rows"
+[ "$accounting_status" = 0 ] || exit "$accounting_status"
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.
 # `-f` is not decoration: a `__pycache__/` left in bin by any process that

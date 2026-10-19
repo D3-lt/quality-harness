@@ -415,4 +415,5 @@ jobs:
       - name: Run the goldens and the parity test against the Go core
         env:
           QUALITY_HARNESS_HOOK_IMPL: go
+          QUALITY_HARNESS_REQUIRE: go
         run: node --test tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/refusals-hold.test.mjs tests/go-core-parity-adr-111.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs tests/side-door-sweep.test.mjs

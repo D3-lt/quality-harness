@@ -10,6 +10,7 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
+import { required } from './helpers/require.mjs'
 // The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
 import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
 import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
@@ -54,8 +55,8 @@ const probe = mkdtempSync(path.join(testTmp, 'probe-'))
 spawnSync('git', ['init', '-q', probe], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
 const listed = spawnSync('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit',
   'hook', 'list', 'pre-commit'], { cwd: probe, encoding: 'utf8', timeout: 10_000, windowsHide: true })
-const needsConfigHooks = /\bqhprobe\b/.test(listed.stdout ?? '')
-  ? false : 'this git does not run config-based hooks (git 2.54 or later does), so the hook cannot run here'
+const needsConfigHooks = required('config-hooks', /\bqhprobe\b/.test(listed.stdout ?? '')
+  ? false : 'this git does not run config-based hooks (git 2.54 or later does), so the hook cannot run here')
 
 function git(dir, ...args) {
   const run = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: { ...process.env, ...GIT_IDENTITY } })

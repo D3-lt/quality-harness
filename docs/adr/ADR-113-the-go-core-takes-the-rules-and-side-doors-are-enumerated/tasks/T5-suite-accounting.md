@@ -18,7 +18,12 @@ Every tracked test file is reached by a runner and runs a test unless named exem
 | File | Change | Why |
 |------|--------|-----|
 | `tests/suite-accounting.test.mjs` | add | the task's tests, each with a planted twin that must fail |
-| ADR-113 Decision 5 sources | edit | named in the parent record's Context and Decision; the file list is completed as the task is built and recorded in its sign-off |
+| `scripts/suite-accounting.mjs`, `scripts/selftest.sh` | add, edit | reach over what git lists, and the run's row: a file that registered no test, an exemption not carried, a skip with no reason; every selftest runs it, and a run with no row is UNRUN |
+| `scripts/file-timing-reporter.mjs` | edit | each file's row counts its skips and names a skip with no reason |
+| `tests/helpers/require.mjs`, `tests/qh-core-parity.test.mjs`, `tests/go-core-parity-adr-111.test.mjs`, `tests/publish-hook.test.mjs`, `tests/publish-ledger-binding.test.mjs`, `.github/workflows/selftest.yml` | add, edit | `QUALITY_HARNESS_REQUIRE` turns the go and config-hooks skips into a failure where named; the core job names go. No job names config-hooks: which runners carry git 2.54 is not measured here |
+| `tests/gate-rules.test.mjs` | edit | the two Windows-only skips give their reason; the locks of ADR-075 T2 and ADR-091 T3 do not cover a test's options, and both records still lint PASS |
+| `scripts/release-evidence.mjs` | edit | `declaredJobs` (matrices expanded) from the workflow at the sha; a run lacking a declared job is FAILED, an unreadable workflow could-not-look. Measured 2026-10-19 against run 39149819917 (the v3.8.46 campaign): 58 declared, 58 reported, none missing |
+| `tests/mutations/scripts/*.json` | add, edit | catalogue entries for each mutant |
 
 ## Ordered Steps
 
@@ -48,6 +53,18 @@ node --test tests/suite-accounting.test.mjs
 | 4 — it is used | every session and every gate run |
 
 ## Mutation Log
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · no test file is ever unreached · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · a Python file nothing names counts as reached · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · a name in a comment reaches a file · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · a file that registered no test passes · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · an exemption whose carrier ran nothing stands · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/suite-accounting.mjs` · a stale exemption is never named · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/file-timing-reporter.mjs` · a skip with no reason is not named · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/file-timing-reporter.mjs` · skips are not counted · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · a run lacking a declared job clears the release · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · an unreadable workflow reads as every job present · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · matrix jobs are not expanded · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
+- 2026-10-19 · cfbb6e3a* · mutant killed · exit 1 · `tests/helpers/require.mjs` · a required capability that is missing still skips · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8
 
 ## Invariants
 
@@ -67,3 +84,29 @@ Stop if a change would add a refusal outside the two sanctioned ones, or if pari
 - ADR-110 T3's cutover (deferred: docs/adr/ADR-110-a-static-core-owns-the-hooks.md)
 
 ## Verification Log
+- 2026-10-19 · cfbb6e3a* · exit 1 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:178 · test-lock-sha256:cd0c86af932d5733113b2f6b00777e7a89a5150646bcd1e79cb41b8dc29d2ab9 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc3VpdGUtYWNjb3VudGluZy50ZXN0Lm1qcwlldmVyeSB0ZXN0IGZpbGUgaXMgcmVhY2hlZCwgcnVucyBhIHRlc3QsIGFuZCBldmVyeSBza2lwIG5hbWVzIGl0cyByZWFzb24JYmRiM2MxMWMyNzNjZjg5OWI3MDY0N2U5NzM1Y2IyNTM4MTI3YWViNGNhMmYyYzA5M2Y3ZmNhOTJkMWUwZjA5MA
+  ```
+  --- last 10 line(s) of stdout (of 35 after folding 35 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 81.283125
+
+  ✖ failing tests:
+
+  test at tests/suite-accounting.test.mjs:1:1
+  ✖ tests/suite-accounting.test.mjs (78.623167ms)
+    'test failed'
+  ```
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:944
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:775
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:786
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:780
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:773
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:779
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:811
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:776
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:772
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:805
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:787
+- 2026-10-19 · cfbb6e3a* · exit 0 · `node --test tests/suite-accounting.test.mjs` · acceptance-sha256:38302a0bb06499a60239c1a938e876c3cd76070533a93e6ee7de2df786bff0f8 · ms:791

@@ -17,12 +17,13 @@ import { commitOnlyCommand, foreignCommitPath, freshRepositoryCommit, leavesHook
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
 import { fixtureRepo, ledgers, normaliser, runHook, sandbox } from './hook-golden.mjs'
+import { required } from './helpers/require.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const coreDir = path.resolve(here, '..', 'core')
 const goVersion = spawnSync('go', ['version'], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
-const noGo = goVersion.error || goVersion.status !== 0
-  ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false
+const noGo = required('go', goVersion.error || goVersion.status !== 0
+  ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false)
 
 // The test files that drive the classifier, by the names they import. This file names them too, and is left out.
 const CLASSIFIER = /\b(?:publishCommandIn|shellWords|leavesHookInPlace|freshRepositoryCommit|constantSuccessCheck|foreignCommitPath|mentionsCommitOrPush|stagesBeforeCommit|commitOnlyCommand)\b/

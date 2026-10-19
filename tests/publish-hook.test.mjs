@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { required } from './helpers/require.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
@@ -41,8 +42,8 @@ const probeRepository = mkdtempSync(path.join(testTmp, 'probe-'))
 spawnSync('git', ['init', '-q', probeRepository], { encoding: 'utf8', timeout: 10_000 })
 const hookProbe = spawnSync('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit',
   'hook', 'list', 'pre-commit'], { cwd: probeRepository, encoding: 'utf8', timeout: 10_000 })
-const needsConfigHooks = /\bqhprobe\b/.test(hookProbe.stdout ?? '')
-  ? false : 'this git does not run config-based hooks (git 2.54 or later does), so the hook cannot run here'
+const needsConfigHooks = required('config-hooks', /\bqhprobe\b/.test(hookProbe.stdout ?? '')
+  ? false : 'this git does not run config-based hooks (git 2.54 or later does), so the hook cannot run here')
 const OFFERED = {
   GIT_CONFIG_COUNT: '4',
   GIT_CONFIG_KEY_0: 'hook.qh-publish-commit.command',

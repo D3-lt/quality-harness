@@ -11,12 +11,13 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { checkCommandOrigin } from '../plugin/scripts/check-command.mjs'
 import { GO_GOLDENS, GO_LACKS, goSkipFor } from './hook-golden.mjs'
+import { required } from './helpers/require.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const coreDir = path.resolve(here, '..', 'core')
 const goVersion = spawnSync('go', ['version'], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
-const noGo = !process.env.QUALITY_HARNESS_QH_BIN && (goVersion.error || goVersion.status !== 0)
-  ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false
+const noGo = required('go', !process.env.QUALITY_HARNESS_QH_BIN && (goVersion.error || goVersion.status !== 0)
+  ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false)
 
 // Every directory shape a rung answers, each beside the shape that must answer otherwise.
 const PYTEST = '[tool.pytest.ini_options]\n'

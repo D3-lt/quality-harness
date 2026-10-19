@@ -1172,7 +1172,7 @@ test('every gate refuses a flag it does not know', () => {
   )
 })
 
-test('on Windows the shim runs the gate the documented invocation names', { skip: process.platform !== 'win32' }, () => {
+test('on Windows the shim runs the gate the documented invocation names', { skip: process.platform !== 'win32' && 'the .cmd shim exists for Windows, and only Windows runs it' }, () => {
   // The only place this can be checked is Windows itself, and until 2026-08-26
   // nothing checked it: `/adr-write` there ran adr-debt through PowerShell and
   // got a file-open dialog, because an extensionless `#!` script has no
@@ -1188,7 +1188,7 @@ test('on Windows the shim runs the gate the documented invocation names', { skip
   assert.match(result.stdout, /\[PASS\]/)
 })
 
-test('on Windows a bare gate name resolves under PowerShell', { skip: process.platform !== 'win32' }, () => {
+test('on Windows a bare gate name resolves under PowerShell', { skip: process.platform !== 'win32' && 'PowerShell resolving a bare name through PATHEXT is a Windows question' }, () => {
   // The cmd.exe path is covered above (spawnSync `shell: true` uses ComSpec).
   // PowerShell is a different resolver and it is the one that was actually
   // reported broken on 2026-08-26: `/adr-write` ran a gate there and got a

@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T5: a skip with no reason is named",
+      "file": "scripts/file-timing-reporter.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "event.data.skip === true",
+      "to": "false",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
+      "label": "ADR-113 T5: skips are counted",
+      "file": "scripts/file-timing-reporter.mjs",
+      "tests": [
+        "tests/suite-accounting.test.mjs"
+      ],
+      "from": "entry.skipped += 1",
+      "to": "entry.skipped += 0",
+      "only": "^(?:every test file is reached, runs a test, and every skip names its reason)$"
+    },
+    {
       "label": "file-timing: a failing test is counted as a failure of its file",
       "file": "scripts/file-timing-reporter.mjs",
       "tests": ["tests/file-timing.test.mjs"],

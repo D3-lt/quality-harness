@@ -444,6 +444,52 @@ export function reviewEvidence(sha, { cwd = process.cwd(), exec = execFileSync, 
 
 // `cached` shares exit 2 with `unreadable` on purpose: both mean "I could not
 // look at a full campaign for this sha", which is the one thing a release needs.
+/**
+ * ADR-113 T5: the job names the workflow declares, matrices expanded: a run lacking one was a run nobody missed, since
+ * `evaluateRun` reads only the jobs the run reports. Read from the workflow at the sha (`declaredJobsAt`), never from the
+ * working tree. A name whose matrix axis is not a one-line list is kept as written, which no run reports, so it reads as
+ * missing: the direction that holds a release (ADR-005). Null for a text with no `jobs:` block.
+ */
+export function declaredJobs(text) {
+  const lines = String(text ?? '').split(/\r?\n/)
+  const start = lines.findIndex(line => /^jobs:\s*$/.test(line))
+  if (start < 0) return null
+  const unquote = value => value.trim().replace(/^(['"])(.*)\1$/, '$2')
+  const jobs = []
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break
+    const key = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line)
+    if (key) { jobs.push({ name: key[1], matrix: {} }); continue }
+    const job = jobs.at(-1)
+    if (!job) continue
+    const name = /^ {4}name:\s*(.+?)\s*$/.exec(line)
+    if (name) job.name = unquote(name[1])
+    const axis = /^ {8}([A-Za-z0-9_-]+):\s*\[(.*)\]\s*$/.exec(line)
+    if (axis) job.matrix[axis[1]] = axis[2].split(',').map(unquote).filter(Boolean)
+  }
+  const expand = (name, matrix) => {
+    const ref = /\$\{\{\s*matrix\.([A-Za-z0-9_-]+)\s*\}\}/.exec(name)
+    if (!ref || !matrix[ref[1]]) return [name]
+    return matrix[ref[1]].flatMap(value => expand(name.replace(ref[0], value), matrix))
+  }
+  return jobs.flatMap(job => expand(job.name, job.matrix))
+}
+
+/** The declared job names no job of the run carries. */
+export function missingJobs(declared, jobs) {
+  const reported = new Set((jobs ?? []).map(job => job.name))
+  return declared.filter(name => !reported.has(name))
+}
+
+/** `declaredJobs` of the workflow as committed at `sha`, or null when git cannot show it. */
+export function declaredJobsAt(sha, exec = execFileSync) {
+  try {
+    return declaredJobs(exec('git', ['show', `${sha}:.github/workflows/selftest.yml`], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }))
+  } catch {
+    return null
+  }
+}
+
 const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3, cached: 2, unproven: 2 }
 
 
@@ -505,7 +551,7 @@ export function tagAdvice(kind) {
 }
 
 // The CLI, exported with its readers as seams so the review question is shown asked from this path (ADR-100 T1).
-export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, log = console.log } = {}) {
+export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, log = console.log } = {}) {
   const argument = classifyArgument(argv[0])
   if (argument.kind === 'help') {
     log(USAGE)
@@ -537,6 +583,18 @@ export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEv
   let { verdict, reason } = result
   let outside = null
   let review = null
+  // ADR-113 T5: every job the workflow declares at this sha, not only every job the run reports.
+  if (verdict === 'success') {
+    const declared = declaredOf(sha)
+    const missing = Array.isArray(declared) ? missingJobs(declared, result.jobs) : null
+    if (missing === null) {
+      verdict = 'unreadable'
+      reason = 'the workflow at this sha could not be read, so whether the run holds every job it declares cannot be told (ADR-005)'
+    } else if (missing.length) {
+      verdict = 'failed'
+      reason = `the run lacks ${missing.length} job(s) the workflow declares: ${missing.join(', ')}`
+    }
+  }
   if (verdict === 'success') {
     outside = outsideOf(sha)
     review = reviewOf(sha)

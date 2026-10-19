@@ -22,7 +22,7 @@ README must be regenerated.
 | T2 | A broken config and an mrw write are seen by both refusals | done | none — no spec | `node --test tests/refusals-hold.test.mjs` (each named test passes once, nothing skipped) |
 | T3 | The side doors are enumerated by a gate | done | none — no spec | `node --test tests/side-door-sweep.test.mjs && … QUALITY_HARNESS_HOOK_IMPL=go node --test tests/side-door-sweep.test.mjs` (each named test passes once, nothing skipped) |
 | T4 | A sign-off is bound to what was signed | done | none — no spec | `node --test tests/sign-off-binding.test.mjs` (each named test passes once, nothing skipped) |
-| T5 | Every test file is accounted for | pending | none — no spec | `node --test tests/suite-accounting.test.mjs` (each named test passes once, nothing skipped) |
+| T5 | Every test file is accounted for | done | none — no spec | `node --test tests/suite-accounting.test.mjs` (each named test passes once, nothing skipped) |
 | T6 | Session state as MCP resources is proposed | pending | none — no spec | human-observed: ADR-114 exists, Proposed, and lints |
 
 ## Contract Coupling

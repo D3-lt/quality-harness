@@ -46,12 +46,15 @@ export default async function* fileTiming(source) {
     if (!file) continue
     const key = nameOf(path.resolve(file))
     let entry = files.get(key)
-    if (!entry) files.set(key, entry = { ms: 0, tests: 0, failed: 0 })
+    if (!entry) files.set(key, entry = { ms: 0, tests: 0, failed: 0, skipped: 0, reasonless: [] })
+    // ADR-113 T5: a skip node gives no string for is a skip with no reason, at any depth; it is named so the gate can say it.
+    if (event.type === 'test:pass' && event.data.skip === true && typeof name === 'string') entry.reasonless.push(name)
     if (nesting !== 0 || (event.type !== 'test:pass' && event.type !== 'test:fail')) continue
     if (event.type === 'test:fail') entry.failed += 1
     // The file's own entry is named for the file, in whichever form: it fails when the file does not load, and is not a test.
     if (typeof name === 'string' && nameOf(path.resolve(name)) === key) continue
     entry.tests += 1
+    if (event.data.skip !== undefined && event.data.skip !== false) entry.skipped += 1
     entry.ms += details?.duration_ms ?? 0
   }
   const rows = [...files].map(([file, entry]) => ({
@@ -59,6 +62,8 @@ export default async function* fileTiming(source) {
     ms: Math.round(entry.ms),
     tests: entry.tests,
     failed: entry.failed,
+    skipped: entry.skipped,
+    reasonless: entry.reasonless,
   }))
   yield `${JSON.stringify({
     at: new Date().toISOString(),

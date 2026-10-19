@@ -225,6 +225,7 @@ from record import sections_of, section_span, repeated_headings, unterminated_fe
 from record import os_reason  # noqa: E402
 from record import record_id, special_file_problem, title_line, NO_WINDOW, git_read_env, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
+from record import signoff_digest  # noqa: E402
 from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402
 
 
@@ -3400,7 +3401,9 @@ def main():
                            test_name, test_exit, why)
 
     if human is not None:
-        entry = f"- {today} · human-observed · {human.strip()}"
+        # ADR-113 T4: the sign-off names the Acceptance it approved, so an edit to it leaves the sign-off stale.
+        bound = signoff_digest(acceptance_section(text))
+        entry = f"- {today} · human-observed · {human.strip()}" + (f" · acceptance-sha256:{bound}" if bound else "")
         refuse_unreadable(entry, "human-observed")
         append_entry(task, text, entry)
         print(entry)

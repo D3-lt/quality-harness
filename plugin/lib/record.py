@@ -532,6 +532,30 @@ def acceptance_digest(command):
     return hashlib.sha256(command.encode("utf-8")).hexdigest()
 
 
+# ADR-113 T4: a `--human` sign-off names the Acceptance it approved. adr-verify wrote none, and adr-lint and adr-next
+# looked only for the words, so one sign-off covered every later edit of what it approved.
+SIGNOFF_DIGEST_RE = re.compile(r" · acceptance-sha256:(?P<digest>[0-9a-f]{64})\s*$")
+
+
+def signoff_digest(section):
+    """What a sign-off is bound to: the digest of the Acceptance's runnable fence where it has one, and of the whole
+    section otherwise, since a human-observed Acceptance is a sentence and the sentence is what was approved. `section`
+    is the section's text or lines, as `acceptance_fence` takes it; None where there is no section."""
+    if section is None:
+        return None
+    raw = acceptance_fence(section)
+    return acceptance_digest(normalize_acceptance(raw if raw is not None else "\n".join(_as_lines(section))))
+
+
+def signoff_binding(note, current):
+    """A sign-off's standing against the current `signoff_digest`, and its note without the digest: `bound`, `stale`
+    (taken on another Acceptance, so evidence for none), or `legacy` (no digest: evidence only where the committed file
+    already holds it, as a digest-less exit row is)."""
+    m = SIGNOFF_DIGEST_RE.search(note)
+    if m is None:
+        return "legacy", note
+    return ("bound" if m.group("digest") == current else "stale"), note[:m.start()]
+
 # --- Record identity (ADR-063) ------------------------------------------------
 # A record is its ADR number, or the exact stem of a date-shaped name. The three
 # name regexes moved here from adr-lint, so every gate reads one spelling;

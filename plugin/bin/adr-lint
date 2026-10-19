@@ -126,6 +126,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501,F401
 from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E402
 from record import git_read_env  # noqa: E402
+from record import signoff_binding, signoff_digest  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
 from record import gfm_table_cells, gfm_table_rows, gfm_rows, gfm_data_rows  # noqa: E402
@@ -2667,9 +2668,27 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
         if inf["human"]:
             # A `--human-mutant` row also says `· human-observed ·`, but it is mutation evidence,
             # never a sign-off (an outside run of 3.8.8): it does not satisfy this check.
-            if not any("· human-observed ·" in b and "· human-observed · mutant " not in b for b in inf["vlog"]):
+            signs = [b.strip() for b in inf["vlog"] if "· human-observed ·" in b and "· human-observed · mutant " not in b]
+            # ADR-113 T4: a sign-off counts for the Acceptance it was taken on. One with no digest is legacy, which means
+            # already committed, as a digest-less exit row is; one for another Acceptance is evidence for none.
+            current = signoff_digest(sections_of(inf.get("text") or "").get("Acceptance"))
+            known = committed(inf["path"]) if inf.get("path") is not None else None
+            recorded = None if known is None else {k.strip() for k in known}
+            standing = [(b, signoff_binding(b, current)[0]) for b in signs]
+            fresh = [b for b, s in standing if s == "legacy" and recorded is not None and b not in recorded]
+            for b in fresh:
+                errors.append(f"{where}: {tid} has a human-observed sign-off carrying no acceptance-sha256 that is not "
+                              f"in the committed file — a sign-off with no digest is legacy evidence, and legacy means "
+                              f"already recorded. Re-sign with `adr-verify {inf['path'].name} --human \"…\"`, which "
+                              f"writes the digest itself")
+            if not signs:
                 errors.append(f"{where}: {tid} marked done but its Verification Log has no "
                               f"'· human-observed ·' sign-off entry (adr-verify --human)")
+            elif not any(s == "bound" or (s == "legacy" and b not in fresh) for b, s in standing) \
+                    and any(s == "stale" for _b, s in standing):
+                errors.append(f"{where}: {tid} marked done but its human-observed sign-off was taken on another "
+                              f"Acceptance — the Acceptance changed after it was signed, so the sign-off proves "
+                              f"nothing about this one. Re-sign with `adr-verify {inf['path'].name} --human \"…\"`")
             continue
         entries = [b for b in inf["vlog"] if VLOG_RE.match(b)]
         # A digest-less row is legacy evidence, and legacy means ALREADY WRITTEN
@@ -6471,7 +6490,9 @@ def strict_from_number(start, errors):
         return None
     if declared is None:
         return None
-    match = re.search(r"(\d+)", str(declared))
+    # ADR-113 T4: an ADR id or a number, and nothing else. Any digits in it were the cutoff, so "after 2026" demoted every
+    # record below ADR-2026.
+    match = re.fullmatch(r"(?:ADR-)?(\d+)", str(declared).strip(), re.I)
     if not match:
         errors.advise(f"{CONFIG_NAME}: strictFrom={declared!r} names no ADR number; "
                       f"write it as `ADR-0012` or `12`. Every record is checked in full.")

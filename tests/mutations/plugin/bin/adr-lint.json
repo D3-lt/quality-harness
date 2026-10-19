@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T4: a new digest-less sign-off is refused",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/sign-off-binding.test.mjs"
+      ],
+      "from": "fresh = [b for b, s in standing if s == \"legacy\" and recorded is not None and b not in recorded]",
+      "to": "fresh = []",
+      "only": "^(?:a sign-off is bound to the fence it was taken on)$"
+    },
+    {
+      "label": "ADR-113 T4: a stale sign-off is said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/sign-off-binding.test.mjs"
+      ],
+      "from": "and any(s == \"stale\" for _b, s in standing):",
+      "to": "and False:",
+      "only": "^(?:a sign-off is bound to the fence it was taken on)$"
+    },
+    {
+      "label": "ADR-113 T4: strictFrom takes an ADR id or a number only",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/sign-off-binding.test.mjs"
+      ],
+      "from": "match = re.fullmatch(r\"(?:ADR-)?(\\d+)\", str(declared).strip(), re.I)",
+      "to": "match = re.search(r\"(\\d+)\", str(declared))",
+      "only": "^(?:a sign-off is bound to the fence it was taken on)$"
+    },
+    {
       "label": "ADR-091 scope: a legacy-only catalogue is read as before (strict forced on)",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -3101,8 +3131,8 @@
       "tests": [
         "tests/human-mutant-row.test.mjs"
       ],
-      "from": "            if not any(\"· human-observed ·\" in b and \"· human-observed · mutant \" not in b for b in inf[\"vlog\"]):",
-      "to": "            if not any(\"· human-observed ·\" in b for b in inf[\"vlog\"]):",
+      "from": "            signs = [b.strip() for b in inf[\"vlog\"] if \"· human-observed ·\" in b and \"· human-observed · mutant \" not in b]",
+      "to": "            signs = [b.strip() for b in inf[\"vlog\"] if \"· human-observed ·\" in b]",
       "only": "^(?:adr-lint does not take a human-mutant row for a done human-observed task's sign-off)$"
     },
     {

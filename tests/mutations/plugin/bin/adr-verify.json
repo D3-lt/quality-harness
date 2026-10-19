@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T4: a sign-off names the Acceptance it signed",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sign-off-binding.test.mjs"
+      ],
+      "from": "+ (f\" · acceptance-sha256:{bound}\" if bound else \"\")",
+      "to": "+ \"\"",
+      "only": "^(?:a sign-off is bound to the fence it was taken on)$"
+    },
+    {
       "label": "excerpt: a quoted line is stripped on its right, so git diff --check passes",
       "file": "plugin/bin/adr-verify",
       "tests": [

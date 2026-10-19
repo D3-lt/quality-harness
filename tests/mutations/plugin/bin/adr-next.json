@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T4: adr-next counts no stale sign-off",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/sign-off-binding.test.mjs"
+      ],
+      "from": "if signoff_binding(m.group(\"note\"), current)[0] != \"stale\":",
+      "to": "if True:",
+      "only": "^(?:a sign-off is bound to the fence it was taken on)$"
+    },
+    {
+      "label": "ADR-113 T4: a stop quotes the note, not the digest",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/sign-off-binding.test.mjs"
+      ],
+      "from": "note = signoff_binding(last.group(\"note\"), None)[1]",
+      "to": "note = last.group(\"note\")",
+      "only": "^(?:a sign-off is bound to the fence it was taken on)$"
+    },
+    {
       "label": "next: a negated un- verdict is the condition met ('not unmet', review of a9a265fd..1542b962)",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -1274,7 +1294,7 @@
       "tests": [
         "tests/human-stop-3-8-9.test.mjs"
       ],
-      "from": "        words = stop_words(last.group(\"note\"))",
+      "from": "        words = stop_words(note)",
       "to": "        words = None",
       "only": "^(?:a stop names the words that stopped it before the note it quotes)$"
     },
@@ -1304,8 +1324,8 @@
       "tests": [
         "tests/human-stop-3-8-10.test.mjs"
       ],
-      "from": "    if last and not later_pass and human_outcome(last.group(\"note\")) == \"stop\":",
-      "to": "    if last and human_outcome(last.group(\"note\")) == \"stop\":",
+      "from": "    if last and not later_pass and human_outcome(signoff_binding(last.group(\"note\"), None)[1]) == \"stop\":",
+      "to": "    if last and human_outcome(signoff_binding(last.group(\"note\"), None)[1]) == \"stop\":",
       "only": "^(?:a human stop older than later exit-0 evidence does not take that evidence back)$"
     },
     {

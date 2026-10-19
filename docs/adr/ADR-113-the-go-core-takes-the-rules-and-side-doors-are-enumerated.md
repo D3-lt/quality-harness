@@ -74,7 +74,7 @@ See `tasks/README.md`.
 ## Consequences
 
 - **Positive:** both sanctioned refusals hold where they were silently off; the Go core can take the hooks; every side door is named by a gate.
-- **Negative:** a sign-off row grows a digest; old sign-offs read as unbound (advice, not a refusal) until re-signed.
+- **Negative:** a sign-off row grows a digest. (Corrected at T4, 2026-10-19: this said old sign-offs read as unbound, as advice. As built, a digest-less sign-off is legacy, as a digest-less exit row is: one the committed file already holds still counts, and a new one is refused.)
 - **Neutral:** the Node path stays until ADR-110 T3.
 
 ## Out of Scope

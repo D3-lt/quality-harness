@@ -184,6 +184,7 @@ type completionFacts struct {
 	turnEnd         string
 	cwd             string
 	sentence        func() string
+	baselineVerdict string
 }
 
 func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
@@ -211,6 +212,10 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 	}
 	f := &completionFacts{log: log, observation: observation, check: check, root: root, cwd: cwd,
 		baseline: get(sessionBaseline(log.E), "observation"), writes: unobservableWrites(log, root)}
+	// ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger.
+	if root != "" && isTrue(get(f.baseline, "ok")) && check != "" && check != "refused" {
+		f.baselineVerdict = baselineFor(root, get(f.baseline, "tree"), check)
+	}
 	switch {
 	case !isTrue(get(observation, "ok")):
 		f.status = lines{list: []string{}}
@@ -299,11 +304,13 @@ func couldNotStartOpening(checkEvent string) string {
 }
 
 type reasonFlags struct {
-	logTorn      bool
-	tornWords    string
-	orderUnknown bool
-	couldNotLook bool
-	checkEvent   string
+	logTorn         bool
+	tornWords       string
+	orderUnknown    bool
+	couldNotLook    bool
+	checkEvent      string
+	baselineVerdict string
+	treeMoved       bool
 }
 
 func uncheckedWorkReason(sentence string, paths []string, outside int, commits []*commit, fl reasonFlags) string {
@@ -343,19 +350,37 @@ func uncheckedWorkReason(sentence string, paths []string, outside int, commits [
 			"so whether `qh-check` succeeded on it cannot be shown."
 	case fl.orderUnknown:
 		opening = "which check ran last on this turn's work could not be established, so it is not known to be checked."
+	case fl.couldNotLook && fl.treeMoved:
+		// BACKLOG §383: a run the tree changed under is not one that could not start, so it is asked for again.
+		opening = "the latest `qh-check` on this turn's work proves nothing about it: the tree changed while it ran (its trees before and after differ), so run it again once the tree holds still."
 	case fl.couldNotLook:
 		opening = couldNotStartOpening(fl.checkEvent)
+	case fl.checkEvent == "check.failed":
+		// ADR-111 T2: a red check said as "no qh-check has passed" read like no check at all.
+		opening = "the last `qh-check` on this turn's work failed, so a done claim now contradicts it; fix what fails, or say in your final message that it fails and why."
+		switch fl.baselineVerdict {
+		case "passed":
+			opening += " It passed on the tree this session began with and fails now: this change broke it."
+		case "failed":
+			opening += " It was already red on the tree this session began with, so this red says nothing about the change; compare what fails, or declare a check that is green here."
+		}
 	case len(paths) > 0 || heldText == "":
 		opening = "this turn ends with work no `qh-check` has passed on."
 	default:
 		opening = "this turn ends on an unchecked tree."
 	}
 	tail := " " + sentence
-	if _, known := couldNotStart[fl.checkEvent]; fl.couldNotLook && known {
+	if _, known := couldNotStart[fl.checkEvent]; fl.couldNotLook && known && !fl.treeMoved {
 		tail = ""
 	}
 	return "quality-harness: " + opening + " " + listed + unseenPathNote(outside) + tail
 }
+
+// noCheckText is what a turn end says where no check is declared or inferred and the tree changed (ADR-111 T2). It names no
+// path: the working tree's dirt is not this turn's writes.
+const noCheckText = "quality-harness: the tree changed since this session began, and no check is known here (none is " +
+	"declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the " +
+	"project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
 
 const namedCommitLimit = 5
 
@@ -417,9 +442,6 @@ func (h *hookRun) completionRules(ended *recorded) {
 	message := h.input.Get("last_assistant_message")
 	evidence := ledgerEvidence(f)
 	h.recordClaim(completionClaim(message), evidence, len(f.status.list)+len(f.writes))
-	if f.check == "" {
-		return
-	}
 	log := f.log
 	observation := f.observation
 	channel := channelOf(h.event, f.turnEnd)
@@ -438,6 +460,15 @@ func (h *hookRun) completionRules(ended *recorded) {
 		}
 	}
 	quiet := (docsOnly(changed) && evidenceLimited(message)) || (h.event == "Stop" && interimResponse(message))
+	// ADR-111 T2: where no check is known, a changed tree is said once per tree, when the start was observed in a log read whole.
+	if f.check == "" {
+		tree := get(observation, "tree")
+		moved := isTrue(get(observation, "ok")) && isTrue(get(f.baseline, "ok")) && !logIncomplete(log) && !strict(tree, get(f.baseline, "tree"))
+		if moved && !quiet && !emittedFor(log, "R5", tree, channel, recipient) {
+			h.queue(action{rule: "R5", key: tree, text: noCheckText})
+		}
+		return
+	}
 	revision := revisionFor(log, observation)
 	observed := isTrue(get(observation, "ok"))
 	tree := get(observation, "tree")
@@ -455,14 +486,25 @@ func (h *hookRun) completionRules(ended *recorded) {
 					speaksFor = append(speaksFor, c)
 				}
 			}
+			var latest any
 			checkEvent := ""
 			if observed {
-				checkEvent = strOr(get(latestCheckFor(log, tree), "event"))
+				latest = latestCheckFor(log, tree)
+				checkEvent = strOr(get(latest, "event"))
 			}
+			// ADR-111 T3: the baseline speaks only for a red run of the same command whose tree held still through it and is this tree.
+			baselineVerdict := ""
+			if checkEvent == "check.failed" && strict(get(latest, "command"), f.check) &&
+				strict(dig(latest, "before", "tree"), tree) && strict(dig(latest, "after", "tree"), tree) {
+				baselineVerdict = f.baselineVerdict
+			}
+			before, beforeIsString := dig(latest, "before", "tree").(string)
+			after, afterIsString := dig(latest, "after", "tree").(string)
 			h.queue(action{rule: "R1", key: key, text: uncheckedWorkReason(f.sentence(), f.status.list, len(f.writes), speaksFor, reasonFlags{
 				logTorn: logIncomplete(log), tornWords: tornRecord(log, ""),
 				orderUnknown: observed && checkStanding(log, tree) == "unresolved",
 				couldNotLook: observed && checkStanding(log, tree) == "could-not-look", checkEvent: checkEvent,
+				baselineVerdict: baselineVerdict, treeMoved: beforeIsString && afterIsString && before != after,
 			})})
 		}
 	}

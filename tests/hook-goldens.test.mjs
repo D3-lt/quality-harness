@@ -319,12 +319,14 @@ test('a red check then done, and a changed tree with no check then done, are sai
   assert.match(stop(bare, 'bare'), /the tree changed since this session began, and no check is known here/)
 })
 
-// ADR-111 T2: where the frozen Go core answers a recorded scenario the older way, its transcript is kept beside the shared one
-// and named with the rule it lacks, so the rest of that scenario still runs against Go; a Go golden that went stale is red.
+// ADR-111 T2: where the Go core answers a recorded scenario another way, its transcript is kept beside the shared one and named
+// with the rule it lacks, so the rest of that scenario still runs against Go; a Go golden that went stale is red. The list is
+// empty since ADR-113 T1, so a planted one shows the mechanism.
 test('a Go golden is kept only where the frozen core answers differently, and names the rule it lacks', () => {
-  assert.match(goldenFile('go', 'checks'), /goldens[\\/]go[\\/]checks\.json$/)
-  assert.doesNotMatch(goldenFile('node', 'checks'), /[\\/]go[\\/]/, 'the Node path reads the shared golden')
-  assert.doesNotMatch(goldenFile('go', 'orientation'), /[\\/]go[\\/]/, 'a golden Go answers the same way is shared')
+  const planted = new Map([['checks', 'ADR-000']])
+  assert.match(goldenFile('go', 'checks', planted), /goldens[\\/]go[\\/]checks\.json$/)
+  assert.doesNotMatch(goldenFile('node', 'checks', planted), /[\\/]go[\\/]/, 'the Node path reads the shared golden')
+  assert.doesNotMatch(goldenFile('go', 'orientation', planted), /[\\/]go[\\/]/, 'a golden Go answers the same way is shared')
   assert.deepEqual(staleGoGoldens(new Map([['orientation', 'ADR-000']])), ['orientation'], 'a named Go golden with no file is stale')
   assert.deepEqual(staleGoGoldens(), [], 'every Go golden exists and differs from the shared one')
   for (const [name, why] of GO_GOLDENS) assert.match(why, /ADR-\d+/, `${name} names the record whose rule Go lacks`)

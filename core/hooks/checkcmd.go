@@ -25,6 +25,83 @@ var projectChecks = []struct{ file, command string }{
 	{"phpunit.xml.dist", "php vendor/bin/phpunit"},
 }
 
+// pytestSections is check-command.mjs's PYTEST_SECTIONS (ADR-111 T1): pytest configured in a manifest's own section. The header
+// opens a line outside any value. JavaScript's `.` stops at \r, U+2028 and U+2029, so a trailing comment stops there too.
+var pytestSections = []struct {
+	file   string
+	header *regexp.Regexp
+	toml   bool
+}{
+	{"pyproject.toml", regexp.MustCompile(`^[ \t]*\[tool\.pytest\.ini_options\][ \t]*(?:#[^\r\x{2028}\x{2029}]*)?$`), true},
+	{"setup.cfg", regexp.MustCompile(`^\[tool:pytest\][ \t]*(?:[#;][^\r\x{2028}\x{2029}]*)?$`), false},
+}
+
+// opensSection is check-command.mjs's: whether a line outside every TOML multi-line string is the header, each line lexed as
+// TOML lexes it. Every delimiter is ASCII, so stepping by bytes stops where stepping by UTF-16 units does.
+func opensSection(text string, header *regexp.Regexp, toml bool) bool {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSuffix(line, "\r")
+	}
+	open := ""
+	for _, line := range lines {
+		if open == "" && header.MatchString(line) {
+			return true
+		}
+		if !toml {
+			continue
+		}
+		at := 0
+		for at < len(line) {
+			switch {
+			case open != "":
+				// A basic multi-line string honours escapes, so \""" is an escaped quote and two more, not its close.
+				end := -1
+				for scan := at; scan <= len(line)-3; scan++ {
+					if open == `"""` && line[scan] == '\\' {
+						scan++
+						continue
+					}
+					if strings.HasPrefix(line[scan:], open) {
+						end = scan
+						break
+					}
+				}
+				if end < 0 {
+					at = len(line)
+					continue
+				}
+				open = ""
+				at = end + 3
+			case strings.HasPrefix(line[at:], `"""`) || strings.HasPrefix(line[at:], `'''`):
+				open = line[at : at+3]
+				at += 3
+			case line[at] == '#':
+				at = len(line)
+			case line[at] == '"':
+				at++
+				for at < len(line) && line[at] != '"' {
+					if line[at] == '\\' {
+						at += 2
+					} else {
+						at++
+					}
+				}
+				at++
+			case line[at] == '\'':
+				if end := strings.IndexByte(line[at+1:], '\''); end < 0 {
+					at = len(line)
+				} else {
+					at += end + 2
+				}
+			default:
+				at++
+			}
+		}
+	}
+	return false
+}
+
 // readConfig is JSON.parse of .quality-harness.json, or nil when it cannot be read or parsed.
 func readConfig(root string) any {
 	text, err := os.ReadFile(filepath.Join(root, ".quality-harness.json"))
@@ -389,6 +466,15 @@ func checkCommandOrigin(cwd string, found *lookup) checkOrigin {
 			return checkOrigin{command: candidate.command, origin: "inferred"}
 		}
 	}
+	for _, section := range pytestSections {
+		text, err := os.ReadFile(filepath.Join(root, section.file))
+		if err != nil {
+			continue
+		}
+		if opensSection(string(text), section.header, section.toml) {
+			return checkOrigin{command: "pytest", origin: "inferred"}
+		}
+	}
 	if packaged := packageManagerCommand(root); packaged != "" {
 		return checkOrigin{command: packaged, origin: "inferred"}
 	}
@@ -404,6 +490,20 @@ func checkCommandOrigin(cwd string, found *lookup) checkOrigin {
 }
 
 func projectCheckCommand(cwd string) string { return checkCommandOrigin(cwd, nil).command }
+
+// CheckCommandJSON is `qh check-command <dir>`: the check dir infers taken as its own root, as check-command.mjs answers it, so
+// tests/go-core-parity-adr-111.test.mjs can set one beside the other (ADR-113 T1).
+func CheckCommandJSON(dir string) string {
+	o := checkCommandOrigin(dir, &lookup{ok: true, root: dir})
+	out := O("command", nil, "origin", o.origin)
+	if o.command != "" {
+		out.Set("command", o.command)
+	}
+	if o.problem != "" {
+		out.Set("problem", o.problem)
+	}
+	return stringify(out)
+}
 
 func runTheCheckSentence(cwd string) string {
 	o := checkCommandOrigin(cwd, nil)

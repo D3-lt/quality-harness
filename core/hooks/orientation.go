@@ -28,6 +28,48 @@ func pluginRoot() string {
 	return filepath.Dir(filepath.Dir(exe))
 }
 
+// startBaseline is on-session-start.mjs's (ADR-111 T3): the project's check on the tree this session began with, started
+// detached so no hook waits on it (ADR-080), and written to its own ledger by `qh-check --baseline`. Startup only, and only where
+// a check is named. QUALITY_HARNESS_BASELINE_RUNNER=off turns it off, and a path stands in for qh-check.
+func startBaseline(cwd string, session any) {
+	setting := os.Getenv("QUALITY_HARNESS_BASELINE_RUNNER")
+	if setting == "off" {
+		return
+	}
+	var tree any
+	for _, e := range readEvents(cwd, session).E {
+		if strict(get(e, "event"), "session.started") {
+			if isTrue(dig(e, "observation", "ok")) {
+				tree = dig(e, "observation", "tree")
+			}
+			break
+		}
+	}
+	started, ok := tree.(string)
+	if !ok {
+		return
+	}
+	if o := checkCommandOrigin(cwd, nil); o.command == "" || o.origin == "refused" || o.origin == "unproven" {
+		return
+	}
+	runner := setting
+	if runner == "" {
+		runner = filepath.Join(pluginRoot(), "scripts", "qh-check.mjs")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		node = "node"
+	}
+	// untimed-spawn: detached on purpose — qh-check bounds its own run (QUALITY_HARNESS_CHECK_TIMEOUT)
+	cmd := exec.Command(node, runner, "--baseline", started)
+	cmd.Dir = resolvePath(cwd)
+	detach(cmd)
+	// A baseline that cannot start costs the session nothing but the baseline.
+	if cmd.Start() == nil && cmd.Process != nil {
+		cmd.Process.Release()
+	}
+}
+
 var corpusDirNames = []string{"docs/adr", "docs/specs", "docs/decisions", "adr", "specs"}
 
 // listedPath is a path as git listed it, in `/` form.
@@ -644,6 +686,7 @@ func onSessionStart(h *hookRun, input *Obj) {
 				"so what was unverified before it is unknown here (ADR-005).")
 		}
 	} else if strict(source, "startup") || isUndefined(source) {
+		startBaseline(cwd, session)
 		if previous := previousSessionNotice(cwd); previous != "" {
 			sections = append(sections, previous)
 		}

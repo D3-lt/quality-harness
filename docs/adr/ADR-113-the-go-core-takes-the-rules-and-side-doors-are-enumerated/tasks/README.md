@@ -18,7 +18,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The Go core says everything ADR-111 added | pending | none — no spec | `QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs` (each named test passes once, nothing skipped) |
+| T1 | The Go core says everything ADR-111 added | done | none — no spec | `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs …` (each named test passes once, nothing skipped) |
 | T2 | A broken config and an mrw write are seen by both refusals | done | none — no spec | `node --test tests/refusals-hold.test.mjs` (each named test passes once, nothing skipped) |
 | T3 | The side doors are enumerated by a gate | pending | none — no spec | `node --test tests/side-door-sweep.test.mjs` (each named test passes once, nothing skipped) |
 | T4 | A sign-off is bound to what was signed | pending | none — no spec | `node --test tests/sign-off-binding.test.mjs` (each named test passes once, nothing skipped) |

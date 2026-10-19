@@ -67,7 +67,7 @@
       "name": "an unreadable config",
       "exit": 2,
       "stdout": "",
-      "stderr": "qh-check: UNRUN — .quality-harness.json is not valid JSON (Unexpected end of JSON input), so the declared check, fastCheck and prose are UNKNOWN. A replacement would certify something the project did not name; fix the file and run again."
+      "stderr": "qh-check: UNRUN — .quality-harness.json is not valid JSON (<parser detail>), so the declared check, fastCheck and prose are UNKNOWN. A replacement would certify something the project did not name; fix the file and run again."
     },
     {
       "name": "turn end",
@@ -76,11 +76,11 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (Unexpected end of JSON input), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (<parser detail>), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
         },
-        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (Unexpected end of JSON input), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (<parser detail>), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
       },
-      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (Unexpected end of JSON input), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (<parser detail>), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
     }
   ],
   "checks": [

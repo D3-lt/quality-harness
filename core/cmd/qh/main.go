@@ -1,5 +1,5 @@
 // qh is the static core of quality-harness (ADR-110): `qh hook <event>` answers a hook event exactly as
-// plugin/scripts/lifecycle.mjs does, and `qh --version` names the build.
+// plugin/scripts/lifecycle.mjs does, `qh check-command <dir>` names the check a directory infers, and `qh --version` names the build.
 package main
 
 import (
@@ -23,8 +23,10 @@ func main() {
 	case len(args) == 2 && args[0] == "hook":
 		// The event is the payload's own hook_event_name, as lifecycle.mjs reads it; the argument names the registration.
 		os.Exit(hooks.Run(os.Stdin, os.Stdout, os.Stderr))
+	case len(args) == 2 && args[0] == "check-command":
+		fmt.Println(hooks.CheckCommandJSON(args[1]))
 	default:
-		fmt.Fprintln(os.Stderr, "usage: qh hook <event> | qh --version")
+		fmt.Fprintln(os.Stderr, "usage: qh hook <event> | qh check-command <dir> | qh --version")
 		os.Exit(2)
 	}
 }

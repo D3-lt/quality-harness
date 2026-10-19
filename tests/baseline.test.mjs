@@ -116,6 +116,26 @@ test('a session whose check was green at its start and is red after an edit is t
   assert.match(JSON.stringify(end.stdout), /passed on the tree this session began with and fails now: this change broke it/)
 })
 
+// ADR-113 T1's surviving mutant: a row whose tree moved during its run is unbound, and is never read as the baseline, on either
+// path. The rows are written here so the bound flag is the only difference between the two sessions.
+test('an unbound baseline row names nothing, and the same row bound does', { skip }, t => {
+  const box = sandbox(t)
+  const said = bound => {
+    const repo = project(box, `bound-${bound}`, 'test ! -f src/broken')
+    runHook(box, repo, 'u1', { hook_event_name: 'SessionStart', source: 'startup' })
+    const row = { command: 'sh check.sh', verdict: 'passed', baseline: { tree: observe(repo).tree, bound } }
+    writeFileSync(path.join(repo, '.git', 'quality-harness', 'baseline.jsonl'), `${JSON.stringify(row)}\n`)
+    const broken = path.join(repo, 'src', 'broken')
+    writeFileSync(broken, 'x\n')
+    runHook(box, repo, 'u1', { hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: broken, content: 'x\n' }, tool_response: { filePath: broken, success: true } })
+    assert.notEqual(runQhCheck(box, repo).exit, 0)
+    return JSON.stringify(runHook(box, repo, 'u1', { hook_event_name: 'Stop', last_assistant_message: 'Fixed it.\nSTATUS: done' }).stdout)
+  }
+  const regression = /passed on the tree this session began with and fails now: this change broke it/
+  assert.doesNotMatch(said(false), regression, 'an unbound row is not a baseline')
+  assert.match(said(true), regression, 'the same row bound is')
+})
+
 // Codex review of v3.8.44..3c42f633: QUALITY_HARNESS_WAIT=1 made a detached baseline wait up to half an hour for its turn.
 test('a baseline never waits for its turn, whatever the environment asks', { skip }, async t => {
   const box = sandbox(t)

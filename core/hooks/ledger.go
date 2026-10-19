@@ -455,6 +455,30 @@ func checkEventsFor(entries []any, tree any) []any {
 var logIncompleteEvent = O("event", "check.unproven", "why", "the log could not be read whole")
 
 // latestCheckFor is the check that ran last about this tree; a pass from a torn log does not certify.
+// baselineFor is check-ledger.mjs's (ADR-111 T3): the verdict of the last bound row of baseline.jsonl for this tree and command,
+// or "" where none is kept. Only the turn end reads it, so no reader of a pass is handed a baseline.
+func baselineFor(root string, tree any, command string) string {
+	text, err := os.ReadFile(filepath.Join(stateDir(root), "baseline.jsonl"))
+	if err != nil {
+		return ""
+	}
+	found := ""
+	for _, line := range strings.Split(string(text), "\n") {
+		if jsTrim(line) == "" {
+			continue
+		}
+		row, err := parseJSON(line)
+		if err != nil {
+			continue
+		}
+		verdict, ok := get(row, "verdict").(string)
+		if ok && isTrue(dig(row, "baseline", "bound")) && strict(dig(row, "baseline", "tree"), tree) && strict(get(row, "command"), command) {
+			found = verdict
+		}
+	}
+	return found
+}
+
 func latestCheckFor(log Log, tree any) any {
 	latest := latestOf(checkEventsFor(log.E, tree), false)
 	if strict(get(latest, "event"), "check.passed") && logIncomplete(log) {

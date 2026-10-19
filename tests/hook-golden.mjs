@@ -20,12 +20,12 @@ const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'c
 
 // ADR-111 T4: the rules the Node path has and the Go core does not yet, keyed by the title of the test that exercises
 // each, with the record that added it. Under QUALITY_HARNESS_HOOK_IMPL=go those tests skip with this reason, and every other
-// test runs against Go exactly as before. The list is the port's debt while ADR-110 waits on ADR-112's verdict.
+// test runs against Go exactly as before. Empty since ADR-113 T1 ported ADR-111's rules; a rule the Node path gains before
+// the Go core does is named here until it lands (tests/go-core-parity-adr-111.test.mjs holds it empty).
 export const GO_LACKS = new Map([
-  ['a red check then done, and a changed tree with no check then done, are said at the turn end', 'ADR-111 T2'],
 ])
 export function goSkipFor(impl, lacks, name) {
-  return impl === 'go' && lacks.has(name) ? `the Go core lacks this rule yet (${lacks.get(name)}; ADR-111 Decision 6)` : false
+  return impl === 'go' && lacks.has(name) ? `the Go core lacks this rule yet (${lacks.get(name)})` : false
 }
 export const goSkip = name => goSkipFor(IMPL, GO_LACKS, name)
 // A name the list skips that no test carries is a stale entry, and a stale entry hides nothing it can be seen hiding.
@@ -154,18 +154,19 @@ export function normaliser(box, repos = []) {
       .replace(/\b[0-9a-f]{16}\b/g, '<hash>')
       .replace(/\b(\d+(?:\.\d+)?)(ms|s)\b/g, '<n>$2')
       .replace(/"(pid|load|loadEnd|cores|ms|\w+Ms)":(?:-?[\d.]+|null)/g, '"$1":"<n>"')
+      // ADR-113 T1: a parse error is each JSON parser's own words (core/hooks/checkcmd.go says so), not what the hook says.
+      .replace(/is not valid JSON \((?:[^"\\]|\\.)*?\), so /g, 'is not valid JSON (<parser detail>), so ')
     return JSON.parse(text)
   }
 }
 
-// ADR-111 T2: a transcript the frozen Go core still answers the older way is kept under goldens/go/, named here with the
-// rule it lacks, and a Go run is compared with that one; every other golden is shared. A Go golden that is missing, or
-// that no longer differs from the shared one, is stale (staleGoGoldens).
+// ADR-111 T2: a transcript the Go core answers another way is kept under goldens/go/, named here with the rule it lacks, and a
+// Go run is compared with that one; every other golden is shared. A Go golden that is missing, or that no longer differs from
+// the shared one, is stale (staleGoGoldens). Empty since ADR-113 T1.
 export const GO_GOLDENS = new Map([
-  ['checks', 'ADR-111 T2: the no-check line at the unreadable-config turn end'],
 ])
-export function goldenFile(impl, name) {
-  return path.join(impl === 'go' && GO_GOLDENS.has(name) ? path.join(goldenDir, 'go') : goldenDir, `${name}.json`)
+export function goldenFile(impl, name, goldens = GO_GOLDENS) {
+  return path.join(impl === 'go' && goldens.has(name) ? path.join(goldenDir, 'go') : goldenDir, `${name}.json`)
 }
 export function staleGoGoldens(goldens = GO_GOLDENS) {
   return [...goldens.keys()].filter(name => {

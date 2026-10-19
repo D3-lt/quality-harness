@@ -18,7 +18,13 @@ Port ADR-111's five rules to the Go core and empty GO_LACKS and GO_GOLDENS (ADR-
 | File | Change | Why |
 |------|--------|-----|
 | `tests/go-core-parity-adr-111.test.mjs` | add | the task's tests, each with a planted twin that must fail |
-| ADR-113 Decision 1 sources | edit | named in the parent record's Context and Decision; the file list is completed as the task is built and recorded in its sign-off |
+| `core/hooks/checkcmd.go`, `core/cmd/qh/main.go` | edit | the pytest-section rungs and their TOML lexer; `qh check-command <dir>`, the Go half of the inference comparison |
+| `core/hooks/turnend.go`, `core/hooks/ledger.go` | edit | R5, the red-check opening, the baseline attribution (`baselineFor`), the tree-moved opening |
+| `core/hooks/orientation.go` | edit | `startBaseline` at a startup SessionStart, detached |
+| `core/hooks/lifecycle.go` | edit | gofmt only: an import order and a blank line T2 left |
+| `tests/hook-golden.mjs`, `tests/goldens/checks.json`, `tests/goldens/go/checks.json` | edit, delete | `GO_LACKS` and `GO_GOLDENS` emptied; a parse error's detail is each JSON parser's own words, so the normaliser masks it, which is all the Go golden held |
+| `tests/hook-goldens.test.mjs`, `docs/adr/ADR-111-the-turn-end-judges-against-a-baseline/tasks/T2-red-is-red-and-no-check-is-said.md` | edit | found executing: the Go-golden test pinned `checks` to the Go list, which Decision 1 empties; it now plants a list, and ADR-111 T2 is relocked |
+| `.github/workflows/selftest.yml` | edit | the core job runs this task's tests against Go on every platform |
 
 ## Ordered Steps
 
@@ -29,7 +35,7 @@ Port ADR-111's five rules to the Go core and empty GO_LACKS and GO_GOLDENS (ADR-
 ## Acceptance
 
 ```bash
-QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs
+go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs
 ```
 
 ## Tests
@@ -48,6 +54,18 @@ QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs t
 | 4 — it is used | every session and every gate run |
 
 ## Mutation Log
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/checkcmd.go` · the Go core infers no pytest from a manifest section · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/checkcmd.go` · an escaped quote closes a multi-line basic string again · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/turnend.go` · the Go turn end never says R5 · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/turnend.go` · a red check is said as no check passed again · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/turnend.go` · the baseline verdict never reaches the opening · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/turnend.go` · a run the tree moved under is said as could-not-start · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/orientation.go` · SessionStart never starts the baseline · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+- 2026-10-19 · a9344016* · mutant survived · exit 0 · `core/hooks/ledger.go` · an unbound baseline row is read as a baseline · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-19 · a9344016* · mutant killed · exit 1 · `core/hooks/ledger.go` · an unbound baseline row is read as a baseline · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0
 
 ## Invariants
 
@@ -67,3 +85,26 @@ Stop if a change would add a refusal outside the two sanctioned ones, or if pari
 - ADR-110 T3's cutover (deferred: docs/adr/ADR-110-a-static-core-owns-the-hooks.md)
 
 ## Verification Log
+- 2026-10-19 · a9344016* · exit 1 · `QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:032115ccdea3b45cc2d84dd5e55c4d9c43282e20f89269f2b5dec0f867cceed9 · ms:17647 · test-lock-sha256:4d892ec762e5bc2d7aa6013bb7b715d5d10e6b91791d103a400c1a89ecd357ad · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvZ28tY29yZS1wYXJpdHktYWRyLTExMS50ZXN0Lm1qcwl0aGUgR28gY29yZSBzYXlzIHdoYXQgdGhlIE5vZGUgcGF0aCBzYXlzIGFib3V0IEFEUi0xMTEncyBydWxlcwllZjJhMTJkMmQxZTczNzIxZTNjNWY3YTVkODAzYTBlNDUyMGM5NjNmNjZlNGY1MDJlMGZjZTAwN2I1YTNjNjQ3
+  ```
+  --- last 10 line(s) of stdout (of 141 after folding 141 raw)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: [ 'a red check then done, and a changed tree with no check then done, are said at the turn end' ],
+      expected: [],
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11962
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11629
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11307
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11070
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:10904
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11334
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11034
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11431
+- 2026-10-19 · a9344016* · exit 0 · `go build -C core -o bin/qh ./cmd/qh && QUALITY_HARNESS_HOOK_IMPL=go node --test tests/go-core-parity-adr-111.test.mjs tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs` · acceptance-sha256:9979da93fc00994306e95c005f3701847c87765bf5e999ac868e022a9639b4a0 · ms:11628

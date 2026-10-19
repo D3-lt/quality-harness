@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -60,6 +60,7 @@ func mrwPlanPaths(plan any) []string {
 	}
 	return out
 }
+
 var shellTools = map[string]bool{"Bash": true, "PowerShell": true}
 var readOnlyRoles = []string{"qh-correctness-reviewer", "qh-scope-reviewer", "qh-synthesis"}
 

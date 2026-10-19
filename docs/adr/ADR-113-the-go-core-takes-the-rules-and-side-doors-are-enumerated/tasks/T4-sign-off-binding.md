@@ -22,6 +22,7 @@ A --human sign-off carries the acceptance digest and reads as stale after the fe
 | `plugin/bin/adr-verify` | edit | `--human` appends ` · acceptance-sha256:<digest>` |
 | `plugin/bin/adr-next`, `plugin/bin/adr-lint` | edit | a stale sign-off counts for nothing; a new digest-less one is refused, a committed one is legacy; a stop quotes the note without the digest; `strictFrom` is `ADR-<n>` or `<n>` only |
 | `tests/sign-off-binding.test.mjs`, `tests/mutations/plugin/bin/*.json`, `tests/mutations/plugin/lib/record.py.json` | add, edit | found executing: the test gained a stop-quoting case after its red run, and is relocked |
+| `tests/evidence-chain.test.mjs`, `docs/adr/ADR-085-a-build-diagnostic-in-an-assertion-is-a-kill/tasks/T1-…`, `T2-…` | edit | found after commit: three placement tests pinned the sign-off row's old end, `· human-observed · <note>$`; they now require the digest adr-verify writes, and ADR-085 T1 and T2 are relocked |
 
 ## Ordered Steps
 

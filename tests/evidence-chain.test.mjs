@@ -3196,7 +3196,7 @@ test('an entry is appended after a fenced ## line in the Verification Log, not i
   expectExit(verify(copy, ['--human', 'a person watched it pass']), 0, '--human appends an entry')
   const log = readTask(copy).split('## Verification Log\n')[1]
   const lines = log.trimEnd().split('\n')
-  assert.match(lines.at(-1), /^- \d{4}-\d{2}-\d{2} · human-observed · a person watched it pass$/,
+  assert.match(lines.at(-1), /^- \d{4}-\d{2}-\d{2} · human-observed · a person watched it pass · acceptance-sha256:[0-9a-f]{64}$/,
     `the new entry is the LAST line of the section, after the fence: ${log}`)
   assert.equal(log.indexOf(excerpt), 0, `the excerpt is intact and first: ${log}`)
   assert.equal((log.match(/^## /gm) ?? []).length, 1,
@@ -3244,7 +3244,7 @@ test('an entry appended under a heading that ends the file without a line break 
     assert.ok(text.includes(`## Verification Log${eol}- `), `the heading keeps the file's own line ending: ${JSON.stringify(text.slice(-90))}`)
     const sections = sectionsOf(copy)
     assert.ok('Verification Log' in sections, `the heading is still a heading to the shared reader: ${Object.keys(sections)}`)
-    assert.match(sections['Verification Log'].join('\n'), /^- \d{4}-\d{2}-\d{2} · human-observed · a person watched it pass$/m,
+    assert.match(sections['Verification Log'].join('\n'), /^- \d{4}-\d{2}-\d{2} · human-observed · a person watched it pass · acceptance-sha256:[0-9a-f]{64}$/m,
       `the entry is IN the section every gate reads: ${JSON.stringify(sections['Verification Log'])}`)
   }
 
@@ -3276,7 +3276,7 @@ test('a run that prints a fence line is quoted so the excerpt cannot toggle the 
   assert.match(readTask(copy), /^ {2}\\```$/m, `the printed fence line is written escaped: ${readTask(copy)}`)
   expectExit(verify(copy, ['--human', 'a person watched it pass']), 0, '--human after the excerpt')
   const sections = sectionsOf(copy)
-  assert.match(sections['Verification Log'].join('\n'), /· human-observed · a person watched it pass$/m,
+  assert.match(sections['Verification Log'].join('\n'), /· human-observed · a person watched it pass · acceptance-sha256:[0-9a-f]{64}$/m,
     `the next entry is IN the Verification Log: ${JSON.stringify(sections['Verification Log'])}`)
   assert.deepEqual(sections['Mutation Log'].filter(l => l.trim()).length, 1,
     `## Mutation Log is still a heading and holds only its own row: ${JSON.stringify(sections['Mutation Log'])}`)

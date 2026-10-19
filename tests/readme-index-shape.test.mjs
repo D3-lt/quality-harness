@@ -41,4 +41,9 @@ test('a tasks index with no separator row, or a task listed twice, is said', t =
   // A contract table lists a producer once per contract: that is not an index, and its repeats are not said.
   const contracts = said(t, [HEADER, SEPARATOR, row('pending'), '', '| Producer | Contract | Consumer(s) | Ordering note |', '|----------|----------|-------------|---------------|', '| T1 | a | none | — |', '| T1 | b | none | — |'])
   assert.doesNotMatch(contracts, /listed twice/, 'a producer named once per contract')
+  // The Codex review of f79c600d: GFM reads a table without outer pipes too, and its header with no separator is no row to the
+  // shared parser, so a broken index written that way said nothing.
+  const bare = said(t, ['ID | Title | Status', 'T1 | one | pending', 'T1 | one | done'])
+  assert.match(bare, /no separator row/, bare)
+  assert.match(bare, /T1 is listed twice in one table/, bare)
 })

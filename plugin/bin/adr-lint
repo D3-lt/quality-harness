@@ -6167,37 +6167,65 @@ def check_readme_row_widths(text, errors):
         lines.append("" if was_fenced or fence_line else raw.strip())
     rows = {row.index: row for row in gfm_rows(lines)}
     header = None
-    # BACKLOG §385: a header with no separator row under it is not a table to Markdown, and a task listed twice in an index
-    # says two things about one task; both linted PASS. Only a table whose first column is the task's own id is an index: a
-    # contract table lists its producer once per contract. The index is derived, so both are advice, as the findings above are.
-    block_said, seen, head = False, set(), None
     for i, line in enumerate(lines):
         row = rows.get(i)
         if row is None:
-            header, block_said, seen, head = None, False, set(), None
+            header = None
             continue
         if row.delimiter:
             continue
         cells = row.cells
         if i + 1 in rows and rows[i + 1].delimiter:
-            header, seen, head = cells, set(), cells
+            header = cells
             continue
-        if header is None and not block_said:
-            block_said, head = True, cells
-            errors.advise(f"README.md: row `{line}` is in a table with no separator row (`|---|`) under its header, so "
-                          f"Markdown does not read it as a table. This index is derived: regenerate it from the task files")
-            continue
-        indexed = bool(head) and head[0].strip().lower() in ("id", "task")
-        listed = re.fullmatch(r"\[?(T\d+)\]?(?:\([^)]*\))?", cells[0].strip()) if cells and indexed else None
-        if listed and listed.group(1) in seen:
-            errors.advise(f"README.md: {listed.group(1)} is listed twice in one table (`{line}`), so the index says two "
-                          f"things about one task. This index is derived: regenerate it from the task files")
-        elif listed:
-            seen.add(listed.group(1))
         if header is not None and len(cells) < len(header):
             errors.advise(f"README.md: row `{line}` has {len(cells)} cell(s) under the "
                           f"{len(header)}-column header `| {' | '.join(header)} |`, so a cell is "
                           f"missing. This index is derived: regenerate the row from the task files")
+    check_index_shape(lines, errors)
+
+
+# BACKLOG §385: a header with no separator row under it is not a table to Markdown, and a task listed twice in an index says
+# two things about one task; both linted PASS. Only a table whose first column is the task's own id is an index: a contract
+# table lists its producer once per contract. Read from the lines themselves, not from gfm_rows: a table written without outer
+# pipes is a table to GFM only below its separator, so a header with none was no row there at all (the Codex review of
+# f79c600d). The index is derived, so both are advice, as the README's other shape findings are.
+INDEX_DELIMITER = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
+
+
+def pipe_cells(text):
+    body = text.strip()
+    body = body[1:] if body.startswith("|") else body
+    body = body[:-1] if body.endswith("|") and not body.endswith("\\|") else body
+    return [cell.strip() for cell in re.split(r"(?<!\\)\|", body)]
+
+
+def check_index_shape(lines, errors):
+    block = []
+    for line in [*lines, ""]:
+        if "|" in line and line.strip():
+            block.append(line)
+            continue
+        head = pipe_cells(block[0]) if block else []
+        if head and head[0].lower() in ("id", "task"):
+            body = block[1:]
+            if not (body and INDEX_DELIMITER.match(body[0])):
+                errors.advise(f"README.md: row `{block[0].strip()}` heads a table with no separator row (`|---|`) under "
+                              f"it, so Markdown does not read it as a table. This index is derived: regenerate it from the "
+                              f"task files")
+            else:
+                body = body[1:]
+            seen = set()
+            for text in body:
+                cells = pipe_cells(text)
+                listed = re.fullmatch(r"\[?(T\d+)\]?(?:\([^)]*\))?", cells[0]) if cells else None
+                if listed and listed.group(1) in seen:
+                    errors.advise(f"README.md: {listed.group(1)} is listed twice in one table (`{text.strip()}`), so the "
+                                  f"index says two things about one task. This index is derived: regenerate it from the "
+                                  f"task files")
+                elif listed:
+                    seen.add(listed.group(1))
+        block = []
 
 
 def reject_unknown_flags(known=()):

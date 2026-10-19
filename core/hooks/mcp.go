@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 type mcpResource struct {
@@ -28,11 +29,19 @@ var mcpResources = []mcpResource{
 		return lastRecord(filepath.Join(stateDir(cwd), "baseline.jsonl"), "no baseline has been taken here", func(row any) bool { return isTrue(dig(row, "baseline", "bound")) })
 	}},
 	{"qh://branch-state", "branch-state", "the branch-state snapshot SessionStart and each prompt read (ADR-065)", func(cwd string) (string, bool) {
-		dir := stateDir(cwd)
-		if filepath.Base(dir) != "quality-harness" {
+		// Where branch-state.mjs writes it: the git directory itself, whatever QUALITY_HARNESS_STATE_DIR moved the ledgers to
+		// (the Codex review of f79c600d).
+		gitDir := findGitDir(cwd)
+		if gitDir == "" {
+			run := git(5*time.Second, nil, "-C", resolvePath(cwd), "rev-parse", "--absolute-git-dir")
+			if run.err == nil && run.status == 0 {
+				gitDir = strings.TrimSpace(run.stdout)
+			}
+		}
+		if gitDir == "" {
 			return "UNRUN: no git directory was found here, so no branch-state snapshot is kept", false
 		}
-		text, err := os.ReadFile(filepath.Join(filepath.Dir(dir), "qh-branch-state.json"))
+		text, err := os.ReadFile(filepath.Join(gitDir, "qh-branch-state.json"))
 		if errors.Is(err, fs.ErrNotExist) {
 			return "UNRUN: no branch-state snapshot has been taken here", false
 		}
@@ -124,9 +133,20 @@ func turnEndFindings(cwd string) (string, bool) {
 	if last < 0 {
 		return "UNRUN: the newest session (" + session + ") has not ended a turn", false
 	}
+	// A Stop's own rows follow its turn.ended: the check records it imports, the artifact pass and its findings. The next hook
+	// opens with an entry event of its own, and what it emits is not the last turn end's (the Codex review of f79c600d).
+	opens := map[string]bool{"session.started": true, "turn.ended": true, "file.written": true, "publish.requested": true,
+		"publish.mentioned": true, "publish.hook-ran": true, "skill.invoked": true}
+	for _, name := range observedHookEvents {
+		opens[name] = true
+	}
 	findings := []any{}
 	for _, e := range log.E[last+1:] {
-		if strict(get(e, "event"), "action.emitted") {
+		name := strOr(get(e, "event"))
+		if opens[name] {
+			break
+		}
+		if name == "action.emitted" {
 			findings = append(findings, O("rule", get(e, "rule"), "key", orNull(get(e, "key")), "channel", orNull(get(e, "channel")),
 				"recipient", orNull(get(e, "recipient")), "at", orNull(get(e, "at"))))
 		}

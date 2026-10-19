@@ -6,8 +6,8 @@
       "tests": [
         "tests/readme-index-shape.test.mjs"
       ],
-      "from": "        if header is None and not block_said:",
-      "to": "        if False and not block_said:",
+      "from": "            if not (body and INDEX_DELIMITER.match(body[0])):",
+      "to": "            if False:",
       "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
     },
     {
@@ -16,8 +16,8 @@
       "tests": [
         "tests/readme-index-shape.test.mjs"
       ],
-      "from": "        if listed and listed.group(1) in seen:",
-      "to": "        if False:",
+      "from": "                if listed and listed.group(1) in seen:",
+      "to": "                if False:",
       "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
     },
     {
@@ -26,8 +26,8 @@
       "tests": [
         "tests/readme-index-shape.test.mjs"
       ],
-      "from": "indexed = bool(head) and head[0].strip().lower() in (\"id\", \"task\")",
-      "to": "indexed = True",
+      "from": "        if head and head[0].lower() in (\"id\", \"task\"):",
+      "to": "        if head:",
       "only": "^(?:a tasks index with no separator row, or a task listed twice, is said)$"
     },
     {
@@ -2832,8 +2832,8 @@
         "tests/chaos-315-b9.test.mjs"
       ],
       "only": "an Execution Order row with its Depends-on cell dropped",
-      "from": "            header, block_said, seen, head = None, False, set(), None",
-      "to": "            block_said, seen, head = False, set(), None"
+      "from": "            header = None\n            continue\n        if row.delimiter:",
+      "to": "            continue\n        if row.delimiter:"
     },
     {
       "label": "§321 b9: a table inside a fence is measured as a README table",

@@ -20,8 +20,8 @@ const ledger = (repo, name) => path.join(repo, '.git', 'quality-harness', name)
 const lastLine = file => readFileSync(file, 'utf8').split('\n').filter(Boolean).at(-1)
 
 // One newline-delimited JSON-RPC request per line in, the responses out, keyed by id.
-function ask(qh, repo, requests) {
-  const run = spawnSync(qh, ['mcp'], { cwd: repo, input: requests.map(r => JSON.stringify({ jsonrpc: '2.0', ...r })).join('\n') + '\n', encoding: 'utf8', timeout: 60_000, windowsHide: true })
+function ask(qh, repo, requests, env = process.env) {
+  const run = spawnSync(qh, ['mcp'], { cwd: repo, env, input: requests.map(r => JSON.stringify({ jsonrpc: '2.0', ...r })).join('\n') + '\n', encoding: 'utf8', timeout: 60_000, windowsHide: true })
   assert.equal(run.status, 0, run.stderr)
   return new Map(run.stdout.split('\n').filter(Boolean).map(line => JSON.parse(line)).map(answer => [answer.id, answer]))
 }
@@ -77,4 +77,26 @@ test('each resource says what its ledger holds, and an unreadable one says so', 
   }
   assert.equal(ask(qh, repo, [{ id: 9, method: 'resources/read', params: { uri: 'qh://nothing' } }]).get(9).error.code, -32602)
   assert.ok(existsSync(ledger(repo, 'checks.jsonl')), 'reading changed no ledger')
+})
+
+// The Codex review of f79c600d: a finding a later hook emitted was served as the last turn end's, and with
+// QUALITY_HARNESS_STATE_DIR set the branch-state snapshot, which stays in the git directory, read as absent.
+test('a later hook\'s finding is not the last turn end\'s, and a moved state directory still finds the snapshot', { skip }, t => {
+  const bin = mkdtempSync(path.join(os.tmpdir(), 'qh-mcp-bin-'))
+  t.after(() => rmSync(bin, { recursive: true, force: true }))
+  const qh = path.join(bin, 'qh')
+  assert.equal(spawnSync('go', ['build', '-o', qh, './cmd/qh'], { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true }).status, 0)
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'later', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 's1', { hook_event_name: 'SessionStart', source: 'startup' })
+  writeFileSync(path.join(repo, 'src', 'a.js'), 'y\n')
+  runHook(box, repo, 's1', { hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: path.join(repo, 'src', 'a.js'), content: 'y\n' }, tool_response: { success: true } })
+  runHook(box, repo, 's1', { hook_event_name: 'Stop', last_assistant_message: 'Done.' })
+  const refused = runHook(box, repo, 's1', { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -am x' } })
+  assert.equal(refused.stdout?.hookSpecificOutput?.permissionDecision, 'deny', 'the later hook did say something')
+  assert.deepEqual(JSON.parse(read(qh, repo, 'qh://turn-end/findings')).findings.map(f => f.rule), ['R1'], 'only the turn end\'s own')
+  const moved = { ...process.env, QUALITY_HARNESS_STATE_DIR: path.join(box.tmp, 'moved-state') }
+  writeFileSync(path.join(repo, '.git', 'qh-branch-state.json'), `${JSON.stringify({ at: 2, key: 'm', state: { looked: false } })}\n`)
+  const snapshot = ask(qh, repo, [{ id: 1, method: 'resources/read', params: { uri: 'qh://branch-state' } }], moved).get(1).result.contents[0].text
+  assert.deepEqual(JSON.parse(snapshot), { at: 2, key: 'm', state: { looked: false } })
 })

@@ -40,6 +40,8 @@ function written(file, text, session, key) {
   const state = stateDir(dir)
   mkdirSync(join(state, 'sessions'), { recursive: true })
   writeFileSync(join(state, file), text)
+  // ADR-113 T3: a fast pass counts only for the fastCheck the project declares, and every row here records this command.
+  writeFileSync(join(dir, '.quality-harness.json'), '{"fastCheck":"node check.mjs"}\n')
   if (session) writeFileSync(join(state, 'sessions', 's.jsonl'), `${session(dir, key)}\n`)
   return dir
 }

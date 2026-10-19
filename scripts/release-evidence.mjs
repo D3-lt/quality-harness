@@ -482,7 +482,7 @@ export function missingJobs(declared, jobs) {
 }
 
 /** `declaredJobs` of the workflow as committed at `sha`, or null when git cannot show it. */
-export function declaredJobsAt(sha, exec = execFileSync) {
+function declaredJobsAt(sha, exec = execFileSync) {
   try {
     return declaredJobs(exec('git', ['show', `${sha}:.github/workflows/selftest.yml`], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }))
   } catch {

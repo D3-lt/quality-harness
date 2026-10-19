@@ -51,7 +51,7 @@ function kindOf(file, text) {
 // The command a hook entry runs, by the file it names last.
 const hookName = hook => path.basename(String((hook.args ?? []).at(-1) ?? hook.command ?? ''))
 
-export function sites({ files, read, hooks, writingTools }) {
+function sites({ files, read, hooks, writingTools }) {
   const found = []
   for (const file of files) {
     const text = read(file)

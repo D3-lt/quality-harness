@@ -167,14 +167,14 @@ test('release-evidence asks the review question from its main path', () => {
     fetch: () => green,
     outside: () => ({ verdict: 'attested', reason: 'outside run attested', tag: 'v1.0.0' }),
     review: () => ({ verdict: 'unproven', kind: 'unreviewed', reason: '1 plugin commit(s) since v1.0.0 no recorded review covers: abc', uncovered: ['abc'] }),
-    log: line => said.push(line),
+    log: line => said.push(line), declared: () => ['j'],
   })
   assert.equal(code, 2)
   assert.match(said.join('\n'), /^UNPROVEN/m)
   assert.match(said.join('\n'), /no recorded review covers/)
   const cleared = main(['a'.repeat(40)], {
     fetch: () => green, outside: () => ({ verdict: 'attested', reason: 'ok', tag: 'v1.0.0' }),
-    review: () => ({ verdict: 'reviewed', reason: 'covered' }), log: () => {},
+    review: () => ({ verdict: 'reviewed', reason: 'covered' }), log: () => {}, declared: () => ['j'],
   })
   assert.equal(cleared, 0)
 })

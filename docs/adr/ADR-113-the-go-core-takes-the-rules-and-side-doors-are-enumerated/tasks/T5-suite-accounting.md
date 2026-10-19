@@ -24,6 +24,7 @@ Every tracked test file is reached by a runner and runs a test unless named exem
 | `tests/gate-rules.test.mjs` | edit | the two Windows-only skips give their reason; the locks of ADR-075 T2 and ADR-091 T3 do not cover a test's options, and both records still lint PASS |
 | `scripts/release-evidence.mjs` | edit | `declaredJobs` (matrices expanded) from the workflow at the sha; a run lacking a declared job is FAILED, an unreadable workflow could-not-look. Measured 2026-10-19 against run 39149819917 (the v3.8.46 campaign): 58 declared, 58 reported, none missing |
 | `tests/mutations/scripts/*.json` | add, edit | catalogue entries for each mutant |
+| `tests/review-ledger.test.mjs`, `docs/adr/ADR-100-a-repeated-procedure-is-one-command/tasks/T1-a-review-is-recorded.md`, `tests/file-timing.test.mjs`, `tests/one-ledger-reader.test.mjs` | edit | found at the full check: release-evidence's main path now reads the declared jobs, so ADR-100 T1's locked test is given the run's one job as declared and is relocked; the reporter's row shape gains `skipped` and `reasonless`; and ADR-101 T2's locked fast-pass rows are read through a fixture that now declares the `fastCheck` they record (T3's binding), a helper change that leaves the test byte-identical |
 
 ## Ordered Steps
 

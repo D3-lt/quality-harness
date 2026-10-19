@@ -28,7 +28,7 @@ const COMMENT = /^\s*(?:\/\/|\/\*|\*)/
 // The files that register their tests through tests/helpers/shard.mjs: node names such a test by the file that called test(),
 // so the helper's row carries them and these read 0 (scripts/file-timing-reporter.mjs, measured 2026-10-15).
 const SHARDED = { carriedBy: 'tests/helpers/shard.mjs', why: 'its tests register through tests/helpers/shard.mjs, whose row carries them' }
-export const EXEMPT = {
+const EXEMPT = {
   'tests/publish-command.test.mjs': SHARDED,
   'tests/publish-command.shard-1.test.mjs': SHARDED,
   'tests/publish-command.shard-2.test.mjs': SHARDED,

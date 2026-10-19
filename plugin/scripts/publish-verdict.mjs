@@ -21,7 +21,8 @@ import { once } from './lazily.mjs'
 // reviewer-guard.mjs, because that file imports this one: a dynamic import of it
 // from inside handleHook deadlocked on the ESM cycle while this module was the
 // entry with a top-level await pending (Node: "unsettled top-level await").
-const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+// ADR-113 T2: mrw's MCP write is an edit like any other; without it here a read-only role wrote through it unchallenged.
+const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'mcp__mrw__mrw_write'])
 
 /** A proven invocation — the only thing that may be refused. */
 export function containsCommitOrPush(command) {
@@ -206,7 +207,7 @@ export function publishFacts({ cwd, session, observation }) {
  */
 export function publishJudgement(facts, { invoked, commitOnly = false, stagesFirst = false }) {
   const origin = facts.origin()
-  if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return null
+  if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven' && origin.origin !== 'unreadable') return null
   const observation = facts.observation
   // ⚠ A TREE THAT COULD NOT BE OBSERVED IS SAID, NEVER PASSED IN SILENCE. This
   // returned null before anything was said, so where git outran observe()'s budget an
@@ -315,6 +316,8 @@ export function publishJudgement(facts, { invoked, commitOnly = false, stagesFir
           ? 'quality-harness: whether this repository is checked is unknown — the latest `qh-check` on its current tree could not observe it (it timed out, did not start, or its observation failed) — and the command '
         : origin.origin === 'unproven'
           ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
+        : origin.origin === 'unreadable'
+          ? `quality-harness: this repository is unchecked — ${origin.problem}, so no \`qh-check\` can pass here until it is fixed — and the command `
           : origin.origin === 'refused'
             ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
             : !treeUnchecked && stagesFirst

@@ -100,7 +100,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit",
+        "matcher": "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write",
         "hooks": [
           {
             "type": "command",
@@ -148,6 +148,19 @@
             ],
             "timeout": 120
           },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__mrw__mrw_write",
+        "hooks": [
           {
             "type": "command",
             "command": "node",

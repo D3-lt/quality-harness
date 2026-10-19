@@ -1,0 +1,142 @@
+{
+  "steps": [
+    {
+      "name": "start",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "a reviewer writes through mrw",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "deny",
+          "permissionDecisionReason": "quality-harness reviewer guard (qh-correctness-reviewer): This role is read-only: mcp__mrw__mrw_write is not available to it. Report the change you would make; do not make it."
+        }
+      },
+      "stderr": "quality-harness reviewer guard: This role is read-only: mcp__mrw__mrw_write is not available to it. Report the change you would make; do not make it."
+    },
+    {
+      "name": "the main agent writes through mrw",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "the write is recorded",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "Stop",
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/a.js. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+        },
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/a.js. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/a.js. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+    }
+  ],
+  "ledgers": {
+    "passes/mrw-1.jsonl": [
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.started",
+        "pid": "<n>",
+        "targets": [
+          "<repo>/src/a.js"
+        ]
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.gated",
+        "path": "<repo>/src/a.js",
+        "blob": "1df3032e75cb45e568d2741f3dbf4ba4b11d547f91e906e0563bc9990d9cf07e",
+        "complete": true,
+        "findings": null
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.ended",
+        "reason": "done"
+      }
+    ],
+    "sessions/mrw-1.jsonl": [
+      {
+        "at": "<time>",
+        "event": "session.started",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<repo>/src/a.js",
+        "observable": true,
+        "checksSeen": 0,
+        "fastSeen": 0,
+        "blob": "<sha>"
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.pass",
+        "token": "<id>",
+        "targets": 1
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.gated",
+        "path": "<repo>/src/a.js",
+        "blob": "1df3032e75cb45e568d2741f3dbf4ba4b11d547f91e906e0563bc9990d9cf07e",
+        "complete": true,
+        "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:0",
+        "channel": "both",
+        "recipient": "main"
+      }
+    ]
+  }
+}

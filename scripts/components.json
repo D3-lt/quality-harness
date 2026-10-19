@@ -46,7 +46,7 @@
       { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
       { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
     ], "reason": "ADR-096: a turn-end finding reaches the agent and continues its turn once; ADR-096's Follow-up measures whether a continued turn acts" },
-    "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
+    "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "refusal", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "permissionDecision" },
       { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'publish.requested'" }
     ] },
@@ -63,6 +63,9 @@
     "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'" }
     ] },
+    "PostToolUse · mcp__mrw__mrw_write · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
+      { "kind": "tool", "by": "plugin/scripts/hook-record.mjs", "token": "mrwPlanPaths" }
+    ], "reason": "an mrw MCP write is recorded with the paths its plan names, as an Edit's is (ADR-113 T2)" },
     "PreCompact · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "readSessionNote" },
       { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "'context.compacting'" }

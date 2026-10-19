@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T2: the turn end reads an unreadable declaration as a check nobody can pass",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": "  const check = origin.command || (origin.origin === 'refused' || origin.origin === 'unreadable' ? origin.origin : null)",
+      "to": "  const check = origin.command || (origin.origin === 'refused' ? origin.origin : null)",
+      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+    },
+    {
       "label": "BACKLOG §383: a run the tree moved under is told apart from one that could not start",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [

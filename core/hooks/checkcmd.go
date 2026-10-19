@@ -3,7 +3,9 @@
 package hooks
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -327,7 +329,37 @@ func makeTargetCommand(directory string) string {
 
 type checkOrigin struct {
 	command string // "" for none
-	origin  string // declared, inferred, none, refused, unproven
+	origin  string // declared, inferred, none, refused, unproven, unreadable
+	problem string // why .quality-harness.json could not be taken as a declaration, for unreadable
+}
+
+// projectConfigProblem is project-config.mjs's: why .quality-harness.json cannot be taken as the project's declaration, or ""
+// when it is absent or an object. The JSON parser's own words differ from JavaScript's, so the detail differs between paths.
+func projectConfigProblem(root string) string {
+	file := filepath.Join(root, ".quality-harness.json")
+	b, err := os.ReadFile(file)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Sprintf(".quality-harness.json could not be read (%s)", errCode(err, "unknown error"))
+		}
+		// A dangling link is a declaration nobody can read, not an absent one.
+		if _, lerr := os.Lstat(file); lerr != nil {
+			return ""
+		}
+		return ".quality-harness.json could not be read (a link to nothing)"
+	}
+	text := string(b)
+	if strings.HasPrefix(text, "\xef\xbb\xbf") {
+		return ".quality-harness.json starts with a byte-order mark (U+FEFF), which JSON does not allow: save it as UTF-8 without a BOM"
+	}
+	v, err := parseJSON(text)
+	if err != nil {
+		return ".quality-harness.json is not valid JSON (" + strings.SplitN(err.Error(), "\n", 2)[0] + ")"
+	}
+	if _, ok := v.(*Obj); !ok {
+		return ".quality-harness.json is not a JSON object"
+	}
+	return ""
 }
 
 func checkCommandOrigin(cwd string, found *lookup) checkOrigin {
@@ -363,6 +395,11 @@ func checkCommandOrigin(cwd string, found *lookup) checkOrigin {
 	if made := makeTargetCommand(root); made != "" {
 		return checkOrigin{command: made, origin: "inferred"}
 	}
+	// ADR-113 T2: where nothing could be inferred, a declaration that cannot be read is not an absent one; read as none, it
+	// switched the publish refusal off. Where a rung above answered, that answer stands.
+	if problem := projectConfigProblem(root); problem != "" {
+		return checkOrigin{origin: "unreadable", problem: problem}
+	}
 	return checkOrigin{origin: "none"}
 }
 
@@ -372,6 +409,9 @@ func runTheCheckSentence(cwd string) string {
 	o := checkCommandOrigin(cwd, nil)
 	if o.origin == "refused" {
 		return "The check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail."
+	}
+	if o.origin == "unreadable" {
+		return o.problem + ", so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
 	}
 	if o.origin == "unproven" {
 		return "The repository root could not be read, so no check is named. That is not the same as this project having no check."

@@ -8,6 +8,7 @@ import { shellWords } from './shell-words.mjs'
 import { SHELL_NAMES, programName } from './publish-command.mjs'
 import { checkInCode } from './corpus-text.mjs'
 import { gitRepositoryLookup } from './tree-facts.mjs'
+import { projectConfigProblem } from './project-config.mjs'
 
 // Discovery, in the order a person would try: the repository's own script, then
 // its package manifest, then its build file, then the language's default. The
@@ -367,6 +368,12 @@ export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
   if (packaged) return { command: packaged, origin: 'inferred' }
   const made = makeTargetCommand(root)
   if (made) return { command: made, origin: 'inferred' }
+  // ADR-113 T2: where nothing could be inferred, a declaration that cannot be read is not an absent one. Read as `none`,
+  // the publish verdict and the turn end took it for the project's opt-out, and ADR-061's refusal went quiet over a file a
+  // trailing comma broke. Where a rung above answered, that answer stands, as an unparseable config has always changed
+  // nothing there (tests/lifecycle.test.mjs, ADR-068 T2).
+  const problem = projectConfigProblem(root)
+  if (problem) return { command: null, origin: 'unreadable', problem }
   return { command: null, origin: 'none' }
 }
 
@@ -378,6 +385,10 @@ export function runTheCheckSentence(cwd) {
   if (origin === 'refused') {
     return 'The check declared in `.quality-harness.json` is a constant success and was refused. '
       + 'Declare a command that can fail.'
+  }
+  if (origin === 'unreadable') {
+    return `${checkCommandOrigin(cwd ?? process.cwd()).problem}, so no check can pass here and \`qh-check\` will not guess what it declares. `
+      + 'Fix the file, then run `qh-check`.'
   }
   if (origin === 'unproven') {
     return 'The repository root could not be read, so no check is named. '

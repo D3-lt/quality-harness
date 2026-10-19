@@ -11,7 +11,14 @@ import path from 'node:path'
 // ---- ADR-060: hooks are named events, each observed and appended to a log.
 // The state directory and the log itself are in `event-log.mjs`, imported above.
 
-export const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+export const MRW_WRITE = 'mcp__mrw__mrw_write'
+export const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', MRW_WRITE])
+
+// ADR-113 T2: the paths an mrw MCP write names, from its plan's hunk headers (`@@ <path> <address> <op>`), each once.
+export function mrwPlanPaths(plan) {
+  if (typeof plan !== 'string') return []
+  return [...new Set([...plan.matchAll(/^@@ (\S+) /gm)].map(match => match[1]))]
+}
 
 export function hasBackgroundWork(input) {
   return (Array.isArray(input.background_tasks) && input.background_tasks.length > 0)
@@ -33,7 +40,13 @@ export function recordHookEvent(input) {
   const session = input?.session_id
   if (typeof session !== 'string' || !session || typeof input.cwd !== 'string') return null
   const hook = input.hook_event_name
-  if (hook === 'PostToolUse') return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
+  if (hook === 'PostToolUse') {
+    // One record per path the plan names, as one Edit gives one; the first is what the hook hands on.
+    if (input.tool_name === MRW_WRITE) {
+      return mrwPlanPaths(input.tool_input?.plan).map(file => recordFileWritten({ ...input, tool_input: { file_path: file } })).find(Boolean) ?? null
+    }
+    return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
+  }
   let name = null
   const extra = {}
   // A Bash command that INVOKES commit or push is a publish request and is logged

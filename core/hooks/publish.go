@@ -156,7 +156,7 @@ func (f *publishFactsRun) fastPass(tree any) *fastPass {
 // publishJudgement is rule P's decision over its facts and what the caller proved about the command; invoked "" is a mention.
 func publishJudgement(f *publishFactsRun, invoked string, proven, commitOnly, stagesFirst bool) *verdict {
 	origin := f.checkOrigin()
-	if origin.command == "" && origin.origin != "refused" && origin.origin != "unproven" {
+	if origin.command == "" && origin.origin != "refused" && origin.origin != "unproven" && origin.origin != "unreadable" {
 		return nil
 	}
 	observation := f.observation
@@ -245,6 +245,8 @@ func publishJudgement(f *publishFactsRun, invoked string, proven, commitOnly, st
 		opening = "quality-harness: whether this repository is checked is unknown — the latest `qh-check` on its current tree could not observe it (it timed out, did not start, or its observation failed) — and the command "
 	case origin.origin == "unproven":
 		opening = "quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command "
+	case origin.origin == "unreadable":
+		opening = "quality-harness: this repository is unchecked — " + origin.problem + ", so no `qh-check` can pass here until it is fixed — and the command "
 	case origin.origin == "refused":
 		opening = "quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command "
 	case !treeUnchecked && stagesFirst:

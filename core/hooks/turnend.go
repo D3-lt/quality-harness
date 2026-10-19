@@ -196,8 +196,9 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 	observation := ended.observation()
 	origin := checkCommandOrigin(cwd, nil)
 	check := origin.command
-	if check == "" && origin.origin == "refused" {
-		check = "refused"
+	// ADR-113 T2: a declaration that cannot be read is a check nobody can pass, not a project that named none.
+	if check == "" && (origin.origin == "refused" || origin.origin == "unreadable") {
+		check = origin.origin
 	}
 	directory := nearestExistingDirectory(resolvePath(cwd))
 	found := lookup{reason: "no directory"}

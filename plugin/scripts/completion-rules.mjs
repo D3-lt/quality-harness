@@ -660,7 +660,8 @@ export function completionFacts(input, ended) {
   const log = readEvents(input.cwd, input.session_id)
   const observation = ended.observation
   const origin = checkCommandOrigin(input.cwd)
-  const check = origin.command || (origin.origin === 'refused' ? 'refused' : null)
+  // ADR-113 T2: a declaration that cannot be read is a check nobody can pass, not a project that named none.
+  const check = origin.command || (origin.origin === 'refused' || origin.origin === 'unreadable' ? origin.origin : null)
   const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
   const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
   const root = found.ok ? found.root : null

@@ -177,7 +177,8 @@ export function staleGoGoldens(goldens = GO_GOLDENS) {
 
 // Compare a transcript with its golden. QH_GOLDEN_UPDATE=1 writes the shared one, and says so.
 export function expectGolden(assert, name, actual) {
-  const file = UPDATE ? path.join(goldenDir, `${name}.json`) : goldenFile(IMPL, name)
+  // A Go run updates Go's own golden where it keeps one, and the shared one otherwise; a Node run always the shared one.
+  const file = goldenFile(IMPL, name)
   const text = `${JSON.stringify(actual, null, 2)}\n`
   if (UPDATE) {
     mkdirSync(goldenDir, { recursive: true })

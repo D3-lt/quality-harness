@@ -76,11 +76,11 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: the tree changed since this session began, and no check is known here (none is declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (Unexpected end of JSON input), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
         },
-        "systemMessage": "quality-harness: the tree changed since this session began, and no check is known here (none is declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (Unexpected end of JSON input), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
       },
-      "stderr": "quality-harness: the tree changed since this session began, and no check is known here (none is declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (Unexpected end of JSON input), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
     }
   ],
   "checks": [
@@ -496,8 +496,8 @@
       {
         "at": "<time>",
         "event": "action.emitted",
-        "rule": "R5",
-        "key": "<sha>",
+        "rule": "R1",
+        "key": "<sha>:0:0",
         "channel": "both",
         "recipient": "main"
       }

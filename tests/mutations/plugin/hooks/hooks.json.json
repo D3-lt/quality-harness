@@ -1,14 +1,24 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T2: the host calls PreToolUse for an mrw write",
+      "file": "plugin/hooks/hooks.json",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": "        \"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write\",",
+      "to": "        \"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\",",
+      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+    },
+    {
       "label": "2.111.0-rc P1: the hook is called for the PowerShell tool",
       "file": "plugin/hooks/hooks.json",
       "tests": [
         "tests/fail-open.test.mjs"
       ],
       "only": "PowerShell tool",
-      "from": "\"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\"",
-      "to": "\"matcher\": \"Bash|Edit|Write|MultiEdit|NotebookEdit\""
+      "from": "\"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write\"",
+      "to": "\"matcher\": \"Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write\""
     },
     {
       "label": "ADR-084 T1: no hook is registered for Skill",

@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-113 T2: the publish verdict speaks over an unreadable declaration",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": " && origin.origin !== 'unproven' && origin.origin !== 'unreadable') return null",
+      "to": " && origin.origin !== 'unproven') return null",
+      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+    },
+    {
+      "label": "ADR-113 T2: a read-only reviewer may not write through mrw",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/refusals-hold.test.mjs"
+      ],
+      "from": "const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'mcp__mrw__mrw_write'])",
+      "to": "const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])",
+      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+    },
+    {
       "label": "publish foreign: only a different git directory is foreign (ADR-104 T1)",
       "file": "plugin/scripts/publish-verdict.mjs",
       "tests": [

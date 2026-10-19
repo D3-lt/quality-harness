@@ -73,8 +73,14 @@
       "name": "turn end",
       "exit": 0,
       "signal": null,
-      "stdout": "",
-      "stderr": ""
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "Stop",
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (EOF), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
+        },
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (EOF), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (EOF), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
     }
   ],
   "checks": [
@@ -486,6 +492,14 @@
         "blob": "bd08a2cb054bcde7cde47c92cd33aa8dc8c9385a1e141659bf22169e9fb2e21d",
         "complete": true,
         "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:0",
+        "channel": "both",
+        "recipient": "main"
       }
     ],
     "skips.jsonl": [

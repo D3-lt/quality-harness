@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -36,7 +37,29 @@ func (h *hookRun) queue(a action)    { h.pending = append(h.pending, a) }
 func (h *hookRun) emitJSON(out *Obj) { h.output = out }
 func (h *hookRun) say(text string)   { io.WriteString(h.stderr, text) }
 
-var mutationTools = map[string]bool{"Edit": true, "Write": true, "MultiEdit": true, "NotebookEdit": true}
+// ADR-113 T2: mrw's MCP write is an edit like any other, to the reviewer guard and to the write record.
+var mutationTools = map[string]bool{"Edit": true, "Write": true, "MultiEdit": true, "NotebookEdit": true, mrwWrite: true}
+
+const mrwWrite = "mcp__mrw__mrw_write"
+
+var mrwPlanHeader = regexp.MustCompile(`(?m)^@@ (\S+) `)
+
+// mrwPlanPaths: the paths an mrw MCP write names, from its plan's hunk headers, each once (hook-record.mjs's).
+func mrwPlanPaths(plan any) []string {
+	text, ok := plan.(string)
+	if !ok {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range mrwPlanHeader.FindAllStringSubmatch(text, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			out = append(out, m[1])
+		}
+	}
+	return out
+}
 var shellTools = map[string]bool{"Bash": true, "PowerShell": true}
 var readOnlyRoles = []string{"qh-correctness-reviewer", "qh-scope-reviewer", "qh-synthesis"}
 
@@ -330,6 +353,21 @@ func recordHookEvent(input *Obj) *recorded {
 	}
 	hook := strOr(input.Get("hook_event_name"))
 	if hook == "PostToolUse" {
+		if strOr(input.Get("tool_name")) == mrwWrite {
+			// One record per path the plan names; the first is what the hook hands on.
+			var first *Obj
+			for _, file := range mrwPlanPaths(dig(input, "tool_input", "plan")) {
+				one := input.Clone()
+				one.Set("tool_input", O("file_path", file))
+				if entry := recordFileWritten(one); entry != nil && first == nil {
+					first = entry
+				}
+			}
+			if first != nil {
+				return &recorded{entry: first}
+			}
+			return nil
+		}
 		if mutationTools[strOr(input.Get("tool_name"))] {
 			if entry := recordFileWritten(input); entry != nil {
 				return &recorded{entry: entry}

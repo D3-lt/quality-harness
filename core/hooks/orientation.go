@@ -410,6 +410,9 @@ func sessionOrientation(cwd string, once bool) string {
 		origin = checkCommandOrigin(root, nil)
 	}
 	check := origin.command
+	if origin.origin == "unreadable" {
+		standing("Verification: " + origin.problem + ", so no check can pass here and `qh-check` will not guess what it declares. Fix the file.")
+	}
 	if origin.origin == "refused" {
 		standing("Verification: the check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail.")
 	} else if check != "" {

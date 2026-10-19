@@ -342,6 +342,26 @@ test('a rule the Go core lacks is skipped by name with its reason, and a stale n
   assert.deepEqual(staleLacks(GO_LACKS, sources), [], 'every name the list skips is a test that exists')
 })
 
+// ADR-113 T2: mrw's MCP write is a write. A read-only reviewer is refused it, the main agent is not, and PostToolUse records
+// the path its plan names.
+test('mrw writes: the read-only guard and the write record see an mrw MCP write', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'mrw', BASE)
+  const session = 'mrw-1'
+  const write = { tool_name: 'mcp__mrw__mrw_write', tool_input: { plan: '@@ src/a.js 1 replace\nexport const a = 2\n' } }
+  const steps = play(box, repo, session, [
+    ['start', { hook_event_name: 'SessionStart', source: 'startup' }],
+    ['a reviewer writes through mrw', { hook_event_name: 'PreToolUse', agent_type: 'quality-harness:qh-correctness-reviewer', ...write }],
+    ['the main agent writes through mrw', { hook_event_name: 'PreToolUse', ...write }],
+  ])
+  writeFileSync(path.join(repo, 'src', 'a.js'), 'export const a = 2\n')
+  steps.push(...play(box, repo, session, [
+    ['the write is recorded', { hook_event_name: 'PostToolUse', ...write, tool_response: { ok: true } }],
+    ['turn end', { hook_event_name: 'Stop', last_assistant_message: 'Edited it.' }],
+  ]))
+  expectGolden(assert, 'mrw-writes', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
+})
+
 // Declared last on purpose: node:test runs one file's tests in order, so this reads what every scenario above sent. Run alone
 // (a name filter), it sees nothing sent and is red, which is the honest answer to "did the goldens reach every hook".
 test('every registered hook event has a golden', { skip }, () => {

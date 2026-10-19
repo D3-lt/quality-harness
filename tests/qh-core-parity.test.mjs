@@ -149,8 +149,10 @@ function session(box, implementation) {
   said.push(hook('one', { hook_event_name: 'SessionStart', source: 'compact' }))
   said.push(hook('one', { hook_event_name: 'SessionEnd', reason: 'other' }))
   said.push(hook('two', { hook_event_name: 'SessionStart', source: 'startup' }))
-  // locationKey folds case where the filesystem does, so the sandbox's path is also written in lower case.
-  const lower = value => JSON.parse(JSON.stringify(value).split(box.top.toLowerCase()).join('<box>'))
+  // locationKey folds case where the filesystem does, so the repository's and the sandbox's paths are also written in lower
+  // case. The repository first: a sandbox name mkdtemp happened to spell in lower case already matched the normaliser's
+  // '<repo>', and any other read '<box>/repo', so two sandboxes disagreed by their random names (a release check, 2026-10-19).
+  const lower = value => JSON.parse(JSON.stringify(value).split(repo.toLowerCase()).join('<repo>').split(box.top.toLowerCase()).join('<box>'))
   return lower(normaliser(box, [repo])({ said, files: leftBehind(box) }))
 }
 

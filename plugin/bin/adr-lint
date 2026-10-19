@@ -398,6 +398,32 @@ def head_absent(path, run=None):
     except Exception:
         return False
 
+def head_rows(path, rows, run=None):
+    """Of `rows`, the ones HEAD holds as a whole line of a tracked Markdown file, or None when git could not say.
+
+    A task moved to a path HEAD does not hold keeps the rows its old path committed, receipts or none: a row written before
+    receipts existed was refused after a move (the verification review of a855f7f7). `git grep` reads the tree, never the
+    disk, and has no whole-line match, so each matching line is compared whole here."""
+    runner = run or (lambda argv, cwd: subprocess.run(
+        argv, cwd=cwd, capture_output=True, text=True, timeout=30,
+        encoding="utf-8", errors="replace", env=git_read_env(), **NO_WINDOW))
+    target = Path(path)
+    directory = target.parent if target.parent != Path("") else Path(".")
+    try:
+        top = runner(["git", "-C", str(directory), "rev-parse", "--show-toplevel"], None)
+        if top.returncode != 0:
+            return None
+        argv = ["git", "-C", top.stdout.strip(), "grep", "--no-color", "-h", "-I", "-F"]
+        for row in rows:
+            argv += ["-e", row.strip()]
+        found = runner(argv + ["HEAD", "--", "*.md"], None)
+        if found.returncode not in (0, 1):
+            return None
+        lines = {ln.strip() for ln in found.stdout.splitlines()}
+        return {row for row in rows if row.strip() in lines}
+    except Exception:
+        return None
+
 
 VLOG_LEGACY_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
@@ -2669,7 +2695,7 @@ def claimed_done_ids(readme_text, infos):
     return readme_done + [t for t in own_done_claims(infos or {}) if t not in readme_done]
 
 
-def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent):
+def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent, anywhere=head_rows):
     """ADR-117 T2: a log row the committed file does not hold is refused unless an adr-verify receipt names it.
 
     Every task, done or not: a typed red row in a pending task reads later as the red half of a cycle that did not
@@ -2696,6 +2722,11 @@ def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_di
             stamped = VLOG_TIMED_RE.match(row)
             if row.strip() not in held and not (judged and stamped and not stamped.group("digest")):
                 fresh.append(row)
+        if fresh and not judged:
+            kept = anywhere(inf["path"], fresh)
+            if kept is None:
+                continue
+            fresh = [row for row in fresh if row not in kept]
         names = receipts(inf["path"]) if fresh else None
         for row in [] if names is None else fresh:
             if receipt_digest(row) not in names:

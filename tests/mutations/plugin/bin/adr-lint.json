@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 verification: a moved task keeps the rows HEAD holds",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "from": "            fresh = [row for row in fresh if row not in kept]",
+      "to": "            fresh = list(fresh)",
+      "only": "^(?:a moved task keeps the rows HEAD holds, and a row new to it still needs a receipt)$"
+    },
+    {
       "label": "ADR-117 review: a task HEAD does not hold is not could-not-look",
       "file": "plugin/bin/adr-lint",
       "tests": [

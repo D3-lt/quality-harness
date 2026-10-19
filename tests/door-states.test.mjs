@@ -98,3 +98,13 @@ test('every page of main\'s rules is read, a rule it cannot read is could-not-lo
   }
   assert.deepEqual(doorStates([]).problems, [])
 })
+
+// The verification review of a855f7f7: a required check it cannot read disappeared in the filter and left a definite state.
+test('a required check it cannot read is could-not-look', () => {
+  const rule = checks => JSON.stringify([[{ type: 'required_status_checks', parameters: { required_status_checks: checks } }]])
+  const answer = text => () => text
+  for (const checks of [[null], [{}], [{ context: 42 }], [{ context: 'selftest' }, {}]]) {
+    assert.equal(mainProtection(answer(rule(checks))).state, 'unknown', JSON.stringify(checks))
+  }
+  assert.equal(mainProtection(answer(rule([{ context: 'selftest' }]))).state, 'protected')
+})

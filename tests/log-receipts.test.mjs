@@ -157,3 +157,17 @@ test('a task HEAD does not hold still needs a receipt for every row, and a moved
   writeFileSync(path.join(state, 'receipts.jsonl'), receipts(state).map(r => `${JSON.stringify({ ...r, task: 'tasks/T1-moved.md' })}\n`).join(''))
   assert.doesNotMatch(said(lint(dir)), NO_RECEIPT, 'a receipt is matched by its row, wherever the task now is')
 })
+
+// The verification review of a855f7f7: a task moved to a path HEAD does not hold kept its committed rows, and a rule that
+// asked a receipt of each refused rows written before receipts existed. A row HEAD holds anywhere is a committed row.
+test('a moved task keeps the rows HEAD holds, and a row new to it still needs a receipt', () => {
+  const { dir, task } = corpus()
+  add(task, 'Verification Log', '- 2026-09-12 · abc1234 · exit 0 · `echo "1 passed in 0.01s"` · acceptance-sha256:' + '0'.repeat(64))
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-qm', 'a row from before receipts')
+  git(dir, 'mv', 'tasks/T1-fixture.md', 'tasks/T1-moved.md')
+  const moved = path.join(dir, 'tasks', 'T1-moved.md')
+  assert.doesNotMatch(said(lint(dir)), NO_RECEIPT, 'a committed row is still committed after a move')
+  add(moved, 'Verification Log', '- 2026-01-01 · abc1234 · exit 0 · `echo "1 passed in 0.01s"` · acceptance-sha256:' + '1'.repeat(64))
+  assert.match(said(lint(dir)), NO_RECEIPT, 'a row HEAD holds nowhere still needs a receipt')
+})

@@ -3321,3 +3321,9 @@ row refused); a PowerShell backtick escape inside a path; other PowerShell cmdle
 `Copy-Item`, `Move-Item`); and any string a command builds before it runs (`eval "$x"`, a script, a program). Left: keep
 redirection-only commands in the lexer with their writes (both lexers, the parity test), and read `Copy-Item`/`Move-Item`
 destinations, if a run shows either used against a ledger.
+  - **Corrected the same day by the verification review of a855f7f7:** "can only empty a file, which fails closed" was wrong.
+    Emptying a session log drops the unseen-write veto a write after a pass carries, and the ledger reader then accepted the
+    pass. Both lexers now keep a command of redirections alone for what it writes, and the guard refuses it. That review also
+    found and the next commit fixes: a PowerShell destination after a colon, content values read as destinations, a walk
+    starting above a guarded directory, a link to a file not yet there, committed rows refused after a task moved, and
+    unreadable required checks. Still left: PowerShell backtick escapes and `Copy-Item`/`Move-Item`/`New-Item -Value`.

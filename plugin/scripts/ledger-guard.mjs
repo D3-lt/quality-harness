@@ -7,7 +7,7 @@
 // variable, a program that writes the file itself, and a string a command builds before running it are not read: a boundary,
 // not a pass (scripts/side-doors.json).
 import path from 'node:path'
-import { readFileSync, realpathSync } from 'node:fs'
+import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
 import { canonicalFile, nearestExistingDirectory, repositoryStateDir, stateDir } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
 import { SHELL_NAMES, programName } from './publish-command.mjs'
@@ -17,6 +17,35 @@ import { gitRepositoryLookup } from './tree-facts.mjs'
 
 const POWERSHELL_WRITERS = new Set(['out-file', 'set-content', 'add-content', 'tee-object', 'sc', 'ac', 'tee'])
 const POWERSHELL_CD = new Set(['cd', 'chdir', 'set-location', 'sl', 'push-location', 'pushd'])
+const POWERSHELL_SWITCHES = ['append', 'force', 'nonewline', 'noclobber', 'passthru', 'whatif', 'confirm', 'asbytestream', 'verbose', 'debug']
+const POWERSHELL_DESTINATIONS = ['filepath', 'path', 'literalpath', 'pspath']
+// PowerShell takes a parameter by any prefix that names it (`-Lit`), and its value after a colon too (`-Path:x`).
+const prefixOf = (word, names) => word.length >= 2 && names.some(full => full.startsWith(word))
+
+// The files a PowerShell writer names: its destination parameter's value, or its first positional argument, and never the
+// content (`-Value`, `-InputObject`, a second positional), which the verification review of a855f7f7 found refused.
+function powershellDestinations(c) {
+  const found = []
+  let positional = false
+  for (let at = 1; at < c.argv.length; at++) {
+    const parameter = /^-([A-Za-z]+)(?::([\s\S]*))?$/.exec(c.argv[at])
+    if (!parameter) {
+      if (!positional && !c.dynamic.includes(at)) found.push(c.argv[at])
+      positional = true
+      continue
+    }
+    const name = parameter[1].toLowerCase()
+    const destination = name === 'lp' || prefixOf(name, POWERSHELL_DESTINATIONS)
+    if (parameter[2] !== undefined) {
+      if (destination && parameter[2] && !c.dynamic.includes(at)) found.push(parameter[2])
+      continue
+    }
+    if (!destination && prefixOf(name, POWERSHELL_SWITCHES)) continue
+    at += 1
+    if (destination && at < c.argv.length && !c.dynamic.includes(at)) found.push(c.argv[at])
+  }
+  return found
+}
 
 // The files a shell command writes, each with every directory a relative one may land in. A `cd` in a subshell or a pipeline
 // does not persist and one in a list does, and which is which is not tracked here, so the directory before a `cd` stays a
@@ -37,7 +66,9 @@ function shellTargets(command, bases, powershell) {
       seen = [...seen, ...(to === null ? [null] : seen.filter(base => base !== null).map(base => path.resolve(base, to)))]
       continue
     }
-    if (name === 'tee' || (powershell && POWERSHELL_WRITERS.has(name))) {
+    if (powershell && POWERSHELL_WRITERS.has(name)) {
+      for (const file of powershellDestinations(c)) found.push({ file, bases: seen })
+    } else if (name === 'tee') {
       for (let at = 1; at < c.argv.length; at++) if (!c.argv[at].startsWith('-') && !c.dynamic.includes(at)) found.push({ file: c.argv[at], bases: seen })
     }
     const inner = c.argv.findIndex(word => word === '-c' || (/^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) && SHELL_NAMES.has(name) && /pwsh|powershell/.test(name)))
@@ -49,8 +80,7 @@ function shellTargets(command, bases, powershell) {
 }
 
 // The files an mrw MCP write names: mrwWritePaths's, and where it leaves them unknown, the file each search_replace block
-// names (after its marker, or on the last line outside a block) and the paths a grep or ast-grep walk starts at. A walk with
-// no paths starts at mrw's root, which never enters a `.git` and refuses a write there (mrw ADR-143).
+// names (after its marker, or on the last line outside a block) and the paths a grep or ast-grep walk starts at.
 function mrwTargets(toolInput) {
   const named = mrwWritePaths(toolInput)
   if (named) return named
@@ -73,6 +103,26 @@ function mrwTargets(toolInput) {
   return found
 }
 
+// Where a grep or ast-grep write walks from: its paths, or mrw's root, which is the session's directory here.
+const mrwWalks = toolInput => (toolInput?.grep !== undefined || toolInput?.ast_grep !== undefined)
+  ? (Array.isArray(toolInput.paths) && toolInput.paths.length ? toolInput.paths.filter(file => typeof file === 'string' && file) : ['.'])
+  : []
+
+// A path with every link at its leaf followed, even to a file that does not exist yet: a write through a link creates its
+// target (the verification review of a855f7f7). Its directories are then made real.
+function followed(absolute) {
+  let at = absolute
+  for (let hop = 0; hop < 40; hop++) {
+    let target
+    try {
+      if (!lstatSync(at).isSymbolicLink()) break
+      target = readlinkSync(at)
+    } catch { break }
+    at = path.resolve(path.dirname(at), target)
+  }
+  return canonicalFile(at)
+}
+
 /** The path, as written, of a hook-visible write into the session repository's state directory, or null. */
 export function ledgerWrite(input) {
   const cwd = input?.cwd
@@ -84,17 +134,21 @@ export function ledgerWrite(input) {
     const relative = path.relative(dir, file)
     return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
   }
-  // A file as spelled, its directories made real, and where it exists, with a link at its leaf followed as well: a link
-  // outside the directory to a ledger inside it writes the ledger.
-  const lands = absolute => {
-    const places = [canonicalFile(absolute)]
-    try { places.push(realpathSync.native(absolute)) } catch { /* not there yet: its spelling is where it lands */ }
-    return places.some(file => dirs.some(dir => within(dir, file)))
-  }
+  // A file as spelled, its directories made real, and with every link at its leaf followed: a link outside the directory to a
+  // ledger inside it writes the ledger, whether or not the ledger exists yet.
+  const lands = absolute => [canonicalFile(absolute), followed(absolute)].some(file => dirs.some(dir => within(dir, file)))
   const inside = (file, bases) => path.isAbsolute(file) ? lands(path.resolve(file)) : bases.some(base => base !== null && lands(path.resolve(base, file)))
+  // A walk reaches a guarded directory below where it starts unless a `.git` stands between, since mrw never enters one.
+  const reaches = start => {
+    const from = followed(path.resolve(cwd, start))
+    return dirs.some(dir => {
+      const relative = path.relative(from, dir)
+      return within(from, dir) && !relative.split(/[\\/]/).some(part => part.toLowerCase() === '.git')
+    })
+  }
   const tool = input.tool_name
   const here = [path.resolve(cwd)]
-  if (tool === MRW_WRITE) return mrwTargets(input.tool_input).find(file => inside(file, here)) ?? null
+  if (tool === MRW_WRITE) return mrwTargets(input.tool_input).find(file => inside(file, here)) ?? mrwWalks(input.tool_input).find(reaches) ?? null
   if (MUTATION_TOOLS.has(tool)) {
     const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path
     return typeof file === 'string' && file && inside(file, here) ? file : null

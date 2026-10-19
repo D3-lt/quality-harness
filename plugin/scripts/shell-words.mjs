@@ -98,7 +98,9 @@ export function shellWords(text) {
     // `function NAME ()` and a newline before the body still open the definition: those empty commands keep it. Any
     // command ends it, since a body need not be a group (`function f() if …; fi`, the review of 7c85a1c5).
     if (!empty || !['(', ')', '\n'].includes(operator)) defining = false
-    if (!empty) {
+    // A command of redirections alone opens its files, so it is kept for what it writes: `> log` empties a session log, and
+    // the ledger guard reads its writes like any other (the verification review of a855f7f7). It joins nothing above.
+    if (!empty || command.writes.length) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
       command.ended = operator
       commands.push(finish(command))

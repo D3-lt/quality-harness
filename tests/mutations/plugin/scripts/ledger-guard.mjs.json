@@ -6,8 +6,8 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (name === 'tee' || (powershell && POWERSHELL_WRITERS.has(name))) {",
-      "to": "    if (false) {",
+      "from": "    } else if (name === 'tee') {",
+      "to": "    } else if (false) {",
       "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
     },
     {
@@ -76,8 +76,8 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (name === 'tee' || (powershell && POWERSHELL_WRITERS.has(name))) {",
-      "to": "    if (name === 'tee') {",
+      "from": "    if (powershell && POWERSHELL_WRITERS.has(name)) {",
+      "to": "    if (false) {",
       "only": "^(?:the forms the review found are refused, and their data twins are not)$"
     },
     {
@@ -86,8 +86,8 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "  if (tool === MRW_WRITE) return mrwTargets(input.tool_input).find(file => inside(file, here)) ?? null",
-      "to": "  if (tool === MRW_WRITE) return (mrwWritePaths(input.tool_input) ?? []).find(file => inside(file, here)) ?? null",
+      "from": "  if (tool === MRW_WRITE) return mrwTargets(input.tool_input).find(file => inside(file, here)) ?? mrwWalks(input.tool_input).find(reaches) ?? null",
+      "to": "  if (tool === MRW_WRITE) return (mrwWritePaths(input.tool_input) ?? []).find(file => inside(file, here)) ?? mrwWalks(input.tool_input).find(reaches) ?? null",
       "only": "^(?:the forms the review found are refused, and their data twins are not)$"
     },
     {
@@ -126,9 +126,79 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    try { places.push(realpathSync.native(absolute)) } catch {",
-      "to": "    try { void absolute } catch {",
+      "from": "  const lands = absolute => [canonicalFile(absolute), followed(absolute)].some(",
+      "to": "  const lands = absolute => [canonicalFile(absolute)].some(",
       "only": "^(?:the forms the review found are refused, and their data twins are not)$"
+    },
+    {
+      "label": "ADR-117 verification: a walk that starts above a guarded directory reaches it",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "mrwWalks(input.tool_input).find(reaches)",
+      "to": "mrwWalks(input.tool_input).find(() => false)",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 verification: a .git between a walk and the directory keeps it out",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      return within(from, dir) && !relative.split(/[\\\\/]/).some(part => part.toLowerCase() === '.git')",
+      "to": "      return within(from, dir)",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 verification: a link to a file not there yet is followed",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    at = path.resolve(path.dirname(at), target)",
+      "to": "    break",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 verification: a PowerShell value after a colon is read",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      if (destination && parameter[2] && !c.dynamic.includes(at)) found.push(parameter[2])",
+      "to": "      void 0",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 verification: a PowerShell content value is not a destination",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (destination && at < c.argv.length && !c.dynamic.includes(at)) found.push(c.argv[at])",
+      "to": "    if (at < c.argv.length && !c.dynamic.includes(at)) found.push(c.argv[at])",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 verification: only the first PowerShell positional is a destination",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      positional = true",
+      "to": "      positional = false",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
+      "label": "ADR-117 verification: a PowerShell switch takes no value",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (!destination && prefixOf(name, POWERSHELL_SWITCHES)) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     }
   ]
 }

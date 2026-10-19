@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 verification: a required check it cannot read is could-not-look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/door-states.test.mjs"
+      ],
+      "from": "  if (entries.some(check => !check",
+      "to": "  if (false && entries.some(check => !check",
+      "only": "^(?:a required check it cannot read is could-not-look)$"
+    },
+    {
       "label": "ADR-117 review: every page of the rules is read",
       "file": "scripts/release-evidence.mjs",
       "tests": [

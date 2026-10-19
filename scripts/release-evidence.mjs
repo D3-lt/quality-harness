@@ -245,8 +245,10 @@ export function mainProtection(exec = execFileSync) {
   // A rule it cannot read is not a rule it read, so an answer it cannot tell from "no check" is could-not-look, not unprotected.
   if (rules.some(rule => !rule || typeof rule !== 'object' || typeof rule.type !== 'string'
     || (rule.type === 'required_status_checks' && !Array.isArray(rule.parameters?.required_status_checks)))) return unknown('a rule in the answer is not one it can read')
-  const checks = rules.filter(rule => rule?.type === 'required_status_checks')
-    .flatMap(rule => rule?.parameters?.required_status_checks ?? []).map(check => check?.context).filter(context => typeof context === 'string' && context)
+  const entries = rules.filter(rule => rule.type === 'required_status_checks').flatMap(rule => rule.parameters.required_status_checks)
+  // A required check it cannot read is one it did not read: it is could-not-look, never dropped (the verification of a855f7f7).
+  if (entries.some(check => !check || typeof check !== 'object' || typeof check.context !== 'string' || !check.context)) return unknown('a required check in the answer is not one it can read')
+  const checks = entries.map(check => check.context)
   if (checks.length) return { state: 'protected', text: `forge: main requires ${checks.length} status check(s) before a push lands: ${checks.join(', ')} (ADR-117)` }
   return { state: 'unprotected', text: "forge: main's rules require no status check, so a push --no-verify from a script reaches main with nothing run; a ruleset requiring the selftest checks closes it (ADR-117)" }
 }

@@ -29,6 +29,90 @@ func isPowershell(name string) bool {
 	return strings.Contains(name, "pwsh") || strings.Contains(name, "powershell")
 }
 
+var powershellSwitches = []string{"append", "force", "nonewline", "noclobber", "passthru", "whatif", "confirm", "asbytestream", "verbose", "debug"}
+var powershellDestinationNames = []string{"filepath", "path", "literalpath", "pspath"}
+var powershellParameter = regexp.MustCompile(`^-([A-Za-z]+)(?::([\s\S]*))?$`)
+
+func prefixOf(word string, names []string) bool {
+	if len(word) < 2 {
+		return false
+	}
+	for _, full := range names {
+		if strings.HasPrefix(full, word) {
+			return true
+		}
+	}
+	return false
+}
+
+// powershellDestinations is ledger-guard.mjs's: a writer's destination parameter, or its first positional argument.
+func powershellDestinations(c *shellCommand) []string {
+	found := []string{}
+	positional := false
+	for at := 1; at < len(c.argv); at++ {
+		parameter := powershellParameter.FindStringSubmatch(c.argv[at])
+		if parameter == nil {
+			if !positional && !containsInt(c.dynamic, at) {
+				found = append(found, c.argv[at])
+			}
+			positional = true
+			continue
+		}
+		name := strings.ToLower(parameter[1])
+		destination := name == "lp" || prefixOf(name, powershellDestinationNames)
+		if strings.Contains(c.argv[at], ":") {
+			if destination && parameter[2] != "" && !containsInt(c.dynamic, at) {
+				found = append(found, parameter[2])
+			}
+			continue
+		}
+		if !destination && prefixOf(name, powershellSwitches) {
+			continue
+		}
+		at++
+		if destination && at < len(c.argv) && !containsInt(c.dynamic, at) {
+			found = append(found, c.argv[at])
+		}
+	}
+	return found
+}
+
+// followedLeaf is ledger-guard.mjs's followed: every link at the leaf followed, to a target that need not exist yet.
+func followedLeaf(absolute string) string {
+	at := absolute
+	for hop := 0; hop < 40; hop++ {
+		info, err := os.Lstat(at)
+		if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			break
+		}
+		target, err := os.Readlink(at)
+		if err != nil {
+			break
+		}
+		at = resolveFrom(filepath.Dir(at), target)
+	}
+	return canonicalFile(at)
+}
+
+// mrwWalks is where a grep or ast-grep write walks from: its paths, or mrw's root.
+func mrwWalks(toolInput any) []string {
+	if isUndefined(get(toolInput, "grep")) && isUndefined(get(toolInput, "ast_grep")) {
+		return nil
+	}
+	walks := []string{}
+	if paths, ok := get(toolInput, "paths").([]any); ok {
+		for _, p := range paths {
+			if s, ok := p.(string); ok && s != "" {
+				walks = append(walks, s)
+			}
+		}
+	}
+	if len(walks) == 0 {
+		walks = []string{"."}
+	}
+	return walks
+}
+
 func shellWriteTargets(command string, bases []string, powershell bool) []shellTarget {
 	found := []shellTarget{}
 	if powershell {
@@ -73,7 +157,11 @@ func shellWriteTargets(command string, bases []string, powershell bool) []shellT
 			seen = next
 			continue
 		}
-		if name == "tee" || (powershell && powershellWriters[name]) {
+		if powershell && powershellWriters[name] {
+			for _, file := range powershellDestinations(c) {
+				found = append(found, shellTarget{file, seen})
+			}
+		} else if name == "tee" {
 			for at := 1; at < len(c.argv); at++ {
 				if !strings.HasPrefix(c.argv[at], "-") && !containsInt(c.dynamic, at) {
 					found = append(found, shellTarget{c.argv[at], seen})
@@ -157,17 +245,30 @@ func ledgerWrite(input *Obj) string {
 		return err == nil && (rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)))
 	}
 	lands := func(absolute string) bool {
-		places := []string{canonicalFile(absolute)}
-		if _, err := os.Lstat(absolute); err == nil {
-			if real, err := filepath.EvalSymlinks(absolute); err == nil {
-				places = append(places, real)
-			}
-		}
-		for _, file := range places {
+		for _, file := range []string{canonicalFile(absolute), followedLeaf(absolute)} {
 			for _, dir := range dirs {
 				if within(dir, file) {
 					return true
 				}
+			}
+		}
+		return false
+	}
+	reaches := func(start string) bool {
+		from := followedLeaf(resolveFrom(resolvePath(cwd), start))
+		for _, dir := range dirs {
+			rel, err := filepath.Rel(from, dir)
+			if err != nil || !within(from, dir) {
+				continue
+			}
+			crossesGit := false
+			for _, part := range strings.FieldsFunc(rel, func(r rune) bool { return r == '/' || r == '\\' }) {
+				if strings.EqualFold(part, ".git") {
+					crossesGit = true
+				}
+			}
+			if !crossesGit {
+				return true
 			}
 		}
 		return false
@@ -189,6 +290,11 @@ func ledgerWrite(input *Obj) string {
 		for _, file := range mrwTargets(input.Get("tool_input")) {
 			if inside(file, here) {
 				return file
+			}
+		}
+		for _, start := range mrwWalks(input.Get("tool_input")) {
+			if reaches(start) {
+				return start
 			}
 		}
 		return ""

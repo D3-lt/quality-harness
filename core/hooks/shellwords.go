@@ -209,7 +209,8 @@ func shellWords(text string) ([]*shellCommand, bool) {
 		if !empty || !(operator == "(" || operator == ")" || operator == "\n") {
 			defining = false
 		}
-		if !empty {
+		// A command of redirections alone opens its files, so it is kept for what it writes (shell-words.mjs's).
+		if !empty || len(command.writes) > 0 {
 			if pipeNext {
 				commands[len(commands)-1].pipeTo = len(commands)
 			}

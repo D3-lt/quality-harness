@@ -117,3 +117,45 @@ test('the forms the review found are refused, and their data twins are not', { s
   ]
   for (const [tool, input] of passed) assert.notEqual(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} passes`)
 })
+
+// The verification review of a855f7f7: a command of redirections alone empties a session log, and an empty log loses the veto
+// a write after the pass carries, so it is refused like any write. PowerShell's destination is the parameter that names it,
+// with a colon or without, or the first positional, never the content. A walk that starts above a guarded directory reaches
+// it unless a `.git` stands between, and a link whose target does not exist yet is followed to where it will create it.
+test('the verification review\'s forms are refused, and ordinary content writes are not', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'second', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'second', { hook_event_name: 'SessionStart', source: 'startup' })
+  const state = path.join(repo, '.git', 'quality-harness')
+  mkdirSync(state, { recursive: true })
+  const pre = (tool_name, tool_input, env = {}) => said(runHook(box, repo, 'second', { hook_event_name: 'PreToolUse', tool_name, tool_input }, env))
+  const dangling = path.join(box.tmp, 'later.txt')
+  symlinkSync(path.join(state, 'receipts.jsonl.new'), dangling)
+  const root = { QUALITY_HARNESS_STATE_DIR: path.join(repo, 'state-root') }
+  const refused = [
+    ['Bash', { command: '> .git/quality-harness/sessions/previous.jsonl' }, {}],
+    ['Bash', { command: 'true; >> .git/quality-harness/checks.jsonl' }, {}],
+    ['Bash', { command: `printf x >> ${dangling}` }, {}],
+    ['PowerShell', { command: 'Set-Content -Path:.git/quality-harness/checks.jsonl -Value x' }, {}],
+    ['PowerShell', { command: 'Out-File -FilePath .git\\quality-harness\\checks.jsonl -InputObject x' }, {}],
+    ['PowerShell', { command: 'Set-Content .git/quality-harness/checks.jsonl x' }, {}],
+    ['PowerShell', { command: 'Add-Content -Force -LiteralPath .git/quality-harness/checks.jsonl -Value x' }, {}],
+    ['PowerShell', { command: 'Out-File -Append .git/quality-harness/checks.jsonl' }, {}],
+    ['mcp__mrw__mrw_write', { grep: '^', sub: '{}', paths: ['state-root'] }, root],
+    ['mcp__mrw__mrw_write', { grep: '^', sub: '{}' }, root],
+  ]
+  for (const [tool, input, env] of refused) {
+    assert.equal(pre(tool, input, env).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} ${JSON.stringify(env)} is refused`)
+  }
+  const passed = [
+    ['Bash', { command: '> notes.txt' }, {}],
+    ['PowerShell', { command: 'Set-Content -Path notes.txt -Value ".git/quality-harness/checks.jsonl"' }, {}],
+    ['PowerShell', { command: 'Out-File -FilePath notes.txt -Encoding utf8 -InputObject .git/quality-harness/checks.jsonl' }, {}],
+    ['PowerShell', { command: 'Set-Content notes.txt .git/quality-harness/checks.jsonl' }, {}],
+    ['mcp__mrw__mrw_write', { grep: '^', sub: '{}', paths: ['src'] }, root],
+    ['mcp__mrw__mrw_write', { grep: '^x$', sub: 'y' }, {}],
+  ]
+  for (const [tool, input, env] of passed) {
+    assert.notEqual(pre(tool, input, env).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} ${JSON.stringify(env)} passes`)
+  }
+})

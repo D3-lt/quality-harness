@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 verification: a command of redirections alone is kept for what it writes",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (!empty || command.writes.length) {",
+      "to": "    if (!empty) {",
+      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+    },
+    {
       "label": "ADR-117 T1: an output redirection keeps its target",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [

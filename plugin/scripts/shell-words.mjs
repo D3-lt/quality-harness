@@ -38,7 +38,7 @@ export function shellWords(text) {
   let i = 0
 
   function fresh() {
-    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0 }
+    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0, writes: [] }
   }
   const startWord = () => { word ??= { chars: [], dynamic: false, quoted: false, code: false } }
   const push = (c, q) => { startWord(); word.chars.push({ c, q }) }
@@ -221,6 +221,11 @@ export function shellWords(text) {
     } else if (op === '<<<') {
       // A here-string is the command's stdin, as a heredoc body is.
       command.heredocs.push({ delimiter: null, quoted: target.quoted, body: `${target.value}\n` })
+    }
+    // ADR-117 T1: where an output redirection writes, so the ledger guard can read it. A duplication (`>&2`, `2>&-`) writes
+    // no file, and a target built from `$…` or a backtick cannot be read before it runs, so it is kept as dynamic.
+    if (op.includes('>') && !(op.endsWith('&') && /^(?:\d+|-)$/.test(target.value))) {
+      command.writes.push({ op, target: target.value, dynamic: /[$`]/.test(target.value) })
     }
     return true
   }

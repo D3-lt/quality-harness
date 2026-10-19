@@ -54,7 +54,7 @@ It starts at most one cached `git rev-parse`, and never prints an error.
 non-zero on a failing finding so CI can read it. `qh-doctor` shows which findings fail and which
 only advise.
 
-Two refusals exist:
+Three refusals exist:
 
 - **An unchecked publish (ADR-061).** A `git commit` or `git push` on a working tree no `qh-check`
   has passed on is refused, however it is launched (`bash -c`, `pwsh -Command`, an argv list).
@@ -68,6 +68,10 @@ Two refusals exist:
   nothing into your repository.
 - **The reviewer guard (ADR-060).** A role spawned read-only, such as `qh-scope-reviewer`, may not
   edit, commit or push.
+- **The ledger guard (ADR-117).** A write into the repository's state directory, where `qh-check`
+  and `adr-verify` keep their evidence, is refused when the hook can see it: an Edit, Write or mrw
+  write, a shell redirection or `tee` there. Reads pass, and so do the tools' own runs; a program
+  that writes the file itself is not seen. `"ledgers": "warn"` turns the refusal into a warning.
 
 The evidence chain rests on two gates:
 

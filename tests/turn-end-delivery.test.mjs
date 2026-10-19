@@ -23,7 +23,7 @@ test('CLAUDE.md section 3 names a turn that continues as an act, not a refusal',
   const rules = section(3)
   assert.match(rules, /continue[s]? (?:a|the) turn/i, 'section 3 says a hook may continue a turn')
   assert.match(rules, /ADR-096/, 'and names the record that decided it')
-  assert.match(rules, /Two refusals are sanctioned, and no others/, 'and still names exactly two refusals')
+  assert.match(rules, /Three refusals are sanctioned, and no others/, 'and names exactly three refusals (ADR-117)')
 })
 
 // The hook program on a fixture, the way a session drives it. Recorded on POSIX like the goldens it sits beside.

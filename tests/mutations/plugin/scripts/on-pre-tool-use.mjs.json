@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T1: the ledger guard is asked at PreToolUse",
+      "file": "plugin/scripts/on-pre-tool-use.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "  if (ledger) {",
+      "to": "  if (false) {",
+      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    },
+    {
+      "label": "ADR-117 T1: the opt-out warns instead of refusing",
+      "file": "plugin/scripts/on-pre-tool-use.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (ledgersWarn(input.cwd)) {",
+      "to": "    if (false) {",
+      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    },
+    {
       "label": "advisory: the harness has no opinion about branches",
       "file": "plugin/scripts/on-pre-tool-use.mjs",
       "tests": [

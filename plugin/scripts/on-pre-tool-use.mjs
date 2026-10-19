@@ -2,6 +2,7 @@
 // and the publish rule for a command that names commit or push (ADR-061, ADR-081). Moved out of lifecycle.mjs unchanged
 // (BACKLOG section 375, stage D).
 import { SHELL_TOOLS, mentionsCommitOrPush, publishUnchecked, readOnlyRole, readOnlyVerdict } from './publish-verdict.mjs'
+import { ledgerRefusal, ledgerWarning, ledgerWrite, ledgersWarn } from './ledger-guard.mjs'
 import { MUTATION_TOOLS } from './hook-record.mjs'
 import { emitJson } from './hook-queue.mjs'
 import { decisionContextFor } from './session-orientation.mjs'
@@ -27,6 +28,17 @@ export async function onPreToolUse(input, recorded) {
       process.stderr.write(`quality-harness reviewer guard: ${reason}\n`)
       return
     }
+  }
+  // ADR-117 T1: the third sanctioned refusal. The evidence in the state directory is written only by its tools.
+  const ledger = ledgerWrite(input)
+  if (ledger) {
+    if (ledgersWarn(input.cwd)) {
+      emitJson({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: ledgerWarning(ledger) } })
+      return
+    }
+    emitJson({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: ledgerRefusal(ledger) } })
+    process.stderr.write(`${ledgerRefusal(ledger)}\n`)
+    return
   }
   // What has already been decided about this file. Not a finding — there is
   // nothing to fix and nothing to answer for; it is the one thing the corpus

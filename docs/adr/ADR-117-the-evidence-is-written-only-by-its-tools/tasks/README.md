@@ -18,6 +18,6 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A hook-visible write into the state directory is refused | pending | none — no spec | `node --test tests/ledger-writes.test.mjs` (each named test passes once, nothing skipped) |
+| T1 | A hook-visible write into the state directory is refused | done | none — no spec | `node --test tests/ledger-writes.test.mjs` and the same under the Go core (each named test passes once, nothing skipped) |
 | T2 | Every log row adr-verify writes leaves a receipt, and adr-lint refuses an uncommitted row without one | pending | none — no spec | `node --test tests/log-receipts.test.mjs` (each named test passes once, nothing skipped) |
 | T3 | The forge's protection of main is said, and every door is caught or named where it closes | pending | none — no spec | `node --test tests/door-states.test.mjs` (each named test passes once, nothing skipped) |

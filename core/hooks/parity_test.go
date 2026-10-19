@@ -28,6 +28,13 @@ type parityCommand struct {
 	Ended         string          `json:"ended"`
 	Redirects     int             `json:"redirects"`
 	Negated       any             `json:"negated"`
+	Writes        []parityWrite   `json:"writes"`
+}
+
+type parityWrite struct {
+	Op      string `json:"op"`
+	Target  string `json:"target"`
+	Dynamic bool   `json:"dynamic"`
 }
 
 type parityRow struct {
@@ -53,6 +60,9 @@ func goWords(text string) (bool, []parityCommand) {
 	for _, c := range cmds {
 		pc := parityCommand{Argv: c.argv, Assignments: c.assignments, Dynamic: c.dynamic, Quoted: c.quoted, Code: c.code,
 			Substitutions: c.substitutions, Ended: c.ended, Redirects: c.redirects, Negated: c.negated}
+		for _, w := range c.writes {
+			pc.Writes = append(pc.Writes, parityWrite{Op: w.op, Target: w.target, Dynamic: w.dynamic})
+		}
 		if c.pipeTo >= 0 {
 			pipe := c.pipeTo
 			pc.PipeTo = &pipe

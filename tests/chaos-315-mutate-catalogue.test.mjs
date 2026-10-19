@@ -74,6 +74,21 @@ test('mutate --stale leads a gone killer\'s line with a word, not `undefined`, b
   assert.ok(lines.includes('0x  a.mjs :: moved-g'), run.stdout)
 })
 
+// ADR-117 T1: a test named with an escaped quote, `'the tools\' own'`, is the test "the tools' own" at
+// runtime; --stale read the literal as written and called its killer gone. The control is the gone
+// killer above, which is still said.
+test('mutate --stale finds a killer whose name escapes a quote in the test file', () => {
+  const dir = scratch({ mutations: [
+    { ...ENTRY, label: 'quoted-f', only: "^(?:f's one, \"really\")$" },
+    { ...ENTRY, label: 'absent-f', only: "^(?:f's two)$" },
+  ] })
+  writeFileSync(join(dir, 'tests', 'a.test.mjs'), "test('f\\'s one, \"really\"', () => {})\n")
+  const run = mutate(dir, '--stale')
+  const lines = run.stdout.split('\n')
+  assert.ok(!lines.some(line => line.startsWith('killer gone  quoted-f')), run.stdout)
+  assert.ok(lines.includes('killer gone  absent-f :: no file it names defines "f\'s two"'), run.stdout)
+})
+
 // The review of the first pass: it fenced the top level alone, so `{"mutations":[42]}` passed,
 // `--stale` printed `unreadable  undefined :: undefined` at exit 1, a stale finding's status, and
 // `--list` and the campaign crashed with a TypeError. The bad entry sits second, so the index the

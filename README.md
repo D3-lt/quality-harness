@@ -39,10 +39,12 @@ the command invalidates the entry · duration. The tool writes the line; a model
   the start and end; a pass taken above the core count is marked unattributable.
 - **Checks that tests can fail.** A mutation campaign breaks one mechanism at a time and reports
   every test that did not notice.
-- **Advises, with two refusals.** Every gate reports and lets work continue, except:
+- **Advises, with three refusals.** Every gate reports and lets work continue, except:
   - a `git commit` or `git push` on a tree no `qh-check` has passed on is refused;
     `"publish": "warn"` in `.quality-harness.json` turns this into a warning;
-  - a reviewer agent the plugin started read-only cannot edit, commit or push.
+  - a reviewer agent the plugin started read-only cannot edit, commit or push;
+  - an agent's write into the check ledgers, through a tool or a redirection the hook can see, is
+    refused; `"ledgers": "warn"` turns this into a warning.
 
   A failing check still exits non-zero, for CI.
 - **Says when it could not look.** A check that could not run reports `UNRUN`, `PARTIAL` or

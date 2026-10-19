@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-117 T1: an output redirection keeps its target",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      command.writes.push({ op, target: target.value, dynamic: /[$`]/.test(target.value) })",
+      "to": "      void 0",
+      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    },
+    {
       "label": "shell-words: an arithmetic command is not a heredoc (ADR-067, found by the gate)",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [

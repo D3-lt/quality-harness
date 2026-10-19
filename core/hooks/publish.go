@@ -400,6 +400,17 @@ func (h *hookRun) onPreToolUse(rec *recorded) {
 			return
 		}
 	}
+	// ADR-117 T1: the third sanctioned refusal. The evidence in the state directory is written only by its tools.
+	if ledger := ledgerWrite(input); ledger != "" {
+		if ledgersWarn(h.cwd) {
+			h.emitJSON(O("hookSpecificOutput", O("hookEventName", "PreToolUse", "additionalContext", ledgerWarning(ledger))))
+			return
+		}
+		h.emitJSON(O("hookSpecificOutput", O("hookEventName", "PreToolUse", "permissionDecision", "deny",
+			"permissionDecisionReason", ledgerRefusal(ledger))))
+		h.say(ledgerRefusal(ledger) + "\n")
+		return
+	}
 	if mutationTools[tool] {
 		if context := decisionContextFor(input); context != "" {
 			h.emitJSON(O("hookSpecificOutput", O("hookEventName", "PreToolUse", "additionalContext", context)))

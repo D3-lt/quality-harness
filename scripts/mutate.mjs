@@ -960,7 +960,8 @@ function definesTest(source, name) {
 }
 
 // The string literal tokens of a JavaScript source: '…', "…" and a template with no hole,
-// each as written between its quotes. It reads past comments, regular-expression literals
+// each as written between its quotes and, where it escapes a quote or a backslash, as the runtime
+// reads it too: `'the tools\' own'` names the test "the tools' own". It reads past comments, regular-expression literals
 // and template holes. Not a parser (CLAUDE.md §16): a `/` opens a regular expression after
 // an operator, an opening bracket, a keyword that takes an expression, or nothing, and is a
 // division after anything else. T4 measured it over every test file the catalogue names.
@@ -970,6 +971,7 @@ const REGEX_KEYWORDS = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'n
 // opens a regular expression (T5, the second Codex review: `if (x) /'a'/.test(y)`).
 const CONTROL_KEYWORDS = new Set(['if', 'while', 'for', 'with'])
 const literalTokens = new Map()
+const unquoted = text => text.replace(/\\(['"`\\])/g, '$1')
 function literalsOf(source) {
   if (literalTokens.has(source)) return literalTokens.get(source)
   const found = new Set()
@@ -992,7 +994,7 @@ function literalsOf(source) {
     if (c === "'" || c === '"') {
       let j = i + 1
       while (j < source.length && source[j] !== c && source[j] !== '\n') j += source[j] === '\\' ? 2 : 1
-      if (source[j] === c) found.add(source.slice(i + 1, j))
+      if (source[j] === c) { found.add(source.slice(i + 1, j)); found.add(unquoted(source.slice(i + 1, j))) }
       i = j + 1
       last = 'value'
       continue
@@ -1001,7 +1003,7 @@ function literalsOf(source) {
       if (c === '}') holes.pop()
       const part = template(i + 1)
       if (part.hole) { holes.push(0); i = part.end + 2; last = '{'; continue }
-      if (c === '`' && source[part.end] === '`') found.add(part.text)
+      if (c === '`' && source[part.end] === '`') { found.add(part.text); found.add(unquoted(part.text)) }
       i = part.end + 1
       last = 'value'
       continue

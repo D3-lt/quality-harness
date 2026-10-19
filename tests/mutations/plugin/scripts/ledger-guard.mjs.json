@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-117 T1: a tee file is a write",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (name === 'tee') {",
+      "to": "    if (false) {",
+      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    },
+    {
+      "label": "ADR-117 T1: a sh -c string is read",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "      found.push(...shellTargets(c.argv[inner + 1], base, depth + 1))",
+      "to": "      void 0",
+      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    },
+    {
+      "label": "ADR-117 T1: a cd moves where a relative target lands",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    if (name === 'cd') {",
+      "to": "    if (false) {",
+      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+    }
+  ]
+}

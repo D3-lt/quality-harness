@@ -93,7 +93,7 @@ const nodeRow = cmd => {
       commands: parsed.commands.map(c => ({
         argv: c.argv, assignments: c.assignments, dynamic: c.dynamic, quoted: c.quoted, code: c.code,
         heredocs: c.heredocs.map(d => ({ delimiter: d.delimiter, quoted: d.quoted, body: d.body })),
-        substitutions: c.substitutions, pipeTo: c.pipeTo, ended: c.ended, redirects: c.redirects, negated: c.negated ?? null,
+        substitutions: c.substitutions, pipeTo: c.pipeTo, ended: c.ended, redirects: c.redirects, negated: c.negated ?? null, writes: c.writes,
       })),
     },
   }

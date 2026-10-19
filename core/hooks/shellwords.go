@@ -27,8 +27,16 @@ type shellCommand struct {
 	pipeTo        int // -1 for none
 	ended         string
 	redirects     int
+	writes        []redirectWrite
 	negated       any // nil, true, or "unknown"
 }
+
+type redirectWrite struct {
+	op, target string
+	dynamic    bool
+}
+
+var fdTarget = regexp.MustCompile(`^(?:\d+|-)$`)
 
 type shellChar struct {
 	c rune
@@ -432,6 +440,11 @@ func shellWords(text string) ([]*shellCommand, bool) {
 			pending = append(pending, pendingDoc{owner: command, delimiter: value, quoted: quotedTarget, strip: op == "<<-"})
 		} else if op == "<<<" {
 			command.heredocs = append(command.heredocs, heredoc{delimiter: nil, quoted: quotedTarget, body: value + "\n"})
+		}
+		// ADR-117 T1: where an output redirection writes (shell-words.mjs's). A duplication writes no file; a `$…` target is
+		// dynamic.
+		if strings.Contains(op, ">") && !(strings.HasSuffix(op, "&") && fdTarget.MatchString(value)) {
+			command.writes = append(command.writes, redirectWrite{op: op, target: value, dynamic: strings.ContainsAny(value, "$`")})
 		}
 		return true
 	}

@@ -5,7 +5,7 @@ paths:
   - "scripts/**"
 ---
 
-# Why §3: gates instruct; two refusals are sanctioned
+# Why §3: gates instruct; three refusals are sanctioned
 
 The rule is in `CLAUDE.md` §3. This file is the evidence behind it.
 
@@ -65,6 +65,11 @@ The other sanctioned refusal predates this one: ADR-060's reviewer guard denies 
 read-only any edit, commit or push. It has no off switch because it fences a role the caller
 chose to make read-only, never the caller's own work. A third-round review caught the docs calling
 ADR-061's refusal "the one", which the guard made false.
+
+The third is ADR-117's ledger guard (Accepted 2026-10-19). `qh-check` and `adr-verify` write their evidence into the
+repository's state directory, and a row an agent writes there by hand reads exactly like one they wrote; a local gate
+cannot tell them apart (ADR-005). So a write there the hook can see is refused, and `"ledgers": "warn"` turns it back
+into a warning. A program that writes the file itself is not seen: that door is named, not closed (ADR-117 T3).
 
 **Where advice goes (ADR-096, 2026-10-12).** A synchronous hook's `systemMessage` is shown to the user only; the agent sees
 `additionalContext`, or at Stop a `decision: "block"` reason. Until ADR-096 every turn-end advisory went out as `systemMessage`: in

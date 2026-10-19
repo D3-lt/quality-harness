@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "mutate: a test name that escapes a quote is read as the runtime reads it (ADR-117 T1)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "const unquoted = text => text.replace(/\\\\(['\"`\\\\])/g, '$1')",
+      "to": "const unquoted = text => text",
+      "only": "^(?:mutate --stale finds a killer whose name escapes a quote in the test file)$"
+    },
+    {
       "label": "mutate: refuses a second runner",
       "file": "scripts/mutate.mjs",
       "tests": [

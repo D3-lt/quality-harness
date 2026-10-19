@@ -25,8 +25,12 @@ func main() {
 		os.Exit(hooks.Run(os.Stdin, os.Stdout, os.Stderr))
 	case len(args) == 2 && args[0] == "check-command":
 		fmt.Println(hooks.CheckCommandJSON(args[1]))
+	case len(args) == 1 && args[0] == "mcp":
+		// ADR-114 T1: read-only resources over stdio, from the directory it is started in.
+		cwd, _ := os.Getwd()
+		os.Exit(hooks.ServeMCP(os.Stdin, os.Stdout, cwd))
 	default:
-		fmt.Fprintln(os.Stderr, "usage: qh hook <event> | qh check-command <dir> | qh --version")
+		fmt.Fprintln(os.Stderr, "usage: qh hook <event> | qh check-command <dir> | qh mcp | qh --version")
 		os.Exit(2)
 	}
 }

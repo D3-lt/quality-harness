@@ -23,7 +23,7 @@ README must be regenerated.
 | T3 | The side doors are enumerated by a gate | done | none — no spec | `node --test tests/side-door-sweep.test.mjs && … QUALITY_HARNESS_HOOK_IMPL=go node --test tests/side-door-sweep.test.mjs` (each named test passes once, nothing skipped) |
 | T4 | A sign-off is bound to what was signed | done | none — no spec | `node --test tests/sign-off-binding.test.mjs` (each named test passes once, nothing skipped) |
 | T5 | Every test file is accounted for | done | none — no spec | `node --test tests/suite-accounting.test.mjs` (each named test passes once, nothing skipped) |
-| T6 | Session state as MCP resources is proposed | pending | none — no spec | human-observed: ADR-114 exists, Proposed, and lints |
+| T6 | Session state as MCP resources is proposed | done | none — no spec | human-observed: ADR-114 exists, Proposed, and lints |
 
 ## Contract Coupling
 

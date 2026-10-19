@@ -16,4 +16,4 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | `qh mcp` serves the four resources | pending | none — no spec | `node --test tests/qh-mcp-resources.test.mjs` (each named test passes once, nothing skipped) |
+| T1 | `qh mcp` serves the four resources | done | none — no spec | `node --test tests/qh-mcp-resources.test.mjs` (each named test passes once, nothing skipped) |

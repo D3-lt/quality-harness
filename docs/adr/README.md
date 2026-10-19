@@ -115,5 +115,5 @@ whose catalog says what each one's decision effect is now.
 | [ADR-111](ADR-111-the-turn-end-judges-against-a-baseline.md) | The turn end judges the work against a baseline taken at session start | Accepted |
 | [ADR-112](ADR-112-the-lifecycle-is-measured-where-it-can-work.md) | The plugin is measured where its mechanism can work, against a kill criterion | Accepted |
 | [ADR-113](ADR-113-the-go-core-takes-the-rules-and-side-doors-are-enumerated.md) | The Go core takes the hooks' rules, and the gaps between paths are enumerated | Accepted |
-| [ADR-114](ADR-114-the-core-serves-state-as-mcp-resources.md) | The core serves session state as MCP resources, and pushes nothing less | Proposed |
+| [ADR-114](ADR-114-the-core-serves-state-as-mcp-resources.md) | The core serves session state as MCP resources, and pushes nothing less | Accepted |
 | [ADR-115](ADR-115-a-release-judges-the-load-the-run-did-not-bring.md) | A release judges the load the run did not bring | Accepted |

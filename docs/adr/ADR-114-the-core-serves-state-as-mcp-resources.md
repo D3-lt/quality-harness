@@ -1,6 +1,6 @@
 # ADR-114: The core serves session state as MCP resources, and pushes nothing less
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-19
 **Owner:** Zy
 **Spec:** None — no spec stage; ADR-113 Decision 6 asked for this record, Proposed, and nothing built
@@ -87,4 +87,4 @@ Nothing is built while Proposed. Built, remove the subcommand and the registrati
 
 ## Follow-ups
 
-- [ ] Owner decision: accept, or leave Proposed until a session shows the use Decision 3 asks for. The measurement above recommends leaving it.
+- [x] Owner decision: Accepted, 2026-10-19 ("accept."), over the recommendation to leave it Proposed. Decision 3 still holds: the server is built, and registered only after a measured use.

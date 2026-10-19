@@ -66,3 +66,4 @@ Stop if the measurement shows no pushed text a resource could replace; record th
 - Building the server (deferred: docs/adr/ADR-113-the-go-core-takes-the-rules-and-side-doors-are-enumerated.md)
 
 ## Verification Log
+- 2026-10-19 · human-observed · approved: the owner accepted ADR-114 on 2026-10-19 ("accept."), the record T6 drafted, resting on the pushed-byte measurement in its Context (SessionStart 228 and 972 B, first brief 271 and 481 B, unchanged brief 0, Stop 1,084 and 907 B, fresh repository and this one) · acceptance-sha256:1c5f8a48ab429d8cc1b2d7ecaf64b9164c5490586246fb24f4f2b41d36f32a56

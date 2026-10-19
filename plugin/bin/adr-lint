@@ -6167,17 +6167,33 @@ def check_readme_row_widths(text, errors):
         lines.append("" if was_fenced or fence_line else raw.strip())
     rows = {row.index: row for row in gfm_rows(lines)}
     header = None
+    # BACKLOG §385: a header with no separator row under it is not a table to Markdown, and a task listed twice in an index
+    # says two things about one task; both linted PASS. Only a table whose first column is the task's own id is an index: a
+    # contract table lists its producer once per contract. The index is derived, so both are advice, as the findings above are.
+    block_said, seen, head = False, set(), None
     for i, line in enumerate(lines):
         row = rows.get(i)
         if row is None:
-            header = None
+            header, block_said, seen, head = None, False, set(), None
             continue
         if row.delimiter:
             continue
         cells = row.cells
         if i + 1 in rows and rows[i + 1].delimiter:
-            header = cells
+            header, seen, head = cells, set(), cells
             continue
+        if header is None and not block_said:
+            block_said, head = True, cells
+            errors.advise(f"README.md: row `{line}` is in a table with no separator row (`|---|`) under its header, so "
+                          f"Markdown does not read it as a table. This index is derived: regenerate it from the task files")
+            continue
+        indexed = bool(head) and head[0].strip().lower() in ("id", "task")
+        listed = re.fullmatch(r"\[?(T\d+)\]?(?:\([^)]*\))?", cells[0].strip()) if cells and indexed else None
+        if listed and listed.group(1) in seen:
+            errors.advise(f"README.md: {listed.group(1)} is listed twice in one table (`{line}`), so the index says two "
+                          f"things about one task. This index is derived: regenerate it from the task files")
+        elif listed:
+            seen.add(listed.group(1))
         if header is not None and len(cells) < len(header):
             errors.advise(f"README.md: row `{line}` has {len(cells)} cell(s) under the "
                           f"{len(header)}-column header `| {' | '.join(header)} |`, so a cell is "

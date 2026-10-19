@@ -28,7 +28,6 @@ depends only on T2's registrar; it is a scope change, not a boundary change.
 | T2 | Register the five reading gates, and make the two executing ones unregisterable | done | — | `node --test tests/mcp-server.test.mjs` |
 | T5 | Expose the last two reading gates, and say why the third stays out | done | — | `node --test tests/mcp-server.test.mjs` |
 | T4 | Package the server, and measure whether a real Claude Desktop can use it | done | — | human-observed |
-| T5 | Expose the last two reading gates, and say why the third stays out | pending | — | `node --test tests/mcp-server.test.mjs` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 

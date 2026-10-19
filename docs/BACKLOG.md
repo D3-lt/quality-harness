@@ -3300,6 +3300,7 @@ Found executing ADR-115 T1: a write meant for T1's row replaced the table's `|--
 with one id, one done and one pending, is a README that disagrees with itself; whether `done_task_ids` reads the first, the
 last or both is not checked here. The README is a derived index (CLAUDE.md §10), so the task files still win; the gap is that
 nothing says the index is malformed. Left: a test with a duplicated row and a missing separator, each said.
+  - **Fixed 2026-10-19, for the release after 3.8.47:** adr-lint now says, as advice, a row in a table with no separator under its header, and a task listed twice in an index table (one whose first column is the task id; a contract table names its producer once per contract). The class, enumerated by running adr-lint over every record in `docs/adr/`: one instance, ADR-012 listing T5 as done and again as pending; the stale pending row is removed (adr-next reads T5 done). `tests/readme-index-shape.test.mjs`, three catalogue mutants.
 
 ## 386. OPEN 2026-10-19 — A fetched `qh` is unsigned, and whether quarantine or SmartScreen stops it is not measured
 

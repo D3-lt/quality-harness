@@ -159,3 +159,29 @@ test('the verification review\'s forms are refused, and ordinary content writes 
     assert.notEqual(pre(tool, input, env).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} ${JSON.stringify(env)} passes`)
   }
 })
+
+// The second verification review of 671827fa: a switch list consumed a destination as a switch's value (`-vb`), a one-letter
+// parameter went unread, a named destination's positional content was refused, and a relative link was resolved against
+// its logical parent rather than its real one. Every parameter value is now a candidate unless the parameter carries content.
+test('a PowerShell destination is never taken for a switch\'s value, and a relative link resolves from its real parent', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'third', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
+  runHook(box, repo, 'third', { hook_event_name: 'SessionStart', source: 'startup' })
+  mkdirSync(path.join(repo, '.git', 'quality-harness'), { recursive: true })
+  mkdirSync(path.join(repo, '.git', 'nested'), { recursive: true })
+  symlinkSync(path.join(repo, '.git', 'nested'), path.join(box.tmp, 'dirlink'))
+  symlinkSync('../quality-harness/checks.jsonl', path.join(repo, '.git', 'nested', 'jump'))
+  const pre = (tool_name, tool_input) => said(runHook(box, repo, 'third', { hook_event_name: 'PreToolUse', tool_name, tool_input }))
+  const refused = [
+    ['PowerShell', { command: 'Set-Content -vb .git/quality-harness/checks.jsonl -Value x' }],
+    ['PowerShell', { command: 'Set-Content -l .git/quality-harness/checks.jsonl -Value x' }],
+    ['PowerShell', { command: 'Out-File -Encoding utf8 .git/quality-harness/checks.jsonl' }],
+    ['Bash', { command: `printf x >> ${path.join(box.tmp, 'dirlink', 'jump')}` }],
+  ]
+  for (const [tool, input] of refused) assert.equal(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} is refused`)
+  const passed = [
+    ['PowerShell', { command: 'Set-Content -Path notes.txt .git/quality-harness/checks.jsonl' }],
+    ['PowerShell', { command: 'Set-Content -Va .git/quality-harness/checks.jsonl -Path notes.txt' }],
+  ]
+  for (const [tool, input] of passed) assert.notEqual(pre(tool, input).permissionDecision, 'deny', `${tool} ${JSON.stringify(input)} passes`)
+})

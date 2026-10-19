@@ -156,7 +156,7 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    at = path.resolve(path.dirname(at), target)",
+      "from": "    at = path.resolve(canonicalFile(path.dirname(at)), target)",
       "to": "    break",
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     },
@@ -166,7 +166,7 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "      if (destination && parameter[2] && !c.dynamic.includes(at)) found.push(parameter[2])",
+      "from": "      if (parameter[2] !== undefined && !content && parameter[2] && literal) found.push(parameter[2])",
       "to": "      void 0",
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     },
@@ -176,8 +176,8 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (destination && at < c.argv.length && !c.dynamic.includes(at)) found.push(c.argv[at])",
-      "to": "    if (at < c.argv.length && !c.dynamic.includes(at)) found.push(c.argv[at])",
+      "from": "      if (after === 'value' && literal) found.push(c.argv[at])",
+      "to": "      if (literal) found.push(c.argv[at])",
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     },
     {
@@ -186,19 +186,29 @@
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "      positional = true",
-      "to": "      positional = false",
+      "from": "    settled = true",
+      "to": "    settled = false",
       "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
     },
     {
-      "label": "ADR-117 verification: a PowerShell switch takes no value",
+      "label": "ADR-117 second verification: every word after a parameter that carries no content is a candidate",
       "file": "plugin/scripts/ledger-guard.mjs",
       "tests": [
         "tests/ledger-writes.test.mjs"
       ],
-      "from": "    if (!destination && prefixOf(name, POWERSHELL_SWITCHES)) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+      "from": "      after = parameter[2] === undefined ? (content ? 'content' : 'value') : null",
+      "to": "      after = parameter[2] === undefined ? 'content' : null",
+      "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
+    },
+    {
+      "label": "ADR-117 second verification: a relative link resolves from its real directory",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/ledger-writes.test.mjs"
+      ],
+      "from": "    at = path.resolve(canonicalFile(path.dirname(at)), target)",
+      "to": "    at = path.resolve(path.dirname(at), target)",
+      "only": "^(?:a PowerShell destination is never taken for a switch's value, and a relative link resolves from its real parent)$"
     }
   ]
 }

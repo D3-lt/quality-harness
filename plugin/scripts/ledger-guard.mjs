@@ -17,32 +17,37 @@ import { gitRepositoryLookup } from './tree-facts.mjs'
 
 const POWERSHELL_WRITERS = new Set(['out-file', 'set-content', 'add-content', 'tee-object', 'sc', 'ac', 'tee'])
 const POWERSHELL_CD = new Set(['cd', 'chdir', 'set-location', 'sl', 'push-location', 'pushd'])
-const POWERSHELL_SWITCHES = ['append', 'force', 'nonewline', 'noclobber', 'passthru', 'whatif', 'confirm', 'asbytestream', 'verbose', 'debug']
 const POWERSHELL_DESTINATIONS = ['filepath', 'path', 'literalpath', 'pspath']
+const POWERSHELL_CONTENT = ['value', 'inputobject']
 // PowerShell takes a parameter by any prefix that names it (`-Lit`), and its value after a colon too (`-Path:x`).
-const prefixOf = (word, names) => word.length >= 2 && names.some(full => full.startsWith(word))
+const prefixOf = (word, names, shortest = 1) => word.length >= shortest && names.some(full => full.startsWith(word))
 
-// The files a PowerShell writer names: its destination parameter's value, or its first positional argument, and never the
-// content (`-Value`, `-InputObject`, a second positional), which the verification review of a855f7f7 found refused.
+// The files a PowerShell writer may name. Which parameters are switches is not read here, since a list of them is a list
+// that misses one (`-vb`, the second verification review of 671827fa): every word after a parameter is a candidate, except
+// after one that carries content (`-Value`, `-InputObject`). A word after no parameter is the first positional, the
+// destination, unless a destination was named or a positional already given; then it is content.
 function powershellDestinations(c) {
   const found = []
-  let positional = false
+  let settled = false
+  let after = null
   for (let at = 1; at < c.argv.length; at++) {
     const parameter = /^-([A-Za-z]+)(?::([\s\S]*))?$/.exec(c.argv[at])
-    if (!parameter) {
-      if (!positional && !c.dynamic.includes(at)) found.push(c.argv[at])
-      positional = true
+    const literal = !c.dynamic.includes(at)
+    if (parameter) {
+      const name = parameter[1].toLowerCase()
+      const content = prefixOf(name, POWERSHELL_CONTENT, 2)
+      if (name === 'lp' || prefixOf(name, POWERSHELL_DESTINATIONS)) settled = true
+      after = parameter[2] === undefined ? (content ? 'content' : 'value') : null
+      if (parameter[2] !== undefined && !content && parameter[2] && literal) found.push(parameter[2])
       continue
     }
-    const name = parameter[1].toLowerCase()
-    const destination = name === 'lp' || prefixOf(name, POWERSHELL_DESTINATIONS)
-    if (parameter[2] !== undefined) {
-      if (destination && parameter[2] && !c.dynamic.includes(at)) found.push(parameter[2])
+    if (after !== null) {
+      if (after === 'value' && literal) found.push(c.argv[at])
+      after = null
       continue
     }
-    if (!destination && prefixOf(name, POWERSHELL_SWITCHES)) continue
-    at += 1
-    if (destination && at < c.argv.length && !c.dynamic.includes(at)) found.push(c.argv[at])
+    if (!settled && literal) found.push(c.argv[at])
+    settled = true
   }
   return found
 }
@@ -118,7 +123,8 @@ function followed(absolute) {
       if (!lstatSync(at).isSymbolicLink()) break
       target = readlinkSync(at)
     } catch { break }
-    at = path.resolve(path.dirname(at), target)
+    // From the link's real directory: `dir/jump -> ../x`, with `dir` itself a link, lands beside where `dir` points.
+    at = path.resolve(canonicalFile(path.dirname(at)), target)
   }
   return canonicalFile(at)
 }

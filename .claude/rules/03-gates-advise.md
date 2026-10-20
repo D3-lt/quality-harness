@@ -5,7 +5,7 @@ paths:
   - "scripts/**"
 ---
 
-# Why §3: gates instruct; three refusals are sanctioned
+# Why §3: gates instruct; the sanctioned refusals are listed
 
 The rule is in `CLAUDE.md` §3. This file is the evidence behind it.
 

@@ -35,6 +35,7 @@ bash scripts/selftest.sh            # the repository-owned gate. Exit 0 or it di
 bash scripts/coverage.sh            # JS + Python floors; --report reads without enforcing
 node scripts/mutate.mjs             # the full campaign, in a worktree of the working tree (ADR-075); --case '<substring>' for one; --in-place runs it here
 python3 plugin/bin/adr-lint <adr>   # a record's own gate
+python3 plugin/bin/arch-lint docs/architecture.md   # the architecture document's own gate (docs/architecture.md: the module map)
 node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never a verdict
 node scripts/backlog-claim-sweep.mjs
 node scripts/orphan-sweep.mjs         # dead code: a definition in plugin/ nothing shipped reaches
@@ -64,11 +65,11 @@ python3 scripts/test-locks.py <test-file> [name]    # before editing an existing
 
 Why: `.claude/rules/02-running-the-checks.md`
 
-## 3. Gates instruct; three refusals are sanctioned
+## 3. Gates instruct; the sanctioned refusals are listed here
 
 - A gate advises and never prevents an attempt. `errors.advise(...)` is advisory,
   `errors.append(...)` is blocking; moving a finding between them is a behaviour change.
-- **Three refusals are sanctioned, and no others.** ADR-061's publish refusal: a command that invokes
+- **The sanctioned refusals are the ones listed here, and no others.** ADR-061's publish refusal: a command that invokes
   `git commit` or `git push` (a mention is warned about, not refused) on a tree no `qh-check` has passed on, when the session log was read whole — and,
   where the session's git hook has run (ADR-066), the commit or push refused by git at the event
   itself, whatever launched it; a

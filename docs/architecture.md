@@ -157,8 +157,8 @@ Beside it, under `CLAUDE_PLUGIN_DATA` (machine-local, not per repository): `clai
 `claims-rate.mjs` reads) and `sessions.jsonl` (`on-session-end.mjs` writes, `session-notes.mjs` reads).
 
 ADR-117 makes the state directory written only by its tools: a hook-visible write into it is refused
-(`ledger-guard.mjs`, `core/hooks/ledger_guard.go`). The guard's refusal text names `qh-check` and `adr-verify` as the
-writers; `host-review.mjs` and the hooks' own session-log appends write there too, as programs the guard does not see.
+(`ledger-guard.mjs`, `core/hooks/ledger_guard.go`). Its refusal text names every writer: `qh-check` (checks, fast checks,
+baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`) and the hooks (their session logs).
 
 ## The evidence chain
 
@@ -199,7 +199,7 @@ Exit codes for `release.mjs` and `land.mjs` are in each file's header.
 
 ## Sanctioned refusals
 
-CLAUDE.md §3 sanctions three refusals and no others. Each lives in both implementations.
+CLAUDE.md §3 sanctions the refusals it lists, and no others. Each lives in both implementations.
 
 | Refusal | Record | Node | Go | Opt-out |
 |---------|--------|------|----|---------|

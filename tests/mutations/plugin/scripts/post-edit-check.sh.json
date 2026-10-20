@@ -287,6 +287,14 @@
       "only": "^a JSON finding from node names the file's line and column$",
       "from": "(m, s) => s ?? \" \"); if",
       "to": "(m, s) => s ?? \"\"); if"
+    },
+    {
+      "label": "ADR-119 T4: a node message with no position is placed at its first bad token",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": ["tests/post-edit-check.test.mjs"],
+      "only": "^a JSON finding from node names the file's line and column$",
+      "from": "catch (e) { return /^Unexpected token/.test(e.message) }",
+      "to": "catch (e) { return true }"
     }
   ]
 }

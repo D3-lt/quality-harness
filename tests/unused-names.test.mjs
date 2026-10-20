@@ -74,6 +74,18 @@ test('the same files with every name read are clean', () => {
   assert.match(run.out, /every linter ran and found nothing/)
 })
 
+// BACKLOG §381 item 21 (ADR-119 T4): a statement after `return` is code nothing runs, and none of the release scan's other
+// tools reads a function's body for it. The twin is the same file with the statement before the `return`.
+test('an unreachable statement is a finding, and its clean twin is not', () => {
+  const dirty = lint(project('unreachable', { ...clean, 'plugin/scripts/flow.mjs': 'export function h() {\n  return 1\n  console.log(2)\n}\n' }))
+  assert.equal(dirty.status, 1, dirty.out)
+  assert.ok(dirty.out.includes('plugin/scripts/flow.mjs'), `the unreachable statement is not named:\n${dirty.out}`)
+  assert.match(dirty.out, /noUnreachable/)
+  const twin = lint(project('reachable', { ...clean, 'plugin/scripts/flow.mjs': 'export function h() {\n  console.log(2)\n  return 1\n}\n' }))
+  assert.equal(twin.status, 0, twin.out)
+  assert.doesNotMatch(twin.out, /noUnreachable/)
+})
+
 test('a tree with no file of a class read nothing there, which is UNRUN, not clean', () => {
   const run = lint(project('empty', {}))
   assert.equal(run.status, 3, run.out)

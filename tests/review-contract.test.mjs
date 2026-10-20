@@ -2,7 +2,8 @@
 // once per audience: `subagentContract` for a Claude subagent, `reviewPrompt` for Codex. Each property is asserted on the text a
 // reviewer is actually handed, and each check is shown failing on a dirty input (CLAUDE.md §4).
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +15,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const plugin = path.join(repoRoot, 'plugin')
 const read = relative => readFileSync(path.join(plugin, relative), 'utf8')
 const fold = text => String(text ?? '').replace(/\s+/g, ' ').trim()
+// The plugin as git lists it, tracked and being added (CLAUDE.md §8): a walk of the disk answers for this machine only, and
+// counts an ignored or stray file nobody ships (ADR-119 T4).
+const listed = spawnSync('git', ['-C', repoRoot, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'plugin'],
+  { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+assert.equal(listed.status, 0, listed.stderr)
+const pluginFiles = listed.stdout.split('\0').filter(Boolean).map(name => name.slice('plugin/'.length))
+const filesIn = dir => pluginFiles.filter(name => path.posix.dirname(name) === dir).map(name => path.posix.basename(name))
 const BLOCK = /<!-- blocking-criteria -->([\s\S]*?)<!-- \/blocking-criteria -->/
 const blockIn = text => { const found = BLOCK.exec(text); return found ? fold(found[1]) : null }
 // The class `git grep` found seven lines of: a place that states when a finding blocks.
@@ -69,8 +77,7 @@ test('the blocking criteria have one definition and every mirror is its text', (
   assert.notEqual(fold(canonical.replace('minimal', 'large')), canonical)
   assert.ok(DEFINITION.test('A finding blocks only when all are true') && DEFINITION.test('A blocker must be in scope'))
   // No other place in the plugin states a definition: the carriers are the only files the class pattern finds.
-  const holders = readdirSync(plugin, { recursive: true }).filter(name => statSync(path.join(plugin, name)).isFile()
-    && DEFINITION.test(readFileSync(path.join(plugin, name), 'utf8'))).map(name => name.split(path.sep).join('/')).sort()
+  const holders = pluginFiles.filter(name => DEFINITION.test(read(name))).sort()
   assert.deepEqual(holders, [...CARRIERS].sort())
   assert.match(read('skills/quality-policy/SKILL.md'), /Blocking findings/, 'quality-policy names the review skill block')
 })
@@ -106,7 +113,7 @@ test('every review schema says blocking or advisory', async () => {
 
 test('no agent file restates the leaf contract the SubagentStart hook gives', () => {
   const leaf = /you are a leaf/i
-  const agents = readdirSync(path.join(plugin, 'agents')).filter(name => name.endsWith('.md'))
+  const agents = filesIn('agents').filter(name => name.endsWith('.md'))
   assert.ok(agents.length >= 4, 'the agent files were found')
   assert.deepEqual(agents.filter(name => leaf.test(read(`agents/${name}`))), [])
   assert.match(subagentContract({ agent_type: 'qh-narrow-fixer' }), /^QUALITY CONTRACT — you are a leaf role/)
@@ -142,7 +149,7 @@ const editingAgents = files => Object.entries(files).filter(([, text]) => /^tool
 const lacksProhibition = files => editingAgents(files).filter(([, text]) => !/do(?:es)? not commit or push/i.test(text)).map(([name]) => name)
 
 test('every editing role keeps an explicit publish prohibition', async () => {
-  const names = readdirSync(path.join(plugin, 'agents')).filter(name => name.endsWith('.md'))
+  const names = filesIn('agents').filter(name => name.endsWith('.md'))
   const files = Object.fromEntries(names.map(name => [name, read(`agents/${name}`)]))
   assert.deepEqual(editingAgents(files).map(([name]) => name), ['qh-narrow-fixer.md'], 'the editing roles are enumerated')
   assert.deepEqual(lacksProhibition(files), [])
@@ -156,8 +163,8 @@ test('every editing role keeps an explicit publish prohibition', async () => {
 // "critical/high only". A reviewer handed the skill reads the prose, so the old vocabulary must be gone from it too.
 const OLD_SEVERITY = /\bcritical\s*\/\s*high\b|\b(?:critical|high|medium|low)\s*(?:\/|\|)\s*(?:critical|high|medium|low)\b/i
 test('no review surface tells a reviewer the old severity words', () => {
-  for (const file of ['skills/review/SKILL.md', ...readdirSync(path.join(plugin, 'agents')).map(name => `agents/${name}`),
-    ...readdirSync(path.join(plugin, 'workflows')).map(name => `workflows/${name}`)]) {
+  for (const file of ['skills/review/SKILL.md', ...filesIn('agents').map(name => `agents/${name}`),
+    ...filesIn('workflows').map(name => `workflows/${name}`)]) {
     assert.doesNotMatch(read(file), OLD_SEVERITY, file)
   }
   assert.match('Output critical/high only', OLD_SEVERITY, 'the pattern finds the old instruction')

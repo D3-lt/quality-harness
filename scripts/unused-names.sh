@@ -10,8 +10,8 @@
 #   ruff over the Python (plugin/bin, plugin/lib, scripts, tests): F401 an unused import,
 #     F811 a redefined unused name, F841 an unused local. F405 (a name from a star import) is
 #     not selected: the gates import the shared fence module with `*` on purpose.
-#   biome over the JavaScript: noUnusedImports everywhere, and noUnusedVariables in plugin/
-#     and scripts/. In tests/ only imports: a test callback's unused `t`, and a local inside a
+#   biome over the JavaScript: noUnusedImports everywhere, and noUnusedVariables and noUnreachable (a statement nothing
+#     can reach, ADR-119 T4) in plugin/ and scripts/. In tests/ only imports: a test callback's unused `t`, and a local inside a
 #     locked test (CLAUDE.md §2), are not code anyone may delete. plugin/workflows/*.js is not
 #     read: a Workflow script returns at the top level, which biome refuses to parse.
 #
@@ -104,7 +104,7 @@ else
   if [ "${#product[@]}" -gt 0 ]; then
     echo "biome $BIOME_VERSION over ${#product[@]} file(s) outside tests/"
     for ((at = 0; at < ${#product[@]}; at += 100)); do
-      lint '^Checked [1-9][0-9]* files? in ' '^Found [1-9][0-9]* (errors?|warnings?)\.$' "${biome[@]}" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables "${product[@]:at:100}"
+      lint '^Checked [1-9][0-9]* files? in ' '^Found [1-9][0-9]* (errors?|warnings?)\.$' "${biome[@]}" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables --only=correctness/noUnreachable "${product[@]:at:100}"
     done
   fi
   if [ "${#tests[@]}" -gt 0 ]; then

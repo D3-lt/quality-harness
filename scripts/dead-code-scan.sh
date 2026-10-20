@@ -44,8 +44,15 @@ if command -v uvx >/dev/null 2>&1; then
       *) head -1 "$f" | grep -q python && files+=("$f") ;;
     esac
   done < <(git ls-files --cached --others --exclude-standard 'plugin/bin/*' 'plugin/lib/*.py' 'scripts/*.py' 'tests/*.py' | grep -vxF scripts/vulture-allowlist.py)
-  echo "vulture $(uvx vulture --version 2>/dev/null | awk '{print $2}') over ${#files[@]} file(s), --min-confidence 60"
-  uvx vulture --min-confidence 60 "${files[@]}" scripts/vulture-allowlist.py || findings=1
+  # An empty list is not read, which is not clean (ADR-005); and bash before 4.4 calls an empty array unbound under
+  # `set -u`, which ended the whole scan here (BACKLOG §381 item 20). The guard is unused-names.sh's.
+  if [ "${#files[@]}" -gt 0 ]; then
+    echo "vulture $(uvx vulture --version 2>/dev/null | awk '{print $2}') over ${#files[@]} file(s), --min-confidence 60"
+    uvx vulture --min-confidence 60 "${files[@]}" scripts/vulture-allowlist.py || findings=1
+  else
+    echo "UNRUN: vulture had no Python file to read."
+    unrun=1
+  fi
 else
   echo "UNRUN: vulture needs uvx (brew install uv) or pipx (brew install pipx; pipx run vulture)."
   unrun=1

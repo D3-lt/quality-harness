@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "dead-code-scan: an empty Python list is UNRUN, not an unbound-variable abort (ADR-119 T4)",
+      "file": "scripts/dead-code-scan.sh",
+      "tests": [
+        "tests/dead-code-scan.test.mjs"
+      ],
+      "from": "  if [ \"${#files[@]}\" -gt 0 ]; then",
+      "to": "  if true; then",
+      "only": "^an empty list is UNRUN under set -u, not an unbound-variable abort$"
+    }
+  ]
+}

@@ -23,8 +23,12 @@ item but one in that ranking was this repository's cost, or another project's, n
 
 Always on, in every adopter session:
 
-- **The listing.** 15 skills and 4 agents. Their descriptions alone are 7,422 characters, and they are sent
-  at every session start and again after every compaction. This is the plugin's largest always-on text.
+- **The listing.** 15 skills, 4 agents and 3 workflows. Their listing text is 8,869 characters: skills 6,374 + agents
+  1,008 + workflows 1,487, re-measured 2026-10-20 at c48dd5b0 (BACKLOG §381 item 24, ADR-119 T4) by counting code points
+  in each `plugin/skills/*/SKILL.md` and `plugin/agents/*.md` frontmatter `description` (a folded `>-` value joined with
+  spaces) and in each `plugin/workflows/*.js` meta `description` plus `whenToUse`; the 7,422 written here before was
+  measured at 8eb438c. It is sent at every session start and again after every compaction, and it is the plugin's largest
+  always-on text.
 - **SessionStart.** On a fresh repository with no records: `lifecycle.mjs` 0 B in 136 ms;
   `branch-state.mjs` 228 B in 132 ms. On a 78-record corpus: `lifecycle.mjs` 593 B in 842 ms, mostly six
   serial `adr-next` interpreter starts (BACKLOG §325); `branch-state.mjs` 452 B.

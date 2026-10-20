@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { required } from './helpers/require.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const hook = resolve(testDir, '..', 'plugin', 'scripts', 'post-edit-check.sh')
@@ -27,6 +28,12 @@ const scratch = () => { const d = mkdtempSync(join(tmpdir(), 'qh-hook-')); temps
 // rather than the check.
 const run = (tool, file) => spawnSync('bash', [hook, tool, file],
   { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
+
+// BACKLOG §381 item 18 (ADR-119 T4): two assertions read jq's own words, which a host without jq cannot print, so there they
+// skip with the reason rather than fail.
+const jqProbe = spawnSync('jq', ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+const noJq = required('jq', jqProbe.error || jqProbe.status !== 0
+  ? `jq is not on PATH (${jqProbe.error?.code ?? `exit ${jqProbe.status}`}), so jq's own parse error cannot be read here` : false)
 
 test('the hook reports a syntax error without failing the edit', () => {
   const dir = scratch()
@@ -368,7 +375,7 @@ test('a PHP finding is said once', { skip: has('php') ? false : 'php is not inst
 })
 
 // ADR-102 T6, from a Codex review of v3.8.26..aede09ce (2026-10-14), each checked against TypeScript's own parser there.
-test('JSONC is read as TypeScript reads it', () => {
+test('JSONC is read as TypeScript reads it', t => {
   const dir = scratch()
   const said = (file, text) => {
     const target = join(dir, file)
@@ -385,6 +392,7 @@ test('JSONC is read as TypeScript reads it', () => {
   }
   for (const [file, text] of Object.entries(valid)) assert.equal(said(file, text), '', `${file} is valid JSONC`)
   // DIRTY: a comment between two halves of a token does not join them.
+  if (noJq) return t.skip(noJq)
   assert.match(said('split-number.json', '{"a":1/*c*/2}\n'), /split-number\.json: jq: parse error/)
   assert.match(said('split-literal.json', '{"a":tru/*c*/e}\n'), /split-literal\.json: jq: parse error/)
 })
@@ -405,7 +413,7 @@ test('a checker that fails without a word is UNRUN, and the hook exits 0', () =>
 
 // ADR-102 T7, from the verification review of T6 (Codex, 2026-10-14): the fallback's trailing-comma rule also removed a
 // comma that follows `[`, `{` or another comma, so `{"a":[,]}`, which TypeScript refuses, read as valid JSONC.
-test('a comma with no value before it is not a trailing comma', () => {
+test('a comma with no value before it is not a trailing comma', t => {
   const dir = scratch()
   const said = (file, text) => {
     const target = join(dir, file)
@@ -413,12 +421,13 @@ test('a comma with no value before it is not a trailing comma', () => {
     return `${run('Edit', target).stdout}`.trim()
   }
   for (const [file, text] of [['empty-array.json', '{"a":[,]}\n'], ['double.json', '{"a":[1,,]}\n'], ['empty-object.json', '{,}\n']]) {
-    assert.match(said(file, text), new RegExp(`${file.replace('.', '\\.')}: jq: parse error`), `${file} is broken JSONC`)
+    if (!noJq) assert.match(said(file, text), new RegExp(`${file.replace('.', '\\.')}: jq: parse error`), `${file} is broken JSONC`)
   }
   // CLEAN twins: a real trailing comma, one before a space, and one inside a string stay valid.
   for (const [file, text] of [['trailing.json', '{"a":[1,],}\n'], ['spaced.json', '{"a":[1 , ]}\n'], ['string.json', '{"s":"[,]",}\n']]) {
     assert.equal(said(file, text), '', `${file} is valid JSONC`)
   }
+  if (noJq) t.skip(noJq)
 })
 
 // ADR-102 T8, from CI at 380e40c (2026-10-14): Windows' console is cp1252, so printing the source line of an undecodable
@@ -550,6 +559,7 @@ test("a JSON finding from node names the file's line and column", () => {
     assert.equal(got.status, 0)
     return { text: `${got.stdout}${got.stderr}`.trim(), target }
   }
+  const positions = text => (text.match(/\(line \d+ column \d+\)/g) ?? []).length
   for (const [file, text, where] of [
     ['block.json', '{\n  /* one\n     two\n     three */\n  "a": 1\n  "b": 2\n}\n', '(line 6 column 3)'],
     ['line.json', '{\n  "a": [1,], /* c */ "b": 1 "c": 2\n}\n', '(line 2 column 29)'],
@@ -557,10 +567,19 @@ test("a JSON finding from node names the file's line and column", () => {
   ]) {
     const { text: out, target } = said(file, text)
     assert.ok(out.startsWith(`${target}: `) && out.endsWith(where), `${file} is placed at ${where}: ${out}`)
+    // A message that already carries a position gets no second one.
+    assert.equal(positions(out), 1, `${file} is placed once: ${out}`)
   }
-  // A message with no position (`Unexpected token`) is said as before, unplaced.
-  const { text: out, target } = said('token.json', '{"a": tru}\n')
-  assert.ok(out.startsWith(`${target}: Unexpected token`), out)
+  // ADR-119 T4: a message with no position (`Unexpected token`) is placed at the token node names, the first bad one in the
+  // masked text: the `}` after `tru`, and on a later line the same, after a comment, a `}` that is not bad, and CRLFs.
+  for (const [file, text, where] of [
+    ['token.json', '{"a": tru}\n', '(line 1 column 10)'],
+    ['later.json', '{\r\n  /* c */ "b": {},\r\n  "a": nul}\r\n', '(line 3 column 11)'],
+  ]) {
+    const { text: out, target } = said(file, text)
+    assert.ok(out.startsWith(`${target}: Unexpected token`) && out.endsWith(where), `${file} is placed at ${where}: ${out}`)
+    assert.equal(positions(out), 1, `${file} is placed once: ${out}`)
+  }
 })
 
 // ADR-102 T14, from an outside run of the 3.8.28 candidate on Windows (2026-10-14): a .mcp.json holding one newline was

@@ -24,7 +24,7 @@ README must be regenerated.
 | [T1](T1-two-fail-opens.md) | Two fail-opens: a pipe after a group, and an UNPROVEN test demoted for a done claim in a task file | pending | none — no spec | `node --test --test-reporter=tap tests/fail-open.test.mjs tests/gates.test.mjs tests/qh-core-parity.test.mjs`, named tests |
 | [T2](T2-review-row-pinned-model.md) | A review row says the model the launcher pinned | done | none — no spec | `node --test --test-reporter=tap tests/host-review.test.mjs tests/review-ledger.test.mjs`, named tests |
 | [T3](T3-false-stops-and-refusals.md) | Three false stops and refusals | pending | none — no spec | `node --test --test-reporter=tap tests/adr-next.test.mjs tests/foreign-commit.test.mjs tests/log-receipts.test.mjs tests/standalone-link.test.mjs tests/qh-core-parity.test.mjs`, named tests, then the Go core |
-| [T4](T4-output-and-blind-spots.md) | Wrong output and the gates' own blind spots | pending | none — no spec | `node --test --test-reporter=tap tests/post-edit-check.test.mjs tests/dead-code-scan.test.mjs tests/unused-names.test.mjs tests/review-contract.test.mjs`, named tests |
+| [T4](T4-output-and-blind-spots.md) | Wrong output and the gates' own blind spots | done | none — no spec | `node --test --test-reporter=tap tests/post-edit-check.test.mjs tests/dead-code-scan.test.mjs tests/unused-names.test.mjs tests/review-contract.test.mjs`, named tests |
 | [T5](T5-test-hygiene.md) | Test hygiene | pending | none — no spec | `node --test --test-reporter=tap tests/test-hygiene.test.mjs`, named tests, then `node scripts/orphan-sweep.mjs` |
 
 ## Contract Coupling

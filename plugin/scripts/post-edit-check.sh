@@ -120,7 +120,10 @@ PARSE_OUT
     # node reports are the file's: a comment collapsed to one space placed an error on line 6 at line 4 (§381 item 16). It
     # prints the parse error alone, after a marker, on one line (node quotes the file's text with its newlines, ADR-102 T13),
     # and exits 1 on one. A file with nothing but whitespace and comments is valid, as `jq empty` reads it (ADR-102 T14).
-    jsonc='try { const t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n\u2028\u2029]*|\/\*[\s\S]*?\*\/|[\u2028\u2029]/g, (m, s) => s ?? m.replace(/[^\r\n]/g, " ")).replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? " "); if (t.trim()) JSON.parse(t) } catch (error) { console.log("QH-JSONC-ERROR " + error.message.replace(/\s*\n\s*/g, " ")); process.exit(1) }'
+    # A message with no position (`Unexpected token '}'`) is placed at that token (ADR-119 T4): a prefix of the masked text
+    # fails on it only once it holds it, so a binary search over prefixes finds its offset, and the line is counted as node
+    # counts it, CR, LF and CRLF each one break. A message that already has a position is printed as it was.
+    jsonc='let t; try { t = require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, "").replace(/("(?:\\.|[^"\\])*")|\/\/[^\r\n\u2028\u2029]*|\/\*[\s\S]*?\*\/|[\u2028\u2029]/g, (m, s) => s ?? m.replace(/[^\r\n]/g, " ")).replace(/("(?:\\.|[^"\\])*")|(?<![\[{,]\s*),(?=\s*[}\]])/g, (m, s) => s ?? " "); if (t.trim()) JSON.parse(t) } catch (error) { let said = error.message.replace(/\s*\n\s*/g, " "); if (typeof t === "string" && /^Unexpected token/.test(said)) { const bad = k => { try { JSON.parse(t.slice(0, k)) } catch (e) { return /^Unexpected token/.test(e.message) } return false }; let lo = 1, hi = t.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (bad(mid)) hi = mid; else lo = mid + 1 } const rows = t.slice(0, lo - 1).split(/\r\n|\r|\n/); said += " (line " + rows.length + " column " + (rows[rows.length - 1].length + 1) + ")" } console.log("QH-JSONC-ERROR " + said); process.exit(1) }'
     # The jq to use; a test names one that is not installed, as on a host without it (ADR-102 T10).
     jq_cmd=${QUALITY_HARNESS_JQ:-jq}
     if command -v "$jq_cmd" >/dev/null 2>&1; then

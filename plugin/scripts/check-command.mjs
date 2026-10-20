@@ -193,7 +193,9 @@ function listStatus(text, depth) {
     const joiner = i === 0 ? ';' : commands[i - 1].ended
     // A pipeline is one unit, joined to the list only as a whole: `true || npm test | false` skips all of it (sh, bash
     // and dash, BACKLOG §381). Without pipefail (`set` is refused above) its status is its last stage's.
-    let end = i
+    // A group of several commands piped onward is one stage of it: its own `;`, `&&` and `||` decide nothing after the
+    // pipe (the review of c48dd5b0..cfd24edc: `{ true || false; } | npm test` is the tests' status).
+    let end = commands[i].groupEnd ?? i
     while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end++
     let own = commands[end].ended === '&' || (end > i && passThroughSink(commands[end])) ? { status: 'zero' } : commandStatus(commands[end], depth)
     // A leading `!` inverts the pipeline's status (sh, bash, dash, BACKLOG §381), except in the background. A bare `exit`

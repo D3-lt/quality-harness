@@ -29,6 +29,7 @@ type shellCommand struct {
 	redirects     int
 	writes        []redirectWrite
 	negated       any // nil, true, or "unknown"
+	groupEnd      int // -1 for none: on a group's first command, its last, when the group holds several commands piped onward
 }
 
 type redirectWrite struct {
@@ -79,7 +80,7 @@ func isWordRune(c rune) bool {
 	return c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
 }
 
-func freshCommand() *shellCommand { return &shellCommand{pipeTo: -1} }
+func freshCommand() *shellCommand { return &shellCommand{pipeTo: -1, groupEnd: -1} }
 
 // shellWords returns the simple commands in order, and whether every quote, substitution and heredoc closed.
 func shellWords(text string) ([]*shellCommand, bool) {
@@ -99,6 +100,7 @@ func shellWords(text string) ([]*shellCommand, bool) {
 	naming := false
 	groups := []group{}
 	closedGroup := false
+	listStart := -1
 	defining := false
 	i := 0
 
@@ -176,6 +178,16 @@ func shellWords(text string) ([]*shellCommand, bool) {
 				}
 			}
 			closedGroup = g == nil || !g.definition
+			// A group of several commands, not one pipeline, marks its head when a pipe follows (shell-words.mjs's).
+			listStart = -1
+			if closedGroup && g != nil {
+				for k := g.start; k < len(commands)-1; k++ {
+					if commands[k].ended != "|" && commands[k].ended != "|&" {
+						listStart = g.start
+						break
+					}
+				}
+			}
 			return
 		}
 		for _, expanded := range braces(w.chars) {
@@ -206,8 +218,12 @@ func shellWords(text string) ([]*shellCommand, bool) {
 		if empty && closedGroup && len(commands) > 0 && commands[len(commands)-1].ended != "&" && (operator == "&" || operator == "&&" || operator == "||" || operator == "|" || operator == "|&") {
 			commands[len(commands)-1].ended = operator
 			pipeNext = operator == "|" || operator == "|&"
+			if pipeNext && listStart >= 0 {
+				commands[listStart].groupEnd = len(commands) - 1
+			}
 		}
 		closedGroup = false
+		listStart = -1
 		if !empty || !(operator == "(" || operator == ")" || operator == "\n") {
 			defining = false
 		}

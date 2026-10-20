@@ -16,6 +16,7 @@ import * as checkCommand from '../plugin/scripts/check-command.mjs'
 import * as completionRules from '../plugin/scripts/completion-rules.mjs'
 import * as sessionNotes from '../plugin/scripts/session-notes.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
+import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 const lifecycle = { ...lifecycleOwn, ...checkLedger, ...treeFacts, ...checkCommand, ...completionRules, ...sessionNotes, stateDir }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -691,4 +692,25 @@ test('a pipe or a pipe-and-stderr after a group joins the pipeline, so a sink af
   const real = ['{ true; } | npm test', '{ true; } |& npm test']
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})
+
+// The review of c48dd5b0..cfd24edc (blocking): T1 piped the group's last command alone, so the group's own `&&` and `||`
+// were folded into the pipeline. `{ true || false; } | npm test` exits 1 with a failing npm under bash 3.2, /bin/sh and
+// zsh -f and was refused as constant; `{ false && true; } | cat` exits 0 in all three and was accepted (measured 2026-10-20).
+test('a group of several commands piped onward is one stage, so its own list decides nothing after the pipe', () => {
+  const constant = ['{ false && true; } | cat', '{ true || false; } | cat', '{ true; false; } | cat', '{ false | true; } | cat']
+  // DIRTY twins: the stage after the pipe decides, whatever the group's own list does.
+  const real = ['{ true || false; } | npm test', '{ false && true; } | npm test', '{ false; true; } | npm test']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})
+
+// The review of c48dd5b0..cfd24edc (blocking): the text a group pipes into a shell was read from its last command alone, so
+// `{ printf %s '#'; echo 'git push'; } | sh` was proven a publish; the shell is sent `#git push` and runs a comment (bash
+// 3.2, /bin/sh and zsh -f, measured 2026-10-20 with a harmless marker in its place).
+test('the text a group of several commands pipes into a shell is not proven from its last command', () => {
+  assert.equal(publishCommandIn("{ printf %s '#'; echo 'git push'; } | sh"), null)
+  // DIRTY twins: one command, or one pipeline, piped into a shell is still read.
+  const proven = ["{ echo 'git push'; } | sh", "{ echo 'git push' | cat; } | sh", "echo 'git push' | sh"]
+  for (const command of proven) assert.equal(publishCommandIn(command), 'git push', command)
 })

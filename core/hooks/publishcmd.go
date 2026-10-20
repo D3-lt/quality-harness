@@ -1273,6 +1273,16 @@ func stdinScripts(commands []*shellCommand, n int, seen map[int]bool) []string {
 			continue
 		}
 		seen[m] = true
+		// The last command of a group of several commands is not all the group writes (publish-command.mjs's).
+		tail := false
+		for _, c := range commands {
+			if c.groupEnd == m {
+				tail = true
+			}
+		}
+		if tail {
+			continue
+		}
 		upstream := commands[m]
 		for _, doc := range upstream.heredocs {
 			scripts = append(scripts, doc.body)

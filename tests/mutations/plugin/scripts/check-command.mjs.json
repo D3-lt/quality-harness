@@ -442,6 +442,16 @@
       "from": " && !(own.exits && end === i)) own =",
       "to": " && !own.exits) own =",
       "only": "^(?:a negated pipeline has the inverse status)$"
+    },
+    {
+      "label": "ADR-119 T1, the review of c48dd5b0..cfd24edc: a group of several commands piped onward is one stage of the pipeline",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    let end = commands[i].groupEnd ?? i",
+      "to": "    let end = i",
+      "only": "^(?:a group of several commands piped onward is one stage, so its own list decides nothing after the pipe)$"
     }
   ]
 }

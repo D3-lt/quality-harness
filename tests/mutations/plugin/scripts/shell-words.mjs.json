@@ -359,6 +359,16 @@
       "from": "['&', '&&', '||', '|', '|&'].includes(operator)) {",
       "to": "['&', '&&', '||', '|&'].includes(operator)) {",
       "only": "^(?:a pipe or a pipe-and-stderr after a group joins the pipeline, so a sink after it cannot fail)$"
+    },
+    {
+      "label": "ADR-119 T1, the review of c48dd5b0..cfd24edc: a group of several commands piped onward marks its head with where it ends",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "      if (pipeNext && listStart >= 0) commands[listStart].groupEnd = commands.length - 1",
+      "to": "      void 0",
+      "only": "^(?:a group of several commands piped onward is one stage, so its own list decides nothing after the pipe|the text a group of several commands pipes into a shell is not proven from its last command)$"
     }
   ]
 }

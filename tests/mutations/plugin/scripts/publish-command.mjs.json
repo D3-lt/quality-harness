@@ -1734,6 +1734,14 @@
       "from": "    if (!later.argv.length) return later.substitutions.length > 0",
       "to": "    if (!later.argv.length) return false",
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
+    },
+    {
+      "label": "ADR-119 T1, the review of c48dd5b0..cfd24edc: the last command of a group of several commands is not the text the group pipes into a shell",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/fail-open.test.mjs"],
+      "from": "    if (commands.some(c => c.groupEnd === m)) continue",
+      "to": "    void 0",
+      "only": "^the text a group of several commands pipes into a shell is not proven from its last command$"
     }
   ]
 }

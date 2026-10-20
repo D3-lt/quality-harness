@@ -21,7 +21,8 @@ const CODE = /[;&|()\n]/
  * `dynamic`, `quoted` and `code` are per-argv-word; `pipeTo` is the index of the
  * command this one's output is piped into, or null. `complete` is false when a
  * quote, a substitution or a heredoc never closes — the commands completed before
- * it are still returned.
+ * it are still returned. A group of several commands piped onward marks its first
+ * command with `groupEnd`, the index of the group's last command.
  */
 export function shellWords(text) {
   const src = String(text ?? '')
@@ -34,6 +35,7 @@ export function shellWords(text) {
   let naming = false
   const groups = []
   let closedGroup = false
+  let listStart = -1
   let defining = false
   let i = 0
 
@@ -71,6 +73,10 @@ export function shellWords(text) {
       // A function body's `}` ends a definition, which exits 0 and runs nothing: what follows joins the definition, not
       // the body (the verification of a44173e1).
       closedGroup = !group?.definition
+      // A group of several commands, not one pipeline: a pipe after it marks the group's head with where the group ends, so
+      // the group's own `;`, `&&` and `||` decide nothing after the pipe (the review of c48dd5b0..cfd24edc).
+      const all = group ? commands.slice(group.start) : []
+      listStart = closedGroup && group && !all.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') ? group.start : -1
       return
     }
     for (const expanded of braces(w.chars)) {
@@ -97,8 +103,10 @@ export function shellWords(text) {
     if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||', '|', '|&'].includes(operator)) {
       commands.at(-1).ended = operator
       pipeNext = operator === '|' || operator === '|&'
+      if (pipeNext && listStart >= 0) commands[listStart].groupEnd = commands.length - 1
     }
     closedGroup = false
+    listStart = -1
     // `function NAME ()` and a newline before the body still open the definition: those empty commands keep it. Any
     // command ends it, since a body need not be a group (`function f() if …; fi`, the review of 7c85a1c5).
     if (!empty || !['(', ')', '\n'].includes(operator)) defining = false

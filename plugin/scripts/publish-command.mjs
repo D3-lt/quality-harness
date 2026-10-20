@@ -794,6 +794,9 @@ function stdinScripts(commands, n, seen = new Set()) {
   for (let m = 0; m < commands.length; m++) {
     if (commands[m].pipeTo !== n || seen.has(m)) continue
     seen.add(m)
+    // The last command of a group of several commands is not all the group writes: `{ printf %s '#'; echo …; } | sh`
+    // runs a comment (the review of c48dd5b0..cfd24edc), so nothing is proven from it.
+    if (commands.some(c => c.groupEnd === m)) continue
     const upstream = commands[m]
     scripts.push(...upstream.heredocs.map(doc => doc.body))
     const start = programIndex(upstream.argv)

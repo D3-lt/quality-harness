@@ -164,3 +164,4 @@ straight to `main` and says so. Reverting T1 restores the bare push.
 
 - [ ] After T2: move `push-no-verify-from-a-script` in `scripts/side-doors.json` to name the live ruleset by id
 - [x] 2026-10-20: the cold Codex review of this draft (REQUEST CHANGES, six findings) was taken into Decisions 2, 3, 5 and 6 and into the tasks before acceptance
+- [x] 2026-10-20: the Codex review of 81571b37..7782862e (REQUEST CHANGES, two findings): `land` pushes `<sha>:refs/heads/main`, not `git push origin main`, which resolves the local branch when it runs (Decision 2's "runs `git push origin main`" is superseded by this line); and a dispatch tied with main's push run is reused, as release-evidence reads a tie

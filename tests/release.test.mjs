@@ -10,6 +10,7 @@ const push = (status = 'completed') => ({ databaseId: 1, event: 'push', status, 
 const dispatch = (status = 'completed') => ({ databaseId: 2, event: 'workflow_dispatch', status, headSha: SHA, headBranch: 'main', createdAt: '2026-10-20T00:00:01Z' })
 const landPush = () => ({ databaseId: 3, event: 'push', status: 'completed', headSha: SHA, headBranch: `land/${SHA}`, createdAt: '2026-10-19T23:59:00Z' })
 const LANDING = `git push origin ${SHA}:refs/heads/land/${SHA}`
+const MAIN_PUSH = `git push origin ${SHA}:refs/heads/main`
 
 // A world the fake answers from. `runs` is a list of answers to `gh run list --commit`, the last one repeated.
 function world(overrides = {}) {
@@ -46,7 +47,7 @@ function world(overrides = {}) {
     }
     if (line === 'git rev-parse origin/main') return ok(`${state.origin}\n`)
     if (line.startsWith('git merge-base --is-ancestor')) return { status: state.origin === SHA ? 0 : 1, stdout: '', stderr: '' }
-    if (line === 'git push origin main') { state.origin = SHA; return ok() }
+    if (line === MAIN_PUSH) { state.origin = SHA; return ok() }
     // What land asks (ADR-118): the branch, local main, the forge's main, the workflow, the landing and its check-runs.
     if (line === 'git symbolic-ref --short HEAD') return ok('main\n')
     if (line === 'git rev-parse refs/heads/main') return ok(`${SHA}\n`)
@@ -85,7 +86,7 @@ function world(overrides = {}) {
   return { state, calls, said, run }
 }
 
-const pushed = calls => calls.some(line => line === 'git push origin main')
+const pushed = calls => calls.some(line => line === MAIN_PUSH)
 const dispatched = calls => calls.some(line => line === 'gh workflow run selftest.yml --ref main')
 const tagged = calls => calls.find(line => line.startsWith('gh release create'))
 
@@ -131,13 +132,17 @@ test('release lands the sha and dispatches only after the push run on main exist
     runs: [[landPush()], [landPush()], [landPush(), push()], [landPush(), push(), dispatch()]],
   })
   assert.equal(w.run(), 0, w.said.join('\n'))
-  assert.ok(w.calls.includes(LANDING) && w.calls.indexOf(LANDING) < w.calls.indexOf('git push origin main'), 'landed on land/<sha> before main')
+  assert.ok(w.calls.includes(LANDING) && w.calls.indexOf(LANDING) < w.calls.indexOf(MAIN_PUSH), 'landed on land/<sha> before main')
   assert.equal(w.state.dispatchSawMainPush, true, 'the dispatch came before the push run on main existed')
   for (const stale of [{ ...dispatch(), createdAt: '2026-10-19T23:00:00Z' }, { ...dispatch(), headBranch: `land/${SHA}` }]) {
     const r = world({ runs: [[push(), stale], [push(), stale, { ...dispatch(), databaseId: 4 }]] })
     assert.equal(r.run(), 0, r.said.join('\n'))
     assert.ok(dispatched(r.calls), `not reused: ${JSON.stringify(stale)}`)
   }
+  // A dispatch in the same second as main's push run is the newer one, as release-evidence reads a tie (selectRun).
+  const tie = world({ runs: [[push(), { ...dispatch(), createdAt: push().createdAt }]] })
+  assert.equal(tie.run(), 0, tie.said.join('\n'))
+  assert.ok(!dispatched(tie.calls), 'a dispatch tied with the push run is reused')
 })
 
 test('release tags only a sha release-evidence clears, with its full sha and --latest', () => {

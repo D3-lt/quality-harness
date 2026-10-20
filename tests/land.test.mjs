@@ -24,6 +24,7 @@ const WORKFLOW = [
 const REQUIRED = [{ context: UBUNTU, integration: ACTIONS }, { context: 'windows', integration: ACTIONS }]
 const guarded = (required = REQUIRED) => ({ state: 'protected', text: `forge: main requires ${required.length} status check(s)`, required })
 const LANDING = `git push origin ${SHA}:refs/heads/land/${SHA}`
+const MAIN_PUSH = `git push origin ${SHA}:refs/heads/main`
 
 // One check-run as the Checks API reports it.
 function run(name, conclusion, { id = 1, started = '2026-10-20T10:00:00Z', app = ACTIONS, status = 'completed' } = {}) {
@@ -54,7 +55,7 @@ function world(overrides = {}) {
       if (answer === null) return { status: 1, stdout: '', stderr: 'HTTP 502' }
       return ok(JSON.stringify(answer.map(page => ({ total_count: page.length, check_runs: page }))))
     }
-    if (line === 'git push origin main') {
+    if (line === MAIN_PUSH) {
       state.mainPushedAfter = checkCalls
       if (!state.pushLeavesForge) state.origin = SHA
       return ok()
@@ -69,13 +70,13 @@ function world(overrides = {}) {
   return { state, calls, said, go }
 }
 
-const mainPushed = calls => calls.includes('git push origin main')
+const mainPushed = calls => calls.includes(MAIN_PUSH)
 const anyPush = calls => calls.some(line => line.startsWith('git push'))
 
 test('land pushes main only after every required check passed at the sha on land/<sha>', () => {
   const w = world({ checkRuns: [[[run(UBUNTU, null, { status: 'in_progress' })]], green] })
   assert.equal(w.go(), 0, w.said.join('\n'))
-  assert.ok(w.calls.indexOf(LANDING) >= 0 && w.calls.indexOf(LANDING) < w.calls.indexOf('git push origin main'), 'landed on land/<sha> first')
+  assert.ok(w.calls.indexOf(LANDING) >= 0 && w.calls.indexOf(LANDING) < w.calls.indexOf(MAIN_PUSH), 'landed on land/<sha> first')
   assert.equal(w.state.mainPushedAfter, 2, 'main was pushed only after the read that found every check green')
   assert.equal(w.state.landBranch, false, 'the land branch is deleted once main moved')
   assert.equal(w.state.origin, SHA)

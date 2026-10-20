@@ -149,9 +149,10 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   })
   if (!withPush) return 3
   const pushedAt = Math.max(...withPush.filter(mainPush).map(run => Date.parse(run.createdAt)))
-  // A dispatch is reused only on main and newer than main's push run: release-evidence reads the newer of the two, and an
-  // older dispatch would leave it reading the push as CACHED (the Codex review of the ADR-118 draft).
-  const current = run => run.event === 'workflow_dispatch' && run.headBranch === 'main' && Date.parse(run.createdAt) > pushedAt
+  // A dispatch is reused only on main and no older than main's push run: release-evidence reads the newer of the two and
+  // takes a dispatch on a tie (selectRun), and an older dispatch would leave it reading the push as CACHED (the Codex review
+  // of the ADR-118 draft). A tie is the dispatch: the second-resolution clock gives one, and refusing it waited out the bound.
+  const current = run => run.event === 'workflow_dispatch' && run.headBranch === 'main' && Date.parse(run.createdAt) >= pushedAt
   if (!withPush.some(current)) {
     // A second dispatch cancels the first: the concurrency group keys on the event (.github/workflows/selftest.yml:19-21).
     const quiet = waitFor('the other dispatched campaign on main to finish', () => {

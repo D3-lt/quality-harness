@@ -64,7 +64,7 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
   const sha = text('git', ['rev-parse', 'HEAD'])
   if (!/^[0-9a-f]{40}$/.test(sha ?? '')) { log('land: HEAD could not be read as a full sha'); return 1 }
   const at = `at ${sha}`
-  // `git push origin main` pushes local main, not HEAD: the two are held equal at the start and again before the push.
+  // HEAD is the main branch at the start and again before the push: a landing that moved under it is stopped and said.
   const onMain = () => text('git', ['rev-parse', 'refs/heads/main']) === sha
   if (text('git', ['symbolic-ref', '--short', 'HEAD']) !== 'main' || !onMain()) {
     log(`land: HEAD is not the main branch ${at}; check out main at the sha to land, then run again`)
@@ -118,8 +118,11 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
     }
   }
   if (!onMain()) { log(`land: local main moved during the wait ${at}; nothing was pushed to main`); return 2 }
-  const pushed = ran('git', ['push', 'origin', 'main'], true).status
-  if (pushed !== 0) { log(`land: git push origin main exited ${pushed} ${at}`); return 1 }
+  // The captured sha, never `main`: `git push origin main` resolves the local branch when it runs, so a branch moved
+  // after the check above would push a sha nobody checked (the Codex review of 81571b37..7782862e). No force: the
+  // forge's main must fast-forward to it.
+  const pushed = ran('git', ['push', 'origin', `${sha}:refs/heads/main`], true).status
+  if (pushed !== 0) { log(`land: git push origin ${sha}:refs/heads/main exited ${pushed} ${at}`); return 1 }
   const remote = text('git', ['ls-remote', 'origin', 'refs/heads/main'])?.split(/\s/)[0]
   if (remote !== sha) { log(`land: the forge's main is ${remote || 'unreadable'} after the push, not ${sha}`); return 1 }
   if (required.length) {

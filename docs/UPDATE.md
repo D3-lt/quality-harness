@@ -59,16 +59,17 @@ directory except the one `installed_plugins.json` names is safe; the forwarders 
 newest by reading that file first.
 
 **Forwarders follow; copies do not.** If you created `~/.claude/bin/` entries with
-`sync-standalone.mjs --link`, they resolve the newest install at every call and need nothing from
-you. If something on the machine wrote *copies* there instead, they are now one release behind
+`sync-standalone.mjs --link --apply`, they resolve the newest install at every call and need nothing
+from you. If something on the machine wrote *copies* there instead, they are now one release behind
 and the session-start notice will say so. Replace them:
 
 ```bash
-node "$(qh-root)/scripts/sync-standalone.mjs"          # reports, writes nothing
-node "$(qh-root)/scripts/sync-standalone.mjs" --link   # replaces each gate with a forwarder
+node "$(qh-root)/scripts/sync-standalone.mjs"                  # reports, writes nothing
+node "$(qh-root)/scripts/sync-standalone.mjs" --link           # reports what --link would install, writes nothing
+node "$(qh-root)/scripts/sync-standalone.mjs" --link --apply   # replaces each gate with a forwarder
 ```
 
-Never `--apply`; that writes another copy, stale by the next release.
+Never `--apply` without `--link`; that writes another copy, stale by the next release.
 
 ## Claude Desktop after an update
 

@@ -25,8 +25,9 @@ Skip for single-file fixes, pure docs, dependency bumps, or brainstorming before
 Two recalls, both cheap, both for the same failure: an ADR written in isolation that contradicts one
 already accepted.
 
-- **`am_search`** the subsystem and the decision. The palace is where this pipeline's lessons
-  accumulate; a rule filed by another session applies here without anyone editing this skill.
+- **Recall through the team-memory MCP the host provides, if any** (say so when there is none): the
+  subsystem and the decision. That store is where this pipeline's lessons accumulate; a rule filed
+  by another session applies here without anyone editing this skill.
 - **`node ${CLAUDE_PLUGIN_ROOT}/scripts/adr-state.mjs`** prints what governs what as it stands now,
   supersessions already applied, plus the areas two accepted decisions both claim, the decisions
   nothing points at the code, and the supersessions whose replacement is missing. It is derived from

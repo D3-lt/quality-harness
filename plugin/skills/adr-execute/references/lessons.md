@@ -216,3 +216,10 @@ rates weaker than a first-red lock. In T2, a new flag added to a line a catalogu
 that entry stale, so `mutate --stale` failed a test outside the fence and `adr-verify --mutant`
 refused every mutant as UNPROVEN. `mutate --repoint --write --force` repaired it. Run
 `mutate --stale` after touching any line in `scripts/` or `plugin/`, before the mutants.
+
+**2026-10-20 — A sign-off may name a stop word without saying it, in four forms only.** ADR-119 T3
+taught `adr-next` that `no canary-failed code was raised`, the phrase `stop word`, a quoted stop
+word after a removal verb (`without the word 'failed'`) and hook names (`fires SessionStart and
+Stop`) are not verdicts. Their neighbours still stop — `a canary-failed code`, `confirmed
+'rejected'`, `Stop the release` — so word a note in those forms or as a plain verdict, never by
+analogy to them.

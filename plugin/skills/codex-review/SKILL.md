@@ -133,10 +133,13 @@ says which; report it as a failed review and do not substitute another reviewer 
 non-Git artifact review add `--skip-git-repo-check`. Remove the contract's directory after the result is reported.
 
 `--range` names the commits the contract reviews, as two revisions (`<base>..<head>`, the same range the contract's scope
-names; omit it only for uncommitted work, which no range holds). The launcher records each run, the range resolved to
-full shas and the status of the last `VERDICT:` line, in `reviews.jsonl` beside the project's check ledger, where this
-repository's release gate reads whether every shipped commit since the last tag was reviewed (ADR-100). A malformed
-or unresolvable range runs nothing and exits 2.
+names; omit it only for uncommitted work, which no range holds). The launcher records each run in `reviews.jsonl` beside
+the project's check ledger, where this repository's release gate reads whether every shipped commit since the last tag was
+reviewed (ADR-100). A row records the host, the model (the pinned one), `bound` (`pinned`, or `unproven` when the run
+returned nothing), the effort, the status of the last `VERDICT:` line, and the range resolved to full shas. A
+`host-review.mjs` run without `--prompt-file`, which reads the reviewer's own model line, records `bound: disagrees` and
+the `reportedModel` it printed when that is not the pinned model. A malformed or unresolvable range runs nothing and
+exits 2.
 
 What the launcher runs, built in one place (`codexInvocation` in `host-review.mjs`), shown so a reader can check a
 run against it; do not type it yourself:

@@ -215,6 +215,36 @@ test('a requested host with no result says what to run, and the listing names ex
   assert.match(silent.reason, /reviewer/)
 })
 
+// The listing advertises the hosts host-review.mjs can run: `claude` is one, `pi` is not (it answers
+// unavailable, unmeasured). A claude request is held to the same rule as codex's.
+test('quality-cycle advertises the claude host, not pi, and a claude request needs its result', async () => {
+  const source = await readFile(qualityCycle, 'utf8')
+  const whenToUse = source.split('whenToUse:')[1]?.split('\n')[0] ?? ''
+  assert.match(whenToUse, /cursor, claude, externalReviews/)
+  assert.doesNotMatch(whenToUse, /\bpi\b/)
+
+  const refuse = async () => { throw new Error('no reviewer may start') }
+  const missing = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, claude: true,
+  }, refuse)
+  assert.equal(missing.status, 'reviewer-unavailable')
+  assert.match(missing.reason, /host-review\.mjs --host claude/)
+
+  // An unadvertised pi request still fails closed.
+  const pi = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, pi: true,
+  }, refuse)
+  assert.equal(pi.status, 'reviewer-unavailable')
+  assert.match(pi.reason, /--host pi/)
+
+  // The twin: a well-formed claude result lets the cycle reach its reviewers and certify clean.
+  const passed = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, claude: true,
+    externalReviews: [{ host: 'claude', status: 'clean', findings: [] }],
+  }, async () => ({ status: 'clean', findings: [] }))
+  assert.equal(passed.status, 'clean')
+})
+
 test('Codex review and advice skills mark spawned sessions as non-recursive leaves', async () => {
   const review = await readFile(path.join(bundledSkills, 'codex-review/SKILL.md'), 'utf8')
   const advise = await readFile(path.join(bundledSkills, 'codex-advise/SKILL.md'), 'utf8')

@@ -1,7 +1,7 @@
 export const meta = {
   name: 'quality-cycle',
   description: 'Read-only high-risk review: correctness and scope/simplicity passes, optional Codex, then one evidence-bound synthesis',
-  whenToUse: 'After caller-observed validation for high-risk changes. args: {repo, scope: "uncommitted" | "commit <sha>" | "base <ref>" (default "uncommitted"; the same string is passed to host-review.mjs --scope), requirements, nonGoals, evidence, codex, cursor, pi, externalReviews}. codex/cursor/pi each REQUEST a host review: first run node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host <host> --repo <root> --scope <scope> and pass its JSON in externalReviews, or the cycle is reviewer-unavailable. Not for tiny or routine changes.',
+  whenToUse: 'After caller-observed validation for high-risk changes. args: {repo, scope: "uncommitted" | "commit <sha>" | "base <ref>" (default "uncommitted"; the same string is passed to host-review.mjs --scope), requirements, nonGoals, evidence, codex, cursor, claude, externalReviews}. codex/cursor/claude each REQUEST a host review: first run node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host <host> --repo <root> --scope <scope> and pass its JSON in externalReviews, or the cycle is reviewer-unavailable. Not for tiny or routine changes.',
   phases: [{ title: 'Review' }, { title: 'Synthesize' }],
 }
 
@@ -57,7 +57,9 @@ const reviewerTasks = [
   () => agent(`${LEAF}\n${TARGET}\nReview scope and design economy. Distinguish duplicated knowledge from similar syntax. Treat SOLID as a diagnostic for real ownership or substitution seams, not a demand for more layers. Block complexity only when it creates a concrete correctness or maintenance defect in the current requirements; otherwise mark it advisory.`, { label: 'scope-simplicity', phase: 'Review', schema: REVIEW, model: 'haiku', agentType: 'quality-harness:qh-scope-reviewer' }),
 ]
 
-const requested = [...(codex === true ? ['codex'] : []), ...(A.pi === true ? ['pi'] : []), ...(A.cursor === true ? ['cursor'] : [])]
+// `pi` is no longer advertised, since host-review.mjs answers it unavailable (not measured), but a
+// request for it still fails closed rather than being dropped.
+const requested = [...(codex === true ? ['codex'] : []), ...(A.pi === true ? ['pi'] : []), ...(A.cursor === true ? ['cursor'] : []), ...(A.claude === true ? ['claude'] : [])]
 const externalReviews = Array.isArray(A.externalReviews) ? A.externalReviews : []
 // A host result must BE a review: the REVIEW schema, with a host. `{host}` alone
 // satisfied "a result was passed" and the cycle went on to certify clean (Codex

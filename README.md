@@ -39,7 +39,7 @@ the command invalidates the entry · duration. The tool writes the line; a model
   the start and end; a pass taken above the core count is marked unattributable.
 - **Checks that tests can fail.** A mutation campaign breaks one mechanism at a time and reports
   every test that did not notice.
-- **Advises, with three refusals.** Every gate reports and lets work continue, except:
+- **Advises; the sanctioned refusals are the ones listed here.** Every gate reports and lets work continue, except:
   - a `git commit` or `git push` on a tree no `qh-check` has passed on is refused;
     `"publish": "warn"` in `.quality-harness.json` turns this into a warning;
   - a reviewer agent the plugin started read-only cannot edit, commit or push;
@@ -97,6 +97,11 @@ ordinary good practice. Method, caveats, cost and this repository's own corpus f
 agents, 75.8% of failures are false successes, and LLM judges do not exceed AUROC 0.65 at catching
 them ([sources](docs/research/2026-08-28-verification-is-the-bottleneck.md)).
 
+On SWE-bench Verified (ADR-106, scored 2026-10-18) the plugin did not show fewer false completions:
+**GUARD NOT MET** on both models, at +70% (Sonnet 5.5) and +49% (Opus 5.5) cost per attempt.
+Configuration and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md), the section "Does the plugin
+make an agent's "done" true more often?".
+
 Measure your own corpus. The report is read-only and never runs your acceptance commands:
 
 ```bash
@@ -144,9 +149,9 @@ Workflows, for costly cases only: `quality-cycle` (high-risk review), `consensus
 decision that is costly to reverse), `review-ring` (one review, at most one fix, then
 revalidation).
 
-Hooks: protected branches, leaf agents, completion evidence, artifact gates, and the publish
-refusal above. A session-start notice reports standalone copies of the gates that have drifted
-from the plugin; `sync-standalone.mjs --link` replaces them with forwarders.
+Hooks: leaf agents, completion evidence, artifact gates, the publish refusal and the ledger guard
+above. A session-start notice reports standalone copies of the gates that have drifted from the
+plugin; `sync-standalone.mjs --link --apply` replaces them with forwarders.
 
 ## Requirements
 

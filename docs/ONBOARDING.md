@@ -93,7 +93,7 @@ file is now modified; commit it with the work it evidences.
 
 Commit those entries with the change they evidence. They are the record.
 
-### It advises, with one refusal you can turn off
+### It advises; the sanctioned refusals are named below
 
 Every gate advises: it tells you what is wrong and leaves you holding the wheel.
 `adr-lint` will name a missing section and let you carry on; the mutation check
@@ -110,7 +110,8 @@ This is a design rule, not an oversight. A tool that stops you without explainin
 leaves you worse off than no tool. If something here ever blocks you without
 saying what to do next, that is a bug worth reporting.
 
-**One exception, said plainly (ADR-061, since 2.102.0):** once your project has a check — declared
+**The sanctioned refusals, said plainly; they are the ones listed here.** The first is the publish
+refusal (ADR-061, since 2.102.0): once your project has a check — declared
 as `check` in `.quality-harness.json` or inferred from a manifest — a Bash command that runs
 `git commit` or `git push`, directly or through `bash -c`, `pwsh -Command` or an argv list, is
 refused while no `qh-check` has passed on the current tree. Run `qh-check` (it runs your check and
@@ -119,6 +120,13 @@ records the result) and the commit goes through. A command that only mentions th
 about and not refused: since 3.1.0 the command is read as the shell splits it (ADR-067).
 `"publish": "warn"` turns the refusal back into a warning. Every could-not-look — a torn
 log, a check that timed out — warns and never refuses.
+
+**The reviewer guard (ADR-060):** a role you spawned read-only may not edit, commit or push.
+
+**The ledger guard (ADR-117):** a write into the repository's state directory, where `qh-check` and
+`adr-verify` keep their evidence, is refused when the hook can see it: an Edit, Write or mrw write,
+a shell redirection or `tee` there. Reads pass, and so do the tools' own runs; a program that writes
+the file itself is not seen. `"ledgers": "warn"` turns the refusal into a warning.
 
 ### It says "I could not look"
 
@@ -190,7 +198,7 @@ Yes. Every gate in `bin/` is a plain `python3` or `node` program with a meaningf
 exit code. They run from a Makefile or a CI job with no model involved.
 
 **What if I disagree with a gate?**
-Say so in the record and carry on — nothing blocks except the unchecked-publish refusal above. If a gate is wrong often
+Say so in the record and carry on — nothing blocks except the sanctioned refusals above. If a gate is wrong often
 enough to be noise, that is a defect in the gate, and this project treats "a check
 people learn to ignore" as worse than no check.
 

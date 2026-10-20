@@ -71,10 +71,11 @@ that saves work: re-proposing an approach the team already killed is invisible f
 It is read-only, cannot fail, and says nothing when the corpus has nothing to say. The same answer
 arrives unprompted the first time you edit a governed file in a session.
 
-**Recall before you start.** `am_search` for lessons about this stage ("adr execution", "gate that
-cannot fail", the subsystem you are about to touch). This skill is the stable process; the palace is
-where the process learns, and a lesson filed by any session last week applies to this one without
-anybody editing this file. Skip only if the memory tools are absent, and say so.
+**Recall before you start.** Recall lessons about this stage ("adr execution", "gate that cannot
+fail", the subsystem you are about to touch) through the team-memory MCP the host provides, if any;
+say so when there is none. This skill is the stable process; the memory store is where the process
+learns, and a lesson filed by any session last week applies to this one without anybody editing
+this file.
 
 **Scout every sibling task before executing any of them — not just the one you are starting.** A
 task file is a snapshot of what its author believed when they wrote it, and an accepted ADR can be
@@ -275,6 +276,14 @@ you then read the result. Both spellings have put a red tree on `main`.
    - A run report that affirms first and quotes a red run before a green one (`observed: red run 111:
      X failed; green run 222: ok`) is evidence, not a stop. So is `no tests failed`. An aside in
      parentheses after the green run is still read, so `(X fails on …)` there is a stop.
+   - Four forms name a stop word without saying it, and are not verdicts (ADR-119 T3): a hyphenated
+     code name ending in a stop word, after `no` and before its noun (`no canary-failed code was
+     raised`); the phrase `stop word` (`restated without the stop word`); a quoted stop word, but
+     only after a removal verb (`drops the word 'failed'`, and remove, strip, omit, `without the
+     word 'blocked'`); and hook names in a list or before `hook` or `event` (`fires SessionStart
+     and Stop`, `the Stop hook`). Their neighbours still stop: `no, canary-failed code`, `a
+     canary-failed code`, `the stop word check failed`, `confirmed 'rejected'`, `the verdict is the
+     word 'failed'`, `Stop the release`, `Stop failed`.
    - A note with neither an affirmative nor a negative word still counts as done.
 
    If the task `Covers:`
@@ -374,10 +383,10 @@ cold restart — do not create a parallel plan or handoff file:
 A pipeline whose process never changes is a pipeline that learns nothing. Before the completion
 report, for each defect this execution hit that a rule could have prevented:
 
-1. **File it in the palace** (`am_add_drawer`, `wing_craft`, room `gotchas` or `decisions`) as a
-   rule plus the mechanism that made it invisible — not a narrative of what happened. The test for
-   whether it belongs in `wing_craft`: would the sentence still be true in a repository sharing no
-   code with this one?
+1. **Write it back to the team-memory MCP the host provides, if any** (say so when there is none),
+   as a rule plus the mechanism that made it invisible — not a narrative of what happened. File it
+   as cross-project only if the sentence would still be true in a repository sharing no code with
+   this one.
 2. **If it is a rule for THIS stage, append it to [references/lessons.md](references/lessons.md)**, dated, one or two
    sentences. That is what makes the skill mutate instead of the same defect being rediscovered by
    whoever executes next.

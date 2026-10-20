@@ -51,10 +51,10 @@ It starts at most one cached `git rev-parse`, and never prints an error.
 ## The gates
 
 `${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They advise and let the work continue, and they exit
-non-zero on a failing finding so CI can read it. `qh-doctor` shows which findings fail and which
-only advise.
+non-zero on a failing finding so CI can read it. `node "$(qh-root)/scripts/qh-doctor.mjs"` shows
+which findings fail and which only advise.
 
-Three refusals exist:
+The sanctioned refusals are the ones listed here:
 
 - **An unchecked publish (ADR-061).** A `git commit` or `git push` on a working tree no `qh-check`
   has passed on is refused, however it is launched (`bash -c`, `pwsh -Command`, an argv list).
@@ -99,13 +99,13 @@ output you are questioning.
 ## Roles and templates
 
 `${CLAUDE_PLUGIN_ROOT}/agents/` holds named roles (`qh-correctness-reviewer`, `qh-scope-reviewer`,
-`qh-synthesis`), spawned by name. `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md` is the source of
+`qh-synthesis`, `qh-narrow-fixer`), spawned by name. `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md` is the source of
 truth for record structure.
 
 ## Start here
 
 1. `/plugin marketplace add D3-lt/quality-harness`, `/plugin install quality-harness@quality-harness`,
-   restart, and run `qh-doctor`.
+   restart, and run `node "$(qh-root)/scripts/qh-doctor.mjs"`.
 2. Load `/quality-harness:operating` once.
 3. Bring a decision to `/quality-harness:adr-write`, or a change to `/quality-harness:work`.
 

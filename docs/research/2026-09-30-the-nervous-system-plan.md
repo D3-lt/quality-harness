@@ -19,7 +19,7 @@ A signal nobody reads is not part of a nervous system. So each stage below names
 | Producer | what emits the signal, and where it is recorded |
 | Scope and freshness | what the signal is about, and when it stops being true |
 | Reader | what reads it, and at which moment |
-| Permitted action | advice, unless an Accepted record grants more (CLAUDE.md §3: two refusals are sanctioned, and no others) |
+| Permitted action | advice, unless an Accepted record grants more (CLAUDE.md §3: the sanctioned refusals are the ones listed there, ADR-117's ledger guard among them, and no others) |
 | Unknown arm | what is said when the signal could not be taken — never silence, never "fine" (ADR-005) |
 | Owner | who carries the stage |
 | Dataset | the data its criterion is measured on, and whether it exists today |
@@ -34,6 +34,8 @@ A signal nobody reads is not part of a nervous system. So each stage below names
 | **N3 — a machine lease** (split from Stage 7) | `qh-check` and campaigns take a lease file in a machine-wide state directory → the next heavy job → advice that it is running beside another, and an opt-in wait | lease unreadable: say so and run | N1's samples plus the lease log, three days of ordinary use | overlapping heavy runs among participating jobs: 0; no lease outlives its owner, and any stale lease is swept by pid | an environment opt-out; the lease file deleted | unassigned |
 | **N4 — close the exposure class** | `plugin/bin/adr-verify --mutant` and `scripts/unasserted.mjs`, the siblings ADR-075 names, reuse `isolate()` → their own runs | "could not isolate", naming their in-place form | a fixture like ADR-075's, plus three real records' mutants | no mutant in the checkout mid-run; paired verdicts equal | revert; the in-place form | unassigned |
 | **N5 — the research stages** (§301 Stages 1, 2, 5 and 6) | each stays research until it fills this contract | — | — | see the falsification rows below | — | unassigned |
+
+**Done:** N1 = ADR-075, N3 = ADR-077, N4 = ADR-076. Each record is Accepted and every one of its tasks is `done` (their task READMEs, read 2026-10-20).
 
 **Sequencing.**
 - N2 reads the field N1 writes.

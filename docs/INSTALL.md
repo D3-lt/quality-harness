@@ -84,19 +84,26 @@ carried went stale (the hook-event count was three short within a month).
   `plugin/hooks/hooks.json` is the list; today it wires `SessionStart`, `UserPromptSubmit`,
   `SubagentStart`, `SubagentStop`, `TaskCompleted`, `Stop`, `PreToolUse`, `PostToolUse`,
   `PreCompact` and `SessionEnd`. Each Edit/Write starts one Node process before and three after;
-  each Bash call and each prompt starts one. They advise — with **one sanctioned refusal**: since
-  2.102.0 (ADR-061) a Bash command that invokes `git commit` or `git push` — through `bash -c`,
-  `pwsh -Command` or an argv list too — on a tree no `qh-check` has passed on, is refused until you
-  run `qh-check`, and the refusal names the invocation it saw. A command that merely mentions either
-  word — a grep, a heredoc, a file name — is warned about, never refused, and gets none of the
-  publish-time artifact checks (since 2.106.0; before that it was refused, and BACKLOG §269 says what
-  that taught). Since 3.1.0 (ADR-067) the command is read as the shell splits it, so quoted text, a
-  heredoc body, a comment and a shell's `-c` written as data (`echo 'bash -c "git push"'`) are data
-  and not refused, while a brace-built `git {-c,x=y} push` and text piped into a shell are read as
-  the invocations the shell runs. Before 3.1.0 `echo "x; git push"` was refused, and before 2.110.1
-  `grep -c "git push"` was too.
-  `"publish": "warn"` in `.quality-harness.json` turns it back into a warning. A second
-  refusal fences a role you spawned read-only (ADR-060). Nothing else blocks.
+  each Bash call and each prompt starts one. They advise, except for the sanctioned refusals, which
+  are the ones listed here:
+  - **The publish refusal (ADR-061, since 2.102.0).** A Bash command that invokes `git commit` or
+    `git push` — through `bash -c`, `pwsh -Command` or an argv list too — on a tree no `qh-check`
+    has passed on, is refused until you run `qh-check`, and the refusal names the invocation it saw.
+    A command that merely mentions either word — a grep, a heredoc, a file name — is warned about,
+    never refused, and gets none of the publish-time artifact checks (since 2.106.0; before that it
+    was refused, and BACKLOG §269 says what that taught). Since 3.1.0 (ADR-067) the command is read
+    as the shell splits it, so quoted text, a heredoc body, a comment and a shell's `-c` written as
+    data (`echo 'bash -c "git push"'`) are data and not refused, while a brace-built
+    `git {-c,x=y} push` and text piped into a shell are read as the invocations the shell runs.
+    Before 3.1.0 `echo "x; git push"` was refused, and before 2.110.1 `grep -c "git push"` was too.
+    `"publish": "warn"` in `.quality-harness.json` turns it back into a warning.
+  - **The reviewer guard (ADR-060).** A role you spawned read-only may not edit, commit or push.
+  - **The ledger guard (ADR-117).** A write into the repository's state directory, where `qh-check`
+    and `adr-verify` keep their evidence, is refused when the hook can see it: an Edit, Write or mrw
+    write, a shell redirection or `tee` there. Reads pass, and so do the tools' own runs; a program
+    that writes the file itself is not seen. `"ledgers": "warn"` turns the refusal into a warning.
+
+  Nothing else blocks.
 - **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Keep that command (and any `refreshInterval`). Feed the same `$input` to the script and append its stdout — one line, or empty:
     qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)
     [ -n "$qh" ] && printf '%s\n' "$qh"
@@ -171,11 +178,13 @@ clone rather than in a reader.
 
 Inside a Claude Code session, `bin/` is on `PATH`. In your own terminal it is not. Two routes:
 
-- **Forwarders** — `node "$(qh-root)/scripts/sync-standalone.mjs" --link` writes one small script
-  per gate under `~/.claude/bin/`, each resolving the newest installed plugin **at call time**, so
-  no release can leave them behind. Put `~/.claude/bin` on your shell `PATH`.
-- **Never `--apply`.** That writes a *copy*, and a copy is stale by the next release. The
-  session-start notice will then report it as drifted, every session, until you replace it.
+- **Forwarders** — `node "$(qh-root)/scripts/sync-standalone.mjs" --link --apply` writes one small
+  script per gate under `~/.claude/bin/`, each resolving the newest installed plugin **at call
+  time**, so no release can leave them behind; `--link` alone reports what it would write and
+  writes nothing. Put `~/.claude/bin` on your shell `PATH`.
+- **Never `--apply` without `--link`.** That writes a *copy*, and a copy is stale by the next
+  release. The session-start notice will then report it as drifted, every session, until you
+  replace it.
 
 ## Claude Desktop, and any other MCP client
 

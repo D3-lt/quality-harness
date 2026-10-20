@@ -150,8 +150,8 @@ Before reporting completion, check relevant reachability rungs:
 4. Real usage can be observed, or absence of telemetry stated.
 
 If output is a built/deployed artifact, verify the running artifact rather than the build log.
-Persist only reusable decisions/lessons: project facts in the project wing, cross-project craft in
-`wing_craft`.
+Write only reusable decisions and lessons back to the team-memory MCP the host provides, if any (say
+so when there is none): project facts scoped to the project, cross-project craft kept apart.
 
 ## Completion report
 

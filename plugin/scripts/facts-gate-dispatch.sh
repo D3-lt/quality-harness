@@ -399,7 +399,14 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
   if [ "${#candidates[@]}" -eq 0 ]; then
     widen=$(dirname "$parent")
     if in_repository "$widen"; then
-      collect_owning_adrs "$widen"
+      # The record BESIDE the directory owns it, `docs/adr/<slug>.md` for `docs/adr/<slug>/tasks/`, as adr-lint pairs them.
+      # Widening past it counted every record in docs/adr: "found 23" from a date-named corpus (an outside report, 2026-10-20).
+      sibling="$widen/$(basename "$parent").md"
+      if [ -f "$sibling" ] && is_adr "$sibling"; then
+        candidates=("$sibling")
+      else
+        collect_owning_adrs "$widen"
+      fi
     fi
   fi
   shopt -u nullglob

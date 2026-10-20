@@ -1422,6 +1422,36 @@ test('a record beside its tasks owns them, whatever the corpus is named', () => 
   expectExit(result, 0, 'date-named corpus beside a nested record')
 })
 
+// An outside report, 2026-10-20, from a date-named corpus: the record sat BESIDE its directory, `docs/adr/<slug>.md` for
+// `docs/adr/<slug>/tasks/`, which is the pairing adr-lint itself makes. The directory above the tasks held no record, so
+// ownership widened to docs/adr and counted every record there: "expected exactly one owning ADR, found 22".
+test('a record beside its directory owns its tasks, and with it gone the ambiguity is still said', () => {
+  const repo = mkdtempSync(join(os.tmpdir(), 'quality-harness-owner-'))
+  const adrRoot = join(repo, 'docs', 'adr')
+  const slug = join(adrRoot, '2026-07-15-web-pool')
+  mkdirSync(adrRoot, { recursive: true })
+  cpSync(fixture, slug, { recursive: true })
+  writeFileSync(`${slug}.md`, readFileSync(join(slug, 'ADR-001-selftest.md')))
+  rmSync(join(slug, 'ADR-001-selftest.md'))
+  const record = [
+    '# Some Unrelated Decision', '', '## Existing Primitives Audit', '- x', '',
+    '## Decision', 'd', '', '## Alternatives Considered', '- a', '', '## Consequences', '- c', '',
+  ].join('\n')
+  for (let index = 0; index < 22; index += 1) {
+    writeFileSync(join(adrRoot, `2026-0${(index % 9) + 1}-${index}-thing.md`), record)
+  }
+  const task = join(slug, 'tasks', 'T1-fixture.md')
+  const hook = join(root, 'scripts', 'run-shell-hook.mjs')
+  const gate = () => run(process.execPath, [hook, 'facts-gate-dispatch.sh'], repo, JSON.stringify({ tool_input: { file_path: task } }))
+  const beside = gate()
+  assert.doesNotMatch(beside.stderr, /expected exactly one owning ADR/, `the record beside the directory owns its tasks\n${beside.stderr}`)
+  expectExit(beside, 0, 'date-named corpus beside a sibling record')
+  // With the sibling gone nothing owns the task, and the 22 records around it are still said as ambiguous.
+  rmSync(`${slug}.md`)
+  const gone = gate()
+  assert.match(gone.stderr, /expected exactly one owning ADR \(ADR-001-T1-fixture\), found 22/, gone.stderr)
+})
+
 test('the facts hook parses payloads in Node without jq or Python', () => {
   const hook = join(root, 'scripts', 'run-shell-hook.mjs')
   const dispatcher = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')

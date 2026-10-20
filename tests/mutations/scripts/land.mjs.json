@@ -88,7 +88,7 @@
       "label": "ADR-100 T3, ADR-118 T1: a sha already on main is not pushed again",
       "file": "scripts/land.mjs",
       "tests": ["tests/land.test.mjs", "tests/release.test.mjs"],
-      "from": "  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0) {",
+      "from": "  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0 && !dryRun) {",
       "to": "  if (false) {"
     },
     {
@@ -132,6 +132,13 @@
       "tests": ["tests/land.test.mjs"],
       "from": "    if (named.length !== 1) {",
       "to": "    if (named.length > 1) {"
+    },
+    {
+      "label": "ADR-118 T2: a dry run reads the forge for a sha already on main (Codex review of 477e8c1a)",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": ".status === 0 && !dryRun) {",
+      "to": ".status === 0) {"
     }
   ]
 }

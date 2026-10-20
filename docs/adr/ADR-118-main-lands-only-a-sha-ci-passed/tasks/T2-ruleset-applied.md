@@ -41,6 +41,7 @@ node --test tests/land.test.mjs && node scripts/land.mjs --dry-run
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `land --dry-run passes only when main carries exactly the committed ruleset` | `tests/land.test.mjs` | equal, unprotected, and unequal in contexts, integration ids, bypass actors or enforcement, from an injected gh | — | S1, S2 |
+| `land --dry-run reads the ruleset for a sha already on main` | `tests/land.test.mjs` | the dry run on a synchronized main still fails unprotected or unread, and passes on the committed ruleset (Codex review of 477e8c1a) | — | S1, S2 |
 
 ## Reachability
 

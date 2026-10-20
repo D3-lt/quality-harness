@@ -103,7 +103,9 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
   }
   const fetched = ran('git', ['fetch', '-q', 'origin', 'main']).status
   if (fetched !== 0) { log(`land: git fetch exited ${fetched} ${at}; whether main already has it could not be read`); return 1 }
-  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0) { log(`land: ${sha} is already on main`); return 0 }
+  // A dry run asks about the forge whether or not the sha is already on main: T2's fence runs on a synchronized main, and
+  // returning here passed it with no ruleset read (the Codex review of 477e8c1a).
+  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0 && !dryRun) { log(`land: ${sha} is already on main`); return 0 }
 
   const forge = protection()
   log(forge.text)

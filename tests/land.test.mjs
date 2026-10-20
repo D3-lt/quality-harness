@@ -234,3 +234,17 @@ test('land --dry-run passes only when main carries exactly the committed ruleset
     assert.ok(!anyPush(w.calls), name)
   }
 })
+
+// The Codex review of 477e8c1a: a sha already on main returned before the forge was read, so a dry run on a synchronized
+// main passed with no ruleset at all.
+test('land --dry-run reads the ruleset for a sha already on main', () => {
+  const synced = world({ origin: SHA, protection: { state: 'unprotected', text: "forge: main's rules require no status check", required: [] } })
+  assert.equal(synced.go({ dryRun: true }), 1, synced.said.join('\n'))
+  const unread = world({ origin: SHA, protection: { state: 'unknown', text: "forge: COULD NOT LOOK at main's rules (HTTP 502)" } })
+  assert.equal(unread.go({ dryRun: true }), 1)
+  const carried = world({ origin: SHA })
+  assert.equal(carried.go({ dryRun: true }), 0, carried.said.join('\n'))
+  assert.ok(!anyPush(carried.calls))
+  // A landing proper still stops there: nothing is pushed again.
+  assert.equal(world({ origin: SHA }).go(), 0)
+})

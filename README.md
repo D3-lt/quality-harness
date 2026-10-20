@@ -22,6 +22,7 @@ Then, in your repository, run `/quality-harness:work` and ask for work as usual.
 - [docs/INSTALL.md](docs/INSTALL.md): requirements, Windows, Claude Desktop and other MCP
   clients, CI-only use, uninstalling.
 - [docs/UPDATE.md](docs/UPDATE.md): updating, and what stays old when you do.
+- [docs/architecture.md](docs/architecture.md): how the plugin and this repository are put together, read from the tree.
 
 ## A recorded run
 

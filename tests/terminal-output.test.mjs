@@ -6,7 +6,8 @@
 // repository this test created (CLAUDE.md §9).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -51,7 +52,7 @@ test('adr-state shows a hostile record title quoted, with nothing that drives a 
     assert.doesNotMatch(out, /<\/system-reminder>/, out)
     assert.match(out, /«[^»]*‹\/system-reminder›[^»]*»/, out)
     assert.ok(out.includes('src/a\\u{202e}b.js'), `the override is shown as an escape: ${JSON.stringify(out)}`)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('work-next shows a hostile spec path with nothing that drives a terminal', () => {
@@ -65,7 +66,7 @@ test('work-next shows a hostile spec path with nothing that drives a terminal', 
     // work-next prints native separators; Windows CI caught a `/`-only match (§7).
     assert.match(out, /docs[\\/]specs[\\/]a/, out)
     assert.doesNotMatch(out, DRIVES_A_TERMINAL, JSON.stringify(out))
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 // Every path in work-next's text now goes through `visiblePath` before `say` (BACKLOG §319),
@@ -81,7 +82,7 @@ test('work-next shows a hostile archive catalog effect with nothing that drives 
     const out = human('work-next.mjs', dir)
     assert.match(out, /effect this reader does not know/, out)
     assert.doesNotMatch(out, DRIVES_A_TERMINAL, JSON.stringify(out))
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('SessionStart quoting drops zero-width characters and a BOM, as adr-next does', () => {

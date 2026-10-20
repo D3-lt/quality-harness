@@ -2,12 +2,11 @@
 // been answered for their content, the lock one pass holds, and the ledger a pass writes. Moved out of lifecycle.mjs
 // unchanged (BACKLOG section 375, stage B3). A timeout, an UNRUN or an UNPROVEN is not an answer, so the next boundary asks again.
 import { spawn, spawnSync } from 'node:child_process'
-import { GIT_LISTING_BUFFER } from './decision-corpus.mjs'
 import path from 'node:path'
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'
-import { appendEvent, contentId, nearestExistingDirectory, readEvents, stateDir } from './event-log.mjs'
+import { appendEvent, contentId, GIT_LISTING_BUFFER, nearestExistingDirectory, readEvents, stateDir } from './event-log.mjs'
 import { createHash, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import * as leaseModule from './lease.mjs'

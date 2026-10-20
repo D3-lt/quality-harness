@@ -4,38 +4,12 @@
 // and says nothing to the model, so a change to what the hooks say never selects it, and a change here reaches the hooks
 // only through named imports. Text it hands back is made safe by corpus-text.mjs.
 import path from 'node:path'
-import { canonical, canonicalFile, nearestExistingDirectory } from './event-log.mjs'
+import { canonical, GIT_LISTING_BUFFER, nearestExistingDirectory } from './event-log.mjs'
 import { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 import { closeSync, existsSync, lstatSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs'
 import { StringDecoder } from 'node:string_decoder'
 import { spawnSync } from 'node:child_process'
 import { codeClass, shownPath } from './corpus-text.mjs'
-
-export function walk(value, visit) {
-  if (!value || typeof value !== 'object') return
-  visit(value)
-  if (Array.isArray(value)) {
-    for (const item of value) walk(item, visit)
-    return
-  }
-  for (const child of Object.values(value)) walk(child, visit)
-}
-
-// Whether `file` lies outside the repository at `root`. INSIDE when any spelling of the path is inside any
-// spelling of the root: the path as given, and with its parent resolved (the leaf keeps its own name, so a
-// link inside the tree to a file outside it stays a write the tree hash cannot see); the root as given and
-// resolved. A path under a directory link that leads out is still spelled inside, and it counts — resolving
-// it first read it as outside (Codex reviews of ADR-094). It errs toward counting. Case is folded where the
-// filesystem folds it.
-export function outsideRoot(root, file) {
-  const fold = value => (process.platform === 'win32' || process.platform === 'darwin' ? value.toLowerCase() : value)
-  const inside = (base, target) => {
-    const relative = path.relative(fold(base), fold(target)).replace(/\\/g, '/')
-    return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative))
-  }
-  const files = [file, canonicalFile(file)]
-  return !([root, canonical(root)].some(base => files.some(target => inside(base, target))))
-}
 
 // ADR task directories belonging to THIS repository. Deliberately narrow:
 // walking a directory that is not a repository once surfaced another project's
@@ -1461,12 +1435,6 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET, p
   }
   return { files, byName, failed, unscreened, streamed: screenBudget - budget.left, screened }
 }
-
-// Room for a whole listing. Node's default 1 MiB cut `git ls-files -z` on a 27,289-file repository
-// (2.3 MB) with ENOBUFS, and every reader said "git could not list the tree" over a listing git produced
-// (a Windows corpus-chaos run of v3.8.9, php-dated-adr). Every git call whose output grows with the tree
-// takes it: the listing, the deleted-file diff, `gitLines` and the harness status read.
-export const GIT_LISTING_BUFFER = 256 * 1024 * 1024
 
 /**
  * Repository-relative paths git knows about, or null when git cannot answer.

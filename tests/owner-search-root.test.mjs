@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { testBash } from './helpers/bash.mjs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -25,7 +26,7 @@ test('the owning-ADR search stops at the repository root', { skip }, t => {
   mkdirSync(path.join(repo, 'docs'), { recursive: true })
   spawnSync('git', ['init', '-q', '.'], { cwd: repo, timeout: 60_000, windowsHide: true })
   const said = file => {
-    const r = spawnSync('bash', [path.join(plugin, 'scripts', 'facts-gate-dispatch.sh'), file], {
+    const r = spawnSync(testBash(), [path.join(plugin, 'scripts', 'facts-gate-dispatch.sh'), file], {
       cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true, env: { ...process.env, CLAUDE_PROJECT_DIR: repo, CLAUDE_PLUGIN_ROOT: plugin },
     })
     return `${r.stdout}${r.stderr}`

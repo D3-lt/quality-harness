@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -27,7 +28,7 @@ function parse(source) {
 
 function fixture(t, files) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-event-analyser-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => remove(dir))
   for (const [file, source] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
     writeFileSync(path.join(dir, file), source)

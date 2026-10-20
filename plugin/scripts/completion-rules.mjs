@@ -1,10 +1,9 @@
 // What a turn that ends says about itself, judged against what the ledgers and the tree show (ADR-060, ADR-035): a claim of
 // completion, work nobody checked, writes git could not see, and the contract a subagent is handed. Moved out of
 // lifecycle.mjs unchanged (BACKLOG section 375, stage B3). These judges queue what they decide; the dispatcher delivers it.
-import { walk } from './decision-corpus.mjs'
 import path from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
-import { canonical, nearestExistingDirectory, readEvents } from './event-log.mjs'
+import { canonical, nearestExistingDirectory, readEvents, walk } from './event-log.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
 import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { baselineFor } from './check-ledger.mjs'

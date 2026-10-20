@@ -4,13 +4,14 @@
 // made (CLAUDE.md §9); each "must still refuse" row has its "still passes" twin (CLAUDE.md §16).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
 import { required } from './helpers/require.mjs'
+import { remove } from './helpers/remove.mjs'
 // The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
 import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
 import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
@@ -28,7 +29,7 @@ const qhCheck = path.join(repoRoot, 'plugin', 'bin', 'qh-check')
 process.env.QUALITY_HARNESS_OBSERVE_BUDGET_MS = '60000'
 const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-ledger-binding-')))
-after(() => { try { rmSync(testTmp, { recursive: true, force: true }) } catch { /* the assertions already ran */ } })
+after(() => { try { remove(testTmp) } catch { /* the assertions already ran */ } })
 
 // A suite run from an armed session inherits its hook through GIT_CONFIG_*; every git here starts
 // from none, as tests/publish-hook.test.mjs does.

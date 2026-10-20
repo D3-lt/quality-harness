@@ -5,9 +5,8 @@
 import os from 'node:os'
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, realpathSync, rmSync, statSync, utimesSync } from 'node:fs'
 import path from 'node:path'
-import { canonical, nearestExistingDirectory } from './event-log.mjs'
+import { canonical, GIT_LISTING_BUFFER, nearestExistingDirectory } from './event-log.mjs'
 import { spawnSync } from 'node:child_process'
-import { GIT_LISTING_BUFFER } from './decision-corpus.mjs'
 
 // The OS temp roots, symlink-resolved once per call. `/tmp` is a symlink to
 // `/private/tmp` on macOS and os.tmpdir() points into /var/folders, so the

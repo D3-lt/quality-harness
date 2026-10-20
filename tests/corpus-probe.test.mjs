@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { attestation, compareReaders, diffReports, failedToRun, probe, readerFingerprint, readersOfRun, scrubber } from '../plugin/scripts/corpus-probe.mjs'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
@@ -317,7 +318,7 @@ function diffOf(before, after) {
     writeFileSync(path.join(dir, 'after.json'), JSON.stringify(after))
     const run = spawnSync(process.execPath, [probeScript, '--diff', path.join(dir, 'before.json'), path.join(dir, 'after.json')], { encoding: 'utf8', timeout: 30_000 })
     return { status: run.status, lines: run.stdout.split('\n').filter(Boolean), stderr: run.stderr }
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 }
 
 test('corpus-probe --diff names what changed between two runs of one corpus', () => {
@@ -359,7 +360,7 @@ test('a probe records the load it ran under, at its start and its end', () => {
     // DIRTY twin: a platform with no load average (Windows) is unread, never a quiet 0.
     const unread = probe(repo, { timeoutMs: 1, sampler: () => ({ load: null, cores: 10 }) })
     assert.deepEqual(unread.load, { start: null, end: null, cores: 10 })
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { remove(repo) }
 })
 
 test('corpus-probe --diff marks a slower line it cannot attribute to a reader', () => {
@@ -416,7 +417,7 @@ function attestOf(report, label = 'macos-rust') {
     const run = spawnSync(process.execPath, [probeScript, '--attest', label, path.join(dir, 'new.json')], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, run.stderr)
     return JSON.parse(run.stdout)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 }
 const attestable = () => {
   const report = baseReport()

@@ -13,7 +13,8 @@
 // seam the hooks themselves use, across real processes.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { mkdtempSync, realpathSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -48,7 +49,7 @@ test('a finding is first once per session, and a compaction or /clear makes the 
     // And so does /clear.
     sessionStart('clear')
     assert.equal(first('k'), true, 'after /clear the finding is first again')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a session note that cannot be replaced is removed, never left to be handed back as current', () => {

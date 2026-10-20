@@ -3,8 +3,7 @@
 // lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A log read in part is never read as a log with nothing in it.
 import { closeSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, stateDir } from './event-log.mjs'
-import { outsideRoot } from './decision-corpus.mjs'
+import { appendEvent, canonical, canonicalFile, nearestExistingDirectory, outsideRoot, readEvents, stateDir } from './event-log.mjs'
 import { spawnSync } from 'node:child_process'
 import { gitRepositoryRoot, observe, observeBudgetMs, observedClean, sameObservation } from './tree-facts.mjs'
 import { fastCheckCommand } from './check-command.mjs'

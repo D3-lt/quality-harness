@@ -25,7 +25,8 @@
 // enumerates every `readEvents(` call site in the shipped scripts and fails on a
 // function that is neither driven here nor explained here.
 import assert from 'node:assert/strict'
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -142,7 +143,7 @@ test('degrading the evidence changes the answer, at every surface that can give 
     }
     assert.ok(driven >= 10, `the loop must actually drive the surfaces, drove ${driven}`)
     assert.deepEqual(ignored, [], `a positive answer survived evidence that could not be read whole:\n  ${ignored.join('\n  ')}`)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('a git status that FAILED is not a working tree where nothing changed (audit B4)', () => {
@@ -163,7 +164,7 @@ test('a git status that FAILED is not a working tree where nothing changed (audi
     assert.equal(note.status, 'unverified')
     assert.doesNotMatch(note.text, /nothing has changed/)
     assert.match(note.text, /git could not list the working tree, so what changed here is unknown/)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { remove(repo) }
 })
 
 test('a turn that committed its work is not a session where nothing is outstanding (audit B1)', () => {
@@ -364,7 +365,7 @@ test('a really torn log, read by the real hooks, does not persist a verified row
     const torn = persisted(true)
     assert.notEqual(torn.status, 'verified', JSON.stringify(torn))
     assert.equal(flatters(torn), false, `nothing positive may be persisted from a torn log: ${JSON.stringify(torn)}`)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // ---- The reader registry's `safe:` entries, executed instead of asserted.
@@ -453,5 +454,5 @@ test('at every hook boundary a torn log is never quieter than a whole one, howev
       }
     }
     assert.deepEqual(quieter, [], `a torn log made a boundary quieter or kinder than a whole one:\n  ${quieter.join('\n  ')}`)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })

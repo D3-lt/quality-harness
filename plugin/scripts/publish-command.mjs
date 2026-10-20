@@ -1221,8 +1221,10 @@ const COMMIT_VALUED_LETTERS = 'mFCctU'
  * `--file=`, or a short cluster's value by `valuedLetter`, before any `--`, in a
  * command whose program is the literal `git` and whose verb is `commit`. It is masked
  * only when its word is not dynamic, its value part was written as one single- or
- * double-quoted span whose spelling occurs exactly once in the text, and the text read
- * again has `msg` in that same word. Anything unproven is left as it came (§16).
+ * double-quoted span, and the text read again with that one occurrence replaced has
+ * `msg` in that same word. Each occurrence is tried on its own, so a message repeated
+ * as data is masked in each of its words and a copy that is code stays (ADR-119 T5,
+ * as `take` does since T3). Anything unproven is left as it came (§16).
  */
 function maskedMessages(text) {
   const { commands, complete } = shellWords(text)
@@ -1254,11 +1256,14 @@ function maskedMessages(text) {
       const spellings = [...(value.includes("'") ? [] : [`'${value}'`]), ...(/["\\]/.test(value) ? [] : [`"${value}"`])]
       for (const spelling of spellings) {
         const written = `${prefix}${spelling}`
-        if (masked.split(written).length !== 2) continue
-        // Every occurrence goes, so only the count above stops a second one being hidden;
-        // and the one there was must be this word, not the same spelling elsewhere.
-        const next = masked.split(written).join(plain)
-        if (shellWords(next).commands[n]?.argv[at] === plain) { masked = next; break }
+        // One occurrence at a time, kept only when the text read again has `msg` in this
+        // word: the same spelling elsewhere, data or code, is never hidden with it.
+        let kept = false
+        for (let from = masked.indexOf(written); from !== -1 && !kept; from = masked.indexOf(written, from + 1)) {
+          const next = masked.slice(0, from) + plain + masked.slice(from + written.length)
+          if (shellWords(next).commands[n]?.argv[at] === plain) { masked = next; kept = true }
+        }
+        if (kept) break
       }
     }
   })
@@ -1293,6 +1298,10 @@ function freshDirectoryText(text) {
     const at = commands.findIndex(command => command.argv.length === 0 && command.assignments[0]?.startsWith(`${name}=`))
     const [assignment] = commands[at].assignments
     const [template = ''] = shellWords(commands[at].substitutions[0]).commands[0].argv.slice(2)
+    // Once only, and that is not a refusal kept for data (ADR-119 T5, measured): every other
+    // copy of the assignment still holds its `$(`, so leavesHookInPlace refuses the text on
+    // its `$` whichever copy is made plain here; a copy inside a quoted message is gone
+    // already, masked above.
     if (plain.split(assignment).length !== 2) return unchanged
     const uses = commands.slice(at + 1).reduce((sum, command) => sum + directoryOperands(command, `$${name}`), 0)
     const operand = new RegExp(`(?<=^|[\\s;&|(])(?:"\\$${name}"|\\$${name})(?=$|[\\s;&|)])`, 'g')

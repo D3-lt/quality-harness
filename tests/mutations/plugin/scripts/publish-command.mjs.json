@@ -1194,14 +1194,34 @@
       "only": "^(?:a message value that can run code keeps the refusal)$"
     },
     {
-      "label": "ADR-090 T1: a spelling that occurs twice is not masked",
+      "label": "ADR-119 T5: every occurrence of a message's spelling is masked, a copy that is code with it",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/foreign-commit.test.mjs"
       ],
-      "from": "        if (masked.split(written).length !== 2) continue",
-      "to": "        if (masked.split(written).length < 2) continue",
-      "only": "^(?:a message value that can run code keeps the refusal)$"
+      "from": "          if (shellWords(next).commands[n]?.argv[at] === plain) { masked = next; kept = true }",
+      "to": "          masked = masked.split(written).join(plain); kept = true",
+      "only": "^(?:a commit message repeated as data is masked in each of its words, and a copy that is code still refuses)$"
+    },
+    {
+      "label": "ADR-119 T5: the once-only rule is back, so a message written twice keeps its refusal",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "        let kept = false",
+      "to": "        let kept = masked.split(written).length !== 2",
+      "only": "^(?:a commit message repeated as data is masked in each of its words, and a copy that is code still refuses)$"
+    },
+    {
+      "label": "ADR-119 T5: the slot check is skipped, so the first occurrence is masked even when it is code",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "from": "          if (shellWords(next).commands[n]?.argv[at] === plain) { masked = next; kept = true }",
+      "to": "          if (true) { masked = next; kept = true }",
+      "only": "^(?:the occurrence masked is the message, not the same spelling run as code before it)$"
     },
     {
       "label": "ADR-090 T3: a wrapper named by an absolute path is read as that wrapper",

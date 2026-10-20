@@ -9,13 +9,14 @@
 // Driven through the real PreToolUse hook, because the claim is about rule P's decision.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
-import { foreignCommitPath } from '../plugin/scripts/publish-command.mjs'
+import { foreignCommitPath, freshRepositoryCommit, leavesHookInPlace } from '../plugin/scripts/publish-command.mjs'
 import { commonDirectory } from '../plugin/scripts/publish-verdict.mjs'
 import { IMPL, QH_BIN } from './hook-golden.mjs'
 
@@ -27,7 +28,7 @@ const baseEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) =
 const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid', GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
 const env = { ...baseEnv, ...IDENTITY, CLAUDE_PLUGIN_ROOT: plugin, CLAUDE_ENV_FILE: '' }
 const top = realpathSync.native(mkdtempSync(join(os.tmpdir(), 'qh-foreign-')))
-after(() => { try { rmSync(top, { recursive: true, force: true }) } catch { /* the assertions already ran */ } })
+after(() => { try { remove(top) } catch { /* the assertions already ran */ } })
 const slashed = file => file.replace(/\\/g, '/')
 const git = (dir, ...args) => {
   const run = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true, env })
@@ -359,4 +360,49 @@ test('the session helper runs the hook the implementation seam names', () => {
   const ran = spawned.slice(before)
   assert.ok(ran.length >= 2, `the session spawned ${ran.length} hook(s)`)
   for (const file of ran) assert.equal(file, IMPL === 'go' ? QH_BIN : process.execPath)
+})
+
+// ADR-119 T5 S6 (the owner, 2026-10-20): `maskedMessages` masked a quoted commit message only when its spelling occurred
+// once, the rule T3 took out of `take`. So a message written twice, as two -m values or in two commits, kept every downgrade
+// that reads the masked text refused. Each occurrence is masked on its own now, and kept only when the text read again has
+// `msg` in that occurrence's word; a copy that is code stays and still refuses (CLAUDE.md §16). Plain literals with
+// placeholder paths, so the parity test reads every row through the Go core too.
+test('a commit message repeated as data is masked in each of its words, and a copy that is code still refuses', () => {
+  for (const command of [
+    "git -C /x/foreign commit -m 'let x=1' -m 'let x=1'",
+    "git -C /x/foreign commit -m 'let x=1'; echo 'let x=1'",
+  ]) assert.equal(foreignCommitPath(command, {}, 'linux'), '/x/foreign', command)
+  for (const command of [
+    'cd /x/scratch && git commit -m "fix PATH handling" -m "fix PATH handling"',
+    "cd /x/scratch && git commit -m '.git/hooks' -m '.git/hooks'",
+  ]) assert.equal(leavesHookInPlace(command), true, command)
+  for (const command of [
+    'R=$(mktemp -d) && cd "$R" && git init -q && git commit -q --allow-empty -m "let it be" && git commit -q --allow-empty -m "let it be"',
+    "R=$(mktemp -d) && cd \"$R\" && git init -q && git commit -q --allow-empty -m 'a;b' -m 'a;b'",
+  ]) assert.equal(freshRepositoryCommit(command, {}), true, command)
+  // DIRTY twins: the same spelling once more, as code. Masking every copy would hide each one.
+  for (const command of [
+    "git -C /x/foreign commit -m 'let x=1' -m 'let x=1'\nlet x=1\n",
+    "git -C /x/foreign commit -m '((a[1]=1))' -m '((a[1]=1))'\n((a[1]=1))\n",
+  ]) assert.equal(foreignCommitPath(command, {}, 'linux'), null, command)
+  assert.equal(leavesHookInPlace("cd /x/scratch && git commit -m '.git/hooks' -m '.git/hooks' && cp x '.git/hooks'"), false)
+  // Through the hook the seam names, so a Go run of this file is a Go run of the rule.
+  const unarmed = session()
+  const at = command => command.replaceAll('/x/foreign', slashed(foreign))
+  const said = session().tell(at("git -C /x/foreign commit -m 'let x=1' -m 'let x=1'"))
+  assert.notEqual(said.decision, 'deny', said.text)
+  assert.match(said.text, ADVICE)
+  assert.equal(unarmed.tell(at("git -C /x/foreign commit -m 'let x=1' -m 'let x=1'\nlet x=1\n")).decision, 'deny')
+})
+
+// Found by a mutant after the red run of ADR-119 T5: with the slot check skipped, the FIRST occurrence of a message's
+// spelling is masked, and when that one is code standing before the message (`sh -c '…'`), the code is what disappears.
+// Every row above passed with the check gone, so this is a test beside the locked one, run by the same fence.
+test('the occurrence masked is the message, not the same spelling run as code before it', () => {
+  for (const command of [
+    "sh -c 'git push'; cd /x/scratch && git commit -m 'git push'",
+    "cd /x/scratch && sh -c 'git push' && git commit -m 'git push'",
+  ]) assert.equal(leavesHookInPlace(command), false, command)
+  // CLEAN twin: the message alone is masked and handed to git's hook.
+  assert.equal(leavesHookInPlace("cd /x/scratch && git commit -m 'git push'"), true)
 })

@@ -15,6 +15,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -61,7 +62,7 @@ test('a retired record governs only if the archive catalog says it still does', 
     assert.deepEqual(titles(graveyard), ['ADR-002: withdrawn', 'ADR-003: replaced'].sort())
     assert.match(graveyard.find(entry => /replaced/.test(entry.title)).status, /superseded by ADR-004/i,
       'and the graveyard says WHAT replaced it, from the catalog')
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })
 
 // The catalog is the authority for a frozen record, so a catalog that cannot SAY
@@ -85,7 +86,7 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
     const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/${readme}`] : [])]
     const records = adrCorpus(root, { tracked })
     const { governing, graveyard } = decisionsGoverning(['src/app.js'], root, records)
-    rmSync(root, { recursive: true, force: true })
+    remove(root)
     return { governs: governing.length, buried: graveyard.length, look: records.look }
   }
   const row = (effect, { link = 'ADR-007-x.md', title = 'seven' } = {}) => `| [ADR-007](${link}) | ${title} | ${effect} | 2026-09-19 | r | none | x |`
@@ -162,7 +163,7 @@ test('work-next freezes a task directory only under a listed, readable catalog, 
     const gone = seen(['README.md', 'tasks/T1.md'])
     assert.equal(gone.tasks, 0, 'listed and unreadable: not counted as live')
     assert.ok(gone.readinessUnproven.some(dir => dir.split('\\').join('/').endsWith('/tasks')), JSON.stringify(gone.readinessUnproven))
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })
 
 // What SessionStart's ready line showed of a corpus path and a task's words, moved to the helpers that still show them
@@ -264,7 +265,7 @@ test('an UNPROVEN record is named where its paths are edited, and PARTIAL hides 
     assert.equal(json.look, 'PARTIAL')
     assert.deepEqual(json.unproven.map(entry => entry.title), ['ADR-007: frozen'])
     assert.equal(json.governing.length, 1)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })
 
 // The same rule from work-next's side: a record already in the frozen archive is
@@ -313,7 +314,7 @@ test('work-next does not offer a record in the frozen archive for retirement', a
     const named = state.retirable.map(record => record.file.slice(root.length + 1).split('\\').join('/'))
     assert.deepEqual(named.sort(), ['archive-service/docs/adr/ADR-004-svc.md', 'docs/adr/ADR-002-still-active.md', 'docs/adr/archive-policy.md'], `retirable: ${named}`)
     assert.equal(nextStage(state)?.id, 'adr-retire', 'the control still routes to adr-retire')
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })
 
 // One archive rule: the Lifecycle marker (BACKLOG §281 item 3). work-next kept a
@@ -360,7 +361,7 @@ test('work-next reads an unmarked archive as live, as every other reader does', 
     assert.ok(asked.includes('docs/adr/ADR-002-live/tasks'), `the control: the live corpus is asked about: ${asked}`)
     assert.ok(asked.includes('docs/adr-archive/ADR-001-old/tasks'), `an unmarked archive is live to work-next: ${asked}`)
     assert.deepEqual(asked.filter(dir => dir.startsWith('docs/decisions-archive/')), [], 'a marked archive stays frozen')
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })
 
 test('an archive-named directory with no Lifecycle marker is named, with the adopt remedy', async () => {
@@ -378,7 +379,7 @@ test('an archive-named directory with no Lifecycle marker is named, with the ado
     const text = sessionOrientation(root)
     assert.match(text, /`docs\/adr-archive` looks like an archive but has no Lifecycle marker, so it is read as live — `adr-retire-check --adopt <active> <archive>`/)
     assert.doesNotMatch(text, /decisions-archive` looks like|archive-service` looks like/)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })
 
 // Cold review of 833ea52: SessionStart told a repository with no decision corpus to
@@ -393,11 +394,11 @@ test('an unmarked archive is named only in a decision corpus, and only when it h
     writeFileSync(join(blog, 'README.md'), '# A blog\n')
     assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: blog, encoding: 'utf8', timeout: 15_000 }).status ?? 0, 0)
     assert.doesNotMatch(sessionOrientation(blog), /looks like an archive/, 'no corpus, no adoption advice')
-  } finally { rmSync(blog, { recursive: true, force: true }) }
+  } finally { remove(blog) }
   const root = unmarkedArchiveRepo('qh-arc-notes-')
   try {
     mkdirSync(join(root, 'docs', 'archive'), { recursive: true })
     writeFileSync(join(root, 'docs', 'archive', 'meeting-notes.md'), '# Notes\n')
     assert.deepEqual(adrCorpus(root).unmarkedArchives, ['docs/adr-archive'], 'a folder of notes is not an archive of records')
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { remove(root) }
 })

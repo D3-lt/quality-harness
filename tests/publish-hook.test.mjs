@@ -4,12 +4,13 @@
 // the module directly would prove the function and not the hook (CLAUDE.md §4).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { required } from './helpers/require.mjs'
+import { remove } from './helpers/remove.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
@@ -18,7 +19,7 @@ const qhCheck = path.join(repoRoot, 'plugin', 'bin', 'qh-check')
 const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-publish-hook-')))
 after(() => {
-  try { rmSync(testTmp, { recursive: true, force: true }) } catch { /* the assertions already ran */ }
+  try { remove(testTmp) } catch { /* the assertions already ran */ }
 })
 
 // A suite run from an ARMED session inherits that session's hook through

@@ -1947,6 +1947,9 @@ func directoryOperands(c *shellCommand, operand string, literal bool) int {
 
 const commitValuedLetters = "mFCctU"
 
+// maskedMessages masks each quoted commit message as the word `msg`, one occurrence of its spelling at a time, kept only
+// when the text read again has `msg` in that same word, so a message repeated as data is masked in each of its words and a
+// copy that is code stays (ADR-119 T5, as withoutData's take since T3).
 func maskedMessages(text string) string {
 	commands, complete := shellWords(text)
 	if !complete {
@@ -2004,13 +2007,22 @@ func maskedMessages(text string) string {
 			}
 			for _, spelling := range spellings {
 				written := prefix + spelling
-				if strings.Count(masked, written) != 1 {
-					continue
+				kept := false
+				for from := 0; from <= len(masked) && !kept; {
+					i := strings.Index(masked[from:], written)
+					if i < 0 {
+						break
+					}
+					found := from + i
+					next := masked[:found] + plain + masked[found+len(written):]
+					again, _ := shellWords(next)
+					if n < len(again) && argIs(again[n].argv, at, plain) {
+						masked = next
+						kept = true
+					}
+					from = found + 1
 				}
-				next := strings.Replace(masked, written, plain, 1)
-				again, _ := shellWords(next)
-				if n < len(again) && argIs(again[n].argv, at, plain) {
-					masked = next
+				if kept {
 					break
 				}
 			}
@@ -2174,6 +2186,8 @@ func freshDirectoryText(text string) (string, map[string]bool) {
 		if len(templateWords) > 0 && len(templateWords[0].argv) > 2 {
 			template = templateWords[0].argv[2]
 		}
+		// Once only, and that is not a refusal kept for data (ADR-119 T5, measured): every other copy of the assignment
+		// still holds its `$(`, so leavesHookInPlace refuses the text on its `$` whichever copy is made plain here.
 		if strings.Count(plain, assignment) != 1 {
 			return text, none
 		}

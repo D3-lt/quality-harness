@@ -2,7 +2,8 @@
 // when the log was read whole. A torn log still only warns.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -29,7 +30,7 @@ process.env.QUALITY_HARNESS_OBSERVE_BUDGET_MS = '60000'
 const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-fail-open-')))
 after(() => {
-  try { rmSync(testTmp, { recursive: true, force: true }) } catch { /* the assertions already ran */ }
+  try { remove(testTmp) } catch { /* the assertions already ran */ }
 })
 
 const GIT_IDENTITY = {

@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, utimesSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,7 +20,7 @@ let counter = 0
 
 function sandbox(t) {
   const top = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-standing-')))
-  t.after(() => rmSync(top, { recursive: true, force: true }))
+  t.after(() => remove(top))
   return top
 }
 const environment = top => ({ ...process.env, CLAUDE_PLUGIN_DATA: path.join(top, 'data'), CLAUDE_ENV_FILE: '',

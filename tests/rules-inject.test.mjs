@@ -12,7 +12,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -191,7 +192,7 @@ test('a rule that matches every path is the loader\'s, not this hook\'s', (t) =>
   assert.equal(isMatchAll('scripts/**'), false)
 
   const rulesDir = mkdtempSync(join(tmpdir(), 'rules-inject-all-'))
-  t.after(() => rmSync(rulesDir, { recursive: true, force: true }))
+  t.after(() => remove(rulesDir))
   writeFileSync(join(rulesDir, '00-everywhere.md'), '---\npaths:\n  - "**"\n---\n\nRESIDENT EVERYWHERE\n')
   writeFileSync(join(rulesDir, '02-scripts.md'), '---\npaths:\n  - "scripts/**"\n---\n\nONLY ON SCRIPTS\n')
   const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'cat scripts/x.sh' }, cwd: '/repo' })
@@ -204,7 +205,7 @@ test('end to end, in a repository the test creates: mrw_read delivers what Read 
   // CLAUDE.md §9 — `git` is only ever spawned in a directory this test made.
   // Named `sandbox`, never `repoRoot`, so a rename cannot cross that line.
   const sandbox = mkdtempSync(join(tmpdir(), 'rules-inject-'))
-  t.after(() => rmSync(sandbox, { recursive: true, force: true }))
+  t.after(() => remove(sandbox))
 
   mkdirSync(join(sandbox, '.claude', 'rules'), { recursive: true })
   mkdirSync(join(sandbox, 'scripts'), { recursive: true })

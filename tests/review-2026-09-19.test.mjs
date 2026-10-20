@@ -14,7 +14,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -63,7 +64,7 @@ test('the status line: a write the last observation does not cover outranks a pa
     // ...and one the observation DID cover changes nothing: the pass is about that tree.
     const covered = { ...later, at: '2026-09-19T11:59:58.000Z' }
     assert.match(shown(dir, [started, pass, covered, ended('T1')]).line, /^QH ✓ checked/)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('a baseline adopted partway through a session does not speak for the whole of it', () => {
@@ -80,7 +81,7 @@ test('a baseline adopted partway through a session does not speak for the whole 
     assert.notEqual(said.status, 'neutral', 'neutral claims nothing is outstanding, and a commit made before watching began is unknown')
     assert.match(said.text, /began watching/)
     assert.match(shown(dir, [late, ended('T0')]).line, /nothing edited since watching began/)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('"Last check" is the check that RAN last, not the one appended last', () => {
@@ -113,7 +114,7 @@ test('a state note that could not be removed is not reported as removed', () => 
     writeFileSync(join(file, 'child'), 'x')
     assert.equal(replaceSessionNote(session, null), false, 'an unlink that failed for any reason but ENOENT left something behind')
     assert.equal(replaceSessionNote(session, { status: 'unverified', text: 'NEW' }, () => { throw Object.assign(new Error('full'), { code: 'ENOSPC' }) }), false)
-  } finally { rmSync(file, { recursive: true, force: true }) }
+  } finally { remove(file) }
 })
 
 function fixture(top, label) {
@@ -155,7 +156,7 @@ test('a write already on record is not forgiven by a baseline adopted after it w
     assert.equal(log().filter(entry => entry.event === 'session.started').length, 0,
       'a clean tree after a KNOWN write is not a session that changed nothing')
     assert.match(said, /qh-check/, `and the turn is still told the work is unchecked: ${said.slice(0, 300)}`)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a review whose start or end could not be observed says so, instead of saying nothing', () => {
@@ -190,7 +191,7 @@ test('a review whose start or end could not be observed says so, instead of sayi
     appendFileSync(logFile, `\n${JSON.stringify({ at: new Date().toISOString(), event: 'action.emitted', rule: 'R3', key: 'plain:unknown' })}\n`)
     assert.match(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'plain' }), /is unknown/)
     assert.equal(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'plain' }), '', 'and still once, by its own record')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('over a torn log a newly reachable commit is "not known to be checked", never "unchecked"', () => {
@@ -212,7 +213,7 @@ test('over a torn log a newly reachable commit is "not known to be checked", nev
     assert.match(torn, /newly reachable commit/, `R2 still speaks: ${torn.slice(0, 400)}`)
     assert.doesNotMatch(torn, /no `qh-check` has passed on (?:its|their) tree/, 'the lost line may BE the pass')
     assert.match(torn, /UNKNOWN/)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a state note older than the compaction it follows is not served as that compaction\'s', () => {
@@ -262,7 +263,7 @@ test('a state note older than the compaction it follows is not served as that co
     hook({ hook_event_name: 'PreCompact' })
     appendFileSync(logFile, '{"event":"context.compacting","compactionId":"to')
     assert.match(hook({ hook_event_name: 'SessionStart', source: 'compact' }), /could not be tied to this compaction/)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // Found while checking a peer's report, not by the review: an `unverified` row with
@@ -292,7 +293,7 @@ test('the next session is not told of edits nobody observed', () => {
     const late = next('row-late', (repo, hook) => { hook({ hook_event_name: 'Stop' }) })
     assert.doesNotMatch(late, /edits? after which no recognised check passed/, late.slice(0, 500))
     assert.match(late, /UNKNOWN to this plugin/, late.slice(0, 500))
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // ---- The second review, of the fixes above (52ee1db...ad8652a). Holes left IN them.
@@ -307,7 +308,7 @@ test('a write appended after the observation in the same millisecond is still un
     assert.match(shown(dir, [started, pass, write, ended('T1', at)]).line, /^QH ✓ checked/)
     assert.equal(shown(dir, [started, pass, ended('T1', at), write]).value.kind, 'unverified',
       'the log is append-ordered; a timestamp can tie and a position cannot')
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('a recorded signal outranks a verdict read from a phrase', () => {
@@ -351,7 +352,7 @@ test('a compact SessionStart does not hand a fresh baseline to a session with ou
     hook({ hook_event_name: 'SessionEnd', reason: 'other' })
     const row = JSON.parse(readFileSync(join(top, 'compact-late-data', 'sessions.jsonl'), 'utf8').trim().split('\n').at(-1))
     assert.notEqual(row.status, 'neutral', JSON.stringify(row))
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a write OUTSIDE the repository does not stop a clean repository getting its late baseline', () => {
@@ -368,7 +369,7 @@ test('a write OUTSIDE the repository does not stop a clean repository getting it
     const began = log().filter(entry => entry.event === 'session.started')
     assert.equal(began.length, 1, 'the repository itself is clean and nothing on record touched it')
     assert.equal(began[0].late, true)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('an UNKNOWN previous session still says what was independently known to be outstanding', () => {
@@ -399,5 +400,5 @@ test('an UNKNOWN previous session still says what was independently known to be 
     // Worded as what is ON RECORD: the row may come from a log that lost a line.
     assert.match(next, /no passing check after them is on record/)
     assert.doesNotMatch(next, /no check passed after them/)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })

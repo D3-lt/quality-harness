@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { testBash } from './helpers/bash.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -91,7 +92,7 @@ function stagedProbe({ stageCatalogue }) {
   git(dir, 'init', '-q', '-b', 'main', '.')
   git(dir, 'add', PROBE)
   if (stageCatalogue) git(dir, 'add', `tests/mutations/${PROBE}.json`)
-  return spawnSync('bash', [join(repoRoot, '.githooks', 'pre-commit')], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  return spawnSync(testBash(), [join(repoRoot, '.githooks', 'pre-commit')], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
 }
 
 test('the staged guard passes an added source whose per-source file is staged', () => {

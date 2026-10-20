@@ -751,16 +751,6 @@
       "only": "^the Codex round of 3.1.6: every reader reads these records alike"
     },
     {
-      "label": "§343 review: a sibling of the repository reads as inside it",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
-      "to": "return !(relative === '..' || path.isAbsolute(relative)",
-      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
-    },
-    {
       "label": "§345: a plan reads as an unknown status",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": [
@@ -929,16 +919,6 @@
       "from": "  ['accepted', 'governing'], ['active', 'governing'],",
       "to": "  ['accepted', 'governing'],",
       "only": "^corpus yaml-frontmatter: every reader answers as reviewed, through a symlink$"
-    },
-    {
-      "label": "3.8.10: a git listing gets Node's default 1 MiB buffer",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/large-listing.test.mjs"
-      ],
-      "from": "const GIT_LISTING_BUFFER = 256 * 1024 * 1024",
-      "to": "const GIT_LISTING_BUFFER = 1024 * 1024",
-      "only": "^(?:a tracked listing larger than 1 MiB is read whole)$"
     },
     {
       "label": "ADR-087 owner 2026-10-07: a file adr-lint does not recognise is counted as a record",
@@ -1521,26 +1501,6 @@
       "from": "  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))",
       "to": "  const recognised = heading && (kept || bold)",
       "only": "^every row of the recognition table reads its approved answer in lifecycle$"
-    },
-    {
-      "label": "ADR-094 T4: a path is placed with its parent resolved before the lexical spelling is tried",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "const files = [file, canonicalFile(file)]",
-      "to": "const files = [canonicalFile(file)]",
-      "only": "^a relative or unplaceable write path is still counted as unseen$"
-    },
-    {
-      "label": "ADR-094 T4: a symlink leaf is resolved before it is placed",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "const files = [file, canonicalFile(file)]",
-      "to": "const files = [canonical(file)]",
-      "only": "^a relative or unplaceable write path is still counted as unseen$"
     },
     {
       "label": "§381 item 14: a row the Change column marks as only read governs nothing",

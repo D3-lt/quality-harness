@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { testBash } from './helpers/bash.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -159,7 +160,7 @@ test('a record whose Status nobody could read is [UNPROVEN], exit 3, and never [
   assert.match(run.stdout, /^\[UNPROVEN\] .*ADR-001-x\.md/m, run.stdout)
   assert.doesNotMatch(run.stdout, /^\[PASS\]/m, run.stdout)
   assert.match(run.stdout, /unproven: ADR-001-x\.md: no \*\*Status:\*\* line/, run.stdout)
-  const dispatched = spawnSync('bash', [join(repoRoot, 'plugin', 'scripts', 'facts-gate-dispatch.sh'), record],
+  const dispatched = spawnSync(testBash(), [join(repoRoot, 'plugin', 'scripts', 'facts-gate-dispatch.sh'), record],
     { cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true, env: { ...process.env, CLAUDE_PLUGIN_ROOT: join(repoRoot, 'plugin') } })
   assert.match(`${dispatched.stdout}${dispatched.stderr}`, /UNPROVEN: adr-lint could not decide/, `${dispatched.stdout}${dispatched.stderr}`)
   assert.doesNotMatch(`${dispatched.stdout}${dispatched.stderr}`, /is not satisfied/)

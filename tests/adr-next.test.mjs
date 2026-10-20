@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { linkDirectory } from './symlink-support.mjs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
@@ -23,7 +24,7 @@ const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}
 
 const temps = []
 test.after(() => {
-  for (const dir of temps) rmSync(dir, { recursive: true, force: true })
+  for (const dir of temps) remove(dir)
 })
 
 // 60s, not 30s: a Windows runner's first Python spawn is slow enough to hit a

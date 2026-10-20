@@ -19,7 +19,8 @@
 // be seen (ADR-005), instead of as an accusation.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -76,7 +77,7 @@ test('a first Stop with no SessionStart does not accuse a tree nothing changed',
     const after = hook({ hook_event_name: 'Stop' })
     assert.match(after, /no `qh-check` has passed on/)
     assert.match(after, /a\.md/)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a DIRTY tree with no SessionStart is still unchecked work, and gets no late baseline', () => {
@@ -97,7 +98,7 @@ test('a DIRTY tree with no SessionStart is still unchecked work, and gets no lat
     writeFileSync(join(other.repo, 'a.md'), 'edited before anyone was watching\n')
     assert.match(other.hook({ hook_event_name: 'Stop' }), /a\.md/, 'the completion rule still names the real changed path')
     assert.equal(other.log().filter(entry => entry.event === 'session.started').length, 0)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a session that did start normally gets no late baseline and no note about one', () => {
@@ -109,7 +110,7 @@ test('a session that did start normally gets no late baseline and no note about 
     const started = log().filter(entry => entry.event === 'session.started')
     assert.equal(started.length, 1)
     assert.notEqual(started[0].late, true)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // ADR-061's warning arm: a Bash command that MENTIONS commit or push without
@@ -130,7 +131,7 @@ test('a first mention with no SessionStart adopts the late baseline instead of a
     assert.equal(started.length, 1, 'the mention took the late baseline a publish request would')
     assert.equal(started[0].late, true)
     assert.equal(log().filter(entry => entry.event === 'publish.requested').length, 0, 'a mention is not a publish request')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a mention reads the check that ran before it, and is logged as no publish', () => {
@@ -149,7 +150,7 @@ test('a mention reads the check that ran before it, and is logged as no publish'
     assert.doesNotMatch(after, /no `qh-check` has passed on/, `the pass was there to read: ${after.slice(0, 300)}`)
     assert.ok(log().some(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), 'the mention imported the check source')
     assert.equal(log().filter(entry => entry.event === 'publish.requested').length, 0, 'a mention is not a publish request')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 test('a mention runs no artifact gate; a publish request does', () => {
@@ -166,7 +167,7 @@ test('a mention runs no artifact gate; a publish request does', () => {
     // Control: the same tree, a publish request — the gate runs and records.
     hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' } })
     assert.ok(log().some(entry => entry.event === 'artifact.gated'), 'a publish request is gated')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // ADR-060's reviewer guard decides a read-only role's PreToolUse ALONE. A form it
@@ -187,5 +188,5 @@ test('a read-only reviewer is decided by the guard alone: no warning, no log wri
     // The control: the same command from the session itself is prepared and warned about.
     const own = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'GIT=git; $GIT push' } })
     assert.match(own, /only mentions commit or push/, own.slice(0, 300))
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })

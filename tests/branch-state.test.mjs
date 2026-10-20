@@ -10,6 +10,7 @@ import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -1736,13 +1737,13 @@ test('reviewedHeads reads the covering rows of reviews.jsonl, and nothing else',
     ].join('\n'))
     assert.deepEqual(branchState.reviewedHeads(dir), [a, c])
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    remove(dir)
   }
 })
 
 test('the hook writes the unreviewed count into its cache from the review ledger, with real git', t => {
   const project = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qh-unreviewed-')))
-  t.after(() => rmSync(project, { recursive: true, force: true }))
+  t.after(() => remove(project))
   const git = (...args) => spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args],
     { cwd: project, encoding: 'utf8', timeout: 30_000, windowsHide: true })
   git('init', '-q', '-b', 'main')
@@ -1767,7 +1768,7 @@ test('the hook writes the unreviewed count into its cache from the review ledger
 
 test('a branch tracking an upstream of another name is counted against it, with real git', t => {
   const scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qh-upstream-')))
-  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  t.after(() => remove(scratch))
   const remote = path.join(scratch, 'remote.git')
   const project = path.join(scratch, 'project')
   const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args],

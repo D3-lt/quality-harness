@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { required } from './helpers/require.mjs'
+import { testBash } from './helpers/bash.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const hook = resolve(testDir, '..', 'plugin', 'scripts', 'post-edit-check.sh')
@@ -26,7 +27,7 @@ const scratch = () => { const d = mkdtempSync(join(tmpdir(), 'qh-hook-')); temps
 // A fresh TMPDIR per run, or the script's own 5-second debounce makes a second
 // call in the same second silently exit 0 and the test measures the debounce
 // rather than the check.
-const run = (tool, file) => spawnSync('bash', [hook, tool, file],
+const run = (tool, file) => spawnSync(testBash(), [hook, tool, file],
   { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
 
 // BACKLOG §381 item 18 (ADR-119 T4): two assertions read jq's own words, which a host without jq cannot print, so there they

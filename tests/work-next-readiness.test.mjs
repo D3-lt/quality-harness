@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -17,7 +18,7 @@ import { main, observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
 const temps = []
-test.after(() => { for (const t of temps) rmSync(t, { recursive: true, force: true }) })
+test.after(() => { for (const t of temps) remove(t) })
 
 // What adr-next --json prints, as spawnSync hands it back. Nothing on disk is
 // read by these: `spawn` is the seam.

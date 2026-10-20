@@ -11,7 +11,7 @@
 // or inside the quoted string of a known executor — and nothing that is data.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import nodeTest, { after } from 'node:test'
@@ -21,6 +21,7 @@ import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/pu
 import { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 import { sharded } from './helpers/shard.mjs'
+import { remove } from './helpers/remove.mjs'
 
 // Run as three processes by the gate and the fast check (QH_TEST_SHARDED=1, with publish-command.shard-1 and -2.test.mjs),
 // since this file alone bounded the per-commit check; run directly, it runs every test (tests/helpers/shard.mjs).
@@ -319,7 +320,7 @@ const hookQhCheck = path.join(hookRepoRoot, 'plugin', 'bin', 'qh-check')
 const hookTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-armed-')))
 after(() => {
-  try { rmSync(hookTmp, { recursive: true, force: true }) } catch { /* the assertions already ran */ }
+  try { remove(hookTmp) } catch { /* the assertions already ran */ }
 })
 const IDENTITY = {
   GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid',

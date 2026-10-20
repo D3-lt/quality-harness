@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,7 +26,7 @@ function diffOf(before, after) {
       { encoding: 'utf8', timeout: 30_000, windowsHide: true })
     assert.equal(run.status, 0, run.stderr)
     return run.stdout.split('\n').filter(Boolean)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 }
 
 // A report carrying every field --diff compares, so a field compared wrongly (an object read as a

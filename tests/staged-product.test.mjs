@@ -4,6 +4,7 @@ import {
   chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
 
 } from 'node:fs'
+import { testBash } from './helpers/bash.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -46,7 +47,7 @@ function workNext(root, flags = []) {
 }
 
 function factsGate(file, boundary = '', env = {}) {
-  return spawnSync('bash', [path.join(pluginDir, 'scripts', 'facts-gate-dispatch.sh'), file, boundary], {
+  return spawnSync(testBash(), [path.join(pluginDir, 'scripts', 'facts-gate-dispatch.sh'), file, boundary], {
     encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...env },
   })
 }
@@ -702,7 +703,7 @@ test('post-edit-check still runs on unclassified files', () => {
   const root = mkdtempSync(path.join(testTmp, 'syntax-'))
   const file = path.join(root, 'notes.md')
   writeFileSync(file, '# Notes\n')
-  const run = spawnSync('bash', [script, 'Edit', file], {
+  const run = spawnSync(testBash(), [script, 'Edit', file], {
     encoding: 'utf8', timeout: 30_000,
   })
   assert.ok(run.status === 0 || run.stdout || run.stderr === '')

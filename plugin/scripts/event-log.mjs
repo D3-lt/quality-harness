@@ -235,3 +235,38 @@ export function contentId(file) {
     if (descriptor !== null) { try { closeSync(descriptor) } catch { /* nothing to report: the answer is already decided */ } }
   }
 }
+
+// A depth-first visit of every object and array in `value`, `value` included. Moved here from decision-corpus.mjs, whose
+// reading of the corpus never used it, with outsideRoot and GIT_LISTING_BUFFER: the modules that use them already import
+// this one (BACKLOG §381 item 23, ADR-119 T5).
+export function walk(value, visit) {
+  if (!value || typeof value !== 'object') return
+  visit(value)
+  if (Array.isArray(value)) {
+    for (const item of value) walk(item, visit)
+    return
+  }
+  for (const child of Object.values(value)) walk(child, visit)
+}
+
+// Whether `file` lies outside the repository at `root`. INSIDE when any spelling of the path is inside any
+// spelling of the root: the path as given, and with its parent resolved (the leaf keeps its own name, so a
+// link inside the tree to a file outside it stays a write the tree hash cannot see); the root as given and
+// resolved. A path under a directory link that leads out is still spelled inside, and it counts — resolving
+// it first read it as outside (Codex reviews of ADR-094). It errs toward counting. Case is folded where the
+// filesystem folds it.
+export function outsideRoot(root, file) {
+  const fold = value => (process.platform === 'win32' || process.platform === 'darwin' ? value.toLowerCase() : value)
+  const inside = (base, target) => {
+    const relative = path.relative(fold(base), fold(target)).replace(/\\/g, '/')
+    return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative))
+  }
+  const files = [file, canonicalFile(file)]
+  return !([root, canonical(root)].some(base => files.some(target => inside(base, target))))
+}
+
+// Room for a whole listing. Node's default 1 MiB cut `git ls-files -z` on a 27,289-file repository
+// (2.3 MB) with ENOBUFS, and every reader said "git could not list the tree" over a listing git produced
+// (a Windows corpus-chaos run of v3.8.9, php-dated-adr). Every git call whose output grows with the tree
+// takes it: the listing, the deleted-file diff, `gitLines` and the harness status read.
+export const GIT_LISTING_BUFFER = 256 * 1024 * 1024

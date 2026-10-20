@@ -15,7 +15,8 @@
 // real on this branch's first Windows CI run, 2026-09-19.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -68,5 +69,5 @@ test('a verdict recorded through a symlinked path is found again at the turn end
     // And the consequence: the turn end does not gate, or report, that file again.
     const stop = hook({ hook_event_name: 'Stop' })
     assert.doesNotMatch(`${stop.stdout}`, /Artifact validation failed/, `a file already judged for this content is not judged again: ${stop.stdout.slice(0, 400)}`)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })

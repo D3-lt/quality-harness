@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -83,7 +84,7 @@ test('each resource says what its ledger holds, and an unreadable one says so', 
 // QUALITY_HARNESS_STATE_DIR set the branch-state snapshot, which stays in the git directory, read as absent.
 test('a later hook\'s finding is not the last turn end\'s, and a moved state directory still finds the snapshot', { skip }, t => {
   const bin = mkdtempSync(path.join(os.tmpdir(), 'qh-mcp-bin-'))
-  t.after(() => rmSync(bin, { recursive: true, force: true }))
+  t.after(() => remove(bin))
   const qh = path.join(bin, 'qh')
   assert.equal(spawnSync('go', ['build', '-o', qh, './cmd/qh'], { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true }).status, 0)
   const box = sandbox(t)

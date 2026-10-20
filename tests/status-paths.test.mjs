@@ -13,7 +13,8 @@
 // left an embedded quote, backslash or newline wrong; `-z` has no quoting at all.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -64,7 +65,7 @@ test('every changed path a session is told about is a path that exists', () => {
     // rename's NEW name — once, not the old name and not both.
     const names = facts.files.map(file => file.slice(repo.length + 1)).sort()
     assert.deepEqual(names, [...awkward, 'plain.md', 'renamed é.md'].sort())
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { remove(repo) }
 })
 
 // The same names, through the real hooks: rule A enumerates its candidates with
@@ -116,5 +117,5 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
     // filename was still in there to be found. A path with a NUL in it is not a path.
     assert.doesNotMatch(said, /\u0000|\\u0000/, `no NUL reaches a path or a message: ${JSON.stringify(said.slice(0, 500))}`)
     assert.match(said, /ADR-900-committ\u00e9d\.md(?![^\s"\\]*\\u0000)[\s":,.]/, 'the name ends where a name ends')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })

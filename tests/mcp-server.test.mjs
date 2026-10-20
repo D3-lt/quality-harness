@@ -4,7 +4,8 @@
 // and the framing is exactly where a hand-written JSON-RPC server goes wrong.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -386,7 +387,7 @@ test('a reading gate that exits its own could-not-run code reaches the client on
     assert.equal(ran.error, undefined, JSON.stringify(ran.error))
     assert.equal(ran.result.isError, false)
     assert.match(ran.result.content[0].text, /^adr-next exit [03]\n/, ran.result.content[0].text)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test('gate output is returned verbatim', () => {

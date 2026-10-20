@@ -681,3 +681,14 @@ test('the operator after a group joins the group', () => {
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })
+
+// ADR-119 T1 (BACKLOG §381): a pipe after a group's `}` was dropped like the other operators were before 0b9b528a, so the
+// group's last command kept `;` and a pass-through sink after it was read as a command of its own. `{ false; } | cat`
+// exits 0 under bash 3.2 and /bin/sh, and `{ false; } |& cat` under zsh (measured 2026-10-20), and both were accepted.
+test('a pipe or a pipe-and-stderr after a group joins the pipeline, so a sink after it cannot fail', () => {
+  const constant = ['{ false; } | cat', '{ true; } | cat', '{ false; } |& cat', '{ npm test; } | cat']
+  // DIRTY twins: a check after the pipe decides the pipeline's status (`{ true; } |& false` exits 1 under zsh, measured).
+  const real = ['{ true; } | npm test', '{ true; } |& npm test']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})

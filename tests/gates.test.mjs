@@ -2143,6 +2143,54 @@ test("a task file's own done claim needs an Accepted record, whatever the README
   assert.match(said(), /Status is 'Proposed' but T1 is marked done/)
 })
 
+// ADR-119 T1 (BACKLOG §381 item 6, at the test checks): `check_tests_exist` and `check_tests_can_fail` told
+// `unproven_test` a task was done only from the README, so a task whose own file says done had its UNPROVEN test evidence
+// demoted to advice. Both rows below reach the loops through an exit-0 log row, as any evidenced task does.
+test('an unproven test of a task done only in its own file is an error at both done loops', () => {
+  const corpus = (readmeStatus, ownDone) => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'qh-own-done-unproven-'))
+    agedRepos.push(dir)
+    const tasks = join(dir, 'docs', 'adr', 'ADR-001-probe', 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    mkdirSync(join(dir, 'tests'))
+    // Not UTF-8 (a lone 0xff), so check_tests_exist cannot read it at all.
+    writeFileSync(join(dir, 'tests', 'bytes.test.mjs'), Buffer.from([0x74, 0x65, 0x73, 0x74, 0xff, 0x0a]))
+    // A spaced title found on its call alone, whose expression body the lexer cannot bound: check_tests_can_fail's case.
+    writeFileSync(join(dir, 'tests', 'arrow.test.mjs'), "import test from 'node:test'\ntest('probe unbounded arrow', () => /assert/)\n")
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-001-probe.md'), ['# ADR-001: Probe', '', '**Status:** Accepted',
+      '**Spec:** None — no spec stage', '**Served-path change:** None — this decision changes no served path.', '',
+      '## Existing Primitives Audit', '', 'None.', '', '## Decision', '', 'Probe.', '', '## Alternatives Considered', '',
+      '- Nothing — rejected.', '', '## Consequences', '', 'None.', '', '## Wiring & Contract Changes', '', 'None.', '',
+      '## Out of Scope', '', '- Other (deferred: ADR-002)', ''].join('\n'))
+    writeFileSync(join(tasks, 'README.md'), '# Tasks\n\n| ID | Goal | Status | Depends-on | Notes |\n|----|------|--------|------------|-------|\n'
+      + `| T1 | probe | ${readmeStatus} | | |\n`)
+    writeFileSync(join(tasks, 'T1-probe.md'), `# Task ADR-001-T1: probe\n\n${ownDone ? '**Status:** done\n\n' : ''}## Tests\n\n`
+      + '| Test name | File | Verifies | Covers |\n|-----------|------|----------|--------|\n'
+      + '| `probe undecodable title` | `tests/bytes.test.mjs` | probe | — |\n'
+      + '| `probe unbounded arrow` | `tests/arrow.test.mjs` | probe | — |\n'
+      + '\n## Verification Log\n\n- 2026-10-01 · 0000000 · exit 0 · `true`\n')
+    spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
+    spawnSync('git', ['add', '-A'], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    const r = run('adr-lint', [join(dir, 'docs', 'adr', 'ADR-001-probe.md')], dir)
+    return `${r.stdout}\n${r.stderr}`.split('\n')
+  }
+  const about = (lines, needle) => lines.filter(line => line.includes(needle) && /UNPROVEN/.test(line))
+  const advised = line => /^\s*advice:/.test(line)
+  const sites = [['check_tests_exist', 'probe undecodable title'], ['check_tests_can_fail', 'probe unbounded arrow']]
+  // DIRTY: the task file says done and the README says pending; each site's line is an error on its own.
+  const own = corpus('pending', true)
+  for (const [site, name] of sites) {
+    const lines = about(own, name)
+    assert.ok(lines.length && lines.every(line => !advised(line)), `${site}: done in its own file is refused:\n${own.join('\n')}`)
+  }
+  // CLEAN twin: a blocked task with exit-0 evidence and no done claim anywhere is still told as advice.
+  const blocked = corpus('blocked', false)
+  for (const [site, name] of sites) {
+    const lines = about(blocked, name)
+    assert.ok(lines.length && lines.every(advised), `${site}: a task not done is advised:\n${blocked.join('\n')}`)
+  }
+})
+
 // BACKLOG §381 item 10: two task files with one id, and adr-lint kept only the second, so the first was judged by
 // nothing and nothing named it. adr-next stops on the same corpus; adr-lint says it in adr-next's words.
 test('two task files declaring one id are named, and neither silently replaces the other', () => {

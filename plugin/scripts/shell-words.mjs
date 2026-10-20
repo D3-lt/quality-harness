@@ -92,8 +92,12 @@ export function shellWords(text) {
       && command.substitutions.length === 0
     // The operator after a group's `}` joins the group, so its last command takes it: `{ …; } &` runs in the background
     // and `{ …; } || x` decides `x` (the verification of 0b9b528a). Before, it was dropped and the command kept its `;`.
+    // A pipe joins it too, and pipes into the next command, so a sink there is the pipeline's last stage (ADR-119 T1).
     // A body that ends in `&` keeps it: that `&` decides the group's status.
-    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator
+    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||', '|', '|&'].includes(operator)) {
+      commands.at(-1).ended = operator
+      pipeNext = operator === '|' || operator === '|&'
+    }
     closedGroup = false
     // `function NAME ()` and a newline before the body still open the definition: those empty commands keep it. Any
     // command ends it, since a body need not be a group (`function f() if …; fi`, the review of 7c85a1c5).

@@ -3598,6 +3598,22 @@
       "from": "    rows = {row.index: row for row in gfm_rows(lines)}",
       "to": "    rows = {row.index: row for row in gfm_rows(lines) if row.line.startswith(\"|\")}",
       "only": "^a README row without its leading pipe has its width checked$"
+    },
+    {
+      "label": "ADR-119 T1: check_tests_exist tells unproven_test a task done in its own file is done",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    done = set(claimed_done_ids(readme_text, infos))\n    for tid in evidenced_task_ids(infos, readme_text):\n        inf = infos.get(tid)\n        if inf is None or inf.get(\"human\"):\n            continue\n        for name, rel in inf.get(\"tests\", []):\n            spaced = spaced_js_title(name, rel)\n            if not spaced and not IDENTIFIER_TEST_NAME.match(name):\n                continue  #",
+      "to": "    done = set(done_task_ids(readme_text))\n    for tid in evidenced_task_ids(infos, readme_text):\n        inf = infos.get(tid)\n        if inf is None or inf.get(\"human\"):\n            continue\n        for name, rel in inf.get(\"tests\", []):\n            spaced = spaced_js_title(name, rel)\n            if not spaced and not IDENTIFIER_TEST_NAME.match(name):\n                continue  #",
+      "only": "^an unproven test of a task done only in its own file is an error at both done loops$"
+    },
+    {
+      "label": "ADR-119 T1: check_tests_can_fail tells unproven_test a task done in its own file is done",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    done = set(claimed_done_ids(readme_text, infos))\n    for tid in evidenced_task_ids(infos, readme_text):\n        inf = infos.get(tid)\n        if inf is None or inf.get(\"human\"):\n            continue\n        for name, rel in inf.get(\"tests\", []):\n            spaced = spaced_js_title(name, rel)\n            if not spaced and not IDENTIFIER_TEST_NAME.match(name):\n                continue\n            f = resolve_test_file(root, rel, tracked)",
+      "to": "    done = set(done_task_ids(readme_text))\n    for tid in evidenced_task_ids(infos, readme_text):\n        inf = infos.get(tid)\n        if inf is None or inf.get(\"human\"):\n            continue\n        for name, rel in inf.get(\"tests\", []):\n            spaced = spaced_js_title(name, rel)\n            if not spaced and not IDENTIFIER_TEST_NAME.match(name):\n                continue\n            f = resolve_test_file(root, rel, tracked)",
+      "only": "^an unproven test of a task done only in its own file is an error at both done loops$"
     }
   ]
 }

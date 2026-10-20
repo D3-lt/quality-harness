@@ -276,8 +276,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||'].includes(operator)) commands.at(-1).ended = operator",
-      "to": "    if (false) commands.at(-1).ended = operator",
+      "from": "    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||', '|', '|&'].includes(operator)) {",
+      "to": "    if (false) {",
       "only": "^(?:the operator after a group joins the group)$"
     },
     {
@@ -316,8 +316,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": " && commands.at(-1).ended !== '&' && ['&', '&&', '||']",
-      "to": " && ['&', '&&', '||']",
+      "from": " && commands.at(-1).ended !== '&' && ['&', '&&', '||', '|', '|&']",
+      "to": " && ['&', '&&', '||', '|', '|&']",
       "only": "^(?:the operator after a group joins the group)$"
     },
     {
@@ -349,6 +349,16 @@
       "from": "      defining = false\n      i = end\n",
       "to": "      i = end\n",
       "only": "^(?:the operator after a group joins the group)$"
+    },
+    {
+      "label": "ADR-119 T1: a pipe after a group joins the group, so a sink after it is the pipeline's last stage",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "['&', '&&', '||', '|', '|&'].includes(operator)) {",
+      "to": "['&', '&&', '||', '|&'].includes(operator)) {",
+      "only": "^(?:a pipe or a pipe-and-stderr after a group joins the pipeline, so a sink after it cannot fail)$"
     }
   ]
 }

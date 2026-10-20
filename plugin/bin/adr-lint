@@ -5024,7 +5024,7 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
     if not readme_text or root is None:
         return
     frozen = record is not None and record_is_frozen(record, root, tracked)
-    done = set(done_task_ids(readme_text))
+    done = set(claimed_done_ids(readme_text, infos))
     for tid in evidenced_task_ids(infos, readme_text):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
@@ -5814,7 +5814,7 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
     if not readme_text or root is None:
         return
     frozen = record is not None and record_is_frozen(record, root, tracked)
-    done = set(done_task_ids(readme_text))
+    done = set(claimed_done_ids(readme_text, infos))
     for tid in evidenced_task_ids(infos, readme_text):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):

@@ -202,8 +202,10 @@ func shellWords(text string) ([]*shellCommand, bool) {
 		endWord()
 		naming = false
 		empty := len(command.argv) == 0 && len(command.assignments) == 0 && len(command.heredocs) == 0 && len(command.substitutions) == 0
-		if empty && closedGroup && len(commands) > 0 && commands[len(commands)-1].ended != "&" && (operator == "&" || operator == "&&" || operator == "||") {
+		// A pipe after a group joins it too and pipes into the next command (shell-words.mjs's, ADR-119 T1).
+		if empty && closedGroup && len(commands) > 0 && commands[len(commands)-1].ended != "&" && (operator == "&" || operator == "&&" || operator == "||" || operator == "|" || operator == "|&") {
 			commands[len(commands)-1].ended = operator
+			pipeNext = operator == "|" || operator == "|&"
 		}
 		closedGroup = false
 		if !empty || !(operator == "(" || operator == ")" || operator == "\n") {

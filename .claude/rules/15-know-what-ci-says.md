@@ -34,8 +34,8 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   it costs no discipline. ⚠ `SessionStart` ALONE IS NOT ENOUGH and that was measured the moment it
   shipped: it fires when a session begins, so the session already running — the one about to plan a
   release on a red branch — never sees it, and one message at the very start is the message a
-  session has the least reason to act on. team-memory is visible because it hooks
-  `UserPromptSubmit` too; this now does the same. The per-message form is ONE LINE WHILE GREEN
+  session has the least reason to act on. A per-prompt hook is what a running session sees, so this hooks
+  `UserPromptSubmit` too. The per-message form is ONE LINE WHILE GREEN
   (`--brief`; an alarm adds a second line rather than dropping the failing job names) and reads a
   a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
   answer says how old it is, and an unreadable cache is refreshed rather than trusted.

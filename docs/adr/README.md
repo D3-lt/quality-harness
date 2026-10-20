@@ -63,7 +63,7 @@ whose catalog says what each one's decision effect is now.
 | [ADR-057](ADR-057-every-shipped-element-has-a-named-route.md) | Every shipped element has a named route | Accepted |
 | [ADR-060](ADR-060-advisories-react-to-observed-events.md) | Advisories react to observed events, not to parsed commands | Accepted |
 | [ADR-061](ADR-061-an-unchecked-publish-is-refused.md) | An unchecked publish is refused | Accepted |
-| [ADR-062](ADR-062-a-review-is-a-host-result.md) | A review is a host result | Accepted |
+| [ADR-062](ADR-062-a-review-is-a-host-result.md) | A review is a host result (`bound` vocabulary superseded by ADR-119 T2) | Accepted |
 | [ADR-063](ADR-063-a-record-is-its-number-or-its-stem.md) | A record is its number, or its stem | Accepted |
 | [ADR-064](ADR-064-corpus-chaos-is-the-release-loop.md) | Corpus chaos is the release loop | Accepted |
 | [ADR-065](ADR-065-branch-state-serves-its-snapshot.md) | The per-prompt branch-state brief serves its snapshot and refreshes behind the prompt | Accepted |

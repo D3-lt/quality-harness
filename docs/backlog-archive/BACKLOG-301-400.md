@@ -3121,6 +3121,19 @@ cannot claim; until then the reporter's `partial` is the honest status.
     read it back` and `a red run with --cwd elsewhere keys its first-red lock from the record`, both catalogue mutants
     killed. Closed with this entry's commit.
 
+## 389. CLOSED 2026-10-20 (the receipt wording by ADR-119 T3, 3fd4db37; the resolver half decided against, as CLAUDE_PLUGIN_ROOT is unset in a session's Bash) — An older adr-verify writes no receipt, and the newer hook then refuses its row
+
+The same report: `~/.claude/bin/adr-verify` and `adr-lint` are forwarders that resolve the newest INSTALLED plugin (the cache,
+3.8.42 on that machine), while the session's hooks ran a 3.8.48 checkout. A red row written by the 3.8.42 adr-verify carries
+no receipt (receipts arrived with ADR-117 T2, in 3.8.48), so the 3.8.48 hook read it as "not in the committed file, and no
+adr-verify receipt names it". Each gate is right for its own version; the pair disagrees. Left: the receipt refusal could say
+when a row's writer may predate receipts, and the forwarder could prefer the plugin root the session runs
+(`CLAUDE_PLUGIN_ROOT`) over the newest cache entry. The immediate remedy is the owner's: update the installed plugin.
+  - **Closed 2026-10-20 by ADR-119 T3 (3fd4db37).** The receipt refusal now says when a row's writer may predate receipts
+    (3.8.48) and that updating the installed plugin is the remedy. The resolver half is not built: `printenv
+    CLAUDE_PLUGIN_ROOT` exited 1 in the main session's Bash tool (T3 S4), so a forwarder started from a session's Bash
+    cannot read the plugin root the session runs, and preferring it would change nothing.
+
 ## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
 
 From the §388 reporter: a task refused with "check was absent at first-red and is now declared — done is refused" was
@@ -3135,3 +3148,14 @@ if no, a relock should keep the first lock's check and the refusal should stand 
     the declared check" (`_recorded_lock` reads the first kindless lock's check, `lock_findings` compares it;
     tests/test-lock.test.mjs `a relock that moved the check binding passes done and names the move`, with its catalogue
     mutant killed). Closed with this entry's commit.
+
+## 391. CLOSED 2026-10-20 (fixed by ADR-119 T2, 28a69f70) — A review row records the model the reviewer printed, not the one the launcher pinned
+
+Reported by a peer repository's session from its `.git/quality-harness/reviews.jsonl`, confirmed here: `plugin/scripts/host-review.mjs:61`
+(`reviewFromOutput`) takes the reviewer's self-printed `model` over the pinned one (`CODEX_MODEL`, :17, passed as `-m` at :139), and
+the Codex row at :256 records `review.model ?? CODEX_MODEL`. Runs pinned to gpt-6.1-sol were recorded as "gpt-6", "GPT-6 (Codex)" and
+"Codex". No gate reads the row's `model` or `bound` today (`scripts/release-evidence.mjs` reads status, head, base and exact), so this is
+a record that says less than the tool observed, not an open gate. To be closed by ADR-119 T2.
+  - **Closed 2026-10-20 by ADR-119 T2 (28a69f70).** A row's `model` is the pinned one, `reportedModel` what the reviewer
+    printed when it differs, and `bound` is `pinned`, `disagrees` or `unproven` (`reviewFromOutput` in
+    `plugin/scripts/host-review.mjs`, and the rows `hostReview` and the `--prompt-file` form record).

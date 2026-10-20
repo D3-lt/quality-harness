@@ -42,7 +42,23 @@ campaign.
 
 The rules above are what `plugin/scripts/host-review.mjs` now does, so §12 points at it rather than restating them: stdin
 closed, a hard kill at `CODEX_TIMEOUT_MS`, the model pinned in `CODEX_MODEL`, and the contract's leaf instruction forbidding
-a nested `codex exec`. What it adds is the record: every run it starts appends `{base, head, exact, status}` to
-`reviews.jsonl`, and `release-evidence` reads it. Before that, whether a review ran before a tag was prose; v3.8.22's
+a nested `codex exec`. What it adds is the record: every run it starts appends a row to `reviews.jsonl` holding `host`,
+`model` (the pinned one), `bound` (`pinned`, `disagrees` or `unproven`), `reportedModel` (what the reviewer printed, when
+it differs), `effort`, `base`, `head`, `exact`, `status` and `findings` (ADR-119 T2), and `release-evidence` reads its range
+and status. Before that, whether a review ran before a tag was prose; v3.8.22's
 release took 34 tool calls between its bump and its tag (measured 2026-10-13 over that session's transcript), and none of
 them asked whether the review had covered every commit.
+
+## When a same-lineage review stands in (the owner, 2026-10-15)
+
+On 2026-10-15 Codex refused this repository's content, and the owner chose a recorded Claude review in its place: through
+Cursor first, then through `claude -p`, since Cursor could not run a named model here (the comment in `hostReview`,
+`plugin/scripts/host-review.mjs`). The launcher records it as it records a Codex run, so `release-evidence` sees it. It is
+the fallback, not the default: a reviewer of the lineage that wrote the change shares its blind spots, which is why §12
+asks for a different one.
+
+## One review, then one verification per fix round (the owner, 2026-10-07)
+
+A review loop run until clean does not end, since each fix round can draw findings of its own. So a change gets one
+review, each fix round gets one scoped verification review, and only a fail-open or a regression opens another round;
+every other finding is filed in `docs/BACKLOG.md` with its evidence.

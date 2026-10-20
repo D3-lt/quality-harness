@@ -18,7 +18,7 @@ directory and nothing else — a fraction of the repository (measured 2026-08-28
 
 | Stays at the repository root | Lives under `plugin/` |
 |---|---|
-| `tests/`, `docs/`, `.github/`, `README.md`, `LICENSE` | `plugin/bin/`, `plugin/skills/`, `plugin/templates/`, `plugin/workflows/`, `plugin/hooks/`, `plugin/evals/` |
+| `tests/`, `docs/`, `.github/`, `core/` (the Go core), `README.md`, `LICENSE` | `plugin/bin/`, `plugin/lib/`, `plugin/agents/`, `plugin/skills/`, `plugin/templates/`, `plugin/workflows/`, `plugin/hooks/`, `plugin/evals/` |
 | `.claude-plugin/marketplace.json` | `plugin/.claude-plugin/plugin.json` |
 | `scripts/selftest.sh`, `scripts/coverage.sh`, `scripts/mutate.mjs` | everything else, under `plugin/scripts/` |
 

@@ -31,8 +31,11 @@ The rules whose cost of missing is not a wasted hour are repeated here:
 - **No counts in the instruction files.** Run something if you want to know how many.
 - **Read and edit through `mrw`, not `sed`/`head`/`awk`/heredocs.** It refuses a write to lines it
   has not served you and reports a verdict for every hunk; a refusal is the tool working.
-- **Use the team-memory MCP (`am_*` tools).** `am_status` and `am_search` before touching unfamiliar code; file what you
-  learned before you stop. Wing `wing_quality-harness`; craft to `wing_craft`.
+- **Remember through the team-memory MCP this machine's instructions name** (memoryd on the owner's Mac; the palace,
+  `am_*`, where that is what the machine runs): recall before touching unfamiliar code; write what you learned and where
+  you stopped before you stop. This project's space for what holds here; a craft space for what holds anywhere.
+- **`main` moves only through `node scripts/land.mjs`** (ADR-118). A plain push to main is refused by the forge, and a
+  release lands through `scripts/release.mjs`, which uses it.
 - **Always-on unread is actioned.** Advice, an unchanged brief, invented Stop paths, an inferred check called the project's own — classify and act (`CLAUDE.md` §17).
 
 Everything else — and the measurements behind all of the above — is in `CLAUDE.md` and

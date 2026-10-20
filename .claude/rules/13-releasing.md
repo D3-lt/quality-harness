@@ -3,6 +3,8 @@ paths:
   - "plugin/.claude-plugin/plugin.json"
   - ".github/**"
   - "scripts/release-evidence.mjs"
+  - "scripts/land.mjs"
+  - "scripts/release.mjs"
 ---
 
 # Why §13: releasing
@@ -42,11 +44,13 @@ The release step once said "wait for all N jobs … mutations 1-4/4" until 2026-
 had resharded the campaign and both numbers were wrong the moment it landed. A remembered count is
 how a missing job goes unnoticed — ask for the list.
 
-## Why no push lands while a release run is in flight
+## Why a push no longer cancels a release run
 
-`.github/workflows/selftest.yml` sets `cancel-in-progress: true`, so the next push to `main` kills
-the run you are releasing on — correct for development, wrong for a release, and silent either way.
-Either wait, or re-run at the new head and release that (BACKLOG §104).
+`.github/workflows/selftest.yml` sets `cancel-in-progress: true` with the event and the ref in the group key
+(`selftest-${{ github.event_name }}-${{ github.ref }}`, :20-22). A push therefore cancels only an earlier push run on the
+same ref, never the dispatched run a release is cut from, and a second dispatch on the ref does cancel the first, which is
+the case the command waits out (step 6). Before the event was in the key, the next push to `main` killed the release run,
+silently (BACKLOG §104).
 
 ## Why a release campaign is full, and why it is asked for by hand
 
@@ -56,7 +60,7 @@ byte-identical to the run that took it — that is for iteration, and a released
 partly evidenced by a verdict taken at another commit.
 
 ⚠ **This paragraph used to say `--no-cache` fires "for a tag and for `main`", and half of that was a
-branch nothing could take.** This workflow has no tag trigger — `on: push: branches: [main]`,
+branch nothing could take.** This workflow has no tag trigger — `on: push: branches: [main, 'land/**']`,
 `pull_request`, `workflow_dispatch` — and no run has ever been raised by a tag ref, so the tag half
 was dead code, while the `main` half made every push pay a 581-mutant campaign at about 23 minutes:
 a backlog edit, a test-only change, nine times in a day. ADR-023's own kill criterion said a wrong
@@ -87,7 +91,7 @@ for at most 4 minutes, until it is at or below the core count; ADR-115: the samp
 pass on this busy machine read as contended), and taken again once the load is below the count when it passed contended, `merge-base --is-ancestor` against `origin/main` for the push,
 `gh run list --commit` for the push run and the dispatch, `release-evidence` for the verdict. It keeps no state file, so it
 can never disagree with what those say. The old "do not push while the release run is in flight" predates the event in the
-workflow's concurrency key (`.github/workflows/selftest.yml:19-21`): since then a push cancels only an earlier push run,
+workflow's concurrency key (`.github/workflows/selftest.yml:20-22`): since then a push cancels only an earlier push run,
 and a second dispatch cancels the first, which is the case the command waits out.
 
 ## Landing (ADR-118, 2026-10-20)
@@ -99,3 +103,10 @@ required contexts from the forge, refuses one no job of the workflow at the sha 
 forge counts them as passing), checks local main is still the sha, pushes main and reads the forge's main back. The cost,
 measured 2026-10-19 on run 39294734276: about 47 min per landing, set by `coverage floor`. What it cannot close: a sha
 whose own workflow skips a required job passes the forge; that change is reviewed (§12).
+
+The ruleset is applied by hand, never by `land.mjs`: `gh api -X POST repos/{owner}/{repo}/rulesets --input
+.github/rulesets/main.json` creates it (ruleset 25462988 was made that way, ADR-118's Follow-ups), and
+`gh api -X PUT repos/{owner}/{repo}/rulesets/<id> --input .github/rulesets/main.json` updates it. `land.mjs --dry-run`
+only reads it back: it takes the one ruleset whose name is the file's `name`, refuses none or several, and names every
+field that differs. A renamed required CI job therefore needs the file edited and PUT before a landing can pass, since
+`land` refuses a required context no job of the workflow declares.

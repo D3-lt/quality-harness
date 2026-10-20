@@ -53,6 +53,7 @@ node --test tests/land.test.mjs && node scripts/land.mjs --dry-run
 | 4 — it is used | every landing, observed in S4 |
 
 ## Mutation Log
+- 2026-10-20 · 1011db21* · mutant killed · exit 1 · `scripts/land.mjs` · a dry run fails on any difference from the committed ruleset · acceptance-sha256:eeeddf51d09a91fe25ff29914ef3f1f288952eb445e0e0f1ceb51a8e70b54bdc
 
 ## Invariants
 
@@ -85,3 +86,19 @@ Stop and roll back if the probe in S3 lands, or if S4 cannot fast-forward `main`
       diff: 'simple'
     }
   ```
+- 2026-10-20 · 1011db21 · exit 2 · `node --test tests/land.test.mjs && node scripts/land.mjs --dry-run` · acceptance-sha256:eeeddf51d09a91fe25ff29914ef3f1f288952eb445e0e0f1ceb51a8e70b54bdc · ms:399
+  ```
+  --- last 10 line(s) of stdout (of 18 after folding 18 raw)
+  ✔ land --dry-run reads the ruleset for a sha already on main (0.114416ms)
+  ℹ tests 9
+  ℹ suites 0
+  ℹ pass 9
+  ℹ fail 0
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 114.161584
+  land: HEAD is not the main branch at 1011db21fb7599e27f8971e79adde76029d3b441; check out main at the sha to land, then run again
+  ```
+- 2026-10-20 · human-observed · Claude observed, 2026-10-20 (S3): ruleset 25462988 applied; origin/main captured at 1011db21fb7599e27f8971e79adde76029d3b441; an empty child of it (15215b49b615f60640734bcc945bafda3b11fad9, built with commit-tree, no local ref moved) pushed with git push origin <probe>:refs/heads/main was rejected: 'GH013: Repository rule violations found for refs/heads/main. - 8 of 8 required status checks are expected.' (not non-fast-forward); git ls-remote origin refs/heads/main still 1011db21fb7599e27f8971e79adde76029d3b441 after. --no-verify was left out: this session's own publish guard refuses that flag before the forge sees it, and the probe's tree equals main's checked tree, so only the forge decided. · acceptance-sha256:eeeddf51d09a91fe25ff29914ef3f1f288952eb445e0e0f1ceb51a8e70b54bdc
+- 2026-10-20 · 1011db21* · exit 0 · `node --test tests/land.test.mjs && node scripts/land.mjs --dry-run` · acceptance-sha256:eeeddf51d09a91fe25ff29914ef3f1f288952eb445e0e0f1ceb51a8e70b54bdc · ms:2721

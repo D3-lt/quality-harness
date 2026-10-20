@@ -119,3 +119,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-115](ADR-115-a-release-judges-the-load-the-run-did-not-bring.md) | A release judges the load the run did not bring | Accepted |
 | [ADR-116](ADR-116-qh-ships-as-release-assets-fetched-and-verified.md) | `qh` ships as release assets, fetched and verified, with Node as the fallback | Accepted |
 | [ADR-117](ADR-117-the-evidence-is-written-only-by-its-tools.md) | The evidence is written only by its tools, and a door that cannot close here is named where it closes | Accepted |
+| [ADR-118](ADR-118-main-lands-only-a-sha-ci-passed.md) | Main lands only a sha CI has already passed | Accepted |

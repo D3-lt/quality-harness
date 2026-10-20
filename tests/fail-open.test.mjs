@@ -705,6 +705,29 @@ test('a group of several commands piped onward is one stage, so its own list dec
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
 })
 
+// The verification of 7e7c59ee..892ba222 (blocking): listStatus honoured a group's end only for the pipeline's first stage,
+// so a later group's own list leaked into the list. `{ true || false; } | { false && true; } | cat` exits 0 under bash 3.2,
+// /bin/sh and zsh -f and was accepted; `{ false && true; } | { true || false; } | npm test` exits 1 with a failing npm in
+// all three and was refused as constant (measured 2026-10-20 with a stub npm).
+test('every group of several commands in a pipeline is one stage, not only the first', () => {
+  const constant = [
+    '{ true || false; } | { false && true; } | cat',
+    '{ true; false; } | { false; true; } | { true || false; } | cat',
+    'npm test | cat && { true || false; } | cat',
+    'false | cat && { true; false; } | cat',
+    'npm test | { cat; true; }',
+  ]
+  // DIRTY twins: the stage after the last pipe decides, however many groups come before it.
+  const real = [
+    '{ false && true; } | { true || false; } | npm test',
+    '{ false; true; } | { true; false; } | { false && true; } | npm test',
+    'npm test | cat && { false && true; } | npm test',
+    'npm test | { true; npm test; }',
+  ]
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})
+
 // The review of c48dd5b0..cfd24edc (blocking): the text a group pipes into a shell was read from its last command alone, so
 // `{ printf %s '#'; echo 'git push'; } | sh` was proven a publish; the shell is sent `#git push` and runs a comment (bash
 // 3.2, /bin/sh and zsh -f, measured 2026-10-20 with a harmless marker in its place).

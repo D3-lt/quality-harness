@@ -389,7 +389,7 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end++",
+      "from": "    while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end = commands[end + 1].groupEnd ?? end + 1",
       "to": "    while (false) end++",
       "only": "^(?:a pipeline is joined to the list as one unit)$"
     },
@@ -452,6 +452,16 @@
       "from": "    let end = commands[i].groupEnd ?? i",
       "to": "    let end = i",
       "only": "^(?:a group of several commands piped onward is one stage, so its own list decides nothing after the pipe)$"
+    },
+    {
+      "label": "ADR-119 T1, the verification of 7e7c59ee..892ba222: every group of several commands in a pipeline is one stage, not only the first",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": " end + 1 < commands.length) end = commands[end + 1].groupEnd ?? end + 1",
+      "to": " end + 1 < commands.length) end++",
+      "only": "^(?:every group of several commands in a pipeline is one stage, not only the first)$"
     }
   ]
 }

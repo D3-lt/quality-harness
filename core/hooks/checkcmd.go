@@ -274,12 +274,15 @@ func listStatus(text string, depth int) string {
 			joiner = commands[i-1].ended
 		}
 		end := i
-		// A group of several commands piped onward is one stage (check-command.mjs's).
+		// A group of several commands piped onward is one stage, wherever it stands (check-command.mjs's).
 		if commands[i].groupEnd > i {
 			end = commands[i].groupEnd
 		}
 		for isPiped(commands[end].ended) && end+1 < len(commands) {
 			end++
+			if commands[end].groupEnd > end {
+				end = commands[end].groupEnd
+			}
 		}
 		var own cmdStatus
 		if commands[end].ended == "&" || (end > i && passThroughSink(commands[end])) {

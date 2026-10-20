@@ -169,7 +169,7 @@ See `tasks/README.md`: T1, T2, T3 (after T1), T4, then T5 last.
 - The Windows hook goldens, the second half of §381 item 23 (deferred: docs/BACKLOG.md §381)
 - §384's slowdown measure (deferred: docs/BACKLOG.md §384)
 - §386's signing, which ADR-116 already defers (deferred: docs/BACKLOG.md §386)
-- ADR-112's pre-registration, which waits on its own stage (deferred: docs/adr/ADR-112-the-lifecycle-is-measured-where-it-can-work.md)
+- ADR-112's pre-registration, which waits on its own stage (permanent: boundary: ADR-112 owns its pre-registration and its wait on the bench peer's baseline; nothing of this record's work is deferred into it)
 - §383's other open bullets: the mention arm's over-match, no finding when no check is known, the wording after a red check, and the `treeMoved` advisory (deferred: docs/BACKLOG.md §383)
 - The backlog's own correction (§381's re-check line, §385 archived, §391 filed for T2) (permanent: boundary: it is made in the same commit as this record, by the coordinator, and is history rather than a task)
 
@@ -190,5 +190,5 @@ Each task is its own commit and reverts alone. No persistent state changes, exce
 
 ## Follow-ups
 
-- [ ] A cold Codex review of this draft (`codex-review` skill, `host-review.mjs --host codex --effort high`) before acceptance
+- [x] A cold Codex review of this draft (`codex-review` skill, `host-review.mjs --host codex --effort high`) before acceptance: REQUEST CHANGES with five findings, all folded in, then a scoped verification APPROVE, 2026-10-20
 - [ ] After T1, T3 and T4: an outside run by an eligible peer, one at a time, filed with `attest-import`, then a bump and `release.mjs`

@@ -31,6 +31,37 @@ export function undeclared(required, declared) {
   return required.map(check => check.context).filter(context => !jobs.has(context))
 }
 
+/** JSON with every object's keys in order: the forge keeps its own key order, and that is not a difference. */
+function canonical(value) {
+  return JSON.stringify(value, (_, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v))
+}
+
+/**
+ * ADR-118 T2: how the ruleset the forge applied differs from the committed one, one line per difference. The file's
+ * fields must be on the forge as written, bypass actors included; the forge's own fields (id, source, links) are not
+ * compared. Rules are matched by type both ways, and the required checks as a set of context and app, in any order.
+ */
+export function rulesetDiffers(committed, applied) {
+  if (!applied || typeof applied !== 'object') return ['the applied ruleset could not be read']
+  const differs = []
+  for (const key of ['name', 'target', 'enforcement', 'conditions', 'bypass_actors']) {
+    if (canonical(committed[key]) !== canonical(applied[key])) differs.push(`${key} is ${canonical(applied[key])}, not ${canonical(committed[key])}`)
+  }
+  const byType = rules => new Map((Array.isArray(rules) ? rules : []).map(rule => [rule?.type, rule]))
+  const mine = byType(committed.rules)
+  const theirs = byType(applied.rules)
+  const checks = rule => (rule.parameters?.required_status_checks ?? []).map(check => `${check.context}@${check.integration_id ?? 'any'}`).sort()
+  for (const type of new Set([...mine.keys(), ...theirs.keys()])) {
+    if (!mine.has(type) || !theirs.has(type)) { differs.push(`rule ${type} is ${mine.has(type) ? 'missing on the forge' : 'on the forge and not in the file'}`); continue }
+    const [ours, forge] = [mine.get(type), theirs.get(type)]
+    if (canonical(checks(ours)) !== canonical(checks(forge))) differs.push(`rule ${type} requires ${checks(forge).join(', ')}, not ${checks(ours).join(', ')}`)
+    for (const [key, value] of Object.entries(ours.parameters ?? {})) {
+      if (key !== 'required_status_checks' && canonical(value) !== canonical(forge.parameters?.[key])) differs.push(`rule ${type} has ${key} ${canonical(forge.parameters?.[key])}, not ${canonical(value)}`)
+    }
+  }
+  return differs
+}
+
 /**
  * Each required context's verdict at the sha (ADR-118 Decision 2). Only check-runs with the context's name and its
  * integration count; the newest by `started_at`, then id, decides. `missing` and `pending` are waits, `success` is a
@@ -85,8 +116,19 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
     const never = undeclared(required, declared)
     if (never.length) { log(`land: main requires ${never.join(', ')}, which no job of the workflow at ${sha} declares, so no landing can pass; nothing was pushed`); return 1 }
   }
+  // ADR-118 T2: a dry run pushes nothing, and passes only when main carries exactly the committed ruleset.
   if (dryRun) {
-    log(`land: would land ${sha} ${required.length ? `through land/${sha} once ${required.length} required check(s) pass there` : 'straight to main'}`)
+    if (!required.length) { log(`land: main requires no check, so .github/rulesets/main.json is not applied ${at}`); return 1 }
+    const committed = parsed(text('git', ['show', `${sha}:.github/rulesets/main.json`]) ?? '')
+    if (!committed?.name) { log(`land: .github/rulesets/main.json at ${sha} could not be read`); return 1 }
+    const listed = parsed(text('gh', ['api', 'repos/{owner}/{repo}/rulesets', '--paginate', '--slurp']) ?? '')
+    const named = Array.isArray(listed) ? listed.flat().filter(ruleset => ruleset?.name === committed.name) : null
+    if (!named) { log("land: the forge's rulesets could not be listed"); return 1 }
+    if (named.length !== 1) { log(`land: the forge has ${named.length} ruleset(s) named "${committed.name}", not one`); return 1 }
+    const id = named[0].id
+    const differs = rulesetDiffers(committed, parsed(text('gh', ['api', `repos/{owner}/{repo}/rulesets/${id}`]) ?? ''))
+    if (differs.length) { log(`land: ruleset ${id} on the forge is not the committed one: ${differs.join('; ')}`); return 1 }
+    log(`land: main carries the committed ruleset (id ${id}); ${sha} would land through land/${sha} once ${required.length} required check(s) pass there`)
     return 0
   }
 

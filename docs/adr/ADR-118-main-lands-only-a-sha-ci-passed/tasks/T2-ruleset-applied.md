@@ -33,7 +33,7 @@ this task's own evidence commit lands through `land.mjs` (ADR-118, Decisions 1 a
 ## Acceptance
 
 ```bash
-node scripts/land.mjs --dry-run
+node --test tests/land.test.mjs && node scripts/land.mjs --dry-run
 ```
 
 ## Tests
@@ -70,3 +70,17 @@ Stop and roll back if the probe in S3 lands, or if S4 cannot fast-forward `main`
 - Protecting tags (permanent: boundary: tags are made by `gh release create` after release-evidence)
 
 ## Verification Log
+- 2026-10-20 · c7cd8a01* · exit 1 · `node --test tests/land.test.mjs && node scripts/land.mjs --dry-run` · acceptance-sha256:eeeddf51d09a91fe25ff29914ef3f1f288952eb445e0e0f1ceb51a8e70b54bdc · ms:320 · test-lock-sha256:068a7640f0df135766354fb644fc2c3c7a0931d06b28514bd00746f5c0512406 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbGFuZC50ZXN0Lm1qcwlsYW5kIC0tZHJ5LXJ1biBwYXNzZXMgb25seSB3aGVuIG1haW4gY2FycmllcyBleGFjdGx5IHRoZSBjb21taXR0ZWQgcnVsZXNldAk4NmJmNjM4YzVlMjI0NmYwMWRjZjhkMzgwYjkyNGYzZmE3NWYxZWMxNjY5NGI0NGM2ZWRlNThkOTM5ODQxOTIyCmJvZHkJdGVzdHMvbGFuZC50ZXN0Lm1qcwlsYW5kIHBpY2tzIHRoZSBuZXdlc3QgY2hlY2stcnVuIG9mIHRoZSByZXF1aXJlZCBhcHAgZm9yIGVhY2ggY29udGV4dCwgb3ZlciBldmVyeSBwYWdlCTI0MzQ0NTdlZDMxMmQ5ZTQxM2U2MGRjMWNmZDNhMjNiODEzYTE0Mjg5YjQ0Njc1MzBhYWVhYzc1NjA3ZjIwZjMKYm9keQl0ZXN0cy9sYW5kLnRlc3QubWpzCWxhbmQgcHVzaGVzIG1haW4gb25seSBhZnRlciBldmVyeSByZXF1aXJlZCBjaGVjayBwYXNzZWQgYXQgdGhlIHNoYSBvbiBsYW5kLzxzaGE-CWE2NWVlM2JhZTQ5ZDYyNTBiNjRjODVjNTM1MDhmNThjODY1MjFkNGVhOTVkYTVmYmE3ZTliNWQ5MDg5ZjRkZTIKYm9keQl0ZXN0cy9sYW5kLnRlc3QubWpzCWxhbmQgcHVzaGVzIG5vdGhpbmcgd2hlbiB0aGUgZm9yZ2UgY2Fubm90IGJlIHJlYWQgb3IgcmVxdWlyZXMgYSBjaGVjayBubyBqb2IgZGVjbGFyZXMJMGMzYzgxOTJmZTcxODE3OWIyNmQ0YWIxMDc3ZGUxNmFmOGZiODE2YjhjMTJmMzdmYmIyZjNhYzY2NTRiMzNjNgpib2R5CXRlc3RzL2xhbmQudGVzdC5tanMJbGFuZCByZWZ1c2VzIG9mZiBtYWluIG9yIHdoZW4gbWFpbiBtb3ZlZCwgYW5kIHJlcXVpcmVzIHRoZSBmb3JnZSdzIG1haW4gdG8gYmUgdGhlIHNoYSBhZnRlciB0aGUgcHVzaAllNzk3MTk0YjBiM2Y3ZDdlNGE4YzUwNzEyNWIyYzc3YjVhY2MzYjZlNzZlMTk1YjY4ZGI1NDNmNWJiYjFhZmE4CmJvZHkJdGVzdHMvbGFuZC50ZXN0Lm1qcwlsYW5kIHNheXMgYW4gdW5wcm90ZWN0ZWQgbWFpbiBhbmQgcHVzaGVzIGl0IGRpcmVjdGx5LCBhbmQgYSB3YWl0IHBhc3QgaXRzIGRlYWRsaW5lIGV4aXRzIDMJZmU5NjM3ZDI3ZDA0YzI5YWJlYzZlZjIwMTQ0MmY1NGZlYTU1MGY4MjBhYzQyNmQxN2Q3MzU3YTUxOTkzNDM2OApib2R5CXRlc3RzL2xhbmQudGVzdC5tanMJbWFpblByb3RlY3Rpb24gaGFuZHMgbGFuZCBlYWNoIHJlcXVpcmVkIGNvbnRleHQgd2l0aCB0aGUgYXBwIHRoZSBydWxlIGJpbmRzIGl0IHRvCWY1NzcwNDc4ZTliYWM5NWRjMTQ0MjRjMjg3MjlmMmRmNmUzNGUwZjQzN2ViMDQ4OWIzNzhkMDE5MTQzZTVhMjIKYm9keQl0ZXN0cy9sYW5kLnRlc3QubWpzCXRoZSBjb21taXR0ZWQgcnVsZXNldCByZXF1aXJlcyBvbmx5IGpvYnMgdGhlIHdvcmtmbG93IGRlY2xhcmVzCTY5ZmEyMmU1NWZkOTg3ZTljNDU4YTI1ZjdlYWRmMTg0N2Q0YjI4MjZkZjU2NDMzZDllNGY3YzVlYTE3YTk3YTg
+  ```
+  --- last 10 line(s) of stdout (of 39 after folding 39 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: 0,
+      expected: 1,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```

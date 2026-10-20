@@ -90,6 +90,48 @@
       "tests": ["tests/land.test.mjs", "tests/release.test.mjs"],
       "from": "  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0) {",
       "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-118 T2: a dry run on an unprotected main fails",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "    if (!required.length) { log(`land: main requires no check",
+      "to": "    if (false) { log(`land: main requires no check"
+    },
+    {
+      "label": "ADR-118 T2: a dry run fails on any difference from the committed ruleset",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "    if (differs.length) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "ADR-118 T2: the ruleset's top-level fields are compared, bypass actors included",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "['name', 'target', 'enforcement', 'conditions', 'bypass_actors']",
+      "to": "['name']"
+    },
+    {
+      "label": "ADR-118 T2: the required checks are compared with their apps",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "`${check.context}@${check.integration_id ?? 'any'}`",
+      "to": "`${check.context}`"
+    },
+    {
+      "label": "ADR-118 T2: a rule on one side only is a difference",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "    if (!mine.has(type) || !theirs.has(type)) {",
+      "to": "    if (!mine.has(type) && !theirs.has(type)) {"
+    },
+    {
+      "label": "ADR-118 T2: exactly one ruleset of the committed name",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "    if (named.length !== 1) {",
+      "to": "    if (named.length > 1) {"
     }
   ]
 }

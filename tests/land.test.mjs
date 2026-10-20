@@ -23,6 +23,12 @@ const WORKFLOW = [
 ].join('\n')
 const REQUIRED = [{ context: UBUNTU, integration: ACTIONS }, { context: 'windows', integration: ACTIONS }]
 const guarded = (required = REQUIRED) => ({ state: 'protected', text: `forge: main requires ${required.length} status check(s)`, required })
+// The ruleset the fake commits and the forge applies, unless a test says otherwise (ADR-118 T2's dry run reads both).
+const RULESET = {
+  name: 'main requires the selftest checks', target: 'branch', enforcement: 'active',
+  conditions: { ref_name: { include: ['~DEFAULT_BRANCH'], exclude: [] } }, bypass_actors: [],
+  rules: [{ type: 'required_status_checks', parameters: { required_status_checks: REQUIRED.map(check => ({ context: check.context, integration_id: check.integration })) } }],
+}
 const LANDING = `git push origin ${SHA}:refs/heads/land/${SHA}`
 const MAIN_PUSH = `git push origin ${SHA}:refs/heads/main`
 
@@ -35,7 +41,7 @@ const green = [[run(UBUNTU, 'success'), run('windows', 'success', { id: 2 })]]
 // A world the fake answers from. `checkRuns` is a list of answers, each a list of pages, the last one repeated; null is
 // an answer gh could not give.
 function world(overrides = {}) {
-  const state = { branch: 'main', origin: OTHER, workflow: WORKFLOW, protection: guarded(), checkRuns: [green], ...overrides }
+  const state = { branch: 'main', origin: OTHER, workflow: WORKFLOW, protection: guarded(), checkRuns: [green], committed: RULESET, applied: { ...RULESET, id: 7 }, ...overrides }
   const calls = []
   let checkCalls = 0
   const exec = (cmd, args) => {
@@ -62,6 +68,10 @@ function world(overrides = {}) {
     }
     if (line === 'git ls-remote origin refs/heads/main') return ok(`${state.origin}\trefs/heads/main\n`)
     if (line === `git push origin --delete land/${SHA}`) { state.landBranch = false; return ok() }
+    // The ruleset as committed at the sha, and as the forge has it (ADR-118 T2's dry run).
+    if (line === `git show ${SHA}:.github/rulesets/main.json`) return ok(JSON.stringify(state.committed))
+    if (line === 'gh api repos/{owner}/{repo}/rulesets --paginate --slurp') return ok(JSON.stringify([state.listed ?? [{ id: 7, name: state.committed?.name }]]))
+    if (line === 'gh api repos/{owner}/{repo}/rulesets/7') return ok(JSON.stringify(state.applied))
     throw new Error(`the fake has no answer for: ${line}`)
   }
   let clock = 0
@@ -184,4 +194,43 @@ test('mainProtection hands land each required context with the app the rule bind
   assert.equal(forge.state, 'protected')
   assert.deepEqual(forge.required, [{ context: 'windows', integration: ACTIONS }, { context: 'any source', integration: null }])
   assert.deepEqual(mainProtection(() => '[[]]').required, [])
+})
+
+test('land --dry-run passes only when main carries exactly the committed ruleset', () => {
+  const committed = JSON.parse(readFileSync(new URL('../.github/rulesets/main.json', import.meta.url), 'utf8'))
+  const workflow = readFileSync(new URL('../.github/workflows/selftest.yml', import.meta.url), 'utf8')
+  const checks = committed.rules.find(rule => rule.type === 'required_status_checks').parameters.required_status_checks
+  const required = checks.map(check => ({ context: check.context, integration: check.integration_id }))
+  // The forge answers with fields the file does not carry, and its own order of checks.
+  const applied = structuredClone({ ...committed, id: 7, source: 'D3-lt/quality-harness', current_user_can_bypass: 'never' })
+  applied.rules.find(rule => rule.type === 'required_status_checks').parameters.required_status_checks.reverse()
+  const dry = overrides => {
+    const w = world({ workflow, protection: guarded(required), committed, applied, ...overrides })
+    return { exit: w.go({ dryRun: true }), w }
+  }
+  const equal = dry({})
+  assert.equal(equal.exit, 0, equal.w.said.join('\n'))
+  assert.ok(!anyPush(equal.w.calls))
+  assert.equal(dry({ protection: { state: 'unprotected', text: "forge: main's rules require no status check", required: [] } }).exit, 1, 'not applied')
+  assert.equal(dry({ listed: [{ id: 9, name: 'something else' }] }).exit, 1, 'no ruleset of that name')
+  const changed = edit => {
+    const copy = structuredClone(applied)
+    edit(copy)
+    return dry({ applied: copy })
+  }
+  const statusChecks = copy => copy.rules.find(rule => rule.type === 'required_status_checks').parameters.required_status_checks
+  for (const [name, edit] of [
+    ['a context unlike the file', copy => { statusChecks(copy)[0].context = 'selftest (windows-latest)' }],
+    ['an integration id unlike the file', copy => { statusChecks(copy)[0].integration_id = 999 }],
+    ['a check fewer', copy => { statusChecks(copy).pop() }],
+    ['a bypass actor', copy => { copy.bypass_actors = [{ actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' }] }],
+    ['enforcement not active', copy => { copy.enforcement = 'disabled' }],
+    ['another target', copy => { copy.target = 'tag' }],
+    ['a rule missing', copy => { copy.rules = copy.rules.filter(rule => rule.type !== 'non_fast_forward') }],
+    ['a rule added', copy => { copy.rules.push({ type: 'required_linear_history' }) }],
+  ]) {
+    const { exit, w } = changed(edit)
+    assert.equal(exit, 1, name)
+    assert.ok(!anyPush(w.calls), name)
+  }
 })

@@ -18,4 +18,4 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Everything lands through land/<sha> once the forge's required checks pass | done | none — no spec | `node --test tests/land.test.mjs tests/release.test.mjs` |
-| T2 | The ruleset is applied, a scripted unchecked push is refused, and a landing goes through | pending | none — no spec | `node scripts/land.mjs --dry-run` |
+| T2 | The ruleset is applied, a scripted unchecked push is refused, and a landing goes through | pending | none — no spec | `node --test tests/land.test.mjs && node scripts/land.mjs --dry-run` |

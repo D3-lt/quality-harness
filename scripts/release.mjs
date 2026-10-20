@@ -154,7 +154,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   // of the ADR-118 draft). A tie is the dispatch: the second-resolution clock gives one, and refusing it waited out the bound.
   const current = run => run.event === 'workflow_dispatch' && run.headBranch === 'main' && Date.parse(run.createdAt) >= pushedAt
   if (!withPush.some(current)) {
-    // A second dispatch cancels the first: the concurrency group keys on the event (.github/workflows/selftest.yml:19-21).
+    // A second dispatch cancels the first: the concurrency group keys on the event (.github/workflows/selftest.yml:20-22).
     const quiet = waitFor('the other dispatched campaign on main to finish', () => {
       const busy = parsed(text('gh', DISPATCHES) ?? '')
       return Array.isArray(busy) && !busy.some(run => run.status !== 'completed')

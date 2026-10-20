@@ -15,7 +15,7 @@
 //   reader acts on it cannot be checked here, which is why a hook whose consumers are only those two needs a reason.
 //
 // The reason is an allow-list entry, beside the component it excuses. This repository's dead-code rule says dead code is
-// "deleted or wired, never allow-listed" (CLAUDE.md §13); that is about code nothing reaches. An advisory here is reached
+// "deleted or wired; a deliberate keep goes through the tool's own allowlist with its reason" (CLAUDE.md §13); that is about code nothing reaches. An advisory here is reached
 // by the host on every event: the reason says why its text is worth that cost (CLAUDE.md §19), and it is read in review.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'

@@ -1,6 +1,6 @@
 # ADR-119: What the backlog still holds after the 2026-10-20 re-check
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-20
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's approved plan of 2026-10-20 over the open backlog, re-checked read-only at 14bc3430

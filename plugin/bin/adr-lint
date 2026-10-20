@@ -2728,13 +2728,19 @@ def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_di
                 continue
             fresh = [row for row in fresh if row not in kept]
         names = receipts(inf["path"]) if fresh else None
+        # ADR-119 T3 (BACKLOG §389): when no receipt names ANY row of the task, the rows may come from an adr-verify older
+        # than receipts — a forwarder resolving an older installed plugin — and the refusal says so and what fixes it.
+        older = names is not None and not any(receipt_digest(row) in names for row in rows)
         for row in [] if names is None else fresh:
             if receipt_digest(row) not in names:
                 errors.append(
                     f"{inf['path'].name}: {tid} has a log row that is not in the committed file, and no adr-verify "
                     f"receipt names it — `{clipped(row.strip(), 120)}`. adr-verify leaves a receipt in the repository's "
                     f"state directory for every row it writes; a row typed by hand is not evidence. Re-run "
-                    f"`adr-verify <task.md>` (ADR-117)")
+                    f"`adr-verify <task.md>` (ADR-117)"
+                    + (". No receipt names any row of this task, so its writer may predate receipts (3.8.48): an "
+                       "adr-verify reached through a forwarder runs the newest installed plugin, not this checkout's, and "
+                       "updating the installed plugin is the remedy" if older else ""))
 
 
 def check_verification(infos, readme_text, errors, committed=committed_lines):

@@ -347,8 +347,9 @@ const dataMark = "qhdata"
 
 type ownsFunc func(step *shellCommand, n int, commands []*shellCommand, text string) bool
 
-// withoutData is the text with what the shell never evaluates taken out, each spelling swapped for a marker only when the
-// text read again holds the marker in exactly the slot the data came from.
+// withoutData is the text with what the shell never evaluates taken out, each occurrence of a spelling swapped for a marker
+// only when the text read again holds the marker in exactly the slot the data came from. Each occurrence is tried on its own
+// and at most one is kept per slot, so a literal repeated as data is two slots and a copy that is code stays (ADR-119 T3).
 func withoutData(text string, owns ownsFunc, echoes bool) string {
 	commands, complete := shellWords(text)
 	if !complete {
@@ -356,13 +357,18 @@ func withoutData(text string, owns ownsFunc, echoes bool) string {
 	}
 	out := text
 	take := func(spelling, mark string, stands func([]*shellCommand) bool) {
-		if strings.Count(out, spelling) != 1 {
-			return
-		}
-		next := strings.Replace(out, spelling, mark, 1)
-		again, ok := shellWords(next)
-		if ok && stands(again) {
-			out = next
+		for from := 0; from <= len(out); {
+			i := strings.Index(out[from:], spelling)
+			if i < 0 {
+				return
+			}
+			at := from + i
+			next := out[:at] + mark + out[at+len(spelling):]
+			if again, ok := shellWords(next); ok && stands(again) {
+				out = next
+				return
+			}
+			from = at + 1
 		}
 	}
 	for n, step := range commands {

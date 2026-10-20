@@ -225,8 +225,25 @@ NEUTRALISED = re.compile(
     # The WHOLE label, then a separator, then a whole number: with the separator
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).
-    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])",
+    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])"
+    # ADR-119 T3 (BACKLOG §383): a code name that ends in a stop word, hyphened, after "no" and before the noun it names,
+    # is an absence as "no failed test" is: "no canary-failed code was raised". Whole token, so "no, canary-failed code"
+    # and "a canary-failed code" stay stops, and a stop word first or inside ("failed-on-ios18") is not this form.
+    r"|(?<![a-z])no\s+(?:\w+-)+(?:" + NEGATIVE_WORD + r")(?![\w-])(?=\s+[a-z])"
+    # The phrase "stop word" names the word, as a heading does: "restated without the stop word". A stop beside it
+    # ("the stop word check failed") still speaks.
+    r"|(?<![a-z])stop[- ]?words?(?![a-z])"
+    # A stop word quoted after the noun "word" is mentioned, not said: "drops the word 'failed'". A quote alone cannot be
+    # told from a verdict by text ("confirmed 'rejected'", "the tool printed 'blocked'" stop), so the noun is required.
+    r"|(?<![a-z])words?\s+['\"`‘“«](?:" + NEGATIVE_WORD + r")['\"`’”»](?![\w'’])",
     re.I)
+# The hook events by name (ADR-119 T3, BACKLOG §383): "fires SessionStart and Stop" names the Stop hook, ADR-113 T6's
+# false stop. Case-sensitive and whole, and only where the name is plainly the hook's: in a list of hook names, or before
+# "hook" or "event". A bare "Stop the release" or "Stop and fix it" stays a stop, and so does "Stop failed".
+HOOK_NAME = r"(?:SessionStart|Stop|PreToolUse|PostToolUse|UserPromptSubmit|SubagentStart)"
+HOOK_NAMED = re.compile(
+    r"(?<![\w-])" + HOOK_NAME + r"(?:(?:\s*[,/]\s*(?:(?:and|or)\s+)?|\s+(?:and|or)\s+)" + HOOK_NAME + r")+(?![\w-])"
+    r"|(?<![\w-])Stop\s+(?:hooks?|events?)(?![\w-])")
 
 # The task template's `## Stop Condition` section, cited by name, is a heading and not a verdict: ADR-078 T2's
 # approval "under the Stop Condition's 25%" read as stopped. Seven review rounds then each found a spelling of the
@@ -269,7 +286,7 @@ def neutralise(text):
                 return m.group()
             denied = True
         return " " if denied or STOP_CONDITION_MEASURE.search(text[:m.start()]) else m.group()
-    return NEUTRALISED.sub(" ", STOP_CONDITION.sub(cited, text))
+    return NEUTRALISED.sub(" ", HOOK_NAMED.sub(" ", STOP_CONDITION.sub(cited, text)))
 
 # ⚠ A RUN REPORT QUOTES ITS RED RUN AS EVIDENCE. "observed: red run 111: TestAlpha failed; green run
 # 222: ok" affirms a red-then-green sequence, and its «failed» was read as the verdict (BACKLOG §361).

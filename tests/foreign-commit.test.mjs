@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 import { foreignCommitPath } from '../plugin/scripts/publish-command.mjs'
 import { commonDirectory } from '../plugin/scripts/publish-verdict.mjs'
+import { IMPL, QH_BIN } from './hook-golden.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')
@@ -38,6 +39,14 @@ const ADVICE = /ADR-104/
 const foreign = join(top, 'foreign')
 git(top, 'init', '-q', 'foreign')
 
+// ADR-119 T3: the hook a session's payloads go to is the one the implementation seam names, as `runHook` in
+// tests/hook-golden.mjs chooses it: under QUALITY_HARNESS_HOOK_IMPL=go the built `qh hook <event>`, otherwise lifecycle.mjs.
+// Read from the seam, not from `env`, which holds no QUALITY_HARNESS_ variable. Every spawn is kept, so a test can ask.
+const hookCommand = (event, impl = IMPL, bin = QH_BIN) => (impl === 'go'
+  ? [bin, ['hook', String(event)]]
+  : [process.execPath, [join(plugin, 'scripts', 'lifecycle.mjs')]])
+const spawned = []
+
 let sessions = 0
 // A session repository with a declared check and fast check, an unchecked edit, and a started
 // session; `armed` appends what git's hook records when it has run (ADR-066 T1).
@@ -53,10 +62,13 @@ function session({ armed = false, fast = false } = {}) {
   // refuses, and a Windows runner took 12.8s on these rows (campaign 38864976223, 2026-10-16).
   const hookEnv = { ...env, QUALITY_HARNESS_LEASE_DIR: join(top, 'leases'), QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' }
   const said = payload => {
-    const run = spawnSync(process.execPath, [join(plugin, 'scripts', 'lifecycle.mjs')], {
+    const [file, args] = hookCommand(payload.hook_event_name)
+    spawned.push(file)
+    const run = spawnSync(file, args, {
       cwd: dir, env: hookEnv, encoding: 'utf8', timeout: 120_000, windowsHide: true,
       input: JSON.stringify({ session_id: id, cwd: dir, ...payload }),
     })
+    if (run.error) throw new Error(`the hook did not run (${file}): ${run.error.message}`)
     assert.equal(run.status, 0, run.stderr)
     return run.stdout.trim()
   }
@@ -255,6 +267,41 @@ test('literal data is not arithmetic, and an expansion of it still is', () => {
   }
 })
 
+// BACKLOG §381 L3 (ADR-119 T3): a literal was taken as data only when its spelling occurred once, so the same `echo` twice
+// kept a commit into another repository refused. Each occurrence is masked on its own now, and kept out only when the text
+// read again holds the marker in that occurrence's slot. The three spellings that stood in code instead still refuse
+// (CLAUDE.md §16). Plain literals with placeholder paths, so the parity test reads them through the Go core too.
+test('a literal repeated as data keeps no refusal, and the three code-again spellings still refuse', () => {
+  const unarmed = session()
+  const at = command => command.replaceAll('/x/foreign', slashed(foreign)).replaceAll('/x/here', slashed(unarmed.dir))
+  for (const command of [
+    "git -C /x/foreign commit -m x; echo 'let x=1'; echo 'let x=1'",
+    'git -C /x/foreign commit -m x; echo "let x=1"; echo "let x=1"',
+    "git -C /x/foreign commit -m x; echo 'let x=1' 'let x=1'",
+  ]) {
+    assert.equal(foreignCommitPath(command, {}, 'linux'), '/x/foreign', command)
+    // One session per row: the advice is said once per tree.
+    const said = session().tell(at(command))
+    assert.notEqual(said.decision, 'deny', `${command}\n${said.text}`)
+    assert.match(said.text, ADVICE, command)
+  }
+  for (const command of [
+    // A body repeated as an arithmetic command after the here-document:
+    "git -C /x/foreign commit -F - <<'EOF'\n((a['$(git -C /x/here push)']=1))\nEOF\n((a['$(git -C /x/here push)']=1))\n",
+    // The same, with more than one occurrence that is code:
+    "git -C /x/foreign commit -F - <<'EOF'\n((a[1]=1))\nEOF\n((a[1]=1))\n((a[1]=1))\n",
+    // An echo of a literal twice, then the literal as an arithmetic command:
+    "git -C /x/foreign commit -m x; echo '((a[1]=1))'; echo '((a[1]=1))'\n((a[1]=1))\n",
+    // The ANSI-C `$'…'` echo whose value is spelled across a closing quote and an arithmetic command:
+    "git -C /x/foreign commit -m x\necho x''\n((\na['$(git -C /x/here push)']=1\n))\necho $'\\n\\x28\\x28\\na['\n",
+    // The `<<-` body whose tabs the lexer strips, spelled untabbed only inside the arithmetic command after it:
+    "git -C /x/foreign commit -F - <<-'EOF'\n\t(\n\ta['$(git -C /x/here push)']=1\nEOF\n((\na['$(git -C /x/here push)']=1\n))\n",
+  ]) {
+    assert.equal(foreignCommitPath(command, {}, 'linux'), null, command)
+    assert.equal(unarmed.tell(at(command)).decision, 'deny', command)
+  }
+})
+
 // ADR-104 T3 (alternative (d), the owner, 2026-10-15): `cd L && git commit` is read as `git -C L commit`. Only `&&` joins
 // them: after `;`, `||` or a newline a `cd` that fails leaves the commit in this checkout.
 test('a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal', () => {
@@ -300,4 +347,16 @@ test('the person told of a commit into another repository is told why it was all
   const headline = JSON.parse(said.text).systemMessage ?? ''
   assert.match(headline, /ADR-104/, headline)
   assert.match(said.text, /names commit or push/, 'the agent text still says what the command does')
+})
+
+// ADR-119 T3 S7: the 14 tests above run against the implementation the seam names, so a Go run of this file is a Go run.
+test('the session helper runs the hook the implementation seam names', () => {
+  assert.deepEqual(hookCommand('Stop', 'go', '/q/bin/qh'), ['/q/bin/qh', ['hook', 'Stop']])
+  assert.deepEqual(hookCommand('Stop', 'node', '/q/bin/qh'), [process.execPath, [join(plugin, 'scripts', 'lifecycle.mjs')]])
+  assert.equal(IMPL, process.env.QUALITY_HARNESS_HOOK_IMPL === 'go' ? 'go' : 'node')
+  const before = spawned.length
+  session().tell('true')
+  const ran = spawned.slice(before)
+  assert.ok(ran.length >= 2, `the session spawned ${ran.length} hook(s)`)
+  for (const file of ran) assert.equal(file, IMPL === 'go' ? QH_BIN : process.execPath)
 })

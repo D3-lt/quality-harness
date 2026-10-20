@@ -670,6 +670,39 @@ test('SWE-bench\'s fail-to-pass list is a name, and a note saying something fail
   assert.equal(done('observed: swe-fail-to-pass'), false)
 })
 
+// BACKLOG §383 (ADR-119 T3): three sign-offs that state no stop were read as one — a code name with a stop word hyphened
+// into it after "no", a stop word mentioned (as "the stop word", or quoted after the noun "word"), and the Stop hook named
+// among the others (ADR-113 T6's "fires SessionStart and Stop"). Each pass row has a row beside it that must still stop:
+// loosening is the fail-open side. A stop word quoted with no "word" before it is still read: "confirmed 'rejected'" is a
+// verdict in quotes, and text cannot tell it from a mention.
+test('a hyphenated name, a quoted stop word and a hook name are not verdicts, and a stop beside them still stops', () => {
+  const done = note => {
+    const signoff = `- 2026-10-20 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
+  }
+  assert.equal(done('approved: no canary-failed code was raised'), true)
+  assert.equal(done('restated without the stop word'), true)
+  assert.equal(done('observed: the plugin fires SessionStart and Stop'), true)
+  assert.equal(done('fires SessionStart and Stop'), true)
+  assert.equal(done("approved: the reader now drops the word 'failed' from its summary"), true)
+  assert.equal(done('approved: the summary drops the word «blocked», as the stop words list says'), true)
+  // Must still stop.
+  assert.equal(done('approved, failed-on-ios18'), false)
+  assert.equal(done('observed: the patch did fail to pass review'), false)
+  assert.equal(done('observed: fail-to-pass, then the run failed'), false)
+  assert.equal(done('approved: a canary-failed code was raised'), false)
+  assert.equal(done('approved: no, canary-failed code was raised'), false)
+  assert.equal(done('approved; the stop word check failed'), false)
+  assert.equal(done('approved: "the deploy failed"'), false)
+  assert.equal(done('Stop the release'), false)
+  assert.equal(done('observed: Stop failed'), false)
+  assert.equal(done('observed. Stop and fix it'), false)
+  assert.equal(done("confirmed 'rejected'"), false)
+  assert.equal(done("approved: the reader skips 'blocked' when quoted"), false)
+  assert.equal(done("approved: the word 'failed' was printed, and the run failed"), false)
+})
+
 // A sign-off that cites the task's `## Stop Condition` section names a heading, not a verdict: ADR-078 T2's
 // approval ("+8%, under the Stop Condition's 25%") printed `stopped`, and work-next named it as missing evidence.
 // The condition reported as met is still a stop, and so is the plain word.

@@ -212,8 +212,10 @@ export function foreignCommitPath(command, env = process.env, platform = process
 // code instead: a body repeated as a command after the here-document, an ANSI-C `$'…'` echo whose
 // value is spelled across a closing quote and an arithmetic command, and a `<<-` body whose tabs the
 // lexer strips (Codex reviews of 921330b9..976aa281 and 976aa281..18879680). So, as maskedMessages
-// does, a spelling that occurs once is swapped for a marker, and kept out only when the text read
-// again holds the marker in exactly the slot the data came from.
+// does, an occurrence of a spelling is swapped for a marker, and kept out only when the text read
+// again holds the marker in exactly the slot the data came from. Each occurrence is tried on its own
+// and at most one is kept per slot: a literal repeated as data (`echo 'let x=1'; echo 'let x=1'`) is
+// two slots, while a copy that is code leaves its slot unmarked and stays (BACKLOG §381 L3, ADR-119 T3).
 const DATA_MARK = 'qhdata'
 
 function withoutData(text, { owns = () => true, echoes = true } = {}) {
@@ -221,10 +223,11 @@ function withoutData(text, { owns = () => true, echoes = true } = {}) {
   if (!complete) return text
   let out = text
   const take = (spelling, mark, stands) => {
-    if (out.split(spelling).length !== 2) return
-    const next = out.split(spelling).join(mark)
-    const again = shellWords(next)
-    if (again.complete && stands(again.commands)) out = next
+    for (let at = out.indexOf(spelling); at !== -1; at = out.indexOf(spelling, at + 1)) {
+      const next = out.slice(0, at) + mark + out.slice(at + spelling.length)
+      const again = shellWords(next)
+      if (again.complete && stands(again.commands)) { out = next; return }
+    }
   }
   commands.forEach((step, n) => {
     step.heredocs.forEach((document, j) => {

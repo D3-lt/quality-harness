@@ -171,3 +171,20 @@ test('a moved task keeps the rows HEAD holds, and a row new to it still needs a 
   add(moved, 'Verification Log', '- 2026-01-01 · abc1234 · exit 0 · `echo "1 passed in 0.01s"` · acceptance-sha256:' + '1'.repeat(64))
   assert.match(said(lint(dir)), NO_RECEIPT, 'a row HEAD holds nowhere still needs a receipt')
 })
+
+// BACKLOG §389 (ADR-119 T3): an adr-verify older than receipts (3.8.48) writes rows no receipt names, and a newer adr-lint
+// refused them in words that said only "typed by hand". When no receipt names any row of the task, the refusal says its
+// writer may predate receipts and what fixes that. A task one of whose rows a receipt names is told nothing of the sort.
+test('a row from a task no receipt names says its writer may predate receipts', () => {
+  const PREDATES = /may predate receipts \(3\.8\.48\).*updat\w* the installed plugin/
+  const { dir, task } = corpus()
+  add(task, 'Verification Log', '- 2026-01-01 · abc1234 · exit 0 · `echo "1 passed in 0.01s"` · acceptance-sha256:' + '1'.repeat(64))
+  const none = said(lint(dir))
+  assert.match(none, NO_RECEIPT)
+  assert.match(none, PREDATES)
+  const run = gate('adr-verify', dir, ['tasks/T1-fixture.md', '--cwd', '.'])
+  assert.equal(run.status, 0, said(run))
+  const named = said(lint(dir))
+  assert.match(named, NO_RECEIPT, 'the typed row is still refused')
+  assert.doesNotMatch(named, PREDATES)
+})

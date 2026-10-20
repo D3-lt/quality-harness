@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "ADR-119 T3: a hyphened code name after \"no\" is no verdict (no canary-failed code was raised)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a hyphenated name, a quoted stop word and a hook name are not verdicts, and a stop beside them still stops)$",
+      "from": "r\")(?![\\w-])(?=\\s+[a-z])\"",
+      "to": "r\")(?![\\w-])(?=\\s+[a-z])(?!)\""
+    },
+    {
+      "label": "ADR-119 T3: the phrase \"stop word\" names the word (restated without the stop word)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a hyphenated name, a quoted stop word and a hook name are not verdicts, and a stop beside them still stops)$",
+      "from": "r\"|(?<![a-z])stop[- ]?words?(?![a-z])\"",
+      "to": "r\"|(?<![a-z])stop[- ]?words?(?![a-z])(?!)\""
+    },
+    {
+      "label": "ADR-119 T3: a stop word quoted after the noun \"word\" is mentioned, not said",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a hyphenated name, a quoted stop word and a hook name are not verdicts, and a stop beside them still stops)$",
+      "from": "r\"|(?<![a-z])words?\\s+['",
+      "to": "r\"|(?!)(?<![a-z])words?\\s+['"
+    },
+    {
+      "label": "ADR-119 T3: the Stop hook named among the hooks is no verdict (fires SessionStart and Stop)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a hyphenated name, a quoted stop word and a hook name are not verdicts, and a stop beside them still stops)$",
+      "from": "HOOK_NAMED.sub(\" \", STOP_CONDITION.sub(cited, text))",
+      "to": "STOP_CONDITION.sub(cited, text)"
+    },
+    {
       "label": "ADR-113 T4: adr-next counts no stale sign-off",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -57,8 +97,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    return NEUTRALISED.sub(\" \", STOP_CONDITION.sub(cited, text))",
-      "to": "    return NEUTRALISED.sub(\" \", text)"
+      "from": "    return NEUTRALISED.sub(\" \", HOOK_NAMED.sub(\" \", STOP_CONDITION.sub(cited, text)))",
+      "to": "    return NEUTRALISED.sub(\" \", HOOK_NAMED.sub(\" \", text))"
     },
     {
       "label": "next: a Stop Condition said to be met keeps its name, so it stops",
@@ -464,8 +504,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\",\n",
-      "to": "    r\"|(?!x)x\",\n",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\"\n",
+      "to": "    r\"|(?!x)x\"\n",
       "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
     },
     {
@@ -474,8 +514,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\",\n",
-      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\",\n",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\"\n",
+      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\"\n",
       "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
     },
     {

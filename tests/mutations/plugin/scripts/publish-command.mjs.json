@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-119 T3: a literal repeated as data is masked per occurrence, not only when it occurs once",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-commit.test.mjs"
+      ],
+      "only": "^(?:a literal repeated as data keeps no refusal, and the three code-again spellings still refuse)$",
+      "from": "for (let at = out.indexOf(spelling); at !== -1; at = out.indexOf(spelling, at + 1)) {",
+      "to": "for (let at = out.split(spelling).length === 2 ? out.indexOf(spelling) : -1; at !== -1; at = out.indexOf(spelling, at + 1)) {"
+    },
+    {
       "label": "publish foreign: nothing but echo and true after the commit (ADR-104 T1)",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": [
@@ -1469,19 +1479,19 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "    if (again.complete && stands(again.commands)) out = next",
-      "to": "    out = next",
+      "from": "      if (again.complete && stands(again.commands)) { out = next; return }",
+      "to": "      out = next; return",
       "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
     },
     {
-      "label": "ADR-104: data is taken out only where its spelling occurs once",
+      "label": "ADR-104: one occurrence is taken out per slot, never every copy of its spelling (ADR-119 T3 replaced the once-only rule)",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "    if (out.split(spelling).length !== 2) return",
-      "to": "    void spelling",
-      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+      "from": "{ out = next; return }",
+      "to": "{ out = next }",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is|a literal repeated as data keeps no refusal, and the three code-again spellings still refuse)$"
     },
     {
       "label": "ADR-104: the marker must stand in the data's own slot",
@@ -1489,9 +1499,9 @@
       "tests": [
         "tests/foreign-commit.test.mjs"
       ],
-      "from": "again.complete && stands(again.commands)) out = next",
-      "to": "again.complete) out = next",
-      "only": "^(?:literal data is not arithmetic, and an expansion of it still is)$"
+      "from": "again.complete && stands(again.commands)) { out = next",
+      "to": "again.complete) { out = next",
+      "only": "^(?:literal data is not arithmetic, and an expansion of it still is|a literal repeated as data keeps no refusal, and the three code-again spellings still refuse)$"
     },
     {
       "label": "ADR-104 T3: only && joins cd to the commit",

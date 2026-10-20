@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-119 T3: a task no receipt names says its writer may predate receipts",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/log-receipts.test.mjs"
+      ],
+      "only": "^(?:a row from a task no receipt names says its writer may predate receipts)$",
+      "from": "older = names is not None and not any(receipt_digest(row) in names for row in rows)",
+      "to": "older = False"
+    },
+    {
       "label": "ADR-117 verification: a moved task keeps the rows HEAD holds",
       "file": "plugin/bin/adr-lint",
       "tests": [

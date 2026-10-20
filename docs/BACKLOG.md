@@ -3258,6 +3258,7 @@ ADR-095's Follow-ups (a per-test verdict cache, the Stop timing outside run) sta
 - ADR-109 T1 measured 2026-10-17, `scripts/inverse-hunks.mjs --range v3.8.40..HEAD`, CONTENDED (load 77.3 at the start, above 10 after the 20-minute wait, peak 33.9, 6.4 at the end) and INCOMPLETE (the 60-minute budget ended inside the 13th of 23 plugin commits; 63 of 162 hunks unrun and in no figure). Cells n: noticed/unnoticed/inconclusive. Inverse 99 judged: 75/18/6; comparison 10: 6/4/0; boolean 32: 4/28/0; numeric 35: 4/31/0; fence runs per unnoticed hunk found 5.3, 2.5, 1.1, 1.1 (3.5 over all kinds, 173 mutation + 11 baseline runs, 53 hunks). Per-commit rows are in ADR-109's Follow-ups. Operators also act on string and regex literals, and one commit is 50 of the 162 hunks. The threshold decision (fewer than one hunk in ten unnoticed withdraws ADR-109) is the owner's and is not made here; a rerun of the ten unrun commits on a quiet machine would settle whether the contended figures can be trusted. Not signed off.
 - The publish advisory's run-the-written-file twin, after three review rounds on 2026-10-17 (Codex xhigh of v3.8.42..2c747201, then scoped Claude-host verifications of a1039281 and 6d744875): a sink body stays a mention when a later command in the same text pipes a reader, uses a substitution (as a word, a redirect target, an assignment or a lone redirect), names a shell anywhere, or names the written file. Left, filed, advisory: an interpreter that reads the written file on stdin (`python3 < r.sh`, `node < r.sh`, `perl < r.sh`) keeps the body data, since the redirect target is not an argument and no shell word appears. It is the open class ADR-061 already leaves to the warning arm's limits and git's own hook (ADR-066) guards at the event; closing it means reading redirect targets as written-file uses, a change to the lexer's output. S.
 - ADR-110's amended Decision 4 said a detached child "is reaped at SessionEnd"; neither the Node path nor the Go core reaps one (SessionEnd kills nothing; the artifact pass ends by its own budget and its lock lapses at the deadline), so the record now carries a correction. Open: whether SessionEnd should reap a still-running pass or refresher, and how on Windows, where a kill does not take the children. Bounded today by each child's deadline. S.
+- **Re-checked 2026-10-20 at 14bc3430** (read-only passes over the code, by mrw reads and direct calls): items 1–5 are fixed (035be390, 5b9108d3, 9f7d1573, c74ff306 and 76d23349, 2eb10c61), item 6 (c24e7f56), 8 (f0f4cbf7, 897c4649), 9 (f62d0015, dd5f2748), 10 (f596b8ce), 11 (6e2cebed), 12 (5c6641ff, 3c6fe6ac), 13 (05562ebe), 14 (3bff7696, 0bbf5eb1, 834a23b7), 15 (36cdcafd); item 7 is closed by the owner's decision (e957da1e); the reviewer `--output` limit is gone with the shell-less reviewer (6c30eba6). What is still present goes to ADR-119 (Proposed): item 6's two README-only sites in adr-lint (5027, 5817), 16's unplaced node error, 17–24, the pipe after a group (`{ false; } | cat`, `|&` too), the doubled literal, plus §383's false stops and §389. Item 25 and the several-command negated group stay out (a record of their own; the owner's grammar).
 
 ## 382. OPEN 2026-10-16 — What ADR-106's paired benchmark deliberately leaves for after its first verdict
 
@@ -3293,14 +3294,9 @@ unseen. A better signal is the run's own slowdown against its history: `selftest
 and five full runs on 2026-10-19 took 202 to 209 s whatever the load. Left: a per-file baseline and a threshold nobody has
 measured (ADR-115, Alternatives).
 
-## 385. OPEN 2026-10-19 — adr-lint passes a tasks README whose index lost its separator row and lists a task twice
+## 385. CLOSED 2026-10-20 (fixed in 2b6a0e63, shipped in 3.8.48) — adr-lint passes a tasks README whose index lost its separator row and lists a task twice
 
-Found executing ADR-115 T1: a write meant for T1's row replaced the table's `|----|…` separator instead, so the index read
-`| ID | … |` then T1 `done` then T1 `pending`. `python3 plugin/bin/adr-lint` on the record printed [PASS]. Two task rows
-with one id, one done and one pending, is a README that disagrees with itself; whether `done_task_ids` reads the first, the
-last or both is not checked here. The README is a derived index (CLAUDE.md §10), so the task files still win; the gap is that
-nothing says the index is malformed. Left: a test with a duplicated row and a missing separator, each said.
-  - **Fixed 2026-10-19, for the release after 3.8.47:** adr-lint now says, as advice, a row in a table with no separator under its header, and a task listed twice in an index table (one whose first column is the task id; a contract table names its producer once per contract). The class, enumerated by running adr-lint over every record in `docs/adr/`: one instance, ADR-012 listing T5 as done and again as pending; the stale pending row is removed (adr-next reads T5 done). `tests/readme-index-shape.test.mjs`, three catalogue mutants.
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
 ## 386. OPEN 2026-10-19 — A fetched `qh` is unsigned, and whether quarantine or SmartScreen stops it is not measured
 
@@ -3354,3 +3350,18 @@ when a row's writer may predate receipts, and the forwarder could prefer the plu
 ## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
+
+## 391. OPEN 2026-10-20 — A review row records the model the reviewer printed, not the one the launcher pinned
+
+Reported by a peer repository's session from its `.git/quality-harness/reviews.jsonl`, confirmed here: `plugin/scripts/host-review.mjs:61`
+(`reviewFromOutput`) takes the reviewer's self-printed `model` over the pinned one (`CODEX_MODEL`, :17, passed as `-m` at :139), and
+the Codex row at :256 records `review.model ?? CODEX_MODEL`. Runs pinned to gpt-6.1-sol were recorded as "gpt-6", "GPT-6 (Codex)" and
+"Codex". No gate reads the row's `model` or `bound` today (`scripts/release-evidence.mjs` reads status, head, base and exact), so this is
+a record that says less than the tool observed, not an open gate. To be closed by ADR-119 T2.
+
+## 392. OPEN 2026-10-20 — One check change draws the §390 relock advice once per task
+
+An outside run of 3.8.49 over a peer's Go corpus (55 records, 239 tasks; attestation go-kernel at 7712a333, 0 verdicts changed) printed
+57 advice lines of one form, every one with the same pair of check digests: one change to the declared check, relocked across records
+005–023. The advice is right each time; said 57 times it is an adopter cost (CLAUDE.md §19) and a reader stops reading it. Left: say the
+move once per record, or once per (from, to) check pair with the tasks it covers, keeping the per-task line where the pair differs.

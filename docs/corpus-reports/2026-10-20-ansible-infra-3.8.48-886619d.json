@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-20",
+  "at": "886619df6b2a01f78e8e83a1d419113cb478216d",
+  "plugin": "3.8.48",
+  "kind": "probe",
+  "probeSha256": "a07089753b4bdd0bf580fe366e6cc49f9c54b5e3e51e08e10d32209254efc200",
+  "readers": "016afb1c1578706590d547f60a6ecd230271e5003b76193a04f3f88d45f1984d",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.15.0",
+  "corpus": {
+    "records": 22,
+    "undecided": 6,
+    "tasks": 26,
+    "taskDirectories": 4
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 28,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "ansible-infra",
+  "found": ""
+}

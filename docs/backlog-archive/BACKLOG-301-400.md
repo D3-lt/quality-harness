@@ -3079,20 +3079,17 @@ Measured 2026-10-11 with a preload that counts every child process and file read
 - **Codex review of 6b1879c7 (high effort, REQUEST CHANGES, one P2), fixed:** node returns a pid for a runner script that does not exist, so the hook handed its work to a copy that died unheard and no row and no word were left. The runner is now checked with `existsSync`, as the artifact pass checks its own; a missing one is said on stderr and the hook records the end itself (test `a runner that does not exist is said, and the hook records the end itself`). The `inline` twin no longer rests on a race: it asserts the inline hook's own stderr (a data home that is a file cannot be written) and that `inline` is not reported as a missing runner, which a mutant that ignored `inline` would print. Five catalogue mutants killed. Not changed, recorded: `QUALITY_HARNESS_HOOK_INPUT` stays in the copy's environment and reaches its git children (no harm established); a copy that starts and then fails leaves no receipt, as an inline hook cancelled by the host did.
 - **Windows, 2026-10-15** (a Windows 11 peer, Git Bash, node 24.20.0, a fresh clone at f1c3c7c1): `tests/session-end-behind.test.mjs` 3/3 and `tests/test-order.test.mjs` 6/6 passed, so the detached copy writes its row there and its temp working directory was deleted; the peer found no directory left in `%TEMP%` and no `node.exe` naming the hook afterwards. Still unmeasured on Windows: a real host's SessionEnd, where the parent exits under the budget while the copy runs. `tests/hook-goldens.test.mjs` measured nothing there (its transcripts are POSIX-only, §375).
 
-## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
+## 385. CLOSED 2026-10-20 (fixed in 2b6a0e63, shipped in 3.8.48) — adr-lint passes a tasks README whose index lost its separator row and lists a task twice
 
-From the §388 reporter: a task refused with "check was absent at first-red and is now declared — done is refused" was
-accepted after `adr-verify --relock --replace-hashes`, with no new red run. `lock_findings` (plugin/lib/record.py:4149-4162)
-compares the check of the latest lock, and a relock snapshots the current check (`snapshot_lock`), so the binding moves with
-it. The only thing said is the generic "lock map was taken by `adr-verify --relock --replace-hashes` — weaker than
-first-red"; the check that moved is not named. ADR-052 makes a relock an explicit later lock and is silent on the check.
-Open question, the owner's: may a relock move the check binding at all? If yes, the advice should name the check move;
-if no, a relock should keep the first lock's check and the refusal should stand until a red under the declared check.
-  - **Decided by the owner, 2026-10-20: yes.** A relock may move the check binding, and adr-lint now says so: "the relock
-    moved the check binding from no declared check to the check with sha256 …: done rests on the relock, not on a red under
-    the declared check" (`_recorded_lock` reads the first kindless lock's check, `lock_findings` compares it;
-    tests/test-lock.test.mjs `a relock that moved the check binding passes done and names the move`, with its catalogue
-    mutant killed). Closed with this entry's commit.
+Closed by the re-check of 2026-10-20 at 14bc3430: the fix below is in `plugin/bin/adr-lint` (6279-6324, advice), tested by
+`tests/readme-index-shape.test.mjs` with its catalogue mutants; only the heading had stayed OPEN.
+
+Found executing ADR-115 T1: a write meant for T1's row replaced the table's `|----|…` separator instead, so the index read
+`| ID | … |` then T1 `done` then T1 `pending`. `python3 plugin/bin/adr-lint` on the record printed [PASS]. Two task rows
+with one id, one done and one pending, is a README that disagrees with itself; whether `done_task_ids` reads the first, the
+last or both is not checked here. The README is a derived index (CLAUDE.md §10), so the task files still win; the gap is that
+nothing says the index is malformed. Left: a test with a duplicated row and a missing separator, each said.
+  - **Fixed 2026-10-19, for the release after 3.8.47:** adr-lint now says, as advice, a row in a table with no separator under its header, and a task listed twice in an index table (one whose first column is the task id; a contract table names its producer once per contract). The class, enumerated by running adr-lint over every record in `docs/adr/`: one instance, ADR-012 listing T5 as done and again as pending; the stale pending row is removed (adr-next reads T5 done). `tests/readme-index-shape.test.mjs`, three catalogue mutants.
 
 ## 388. CLOSED 2026-10-20 (the owner: the lock is keyed from the record's repository whatever --cwd is) — A task whose code lives in another repository, named by a path relative to THAT repository, cannot reach done
 
@@ -3123,3 +3120,18 @@ cannot claim; until then the reporter's `partial` is the honest status.
     no test. Tests: tests/test-lock.test.mjs `a relock with --cwd elsewhere keys the lock from the record, so the readers can
     read it back` and `a red run with --cwd elsewhere keys its first-red lock from the record`, both catalogue mutants
     killed. Closed with this entry's commit.
+
+## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
+
+From the §388 reporter: a task refused with "check was absent at first-red and is now declared — done is refused" was
+accepted after `adr-verify --relock --replace-hashes`, with no new red run. `lock_findings` (plugin/lib/record.py:4149-4162)
+compares the check of the latest lock, and a relock snapshots the current check (`snapshot_lock`), so the binding moves with
+it. The only thing said is the generic "lock map was taken by `adr-verify --relock --replace-hashes` — weaker than
+first-red"; the check that moved is not named. ADR-052 makes a relock an explicit later lock and is silent on the check.
+Open question, the owner's: may a relock move the check binding at all? If yes, the advice should name the check move;
+if no, a relock should keep the first lock's check and the refusal should stand until a red under the declared check.
+  - **Decided by the owner, 2026-10-20: yes.** A relock may move the check binding, and adr-lint now says so: "the relock
+    moved the check binding from no declared check to the check with sha256 …: done rests on the relock, not on a red under
+    the declared check" (`_recorded_lock` reads the first kindless lock's check, `lock_findings` compares it;
+    tests/test-lock.test.mjs `a relock that moved the check binding passes done and names the move`, with its catalogue
+    mutant killed). Closed with this entry's commit.

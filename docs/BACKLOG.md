@@ -3380,3 +3380,8 @@ which closed a false refusal (`{ printf %s '#'; echo 'git push'; } | sh`, a comm
 Left: model a group's combined output (its commands' printed lines, in order) for `sh` and `xargs`, or read any group of several
 commands feeding either as could-not-look, which advises rather than refuses. The owner's 2026-10-15 direction for this area is a
 grammar, not another patch.
+  - **Added 2026-10-20, from ADR-119 T1's second fix round (95bb1ef9):** the same gap on the check side, a fail-open older than
+    T1. A group that is not piped onward is flattened into the outer list, because the lexer marks `groupEnd` only when a pipe
+    follows the group, so a group's own `;` escapes an outer `||` skip: `true || { true; false; }` exits 0 in bash, sh and zsh
+    and is accepted as a real check (`plugin/scripts/check-command.mjs` `listStatus`, `core/hooks/checkcmd.go`), and so is
+    `true || npm test | { cat; false; }`. Contrived in shape; the same grammar closes it.

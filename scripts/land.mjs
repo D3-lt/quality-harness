@@ -101,6 +101,11 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
     log(`land: HEAD is not the main branch ${at}; check out main at the sha to land, then run again`)
     return 2
   }
+  // git's pre-push hook judges the working tree (ADR-066), so a landing begun on an edited tree waited out CI and was then
+  // turned away at main (the first landing through the ruleset, 2026-10-20). Said before anything is pushed.
+  const porcelain = text('git', ['status', '--porcelain'])
+  if (porcelain === null) { log(`land: git status failed ${at}`); return 1 }
+  if (porcelain && !dryRun) { log(`land: the working tree is not clean ${at}; commit or stash, then run again`); return 2 }
   const fetched = ran('git', ['fetch', '-q', 'origin', 'main']).status
   if (fetched !== 0) { log(`land: git fetch exited ${fetched} ${at}; whether main already has it could not be read`); return 1 }
   // A dry run asks about the forge whether or not the sha is already on main: T2's fence runs on a synchronized main, and

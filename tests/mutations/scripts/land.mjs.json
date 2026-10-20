@@ -1,6 +1,13 @@
 {
   "mutations": [
     {
+      "label": "ADR-118: a landing starts only on a clean working tree",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "  if (porcelain && !dryRun) {",
+      "to": "  if (false) {"
+    },
+    {
       "label": "ADR-118 T1: a forge that could not be read pushes nothing",
       "file": "scripts/land.mjs",
       "tests": ["tests/land.test.mjs"],

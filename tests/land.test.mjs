@@ -51,6 +51,7 @@ function world(overrides = {}) {
     if (line === 'git rev-parse HEAD') return ok(`${SHA}\n`)
     if (line === 'git symbolic-ref --short HEAD') return state.branch ? ok(`${state.branch}\n`) : { status: 128, stdout: '', stderr: 'fatal: ref HEAD is not a symbolic ref' }
     if (line === 'git rev-parse refs/heads/main') return ok(`${state.mainMoves && checkCalls > 0 ? OTHER : SHA}\n`)
+    if (line === 'git status --porcelain') return ok(state.porcelain ?? '')
     if (line === 'git fetch -q origin main') return ok()
     if (line.startsWith('git merge-base --is-ancestor')) return { status: state.origin === SHA ? 0 : 1, stdout: '', stderr: '' }
     if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return state.workflow === null ? { status: 128, stdout: '', stderr: 'fatal' } : ok(state.workflow)
@@ -247,4 +248,16 @@ test('land --dry-run reads the ruleset for a sha already on main', () => {
   assert.ok(!anyPush(carried.calls))
   // A landing proper still stops there: nothing is pushed again.
   assert.equal(world({ origin: SHA }).go(), 0)
+})
+
+// The first landing through the ruleset, 2026-10-20: the tree was edited during the 47-minute wait, so git's pre-push hook
+// (ADR-066), which judges the working tree, turned the final push to main away after every check had passed. An unclean
+// tree is now said before anything is pushed; a dry run, which pushes nothing, still answers.
+test('land starts only on a clean working tree, and a dry run answers on any', () => {
+  const dirty = world({ porcelain: ' M scripts/land.mjs' })
+  assert.equal(dirty.go(), 2, dirty.said.join('\n'))
+  assert.ok(!anyPush(dirty.calls))
+  assert.match(dirty.said.join('\n'), /not clean/)
+  assert.equal(world({ porcelain: ' M scripts/land.mjs' }).go({ dryRun: true }), 0)
+  assert.equal(world().go(), 0)
 })

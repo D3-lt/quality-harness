@@ -188,7 +188,8 @@ baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`)
 2. The landing, through `land` (`scripts/land.mjs`, ADR-118): it pushes the sha to `land/<sha>`; CI runs there
    (`.github/workflows/selftest.yml` runs on `land/**` pushes); once every context the forge requires has a successful
    newest check-run from the required app, it fast-forwards `main` to that same sha, reads the forge's `main` back and
-   deletes `land/<sha>`. A plain push to `main` is refused by `.github/rulesets/main.json`, which has no bypass actors.
+   deletes `land/<sha>`. `.github/rulesets/main.json` (no bypass actors) refuses a push to `main` whose sha lacks the
+   required checks; it does not require `land.mjs` itself, which is this repository's policy for getting them first.
 3. It waits for the push run on `main` to exist, then dispatches the full campaign at that sha (BACKLOG §159).
 4. It waits for every job of the dispatched run, bounded.
 5. It runs `release-evidence` and acts only on its success.
@@ -240,7 +241,7 @@ Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is t
 | D2 | Every Python gate loads the record grammar from the `plugin/lib/record.py` beside its own `bin/`, and none keeps a copy (ADR-045) | `node --test tests/gates.test.mjs` |
 | D3 | Every spawned role declares the capability it needs (ADR-029) | `node --test tests/workflows.test.mjs` |
 | D4 | `qh hook` answers what `lifecycle.mjs` answers, row for row, for the same payloads (ADR-110 T1) | `node --test tests/qh-core-parity.test.mjs` |
-| D5 | No rule the Node hooks have is missing from the Go core (ADR-113) | `node --test tests/go-core-parity-adr-111.test.mjs` |
+| D5 | ADR-111's rules and the parity scenarios answer the same in Go as in Node (ADR-113); the PreToolUse decision context is not ported yet (`core/hooks/pending.go`) | `node --test tests/go-core-parity-adr-111.test.mjs` |
 | D6 | `hooks.json` is the only thing that selects the hook implementation (ADR-110 Decision 5) | (deferred: ADR-110 T3) |
 
 ## Concept Ownership (DRY)
@@ -281,7 +282,7 @@ Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is t
 | The state directory | written only by its tools; a hook-visible write is refused unless `"ledgers": "warn"` (ADR-117 T1) | `node --test tests/ledger-writes.test.mjs` |
 | A task's log rows | written by `adr-verify` with a receipt; an uncommitted row without one fails `adr-lint` (ADR-117 T2) | `node --test tests/log-receipts.test.mjs` |
 | The paths around the evidence | every side door is listed with its state, and a new one fails (ADR-113 T3) | `node --test tests/side-door-sweep.test.mjs` |
-| `main` on the forge | only a sha whose required checks passed on `land/` reaches it (ADR-118) | `node --test tests/land.test.mjs` |
+| `main` on the forge | only a sha whose required checks passed reaches it; `land.mjs` gets them on `land/<sha>` first (ADR-118) | `node --test tests/land.test.mjs` |
 | A release | only on `release-evidence` success (CLAUDE.md §13) | `node --test tests/release-evidence.test.mjs` |
 | What reaches the public repository | no personal path is tracked (CLAUDE.md §6) and every tracked path fits a Windows clone (CLAUDE.md §7) | `node --test tests/path-length.test.mjs` |
 

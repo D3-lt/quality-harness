@@ -80,10 +80,11 @@ Why: `.claude/rules/02-running-the-checks.md`
   into the repository's state directory that the hook can see (an Edit, Write or mrw write, a shell redirection or `tee`
   there) is refused, since the evidence there is written only by its tools; `"ledgers": "warn"` warns instead. A new refusal
   needs an Accepted record, and an opt-out unless it only fences a role the caller made read-only.
-- **"No others" is about the plugin in a user's session**: its hooks and gates. This repository's own tooling refuses on
-  this repository's work and is outside that list: the hook in `.githooks/`, the ruleset on main
-  (`.github/rulesets/main.json`), `scripts/land.mjs`, and `qh-check --commit`'s refusal of a pathspec or a tree unlike its
-  index.
+- **"No others" is about what the plugin does unasked in a user's session**: a hook intercepting a tool call. A command
+  the user or agent runs explicitly may have preconditions of its own, and they ship: `qh-check --commit` refuses a
+  pathspec or a tree unlike its index before it checks or commits (ADR-100), in any repository. This repository's own
+  tooling is outside the list too: the hook in `.githooks/`, the ruleset on main (`.github/rulesets/main.json`, which
+  refuses a sha lacking the required checks) and `scripts/land.mjs`.
 - **A hook may continue a turn to hand the agent a finding** (ADR-096). At Stop a finding meant for the agent goes into its
   context, and the turn continues once so it can act; that is an act, not a fourth refusal, and it never stops a command. A
   `systemMessage` reaches the user only, never the agent.
@@ -240,7 +241,7 @@ wait reached its deadline. The steps stay numbered because records and source co
    each with its reason, and exit 3 is UNPROVEN, never clean.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json` and commit it; then run the command. When the remote's main
    lacks the sha it lands it through `scripts/land.mjs` (ADR-118): CI runs on `land/<sha>`, and main fast-forwards to
-   that sha once main's required checks passed there. A plain push to main is refused by the forge.
+   that sha once main's required checks passed there. The forge refuses a push to main whose sha lacks those checks.
 3. It waits for the push run ON MAIN to EXIST, then dispatches the full campaign at that sha: a push measures only
    what its cache could not reuse, and `release-evidence` refuses a sha whose newest run was a push. Dispatching
    immediately can lose that ordering by a second (BACKLOG §159); the landing's own run is on `land/<sha>` and comes

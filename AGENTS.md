@@ -34,8 +34,9 @@ The rules whose cost of missing is not a wasted hour are repeated here:
 - **Remember through the team-memory MCP this machine's instructions name** (memoryd on the owner's Mac; the palace,
   `am_*`, where that is what the machine runs): recall before touching unfamiliar code; write what you learned and where
   you stopped before you stop. This project's space for what holds here; a craft space for what holds anywhere.
-- **`main` moves only through `node scripts/land.mjs`** (ADR-118). A plain push to main is refused by the forge, and a
-  release lands through `scripts/release.mjs`, which uses it.
+- **`main` moves through `node scripts/land.mjs`** (ADR-118), as this repository's policy. The forge's ruleset refuses a
+  push to main whose sha lacks the required checks; `land.mjs` gets them by running CI on `land/<sha>` first, then
+  fast-forwards main. A release lands through `scripts/release.mjs`, which uses it.
 - **Always-on unread is actioned.** Advice, an unchanged brief, invented Stop paths, an inferred check called the project's own — classify and act (`CLAUDE.md` §17).
 
 Everything else — and the measurements behind all of the above — is in `CLAUDE.md` and

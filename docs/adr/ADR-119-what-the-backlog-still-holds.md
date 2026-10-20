@@ -191,4 +191,4 @@ Each task is its own commit and reverts alone. No persistent state changes, exce
 ## Follow-ups
 
 - [x] A cold Codex review of this draft (`codex-review` skill, `host-review.mjs --host codex --effort high`) before acceptance: REQUEST CHANGES with five findings, all folded in, then a scoped verification APPROVE, 2026-10-20
-- [ ] After T1, T3 and T4: an outside run by an eligible peer, one at a time, filed with `attest-import`, then a bump and `release.mjs`
+- [x] After T1, T3 and T4: an outside run by an eligible peer, one at a time, filed with `attest-import`, then a bump and `release.mjs`: ansible-infra (28 compared) and go-kernel (58 compared) at 80066d00, 0 verdicts changed, filed 2026-10-20; bumped to 3.8.50

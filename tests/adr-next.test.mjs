@@ -703,6 +703,22 @@ test('a hyphenated name, a quoted stop word and a hook name are not verdicts, an
   assert.equal(done("approved: the word 'failed' was printed, and the run failed"), false)
 })
 
+// The Codex review of 892ba222..3b6bee2f: the noun "word" alone does not make a quoted stop word a mention. "The final
+// verdict is the word 'failed'" reports the verdict; only a removal verb ("drops", "without") names the word as text.
+test('a quoted stop word is a mention only after a removal verb, and a verdict naming the word still stops', () => {
+  const done = note => {
+    const signoff = `- 2026-10-20 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
+  }
+  assert.equal(done("approved: the summary is rewritten without the word 'failed'"), true)
+  assert.equal(done("approved: the reader removed the word 'blocked'"), true)
+  // Must still stop.
+  assert.equal(done("observed: the final verdict is the word 'failed'"), false)
+  assert.equal(done("observed: the word 'rejected' is the answer"), false)
+  assert.equal(done("observed: the log shows the words 'failed'"), false)
+})
+
 // A sign-off that cites the task's `## Stop Condition` section names a heading, not a verdict: ADR-078 T2's
 // approval ("+8%, under the Stop Condition's 25%") printed `stopped`, and work-next named it as missing evidence.
 // The condition reported as met is still a stop, and so is the plain word.

@@ -21,14 +21,24 @@
       "to": "r\"|(?<![a-z])stop[- ]?words?(?![a-z])(?!)\""
     },
     {
-      "label": "ADR-119 T3: a stop word quoted after the noun \"word\" is mentioned, not said",
+      "label": "ADR-119 T3: a stop word quoted after a removal verb and the noun \"word\" is mentioned, not said",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a hyphenated name, a quoted stop word and a hook name are not verdicts, and a stop beside them still stops)$",
-      "from": "r\"|(?<![a-z])words?\\s+['",
-      "to": "r\"|(?!)(?<![a-z])words?\\s+['"
+      "from": "r\"|(?<![a-z])(?:drop(?:s|ped|ping)?|remov",
+      "to": "r\"|(?!)(?<![a-z])(?:drop(?:s|ped|ping)?|remov"
+    },
+    {
+      "label": "ADR-119 T3 (review of 892ba222..3b6bee2f): the noun \"word\" alone does not make a quoted stop word a mention",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a quoted stop word is a mention only after a removal verb, and a verdict naming the word still stops)$",
+      "from": "|omit(?:s|ted|ting)?|without)\"",
+      "to": "|omit(?:s|ted|ting)?|without)?\""
     },
     {
       "label": "ADR-119 T3: the Stop hook named among the hooks is no verdict (fires SessionStart and Stop)",

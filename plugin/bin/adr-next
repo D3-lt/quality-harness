@@ -233,9 +233,12 @@ NEUTRALISED = re.compile(
     # The phrase "stop word" names the word, as a heading does: "restated without the stop word". A stop beside it
     # ("the stop word check failed") still speaks.
     r"|(?<![a-z])stop[- ]?words?(?![a-z])"
-    # A stop word quoted after the noun "word" is mentioned, not said: "drops the word 'failed'". A quote alone cannot be
-    # told from a verdict by text ("confirmed 'rejected'", "the tool printed 'blocked'" stop), so the noun is required.
-    r"|(?<![a-z])words?\s+['\"`‘“«](?:" + NEGATIVE_WORD + r")['\"`’”»](?![\w'’])",
+    # A stop word quoted after the noun "word" is mentioned, not said, but only where a removal verb names it as text to
+    # drop: "drops the word 'failed'", "without the word «blocked»". A quote alone cannot be told from a verdict by text
+    # ("confirmed 'rejected'", "the tool printed 'blocked'" stop), and neither can the noun alone: "the final verdict is
+    # the word 'failed'" reports the verdict (the Codex review of 892ba222..3b6bee2f), so the verb is required too.
+    r"|(?<![a-z])(?:drop(?:s|ped|ping)?|remov(?:e|es|ed|ing)|strip(?:s|ped|ping)?|omit(?:s|ted|ting)?|without)"
+    r"\s+(?:the\s+)?words?\s+['\"`‘“«](?:" + NEGATIVE_WORD + r")['\"`’”»](?![\w'’])",
     re.I)
 # The hook events by name (ADR-119 T3, BACKLOG §383): "fires SessionStart and Stop" names the Stop hook, ADR-113 T6's
 # false stop. Case-sensitive and whole, and only where the name is plainly the hook's: in a list of hook names, or before

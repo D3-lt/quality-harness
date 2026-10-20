@@ -3365,3 +3365,18 @@ An outside run of 3.8.49 over a peer's Go corpus (55 records, 239 tasks; attesta
 57 advice lines of one form, every one with the same pair of check digests: one change to the declared check, relocked across records
 005–023. The advice is right each time; said 57 times it is an adopter cost (CLAUDE.md §19) and a reader stops reading it. Left: say the
 move once per record, or once per (from, to) check pair with the tasks it covers, keeping the per-task line where the pair differs.
+
+## 393. OPEN 2026-10-20 — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
+
+Found by the Codex reviews of ADR-119 T1's rounds (c48dd5b0..cfd24edc and 7e7c59ee..892ba222). Since 892ba222 a group of several
+commands piped onward proves nothing from its last command (`plugin/scripts/publish-command.mjs` `stdinScripts`, `core/hooks/publishcmd.go`),
+which closed a false refusal (`{ printf %s '#'; echo 'git push'; } | sh`, a comment to the shell). Left, each as it was before T1:
+- **Fail-open, mitigated:** `{ echo hi; echo 'git push'; } | sh` really pushes (the shell runs its second line) and the text refusal reads
+  it as no publish. Git's own pre-push hook (ADR-066) still refuses it where the session armed it.
+- **False refusal:** nested groups sharing a first command overwrite the inner group's boundary, so
+  `{ { printf %s '#'; echo 'git push'; } | sh; echo MARK; } | cat` is still a proven publish (`shell-words.mjs:106`, `shellwords.go:222`).
+- **False refusal:** the xargs reader (`publish-command.mjs:671`, `publishcmd.go:1044`) still trusts a group's last command:
+  `{ printf %s '#'; echo push; } | xargs git` reads as `git push` though its input is `#push`.
+Left: model a group's combined output (its commands' printed lines, in order) for `sh` and `xargs`, or read any group of several
+commands feeding either as could-not-look, which advises rather than refuses. The owner's 2026-10-15 direction for this area is a
+grammar, not another patch.

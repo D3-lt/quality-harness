@@ -5,7 +5,8 @@ name: selftest
 # regression and main.
 on:
   push:
-    branches: [main]
+    # land/<sha> is where a sha's required checks run before main takes it (ADR-118, scripts/land.mjs).
+    branches: [main, 'land/**']
   pull_request:
   workflow_dispatch:
 

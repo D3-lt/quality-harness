@@ -5,14 +5,22 @@ import test from 'node:test'
 import { release } from '../scripts/release.mjs'
 
 const SHA = 'a'.repeat(40)
-const push = (status = 'completed') => ({ databaseId: 1, event: 'push', status, headSha: SHA })
-const dispatch = (status = 'completed') => ({ databaseId: 2, event: 'workflow_dispatch', status, headSha: SHA })
+// Runs on main, the dispatch the newer of the two (ADR-118: only a dispatch on main newer than main's push run is reused).
+const push = (status = 'completed') => ({ databaseId: 1, event: 'push', status, headSha: SHA, headBranch: 'main', createdAt: '2026-10-20T00:00:00Z' })
+const dispatch = (status = 'completed') => ({ databaseId: 2, event: 'workflow_dispatch', status, headSha: SHA, headBranch: 'main', createdAt: '2026-10-20T00:00:01Z' })
+const landPush = () => ({ databaseId: 3, event: 'push', status: 'completed', headSha: SHA, headBranch: `land/${SHA}`, createdAt: '2026-10-19T23:59:00Z' })
+const LANDING = `git push origin ${SHA}:refs/heads/land/${SHA}`
 
 // A world the fake answers from. `runs` is a list of answers to `gh run list --commit`, the last one repeated.
 function world(overrides = {}) {
   const state = {
     version: '1.0.1', tags: ['v1.0.0'], remoteTags: [], released: false, porcelain: '', origin: SHA,
-    check: 0, deadCode: 0, evidence: [0], runs: [[push(), dispatch()]], inFlight: [], ...overrides,
+    check: 0, deadCode: 0, evidence: [0], runs: [[push(), dispatch()]], inFlight: [],
+    // The forge as land reads it: unprotected unless a test says otherwise, so main is pushed straight (ADR-118).
+    protection: { state: 'unprotected', text: "forge: main's rules require no status check", required: [] },
+    workflow: 'jobs:\n  windows:\n    name: windows\n',
+    checkRuns: [{ total_count: 1, check_runs: [{ id: 1, name: 'windows', status: 'completed', conclusion: 'success', started_at: '2026-10-20T00:00:00Z', app: { id: 15368 } }] }],
+    ...overrides,
   }
   const calls = []
   let runCalls = 0
@@ -39,14 +47,23 @@ function world(overrides = {}) {
     if (line === 'git rev-parse origin/main') return ok(`${state.origin}\n`)
     if (line.startsWith('git merge-base --is-ancestor')) return { status: state.origin === SHA ? 0 : 1, stdout: '', stderr: '' }
     if (line === 'git push origin main') { state.origin = SHA; return ok() }
+    // What land asks (ADR-118): the branch, local main, the forge's main, the workflow, the landing and its check-runs.
+    if (line === 'git symbolic-ref --short HEAD') return ok('main\n')
+    if (line === 'git rev-parse refs/heads/main') return ok(`${SHA}\n`)
+    if (line === 'git fetch -q origin main') return ok()
+    if (line === 'git ls-remote origin refs/heads/main') return ok(`${state.origin}\trefs/heads/main\n`)
+    if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return ok(state.workflow)
+    if (line === LANDING || line === `git push origin --delete land/${SHA}`) return ok()
+    if (line.startsWith(`gh api repos/{owner}/{repo}/commits/${SHA}/check-runs`)) return ok(JSON.stringify(state.checkRuns))
     if (line.startsWith('gh run list --commit')) {
       const answer = state.runs[Math.min(runCalls, state.runs.length - 1)]
       if (answer.some(row => row.event === 'push')) state.pushSeen = true
+      if (answer.some(row => row.event === 'push' && row.headBranch === 'main')) state.mainPushSeen = true
       runCalls += 1
       return ok(JSON.stringify(answer))
     }
     if (line.startsWith('gh run list --workflow')) return ok(JSON.stringify(state.inFlight))
-    if (line === 'gh workflow run selftest.yml --ref main') { state.dispatchSawPush = state.pushSeen === true; return ok() }
+    if (line === 'gh workflow run selftest.yml --ref main') { state.dispatchSawPush = state.pushSeen === true; state.dispatchSawMainPush = state.mainPushSeen === true; return ok() }
     if (line.endsWith(`scripts/release-evidence.mjs ${SHA}`)) {
       const code = state.evidence[Math.min(evidenceCalls, state.evidence.length - 1)]
       evidenceCalls += 1
@@ -64,7 +81,7 @@ function world(overrides = {}) {
     const loads = state.loads ?? [1]
     return { load: loads[Math.min(loadCalls++, loads.length - 1)], cores: 10 }
   }
-  const run = (extra = {}) => release({ exec, log: line => said.push(line), now: () => clock, sleep: ms => { clock += ms }, load, ...extra })
+  const run = (extra = {}) => release({ exec, log: line => said.push(line), now: () => clock, sleep: ms => { clock += ms }, load, protection: () => state.protection, ...extra })
   return { state, calls, said, run }
 }
 
@@ -101,6 +118,26 @@ test('release dispatches the campaign only after the push run exists', () => {
   const busy = world({ runs: [[push()]], inFlight: [{ status: 'in_progress', headSha: 'c'.repeat(40) }] })
   assert.equal(busy.run({ waitMaxMinutes: 2 }), 3)
   assert.ok(!dispatched(busy.calls))
+})
+
+// ADR-118: main takes only a sha its required checks passed at, so the release lands it through land/<sha>. The landing's
+// own push run is not main's: a dispatch made before main's push run exists is older than it, and release-evidence would
+// read the newer push as CACHED (BACKLOG §159). So the dispatch waits for main's push run, and a dispatch older than it, or
+// one not on main, is not reused.
+test('release lands the sha and dispatches only after the push run on main exists', () => {
+  const w = world({
+    origin: 'b'.repeat(40),
+    protection: { state: 'protected', text: 'forge: main requires 1 status check(s)', required: [{ context: 'windows', integration: 15368 }] },
+    runs: [[landPush()], [landPush()], [landPush(), push()], [landPush(), push(), dispatch()]],
+  })
+  assert.equal(w.run(), 0, w.said.join('\n'))
+  assert.ok(w.calls.includes(LANDING) && w.calls.indexOf(LANDING) < w.calls.indexOf('git push origin main'), 'landed on land/<sha> before main')
+  assert.equal(w.state.dispatchSawMainPush, true, 'the dispatch came before the push run on main existed')
+  for (const stale of [{ ...dispatch(), createdAt: '2026-10-19T23:00:00Z' }, { ...dispatch(), headBranch: `land/${SHA}` }]) {
+    const r = world({ runs: [[push(), stale], [push(), stale, { ...dispatch(), databaseId: 4 }]] })
+    assert.equal(r.run(), 0, r.said.join('\n'))
+    assert.ok(dispatched(r.calls), `not reused: ${JSON.stringify(stale)}`)
+  }
 })
 
 test('release tags only a sha release-evidence clears, with its full sha and --latest', () => {

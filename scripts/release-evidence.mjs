@@ -249,8 +249,10 @@ export function mainProtection(exec = execFileSync) {
   // A required check it cannot read is one it did not read: it is could-not-look, never dropped (the verification of a855f7f7).
   if (entries.some(check => !check || typeof check !== 'object' || typeof check.context !== 'string' || !check.context)) return unknown('a required check in the answer is not one it can read')
   const checks = entries.map(check => check.context)
-  if (checks.length) return { state: 'protected', text: `forge: main requires ${checks.length} status check(s) before a push lands: ${checks.join(', ')} (ADR-117)` }
-  return { state: 'unprotected', text: "forge: main's rules require no status check, so a push --no-verify from a script reaches main with nothing run; a ruleset requiring the selftest checks closes it (ADR-117)" }
+  // ADR-118: each context with the app the rule binds it to, which a landing waits for (scripts/land.mjs).
+  const required = entries.map(check => ({ context: check.context, integration: check.integration_id ?? null }))
+  if (checks.length) return { state: 'protected', required, text: `forge: main requires ${checks.length} status check(s) before a push lands: ${checks.join(', ')} (ADR-117)` }
+  return { state: 'unprotected', required: [], text: "forge: main's rules require no status check, so a push --no-verify from a script reaches main with nothing run; a ruleset requiring the selftest checks closes it (ADR-117)" }
 }
 
 /**

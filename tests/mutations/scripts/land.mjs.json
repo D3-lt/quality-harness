@@ -1,0 +1,95 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-118 T1: a forge that could not be read pushes nothing",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "  if (forge.state !== 'protected' && forge.state !== 'unprotected') {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-118 T1: a required check no job declares pushes nothing",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "    if (never.length) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "ADR-118 T1: a required check that did not succeed stops the landing",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "      if (stopped.length) {",
+      "to": "      if (false) {"
+    },
+    {
+      "label": "ADR-118 T1: main is pushed only once every required check passed",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "      if (!waiting.length) break",
+      "to": "      break"
+    },
+    {
+      "label": "ADR-118 T1: skipped and neutral stop a landing",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "['success', 'pending', 'missing', 'unread']",
+      "to": "['success', 'pending', 'missing', 'unread', 'skipped', 'neutral']"
+    },
+    {
+      "label": "ADR-118 T1: only the required app's check-runs count",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "(integration == null || run?.app?.id === integration)",
+      "to": "true"
+    },
+    {
+      "label": "ADR-118 T1: the newest check-run of a context decides",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "!best || newer(run, best) ? run : best",
+      "to": "!best ? run : best"
+    },
+    {
+      "label": "ADR-118 T1: every page of check-runs is read",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "pages.flatMap(page => page.check_runs)",
+      "to": "pages[0].check_runs"
+    },
+    {
+      "label": "ADR-118 T1: a landing starts only on the main branch",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "  if (text('git', ['symbolic-ref', '--short', 'HEAD']) !== 'main' || !onMain()) {",
+      "to": "  if (!onMain()) {"
+    },
+    {
+      "label": "ADR-118 T1: local main is the sha again before main is pushed",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "  if (!onMain()) { log(`land: local main moved",
+      "to": "  if (false) { log(`land: local main moved"
+    },
+    {
+      "label": "ADR-118 T1: the forge's main is read back as the sha",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "  if (remote !== sha) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-118 T1: a dry run pushes nothing",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "  if (dryRun) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-100 T3, ADR-118 T1: a sha already on main is not pushed again",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs", "tests/release.test.mjs"],
+      "from": "  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0) {",
+      "to": "  if (false) {"
+    }
+  ]
+}

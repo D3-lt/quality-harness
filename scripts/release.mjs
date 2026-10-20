@@ -16,6 +16,7 @@
 import { spawnSync } from 'node:child_process'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
+import { land } from './land.mjs'
 
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
@@ -25,7 +26,7 @@ const POLL_MS = 60_000
 const SETTLE_POLL_MS = 30_000
 const SETTLE_MS = 240_000
 const CHILD_TIMEOUT_MS = 3_600_000
-const runsOf = sha => ['run', 'list', '--commit', sha, '--workflow', 'selftest.yml', '--json', 'databaseId,event,status,conclusion,headSha']
+const runsOf = sha => ['run', 'list', '--commit', sha, '--workflow', 'selftest.yml', '--json', 'databaseId,event,status,conclusion,headSha,headBranch,createdAt']
 const DISPATCHES = ['run', 'list', '--workflow', 'selftest.yml', '--event', 'workflow_dispatch', '--json', 'status,headSha', '--limit', '20']
 
 function parsed(text) {
@@ -36,7 +37,7 @@ function parsed(text) {
  * The chain, with its world as seams: `exec(cmd, args, { stream })` answers `{ status, stdout }`, `now` and `sleep` are the
  * clock. Pure of everything else, so a test drives every branch with a fake git and gh (tests/release.test.mjs).
  */
-export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null, load = () => sampleLoad() }) {
+export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null, load = () => sampleLoad(), protection }) {
   const ran = (cmd, args, stream = false) => exec(cmd, args, { stream, timeout: CHILD_TIMEOUT_MS })
   const text = (cmd, args) => {
     const answer = ran(cmd, args)
@@ -133,19 +134,25 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const scan = ran('bash', ['scripts/dead-code-scan.sh'], true).status
   if (scan !== 0) { log(`release: the dead-code scan exited ${scan}${scan === 3 ? ' (a scanner could not run: UNPROVEN)' : ''} ${at}; nothing was pushed`); return 1 }
 
-  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status !== 0) {
-    const pushed = ran('git', ['push', 'origin', 'main'], true).status
-    if (pushed !== 0) { log(`release: git push exited ${pushed} ${at}`); return 1 }
-  }
+  // ADR-118: main takes only a sha its required checks passed at, so the sha lands through land/<sha> first. Whether main
+  // already has it is land's question, asked once: a second copy here left the first one untested.
+  const landed = land({ exec, log, now, sleep, deadline, protection })
+  if (landed !== 0) { log(`release: land exited ${landed} ${at}; nothing was dispatched`); return landed }
 
-  // The push's own run must exist before the dispatch, or the dispatch can be the newer of the two by a second (BACKLOG §159).
+  // The push run ON MAIN must exist before the dispatch, or the dispatch can be the older of the two (BACKLOG §159). A
+  // landing's own push run is on land/<sha>, and comes first (ADR-118).
   const listRuns = () => parsed(text('gh', runsOf(sha)) ?? '') ?? []
-  const withPush = waitFor(`the push run of ${sha}`, () => {
+  const mainPush = run => run.event === 'push' && run.headBranch === 'main'
+  const withPush = waitFor(`the push run of ${sha} on main`, () => {
     const runs = listRuns()
-    return runs.some(run => run.event === 'push') ? runs : null
+    return runs.some(mainPush) ? runs : null
   })
   if (!withPush) return 3
-  if (!withPush.some(run => run.event === 'workflow_dispatch')) {
+  const pushedAt = Math.max(...withPush.filter(mainPush).map(run => Date.parse(run.createdAt)))
+  // A dispatch is reused only on main and newer than main's push run: release-evidence reads the newer of the two, and an
+  // older dispatch would leave it reading the push as CACHED (the Codex review of the ADR-118 draft).
+  const current = run => run.event === 'workflow_dispatch' && run.headBranch === 'main' && Date.parse(run.createdAt) > pushedAt
+  if (!withPush.some(current)) {
     // A second dispatch cancels the first: the concurrency group keys on the event (.github/workflows/selftest.yml:19-21).
     const quiet = waitFor('the other dispatched campaign on main to finish', () => {
       const busy = parsed(text('gh', DISPATCHES) ?? '')
@@ -156,7 +163,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     if (dispatched !== 0) { log(`release: gh workflow run exited ${dispatched} ${at}`); return 1 }
   }
   const done = waitFor(`every job of the dispatched campaign of ${sha}`, () => {
-    const run = listRuns().find(row => row.event === 'workflow_dispatch')
+    const run = listRuns().find(current)
     return run?.status === 'completed' ? run : null
   })
   if (!done) return 3

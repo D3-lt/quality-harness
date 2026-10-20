@@ -43,6 +43,7 @@ bash scripts/unused-names.sh          # every gate runs it: an import or local u
 node scripts/backlog-record-sweep.mjs
 node scripts/chaos-fixture-sweep.mjs
 node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
+node scripts/land.mjs                 # every push to main: CI runs on land/<sha>, then main fast-forwards to that sha (ADR-118)
 python3 scripts/test-locks.py <test-file> [name]    # before editing an existing test: which tasks lock it
 ```
 
@@ -216,11 +217,13 @@ wait reached its deadline. The steps stay numbered because records and source co
    `node scripts/orphan-sweep.mjs` prints `0 orphan(s)`, and `bash scripts/dead-code-scan.sh` (which the command runs)
    prints each standard tool's version, command and count; a deliberate Python name goes into
    `scripts/vulture-allowlist.py` with its reason, and exit 3 is UNPROVEN, never clean.
-2. Bump `version` in `plugin/.claude-plugin/plugin.json` and commit it; then run the command. It pushes when
-   the remote's main lacks the sha.
-3. It waits for the push's own run to EXIST, then dispatches the full campaign at that sha: a push measures only
+2. Bump `version` in `plugin/.claude-plugin/plugin.json` and commit it; then run the command. When the remote's main
+   lacks the sha it lands it through `scripts/land.mjs` (ADR-118): CI runs on `land/<sha>`, and main fast-forwards to
+   that sha once main's required checks passed there. A plain push to main is refused by the forge.
+3. It waits for the push run ON MAIN to EXIST, then dispatches the full campaign at that sha: a push measures only
    what its cache could not reuse, and `release-evidence` refuses a sha whose newest run was a push. Dispatching
-   immediately can lose that ordering by a second (BACKLOG §159).
+   immediately can lose that ordering by a second (BACKLOG §159); the landing's own run is on `land/<sha>` and comes
+   first, and a dispatch older than main's push run is not reused (ADR-118).
 4. It waits for **every** job of the dispatched run, bounded; it never reads a watch's exit code.
 5. It runs `node scripts/release-evidence.mjs <sha>` and acts only on its **SUCCESS**. Its own header defines its exit
    codes; when a summary elsewhere disagrees, the header wins. It also asks whether anybody outside has run the

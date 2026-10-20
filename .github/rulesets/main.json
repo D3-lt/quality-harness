@@ -1,0 +1,28 @@
+{
+  "name": "main requires the selftest checks",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "selftest (ubuntu-latest)", "integration_id": 15368 },
+          { "context": "selftest (macos-latest)", "integration_id": 15368 },
+          { "context": "windows", "integration_id": 15368 },
+          { "context": "coverage floor", "integration_id": 15368 },
+          { "context": "plugin validate", "integration_id": 15368 },
+          { "context": "go core (ubuntu-latest)", "integration_id": 15368 },
+          { "context": "go core (macos-latest)", "integration_id": 15368 },
+          { "context": "go core (windows-latest)", "integration_id": 15368 }
+        ]
+      }
+    }
+  ]
+}

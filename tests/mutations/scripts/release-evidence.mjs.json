@@ -1,6 +1,13 @@
 {
   "mutations": [
     {
+      "label": "ADR-118 T1: each required context keeps the app its rule binds it to",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "integration: check.integration_id ?? null",
+      "to": "integration: null"
+    },
+    {
       "label": "ADR-117 verification: a required check it cannot read is could-not-look",
       "file": "scripts/release-evidence.mjs",
       "tests": [

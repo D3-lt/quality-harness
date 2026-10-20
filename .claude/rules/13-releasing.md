@@ -89,3 +89,13 @@ pass on this busy machine read as contended), and taken again once the load is b
 can never disagree with what those say. The old "do not push while the release run is in flight" predates the event in the
 workflow's concurrency key (`.github/workflows/selftest.yml:19-21`): since then a push cancels only an earlier push run,
 and a second dispatch cancels the first, which is the case the command waits out.
+
+## Landing (ADR-118, 2026-10-20)
+
+`main` carries a ruleset with no bypass (`.github/rulesets/main.json`), so the forge refuses a push whose sha has not
+passed main's required checks, whoever pushes. `node scripts/land.mjs` is the one way a sha reaches main: it reads the
+required contexts from the forge, refuses one no job of the workflow at the sha declares, pushes the sha to
+`land/<sha>`, waits for each context's newest check-run of its app to succeed (`skipped` and `neutral` stop it, though the
+forge counts them as passing), checks local main is still the sha, pushes main and reads the forge's main back. The cost,
+measured 2026-10-19 on run 39294734276: about 47 min per landing, set by `coverage floor`. What it cannot close: a sha
+whose own workflow skips a required job passes the forge; that change is reviewed (§12).

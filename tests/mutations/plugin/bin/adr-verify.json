@@ -1,10 +1,26 @@
 {
   "mutations": [
     {
+      "label": "Codex review of cdcfcf84..290669db: the lock root is found along the task's path as listed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/test-lock.test.mjs"],
+      "from": "    return git_root(task.parent) or task.parent",
+      "to": "    return fence_cwd(task)",
+      "only": "^(?:a task directory linked into the repository is locked from the repository it is listed in)$"
+    },
+    {
+      "label": "Codex review of cdcfcf84..290669db: a relock reads the sha width of the record",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/vlog-sha-width.test.mjs"],
+      "from": "    if not vlog_has_test_lock(text, object_format(lock_root)):",
+      "to": "    if not vlog_has_test_lock(text, object_format(cwd)):",
+      "only": "^(?:a relock reads the sha width of the record, whatever --cwd is)$"
+    },
+    {
       "label": "BACKLOG §388: a relock keys its lock from the record's repository, whatever --cwd is",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],
-      "from": "    lock_root = fence_cwd(task)",
+      "from": "    lock_root = lock_repository(task)",
       "to": "    lock_root = cwd",
       "only": "^(?:a relock with --cwd elsewhere keys the lock from the record, so the readers can read it back)$"
     },
@@ -12,7 +28,7 @@
       "label": "BACKLOG §388: a first red keys its lock from the record's repository, whatever --cwd is",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],
-      "from": "    entry += lock_suffix_for_run(text, fence_cwd(task), code)",
+      "from": "    entry += lock_suffix_for_run(text, lock_repository(task), code)",
       "to": "    entry += lock_suffix_for_run(text, cwd, code)",
       "only": "^(?:a red run with --cwd elsewhere keys its first-red lock from the record)$"
     },
@@ -1048,7 +1064,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    entry += lock_suffix_for_run(text, fence_cwd(task), code)",
+      "from": "    entry += lock_suffix_for_run(text, lock_repository(task), code)",
       "to": "    entry += \"\"",
       "only": "first TDD-red row carries a tool-written hash for each named test"
     },
@@ -1467,7 +1483,7 @@
       "tests": [
         "tests/vlog-sha-width.test.mjs"
       ],
-      "from": "    if not vlog_has_test_lock(text, object_format(cwd)):",
+      "from": "    if not vlog_has_test_lock(text, object_format(lock_root)):",
       "to": "    if not vlog_has_test_lock(text):",
       "only": "^(?:relock finds no lock in a row whose sha does not fit)$"
     },

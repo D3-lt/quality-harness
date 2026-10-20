@@ -1450,6 +1450,12 @@ test('a record beside its directory owns its tasks, and with it gone the ambigui
   rmSync(`${slug}.md`)
   const gone = gate()
   assert.match(gone.stderr, /expected exactly one owning ADR \(ADR-001-T1-fixture\), found 22/, gone.stderr)
+  // The Codex review of cdcfcf84..290669db: a sibling whose id the task does not name is not its owner; the id filter
+  // every other candidate meets applies to it too.
+  writeFileSync(`${slug}.md`, readFileSync(join(fixture, 'ADR-001-selftest.md')))
+  writeFileSync(task, readFileSync(task, 'utf8').replace(/^# Task ADR-001-T1-fixture/, '# Task ADR-999-T1'))
+  const other = gate()
+  assert.match(other.stderr, /expected exactly one owning ADR \(ADR-999-T1\), found 22/, other.stderr)
 })
 
 test('the facts hook parses payloads in Node without jq or Python', () => {

@@ -1,12 +1,20 @@
 {
   "mutations": [
     {
+      "label": "Codex review of cdcfcf84..290669db: a sibling record meets the task's id filter",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "&& named_by_task \"$sibling\" && is_adr",
+      "to": "&& is_adr",
+      "only": "^(?:a record beside its directory owns its tasks, and with it gone the ambiguity is still said)$"
+    },
+    {
       "label": "dispatch: the record beside a task's directory owns its tasks (an outside report, 2026-10-20)",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "      if [ -f \"$sibling\" ] && is_adr \"$sibling\"; then",
+      "from": "      if [ -f \"$sibling\" ] && named_by_task \"$sibling\" && is_adr \"$sibling\"; then",
       "to": "      if false; then",
       "only": "^(?:a record beside its directory owns its tasks, and with it gone the ambiguity is still said)$"
     },

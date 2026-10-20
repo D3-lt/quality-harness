@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
   readFileSync,
 } from 'node:fs'
@@ -2633,6 +2634,38 @@ test('a red run with --cwd elsewhere keys its first-red lock from the record', (
     const vlog = readFileSync(task, 'utf8').split('\n').filter(line => line.startsWith('- '))
     assert.ok(vlog.length === 1 && /test-lock-sha256:[0-9a-f]{64}/.test(vlog[0]), vlog.join('\n'))
     const got = findings(record, vlog, [['locked dirty', '../../code/tests/lock-subject.test.mjs']])
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(!got.advice.some(a => /could not be hashed/.test(a)), got.advice.join('\n'))
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+// The Codex review of cdcfcf84..290669db: `fence_cwd` asks git from inside the task directory, which follows a link to where
+// it points, while adr-lint and adr-next find the repository along the path AS LISTED (`git_root`). A task directory linked
+// in from outside the repository was locked from the outside directory, hashed nothing, and done read that as advice.
+test('a task directory linked into the repository is locked from the repository it is listed in', () => {
+  const base = tmpRepo()
+  const repo = join(base, 'repo')
+  const outside = join(base, 'outside', 'tasks')
+  mkdirSync(join(repo, 'docs'), { recursive: true })
+  mkdirSync(outside, { recursive: true })
+  const init = spawnSync('git', ['-C', repo, 'init', '-q'], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(init.status, 0, init.stderr)
+  writeSubject(repo)
+  writeFileSync(join(repo, 'tests', 'lock-subject.test.mjs'),
+    "import test from 'node:test'\nimport assert from 'node:assert/strict'\ntest('locked dirty', () => {\n  assert.equal(2, 1)\n})\n")
+  const listed = join(repo, 'docs', 'tasks')
+  symlinkSync(outside, listed, process.platform === 'win32' ? 'junction' : 'dir')
+  try {
+    writeRelockTask(outside, [], [NAMED_ROW])
+    const task = join(listed, 'T1.md')
+    const red = spawnSync('python3', [join(bin, 'adr-verify'), task, '--cwd', repo], {
+      cwd: repo, env: pyEnv, encoding: 'utf8', timeout: 60_000,
+    })
+    assert.notEqual(red.status, 0, `${red.stdout}${red.stderr}`)
+    const vlog = readFileSync(task, 'utf8').split('\n').filter(line => line.startsWith('- '))
+    const got = findings(repo, vlog)
     assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
     assert.ok(!got.advice.some(a => /could not be hashed/.test(a)), got.advice.join('\n'))
   } finally {

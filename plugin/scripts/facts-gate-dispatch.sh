@@ -262,15 +262,18 @@ git_archive_catalog_for() {
   return 1
 }
 
+# Whether a record's own id is compatible with the task's: a task naming `ADR-<id>` is owned only by that record, and a
+# record or task with no id is not ruled out by it.
+named_by_task() {
+  local candidate_id
+  candidate_id=$(bom_free "$1" | sed -nE '1s/^# (ADR-[^: ]+).*/\1/p')
+  [[ -z "$adr_ref" || -z "$candidate_id" || "$adr_ref" == "$candidate_id" || "$adr_ref" == "$candidate_id"-* ]]
+}
+
 collect_owning_adrs() {
-  local search_dir="$1" candidate candidate_id
+  local search_dir="$1" candidate
   for candidate in "$search_dir"/*.md; do
-    candidate_id=$(bom_free "$candidate" | sed -nE '1s/^# (ADR-[^: ]+).*/\1/p')
-    if [[ -n "$adr_ref" && -n "$candidate_id" \
-          && "$adr_ref" != "$candidate_id" \
-          && "$adr_ref" != "$candidate_id"-* ]]; then
-      continue
-    fi
+    named_by_task "$candidate" || continue
     is_adr "$candidate" && candidates+=("$candidate")
   done
 }
@@ -402,7 +405,8 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
       # The record BESIDE the directory owns it, `docs/adr/<slug>.md` for `docs/adr/<slug>/tasks/`, as adr-lint pairs them.
       # Widening past it counted every record in docs/adr: "found 23" from a date-named corpus (an outside report, 2026-10-20).
       sibling="$widen/$(basename "$parent").md"
-      if [ -f "$sibling" ] && is_adr "$sibling"; then
+      # The id filter every other candidate meets applies to it too (the Codex review of cdcfcf84..290669db).
+      if [ -f "$sibling" ] && named_by_task "$sibling" && is_adr "$sibling"; then
         candidates=("$sibling")
       else
         collect_owning_adrs "$widen"

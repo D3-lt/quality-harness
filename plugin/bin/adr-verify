@@ -2614,6 +2614,16 @@ def fence_cwd(task):
     return Path(root) if root else task.parent
 
 
+def lock_repository(task):
+    """The repository a task's lock is keyed from: the one adr-lint and adr-next read it in.
+
+    `git_root` along the path AS LISTED, as those readers find it (record.py). Not `fence_cwd`, which
+    asks git from inside the task directory and so follows a link to where it points: a task directory
+    linked into the repository was locked from outside it, hashed nothing, and done read that as
+    advice (the Codex review of cdcfcf84..290669db). Whatever --cwd is (BACKLOG §388).
+    """
+    return git_root(task.parent) or task.parent
+
 def claims_in(task):
     """The distinct digests this task file records an exit-0 entry for.
 
@@ -2942,7 +2952,7 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
         entry += f" · steps:{steps}"
     # ADR-050. First TDD-red, or a recovery lock when the log still has none. Keyed from the record's repository, not --cwd:
     # adr-lint and adr-next read the lock back from there, and a lock --cwd keyed elsewhere met neither (BACKLOG §388).
-    entry += lock_suffix_for_run(text, fence_cwd(task), code)
+    entry += lock_suffix_for_run(text, lock_repository(task), code)
     refuse_unreadable(entry, sha)
 
     block = entry
@@ -2964,16 +2974,16 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
 
 def record_relock(task, text, cmd, cwd, today, replace_hashes):
     """Append a current lock snapshot. Does not run the Acceptance fence (ADR-052)."""
+    # The record's repository, whatever --cwd is: the readers resolve the Tests table from there (BACKLOG §388, the owner
+    # 2026-10-20). A relock with --cwd <code repo> keyed the lock from the code repository, so the readers found none of it.
+    lock_root = lock_repository(task)
     # ADR-088: a row whose sha does not fit this repository is not one adr-verify wrote, so its lock
-    # is no lock to relock, as `lock_findings` and `first_red_lock_suffix` read it.
-    if not vlog_has_test_lock(text, object_format(cwd)):
+    # is no lock to relock, as `lock_findings` and `first_red_lock_suffix` read it. The record's width, not --cwd's.
+    if not vlog_has_test_lock(text, object_format(lock_root)):
         fail("--relock needs a trailing lock already on the Verification Log; "
              "an empty log has none. Record first-red with ordinary adr-verify.")
     tests = tests_table_rows(text)
     vlog = sections_of(text).get("Verification Log", [])
-    # The record's repository, whatever --cwd is: the readers resolve the Tests table from there (BACKLOG §388, the owner
-    # 2026-10-20). A relock with --cwd <code repo> keyed the lock from the code repository, so the readers found none of it.
-    lock_root = fence_cwd(task)
     snap = snapshot_lock(lock_root, tests)
     # A Tests-row file that is there and could not be read hashes nothing. A lock taken over it
     # would carry its tests as unproven with no body, and a lock that hashed no bodies reads later

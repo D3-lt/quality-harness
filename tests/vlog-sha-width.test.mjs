@@ -232,6 +232,26 @@ test('relock finds no lock in a row whose sha does not fit', () => {
   }
 })
 
+// The Codex review of cdcfcf84..290669db: the relock's preflight read the sha width of --cwd while its lock is the record's,
+// so a SHA-256 record relocked with --cwd in a SHA-1 repository was told it had no lock to relock.
+test('a relock reads the sha width of the record, whatever --cwd is', () => {
+  const digest = '623181b72832111cc47bf1d638a511e35e20e2c913c90ee60fd97acfb278635e'
+  const dir = corpus('sha256', hex(41))
+  const other = corpus('sha1', hex(7))
+  const file = path.join(dir, T1)
+  const red = `- 2026-10-06 · ${hex(41)} · exit 1 · \`grep -q 'func TestAdd' internal/cart/cart_test.go\` · acceptance-sha256:${digest} · ms:5`
+  const snapshot = `- 2026-10-06 · ${hex(41)} · exit 0 · \`adr-verify --relock\` · acceptance-sha256:${digest} · ms:0 · test-lock-sha256:${'0'.repeat(64)} · test-lock-b64:AAAA · test-lock-kind:relock`
+  // Only the two rows under test: the fixture's own rows are `no-git`, which fits every width and would carry the lock.
+  const stripped = readFileSync(file, 'utf8').replace(/\n- 2026-08-\d\d · [^\n]*/g, '')
+  writeFileSync(file, stripped.replace(/^## Verification Log\n/m, `## Verification Log\n\n${red}\n${snapshot}\n`))
+  assert.ok(!/ · no-git · /.test(readFileSync(file, 'utf8')), 'no row that fits every width is left')
+  // --cwd first: a relock appends its own row, `no-git` in a repository with no commit, and that row fits every width.
+  for (const extra of [['--cwd', other], []]) {
+    const run = spawnSync(python, [adrVerify, file, '--relock', '--replace-hashes', ...extra], { cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    assert.equal(run.status, 0, `${extra.join(' ') || 'no --cwd'}: ${run.stdout}${run.stderr}`)
+  }
+})
+
 test("relock reads the hasher from the rows whose sha fits", () => {
   for (const width of [41, 7]) {
     const { file, verify } = lockedTask()

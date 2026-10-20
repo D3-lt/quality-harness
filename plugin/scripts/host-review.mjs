@@ -55,12 +55,17 @@ export function reviewFromOutput(text, { host, model = null, effort = null } = {
     return unavailable(host, effort, 'the host did not return the review schema', model)
   }
   const printed = typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model.trim() : null
+  // ADR-119 T2: the model the launcher pinned is the model (runs pinned to gpt-6.1-sol printed "gpt-6" and "Codex"). A printed
+  // one that differs is kept as `reportedModel`; with no pin, what it printed is all there is, and nothing proves it.
+  const pin = typeof model === 'string' && model.trim() ? model.trim() : null
+  const disagrees = Boolean(pin && printed && printed !== pin)
   return {
     status: parsed.status,
     host,
-    model: printed ?? model,
+    model: pin ?? printed,
     effort,
-    bound: printed ? 'reported' : 'unproven',
+    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',
+    ...(disagrees ? { reportedModel: printed } : {}),
     findings: parsed.findings,
     reason: typeof parsed.reason === 'string' ? parsed.reason : '',
   }
@@ -239,7 +244,7 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
       ? runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
       : runClaude({ model: model ?? CLAUDE_MODEL, target, range, resolve: resolve ?? resolveClaude, run, output })
     if (range) {
-      recordReview(repo, { host, model: review.model ?? model, effort: null, ...range, status: review.status, findings: review.findings.length })
+      recordReview(repo, { host, model: review.model ?? model, bound: review.bound, reportedModel: review.reportedModel, effort: null, ...range, status: review.status, findings: review.findings.length })
     }
     return review
   }
@@ -253,7 +258,7 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
   const range = scopeRange(repo, scope)
   const result = runCodex({ bin, repo, effort, prompt: `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`, run })
   const review = result.reason ? unavailable('codex', effort, result.reason, CODEX_MODEL) : reviewFromOutput(result.text, { host: 'codex', model: CODEX_MODEL, effort })
-  recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, effort, ...range, status: review.status, findings: review.findings.length })
+  recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, bound: review.bound, reportedModel: review.reportedModel, effort, ...range, status: review.status, findings: review.findings.length })
   return review
 }
 
@@ -381,7 +386,7 @@ export function promptFileReview({ argv = process.argv, resolve = resolveCodex, 
   const result = runCodex({ bin, repo, effort, prompt, skipGitRepoCheck: argv.includes('--skip-git-repo-check'), run })
   const text = result.reason ? '' : result.text
   const status = result.reason || !text.trim() ? 'unavailable' : verdictStatus(text)
-  recordReview(repo, { host: 'codex', model: CODEX_MODEL, effort, ...range, status, findings: null })
+  recordReview(repo, { host: 'codex', model: CODEX_MODEL, bound: status === 'unavailable' ? 'unproven' : 'pinned', effort, ...range, status, findings: null })
   if (result.reason) return fail(result.reason)
   if (!text.trim()) return fail('codex returned an empty final message')
   return { code: 0, out: text.endsWith('\n') ? text : `${text}\n`, err: '' }

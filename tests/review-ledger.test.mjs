@@ -94,6 +94,50 @@ test('the prompt-file form takes its status from the last VERDICT line, and none
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
+// ADR-119 T2: the row names the model the launcher pinned, says whether the reviewer agreed, and keeps a printed model
+// that differs. Beside the ADR-100 T1 tests, whose bodies stay as they are.
+test('a review row from the launcher carries its bound and the model the reviewer printed', () => {
+  const dir = scratch()
+  try {
+    const base = commit(dir, 'plugin/a.mjs', 'one\n')
+    commit(dir, 'plugin/a.mjs', 'two\n')
+    const said = model => JSON.stringify({ status: 'clean', findings: [], ...(model === undefined ? {} : { model }) })
+    const codex = answer => hostReview({ host: 'codex', effort: 'high', repo: dir, scope: `base ${base}`, resolve: () => 'codex', run: fakeCodex(answer) })
+    // DIRTY: Codex pinned to CODEX_MODEL prints another name.
+    codex(said('GPT-6 (Codex)'))
+    let row = rows(dir).at(-1)
+    assert.deepEqual([row.model, row.bound, row.reportedModel], [CODEX_MODEL, 'disagrees', 'GPT-6 (Codex)'])
+    // CLEAN: it prints the pin.
+    codex(said(CODEX_MODEL))
+    row = rows(dir).at(-1)
+    assert.deepEqual([row.model, row.bound], [CODEX_MODEL, 'pinned'])
+    assert.equal('reportedModel' in row, false)
+    // A Codex run that could not finish stays unproven.
+    hostReview({ host: 'codex', effort: 'high', repo: dir, scope: `base ${base}`, resolve: () => 'codex', run: (bin, argv) => argv.includes('--help') ? { status: 0, stdout: '' } : { status: 1, stdout: '' } })
+    row = rows(dir).at(-1)
+    assert.deepEqual([row.status, row.model, row.bound], ['unavailable', CODEX_MODEL, 'unproven'])
+    // Cursor: a pin it disagrees with, and no pin at all.
+    const cursor = (model, answer) => hostReview({ host: 'cursor', model, repo: dir, scope: `base ${base}`, resolve: () => 'agent', run: () => ({ status: 0, stdout: answer }) })
+    cursor('composer-2.5', said('composer-2.5-fast'))
+    row = rows(dir).at(-1)
+    assert.deepEqual([row.host, row.model, row.bound, row.reportedModel], ['cursor', 'composer-2.5', 'disagrees', 'composer-2.5-fast'])
+    cursor(null, said('composer-2.5-fast'))
+    row = rows(dir).at(-1)
+    assert.deepEqual([row.host, row.model, row.bound], ['cursor', 'composer-2.5-fast', 'unproven'])
+    assert.equal('reportedModel' in row, false)
+    // The prompt-file form prints no model: it records the pin, and unproven when Codex did not finish.
+    const prompt = join(dir, '.git', 'prompt.txt')
+    writeFileSync(prompt, 'review it')
+    const argv = ['--host', 'codex', '--effort', 'high', '--repo', dir, '--prompt-file', prompt]
+    promptFileReview({ argv, resolve: () => 'codex', run: fakeCodex('VERDICT: APPROVE\n') })
+    row = rows(dir).at(-1)
+    assert.deepEqual([row.model, row.bound, row.status], [CODEX_MODEL, 'pinned', 'clean'])
+    promptFileReview({ argv, resolve: () => 'codex', run: (bin, args) => args.includes('--help') ? { status: 0, stdout: '' } : { status: 1, stdout: '' } })
+    row = rows(dir).at(-1)
+    assert.deepEqual([row.model, row.bound, row.status], [CODEX_MODEL, 'unproven', 'unavailable'])
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
 const manifest = (version, name = 'p') => `{\n  "version": "${version}",\n  "name": "${name}"\n}\n`
 
 function released() {

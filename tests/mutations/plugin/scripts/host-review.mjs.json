@@ -19,14 +19,14 @@
       "label": "ADR-100 T1: the JSON form records the review it ran",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/review-ledger.test.mjs"],
-      "from": "  recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, effort, ...range, status: review.status, findings: review.findings.length })",
+      "from": "  recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, bound: review.bound, reportedModel: review.reportedModel, effort, ...range, status: review.status, findings: review.findings.length })",
       "to": "  void range"
     },
     {
       "label": "ADR-100 T1: the prompt-file form records the review it ran",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/review-ledger.test.mjs"],
-      "from": "  recordReview(repo, { host: 'codex', model: CODEX_MODEL, effort, ...range, status, findings: null })",
+      "from": "  recordReview(repo, { host: 'codex', model: CODEX_MODEL, bound: status === 'unavailable' ? 'unproven' : 'pinned', effort, ...range, status, findings: null })",
       "to": "  void status"
     },
     {
@@ -84,7 +84,7 @@
         "tests/host-review.test.mjs"
       ],
       "from": "  if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)",
-      "to": "  if (!bin) return { status: 'clean', host: 'cursor', model, effort: null, bound: 'reported', findings: [], reason: '' }",
+      "to": "  if (!bin) return { status: 'clean', host: 'cursor', model, effort: null, bound: 'pinned', findings: [], reason: '' }",
       "only": "^(?:a host review is the schema or unavailable)$"
     },
     {
@@ -296,6 +296,54 @@
       "from": "git(['diff', `${range.base}...${range.head}`])",
       "to": "git(['diff', `${range.head}...${range.head}`])",
       "only": "^(?:a headless Claude review is read-only, unwraps its result, and leaves one review row)$"
+    },
+    {
+      "label": "ADR-119 T2: the pinned model wins over the printed one",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/host-review.test.mjs"],
+      "only": "^(?:a review row records the model the launcher pinned, and a printed model that differs as disagrees)$",
+      "from": "    model: pin ?? printed,",
+      "to": "    model: printed ?? pin,"
+    },
+    {
+      "label": "ADR-119 T2: a printed model that differs from the pin is disagrees",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/host-review.test.mjs"],
+      "only": "^(?:a review row records the model the launcher pinned, and a printed model that differs as disagrees)$",
+      "from": "    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
+      "to": "    bound: !pin ? 'unproven' : 'pinned',"
+    },
+    {
+      "label": "ADR-119 T2: no pin is unproven",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/host-review.test.mjs"],
+      "only": "^(?:a host with no pinned model records what it printed, as unproven)$",
+      "from": "    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
+      "to": "    bound: !printed ? 'unproven' : disagrees ? 'disagrees' : 'pinned',"
+    },
+    {
+      "label": "ADR-119 T2: the Codex row carries its bound and the printed model",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "only": "^(?:a review row from the launcher carries its bound and the model the reviewer printed)$",
+      "from": "model: review.model ?? CODEX_MODEL, bound: review.bound, reportedModel: review.reportedModel,",
+      "to": "model: review.model ?? CODEX_MODEL,"
+    },
+    {
+      "label": "ADR-119 T2: the Cursor or Claude row carries its bound and the printed model",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "only": "^(?:a review row from the launcher carries its bound and the model the reviewer printed)$",
+      "from": "model: review.model ?? model, bound: review.bound, reportedModel: review.reportedModel,",
+      "to": "model: review.model ?? model,"
+    },
+    {
+      "label": "ADR-119 T2: an unavailable prompt-file row stays unproven",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "only": "^(?:a review row from the launcher carries its bound and the model the reviewer printed)$",
+      "from": "bound: status === 'unavailable' ? 'unproven' : 'pinned',",
+      "to": "bound: 'pinned',"
     }
   ]
 }

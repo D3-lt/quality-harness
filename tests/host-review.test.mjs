@@ -10,9 +10,9 @@ const finding = {
 
 test('a host review is the schema or unavailable', () => {
   const schema = JSON.stringify({ status: 'blocking', findings: [finding], model: CODEX_MODEL })
-  const parsed = reviewFromOutput(schema, { host: 'codex', effort: 'high' })
+  const parsed = reviewFromOutput(schema, { host: 'codex', model: CODEX_MODEL, effort: 'high' })
   assert.equal(parsed.status, 'blocking')
-  assert.equal(parsed.bound, 'reported')
+  assert.equal(parsed.bound, 'pinned')
   assert.equal(parsed.model, CODEX_MODEL)
   assert.deepEqual(parsed.findings, [finding])
 
@@ -49,7 +49,7 @@ test('a host review is the schema or unavailable', () => {
     run: () => { spawned = true },
   })
   assert.equal(cursorSchema.status, 'clean')
-  assert.equal(cursorSchema.bound, 'reported')
+  assert.equal(cursorSchema.bound, 'unproven')
   assert.equal(cursorSchema.model, 'composer-2.5-fast')
   assert.equal(spawned, false)
 
@@ -57,6 +57,43 @@ test('a host review is the schema or unavailable', () => {
   assert.equal(pi.status, 'unavailable')
   assert.equal(pi.reason, PI_UNMEASURED)
   assert.equal(spawned, false)
+})
+
+// ADR-119 T2: runs pinned to gpt-6.1-sol were recorded as "gpt-6", "GPT-6 (Codex)" and "Codex", because the model the
+// reviewer printed won over the one the launcher passed with `-m`. The pin is the model; a printed one that differs is kept.
+test('a review row records the model the launcher pinned, and a printed model that differs as disagrees', () => {
+  const said = model => JSON.stringify({ status: 'clean', findings: [], ...(model === undefined ? {} : { model }) })
+  // DIRTY: the reviewer names another model than the pin.
+  const differs = reviewFromOutput(said('GPT-6 (Codex)'), { host: 'codex', model: CODEX_MODEL, effort: 'high' })
+  assert.deepEqual([differs.model, differs.bound, differs.reportedModel], [CODEX_MODEL, 'disagrees', 'GPT-6 (Codex)'])
+  // Through the launcher's own Codex path, which always pins CODEX_MODEL.
+  const launched = hostReview({ host: 'codex', effort: 'high', output: said('gpt-6') })
+  assert.deepEqual([launched.model, launched.bound, launched.reportedModel], [CODEX_MODEL, 'disagrees', 'gpt-6'])
+  // CLEAN: it names the pin, or nothing; either way the row says what was pinned and keeps no reportedModel.
+  for (const printed of [CODEX_MODEL, ` ${CODEX_MODEL} `, undefined, '']) {
+    const agrees = reviewFromOutput(said(printed), { host: 'codex', model: CODEX_MODEL, effort: 'high' })
+    assert.deepEqual([agrees.model, agrees.bound], [CODEX_MODEL, 'pinned'], JSON.stringify(printed))
+    assert.equal('reportedModel' in agrees, false, JSON.stringify(printed))
+  }
+  // A review that did not finish stays unproven, pinned or not.
+  const notRun = reviewFromOutput('VERDICT: APPROVE', { host: 'codex', model: CODEX_MODEL, effort: 'high' })
+  assert.deepEqual([notRun.status, notRun.model, notRun.bound], ['unavailable', CODEX_MODEL, 'unproven'])
+})
+
+test('a host with no pinned model records what it printed, as unproven', () => {
+  const said = model => JSON.stringify({ status: 'clean', findings: [], ...(model === undefined ? {} : { model }) })
+  // Cursor with no --model: what it printed is all there is, and nothing proves it.
+  const printed = hostReview({ host: 'cursor', output: said('composer-2.5-fast') })
+  assert.deepEqual([printed.model, printed.bound], ['composer-2.5-fast', 'unproven'])
+  assert.equal('reportedModel' in printed, false)
+  const silent = hostReview({ host: 'cursor', output: said(undefined) })
+  assert.deepEqual([silent.model, silent.bound], [null, 'unproven'])
+  // A blank --model is not a pin.
+  const blank = hostReview({ host: 'cursor', model: '  ', output: said('composer-2.5-fast') })
+  assert.deepEqual([blank.model, blank.bound], ['composer-2.5-fast', 'unproven'])
+  // DIRTY twin: the same output under a pin is a disagreement, and the pin is the model.
+  const pinned = hostReview({ host: 'cursor', model: 'composer-2.5', output: said('composer-2.5-fast') })
+  assert.deepEqual([pinned.model, pinned.bound, pinned.reportedModel], ['composer-2.5', 'disagrees', 'composer-2.5-fast'])
 })
 
 // Codex review, 2026-09-22 (F3, F4): a result that is not the whole schema is not

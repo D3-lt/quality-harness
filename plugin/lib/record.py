@@ -4066,12 +4066,24 @@ def _recorded_lock(vlog, sha_format=None):
     # red with a different sha and no kind still conflicts.
     conflict = next((other for other in later_red_locks
                      if other != sha.group(1)), None)
+    # BACKLOG §390, the owner 2026-10-20: a relock may move the check binding, and when it does, it is said. The first lock
+    # a relock replaced is the first row carrying a lock with no kind: the first red's, or the recovery lock after it.
+    first_check = None
+    if kind:
+        for line, _m in _vlog_machine_rows(vlog, sha_format):
+            first = _row_lock_sha(line)
+            if first and not first.group(2):
+                first_b64 = _LOCK_B64.search(line)
+                first_map = decode_lock(first_b64.group(1)) if first_b64 else None
+                first_check = first_map.get("check") if first_map else None
+                break
     return first_date, {
         "digest": sha.group(1),
         "map": parsed,
         "conflict": conflict,
         "recovered": recovered,
         "kind": kind,
+        "first_check": first_check,
     }
 
 
@@ -4142,6 +4154,14 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
                if recorded["kind"] == "replace" else "adr-verify --relock")
         advice.append(
             f"{prefix}lock map was taken by `{cmd}` — weaker than first-red")
+        moved_from, moved_to = recorded.get("first_check"), (recorded["map"] or {}).get("check")
+        if moved_from is not None and moved_from != moved_to:
+            def said(check):
+                return ("no declared check" if check == "absent" else "a check that could not be read"
+                        if check in (None, "unproven") else f"the check with sha256 {check[:12]}…")
+            advice.append(
+                f"{prefix}the relock moved the check binding from {said(moved_from)} to {said(moved_to)}: "
+                "done rests on the relock, not on a red under the declared check (BACKLOG §390)")
     elif recorded.get("recovered"):
         advice.append(
             f"{prefix}first-red lock is recovered from a later row, not the "

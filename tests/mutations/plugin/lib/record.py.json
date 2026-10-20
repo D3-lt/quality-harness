@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §390: a relock that moved the check binding names the move",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/test-lock.test.mjs"],
+      "from": "        if moved_from is not None and moved_from != moved_to:",
+      "to": "        if False:",
+      "only": "^(?:a relock that moved the check binding passes done and names the move)$"
+    },
+    {
       "label": "ADR-117 review: a receipt is matched by its row alone",
       "file": "plugin/lib/record.py",
       "tests": [

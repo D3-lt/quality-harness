@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §388: a relock keys its lock from the record's repository, whatever --cwd is",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/test-lock.test.mjs"],
+      "from": "    lock_root = fence_cwd(task)",
+      "to": "    lock_root = cwd",
+      "only": "^(?:a relock with --cwd elsewhere keys the lock from the record, so the readers can read it back)$"
+    },
+    {
+      "label": "BACKLOG §388: a first red keys its lock from the record's repository, whatever --cwd is",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/test-lock.test.mjs"],
+      "from": "    entry += lock_suffix_for_run(text, fence_cwd(task), code)",
+      "to": "    entry += lock_suffix_for_run(text, cwd, code)",
+      "only": "^(?:a red run with --cwd elsewhere keys its first-red lock from the record)$"
+    },
+    {
       "label": "ADR-117 T2: adr-verify asks for the receipt",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -1032,7 +1048,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    entry += lock_suffix_for_run(text, cwd, code)",
+      "from": "    entry += lock_suffix_for_run(text, fence_cwd(task), code)",
       "to": "    entry += \"\"",
       "only": "first TDD-red row carries a tool-written hash for each named test"
     },
@@ -1062,8 +1078,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)\n        if moved:\n",
-      "to": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)\n        if False:\n",
+      "from": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=lock_root)\n        if moved:\n",
+      "to": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=lock_root)\n        if False:\n",
       "only": "refuses when a hashed body moved"
     },
     {
@@ -1321,7 +1337,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        recorded_reading = snap if hasher == snap[\"hasher\"] else snapshot_lock(cwd, tests, hasher=hasher)",
+      "from": "        recorded_reading = snap if hasher == snap[\"hasher\"] else snapshot_lock(lock_root, tests, hasher=hasher)",
       "to": "        recorded_reading = snap",
       "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
     },
@@ -1331,8 +1347,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    snap = snapshot_lock(cwd, tests)",
-      "to": "    snap = snapshot_lock(cwd, tests, hasher=1)",
+      "from": "    snap = snapshot_lock(lock_root, tests)",
+      "to": "    snap = snapshot_lock(lock_root, tests, hasher=1)",
       "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
     },
     {
@@ -1461,7 +1477,7 @@
       "tests": [
         "tests/vlog-sha-width.test.mjs"
       ],
-      "from": "        hasher = lock_hasher(vlog, root=cwd)",
+      "from": "        hasher = lock_hasher(vlog, root=lock_root)",
       "to": "        hasher = lock_hasher(vlog)",
       "only": "^(?:relock reads the hasher from the rows whose sha fits)$"
     },

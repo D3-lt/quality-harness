@@ -2551,6 +2551,95 @@ test('introducing check after first-red refuses done', () => {
   }
 })
 
+// BACKLOG §390, the owner 2026-10-20: a relock may move the check binding (it snapshots the check declared now), and when it
+// does, the move is said. Reported from an outside corpus where "check was absent at first-red" cleared after a relock with
+// nothing naming why.
+test('a relock that moved the check binding passes done and names the move', () => {
+  const relockRow = suffix => `- 2026-09-14 · no-git · exit 2 · \`adr-verify --relock\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix} · test-lock-kind:relock`
+  const dir = tmpRepo()
+  const kept = tmpRepo()
+  try {
+    const first = redRow(dir)
+    writeFileSync(join(dir, '.quality-harness.json'), '{"check":"node --test"}\n')
+    const now = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix
+    const got = findings(dir, [first, relockRow(now)])
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(got.advice.some(a => /relock moved the check binding from no declared check to the check with sha256/.test(a)),
+      got.advice.join('\n'))
+    // A relock that kept the check names no move.
+    const same = redRow(kept)
+    const still = recordOp({ op: 'suffix', root: kept, text: taskMarkdown([NAMED_ROW]) }).suffix
+    const quiet = findings(kept, [same, relockRow(still)])
+    assert.ok(quiet.advice.some(a => /weaker than first-red/.test(a)), quiet.advice.join('\n'))
+    assert.ok(!quiet.advice.some(a => /moved the check binding/.test(a)), quiet.advice.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(kept, { recursive: true, force: true })
+  }
+})
+
+// BACKLOG §388, the owner 2026-10-20: a lock is keyed from the record's repository whatever --cwd is, since that is where
+// adr-lint and adr-next read it back. Reported from an outside corpus whose code lives in a sibling repository: a relock
+// with --cwd <code repo> keyed the Tests table's paths from the code repository, and done was refused for every test.
+test('a relock with --cwd elsewhere keys the lock from the record, so the readers can read it back', () => {
+  const base = tmpRepo()
+  const record = join(base, 'docs', 'record')
+  const code = join(base, 'code')
+  mkdirSync(record, { recursive: true })
+  writeSubject(code)
+  try {
+    const row = '| `locked dirty` | `../../code/tests/lock-subject.test.mjs` | lock | F-1 |'
+    const cross = [['locked dirty', '../../code/tests/lock-subject.test.mjs']]
+    const suffix = recordOp({ op: 'suffix', root: record, text: taskMarkdown([row]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const red = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const task = writeRelockTask(record, [red], [row])
+    const relock = spawnSync('python3', [join(bin, 'adr-verify'), '--relock', '--replace-hashes', task, '--cwd', code], {
+      cwd: record, env: pyEnv, encoding: 'utf8', timeout: 30_000,
+    })
+    assert.equal(relock.status, 0, `${relock.stdout}${relock.stderr}`)
+    const vlog = readFileSync(task, 'utf8').split('\n').filter(line => line.startsWith('- '))
+    assert.equal(vlog.length, 2, vlog.join('\n'))
+    const got = findings(record, vlog, cross)
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    // The lock HASHED the test: a lock that hashed nothing is only advice, so no block alone proves the keys meet.
+    assert.ok(!got.advice.some(a => /could not be hashed/.test(a)), got.advice.join('\n'))
+    // And the test it hashed is the one the readers see: changing its body is now a moved lock.
+    writeFileSync(join(code, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\nimport assert from 'node:assert/strict'\ntest('locked dirty', () => {\n  assert.equal(3, 3)\n})\n")
+    const moved = findings(record, vlog, cross)
+    assert.ok(moved.blocks.some(b => /locked dirty/.test(b)), moved.blocks.join('\n'))
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+// The same rule for an ordinary run: a first red recorded with --cwd <code repo> is locked from the record's repository.
+test('a red run with --cwd elsewhere keys its first-red lock from the record', () => {
+  const base = tmpRepo()
+  const record = join(base, 'docs', 'record')
+  const code = join(base, 'code')
+  mkdirSync(record, { recursive: true })
+  writeSubject(code)
+  writeFileSync(join(code, 'tests', 'lock-subject.test.mjs'),
+    "import test from 'node:test'\nimport assert from 'node:assert/strict'\ntest('locked dirty', () => {\n  assert.equal(2, 1)\n})\n")
+  try {
+    const row = '| `locked dirty` | `../../code/tests/lock-subject.test.mjs` | lock | F-1 |'
+    const task = writeRelockTask(record, [], [row])
+    const red = spawnSync('python3', [join(bin, 'adr-verify'), task, '--cwd', code], {
+      cwd: record, env: pyEnv, encoding: 'utf8', timeout: 60_000,
+    })
+    assert.notEqual(red.status, 0, `${red.stdout}${red.stderr}`)
+    const vlog = readFileSync(task, 'utf8').split('\n').filter(line => line.startsWith('- '))
+    assert.ok(vlog.length === 1 && /test-lock-sha256:[0-9a-f]{64}/.test(vlog[0]), vlog.join('\n'))
+    const got = findings(record, vlog, [['locked dirty', '../../code/tests/lock-subject.test.mjs']])
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(!got.advice.some(a => /could not be hashed/.test(a)), got.advice.join('\n'))
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
 test('unknown keys in quality-harness json are not a lock', () => {
   const dir = tmpRepo()
   try {

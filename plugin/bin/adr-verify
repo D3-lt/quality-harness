@@ -13,7 +13,10 @@ Usage: adr-verify <task.md> [--cwd DIR]
 
 Extracts the runnable fence under ## Acceptance (```bash, ```sh or ```shell —
 `record.acceptance_fence`, the one opener every gate reads) and runs it with bash
-(cwd: --cwd, else git root of the task file, else the task file's directory).
+(cwd: --cwd, else git root of the task file, else the task file's directory). The
+test lock is keyed from the record's repository whatever --cwd is, since adr-lint
+and adr-next read it back from there: a Tests row for code in another repository
+is written as a path from the record (`../<repo>/src/...`).
 Appends one entry to ## Verification Log:
 
   - YYYY-MM-DD · <git-short-sha[*]|no-git> · exit <N> · `<first command line[ …]>` · acceptance-sha256:<digest>
@@ -2937,8 +2940,9 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
     # absence, and adr-lint reports an unnamed step rather than assuming one.
     if steps:
         entry += f" · steps:{steps}"
-    # ADR-050. First TDD-red, or a recovery lock when the log still has none.
-    entry += lock_suffix_for_run(text, cwd, code)
+    # ADR-050. First TDD-red, or a recovery lock when the log still has none. Keyed from the record's repository, not --cwd:
+    # adr-lint and adr-next read the lock back from there, and a lock --cwd keyed elsewhere met neither (BACKLOG §388).
+    entry += lock_suffix_for_run(text, fence_cwd(task), code)
     refuse_unreadable(entry, sha)
 
     block = entry
@@ -2967,7 +2971,10 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
              "an empty log has none. Record first-red with ordinary adr-verify.")
     tests = tests_table_rows(text)
     vlog = sections_of(text).get("Verification Log", [])
-    snap = snapshot_lock(cwd, tests)
+    # The record's repository, whatever --cwd is: the readers resolve the Tests table from there (BACKLOG §388, the owner
+    # 2026-10-20). A relock with --cwd <code repo> keyed the lock from the code repository, so the readers found none of it.
+    lock_root = fence_cwd(task)
+    snap = snapshot_lock(lock_root, tests)
     # A Tests-row file that is there and could not be read hashes nothing. A lock taken over it
     # would carry its tests as unproven with no body, and a lock that hashed no bodies reads later
     # edits as advice (record.py's `tool_blind`): the relock the old "moved" message asked for left
@@ -2978,7 +2985,7 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
              "but not as UTF-8 text, or not openable by this process, so a lock taken now would hash "
              "nothing for its tests and leave them unlocked. Make it readable, then relock.")
     if not replace_hashes:
-        hasher = lock_hasher(vlog, root=cwd)
+        hasher = lock_hasher(vlog, root=lock_root)
         if hasher is None:
             fail("the recorded lock could not be read — UNPROVEN; default --relock compares "
                  "before it replaces, so pass --replace-hashes to replace it unread")
@@ -2987,8 +2994,8 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
                  "does not know — UNPROVEN; it is never compared under another hasher")
         # Compared under the hasher that took it; the appended lock is the one a new lock
         # takes (ADR-078 F-8, ADR-083 F-4), so moving a record to it needs no --replace-hashes.
-        recorded_reading = snap if hasher == snap["hasher"] else snapshot_lock(cwd, tests, hasher=hasher)
-        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)
+        recorded_reading = snap if hasher == snap["hasher"] else snapshot_lock(lock_root, tests, hasher=hasher)
+        moved = moved_lock_bodies(vlog, current=recorded_reading, root=lock_root)
         if moved:
             names = ", ".join(f"`{rel}`::{name}" for rel, name in moved)
             fail(f"hashed body moved ({names}) — default --relock will not replace "

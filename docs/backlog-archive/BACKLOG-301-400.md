@@ -3078,3 +3078,48 @@ Measured 2026-10-11 with a preload that counts every child process and file read
 - **Class**, by command (`node -e` over `plugin/hooks/hooks.json`, every event with its hooks' timeouts): SessionEnd is the only event under a budget the plugin cannot set; every other event's `timeout` is honoured. **Not covered by a test:** that the copy survives the host's exit is shown by the pty reproduction only, on macOS; the Windows behaviour of a detached copy at exit is unmeasured. The cancellation also hides the hook's stderr at exit, which it always did.
 - **Codex review of 6b1879c7 (high effort, REQUEST CHANGES, one P2), fixed:** node returns a pid for a runner script that does not exist, so the hook handed its work to a copy that died unheard and no row and no word were left. The runner is now checked with `existsSync`, as the artifact pass checks its own; a missing one is said on stderr and the hook records the end itself (test `a runner that does not exist is said, and the hook records the end itself`). The `inline` twin no longer rests on a race: it asserts the inline hook's own stderr (a data home that is a file cannot be written) and that `inline` is not reported as a missing runner, which a mutant that ignored `inline` would print. Five catalogue mutants killed. Not changed, recorded: `QUALITY_HARNESS_HOOK_INPUT` stays in the copy's environment and reaches its git children (no harm established); a copy that starts and then fails leaves no receipt, as an inline hook cancelled by the host did.
 - **Windows, 2026-10-15** (a Windows 11 peer, Git Bash, node 24.20.0, a fresh clone at f1c3c7c1): `tests/session-end-behind.test.mjs` 3/3 and `tests/test-order.test.mjs` 6/6 passed, so the detached copy writes its row there and its temp working directory was deleted; the peer found no directory left in `%TEMP%` and no `node.exe` naming the hook afterwards. Still unmeasured on Windows: a real host's SessionEnd, where the parent exits under the budget while the copy runs. `tests/hook-goldens.test.mjs` measured nothing there (its transcripts are POSIX-only, §375).
+
+## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
+
+From the §388 reporter: a task refused with "check was absent at first-red and is now declared — done is refused" was
+accepted after `adr-verify --relock --replace-hashes`, with no new red run. `lock_findings` (plugin/lib/record.py:4149-4162)
+compares the check of the latest lock, and a relock snapshots the current check (`snapshot_lock`), so the binding moves with
+it. The only thing said is the generic "lock map was taken by `adr-verify --relock --replace-hashes` — weaker than
+first-red"; the check that moved is not named. ADR-052 makes a relock an explicit later lock and is silent on the check.
+Open question, the owner's: may a relock move the check binding at all? If yes, the advice should name the check move;
+if no, a relock should keep the first lock's check and the refusal should stand until a red under the declared check.
+  - **Decided by the owner, 2026-10-20: yes.** A relock may move the check binding, and adr-lint now says so: "the relock
+    moved the check binding from no declared check to the check with sha256 …: done rests on the relock, not on a red under
+    the declared check" (`_recorded_lock` reads the first kindless lock's check, `lock_findings` compares it;
+    tests/test-lock.test.mjs `a relock that moved the check binding passes done and names the move`, with its catalogue
+    mutant killed). Closed with this entry's commit.
+
+## 388. CLOSED 2026-10-20 (the owner: the lock is keyed from the record's repository whatever --cwd is) — A task whose code lives in another repository, named by a path relative to THAT repository, cannot reach done
+
+An outside report (a date-named infrastructure corpus whose code lives in a sibling Rust repository, 2026-10-20): the Tests
+table named `src/...` paths of the code repository, so adr-lint read each against the record's own repository ("names no file
+in the repo"), the test lock stayed "frozen at the first red", and `adr-verify --relock --cwd <code repo>` then called unrelated
+tests "vanished". The supported spelling is a path leaving the repository (`../<repo>/src/...`), which adr-lint reads as could
+not look, never absent (tests/foreign-corpus.test.mjs, fixture `ADR-001-cross-repo`). Not yet known: whether the lock and the
+done rule can be satisfied with that spelling at all, since the lock hashes test bodies it cannot read across the boundary.
+Left: build the fixture's task to `done` with `../` paths and a lock, and say plainly what a cross-repository task can and
+cannot claim; until then the reporter's `partial` is the honest status.
+  - **Evidence the same day, from the reporter (adr-lint 3.8.48, verbatim in substance):** with the Tests table rewritten to
+    `../../../<code repo>/src/...`, `partial` passes and `done` is refused with "locked test `src/election.rs`::... vanished"
+    for about 150 tests. The lock was written by `adr-verify --relock --cwd <code repo>`, which keyed it `src/...` relative
+    to `--cwd`, while adr-lint resolves the Tests table from the record's repository: the two spellings never meet. That is
+    a defect in the pair, not the corpus. A second refusal in the same run, "check was absent at first-red and is now
+    declared", is the evidence rule working (the first red predates the project's declared check) and is not cross-repo.
+  - **The reporter's relock, the same day, settled it:** `adr-verify <task> --relock --replace-hashes` run from the record's
+    root (no `--cwd`) keyed the lock `../../../<code repo>/src/...`, and `done` was accepted by adr-lint 3.8.48, with the
+    advice that the lock is weaker than first-red. So the defect is the `--cwd` relock alone: it keys the lock relative to
+    `--cwd` while every reader keys it from the record's repository. Left: key the lock from the record's repository whatever
+    `--cwd` is, or refuse a `--cwd` relock whose keys the Tests table cannot name. The same relock also cleared the
+    first-red check refusal above, with no red run: that is §390.
+  - **Decided by the owner, 2026-10-20: key from the record's repository** ("we do not have much adopters so it is safe").
+    `adr-verify` roots both the first-red lock (`lock_suffix_for_run`) and `--relock` at `fence_cwd(task)`, the record's
+    repository, whatever `--cwd` is; the fence still runs in `--cwd`. A relock with `--cwd` elsewhere also hashed NOTHING
+    before the fix, which adr-lint read as advice only ("the lock hashed no bodies"), so done could pass on a lock that held
+    no test. Tests: tests/test-lock.test.mjs `a relock with --cwd elsewhere keys the lock from the record, so the readers can
+    read it back` and `a red run with --cwd elsewhere keys its first-red lock from the record`, both catalogue mutants
+    killed. Closed with this entry's commit.

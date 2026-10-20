@@ -3337,3 +3337,20 @@ destinations, if a run shows either used against a ledger.
     <ledger>`) and a path with a comma in it were hidden by the comma handling. The reader now treats every literal word
     of a PowerShell writer, whole and split at its commas, and every colon value, as a candidate destination. The
     over-refusal is any write whose content names a ledger's path, which is the price this section names.
+
+## 388. CLOSED 2026-10-20 (the owner: the lock is keyed from the record's repository whatever --cwd is) — A task whose code lives in another repository, named by a path relative to THAT repository, cannot reach done
+
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
+
+## 389. OPEN 2026-10-20 — An older adr-verify writes no receipt, and the newer hook then refuses its row
+
+The same report: `~/.claude/bin/adr-verify` and `adr-lint` are forwarders that resolve the newest INSTALLED plugin (the cache,
+3.8.42 on that machine), while the session's hooks ran a 3.8.48 checkout. A red row written by the 3.8.42 adr-verify carries
+no receipt (receipts arrived with ADR-117 T2, in 3.8.48), so the 3.8.48 hook read it as "not in the committed file, and no
+adr-verify receipt names it". Each gate is right for its own version; the pair disagrees. Left: the receipt refusal could say
+when a row's writer may predate receipts, and the forwarder could prefer the plugin root the session runs
+(`CLAUDE_PLUGIN_ROOT`) over the newest cache entry. The immediate remedy is the owner's: update the installed plugin.
+
+## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
+
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)

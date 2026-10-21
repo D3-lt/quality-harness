@@ -184,5 +184,10 @@ test('a count after the closing affirmative is a tally, not a verdict', () => {
     'the run failed; passed 3/10',
     'the run failed; ok 40%',
   ]) assert.equal(verdict(note), 'stop', note)
-  assert.equal(verdict('the run failed; approved 2026-10-21'), 'pass', 'a date is no count')
+  for (const note of [
+    'the run failed; approved 2026-10-21',
+    'the run failed; approved 21 October 2026',
+    'the run failed; approved 21/10/2026',
+    'the run failed; approved 21.10.2026',
+  ]) assert.equal(verdict(note), 'pass', `a date is no count: ${note}`)
 })

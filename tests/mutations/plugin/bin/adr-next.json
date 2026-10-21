@@ -1750,8 +1750,16 @@
       "label": "ADR-120 T7 (verification of dcc4693a..d4f51888): a count after the closing affirmative is read as a verdict",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "of\\s+\\d|\\d+\\s*(?:/|%|[a-z])|(?:rate",
-      "to": "of\\s+\\d|(?:rate",
+      "from": "MEASURED = re.compile(r\"\\s+(?:(?:\\d+\\s+)?of\\s+\\d|\" + COUNTED + r\"|(?:rate",
+      "to": "MEASURED = re.compile(r\"\\s+(?:(?:\\d+\\s+)?of\\s+\\d|(?:rate",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of d4f51888..9ca659df): a dotted date breaks the closing clause",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "CLOSING_BREAK = re.compile(r\"[;:—–]|(?<!\\d)[.,]|[.,](?!\\d)|\\s-\\s\")",
+      "to": "CLOSING_BREAK = re.compile(r\"[;,.:—–]|\\s-\\s\")",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     }
   ]

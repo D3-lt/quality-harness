@@ -426,12 +426,14 @@ def closing_affirmations(text):
 # The note's closing verdict (ADR-120 T7, Codex review 2026-10-21): an affirmative after a failure counts only when it opens
 # the note's FINAL clause (the text after its last ; . , : — or spaced dash), that clause holds no negative word and is at
 # most four words: "approved", "approved by the owner", "signed off". "step 2 failed; pass rate 0/10, unresolved" is a failure
-# report whose last clause merely starts with "pass".
-CLOSING_BREAK = re.compile(r"[;,.:—–]|\s-\s")
+# report whose last clause merely starts with "pass". A "." or "," between two digits ("21.10.2026", "1,000") breaks no clause.
+CLOSING_BREAK = re.compile(r"[;:—–]|(?<!\d)[.,]|[.,](?!\d)|\s-\s")
 CLOSING_WORDS = 4
 # An affirmative followed by a noun that counts ("pass rate zero", "pass count 0", "passed 3 of 10") reports a tally, which is no verdict;
-# so does one followed by a number that counts something ("passed 0 tests", "passed 3/10", "ok 40%"), which a date does not.
-MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|\d+\s*(?:/|%|[a-z])|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
+# so does one followed by a count: a percentage, a ratio that is no date ("3/10", not "21/10/2026"), or a number and the thing it
+# counts ("0 tests"). A date in any spelling ("2026-10-21", "21 October 2026") is no count (the verification of d4f51888..9ca659df).
+COUNTED = r"\d+\s*%|\d+\s*/\s*\d+(?![\d/.-])|\d+\s+(?:tests?|cases?|checks?|runs?|assertions?|specs?|files?|errors?|failures?|steps?|mutants?)(?![a-z])"
+MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|" + COUNTED + r"|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
 
 
 def closes_the_note(text, match):

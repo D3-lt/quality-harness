@@ -683,8 +683,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401",
-      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "from": "from record import sections_of, header_lines, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401",
+      "to": "from record import header_lines, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
     },
     {
@@ -1324,8 +1324,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "                return (\"done\" if not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
-      "to": "                return (\"done\" if is_done(text, digest, first == \"human-observed\",",
+      "from": "                return (\"done\" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
+      "to": "                return (\"done\" if not terminal_stop(text) and is_done(text, digest, first == \"human-observed\",",
       "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
     },
     {
@@ -1713,6 +1713,30 @@
       "from": "            and not MEASURED.match(masked, match.end()) and len(tail.split()) <= CLOSING_WORDS)",
       "to": "            and len(tail.split()) <= CLOSING_WORDS)",
       "only": "^a measurement after an affirmative is no closing verdict$"
+    },
+    {
+      "label": "ADR-120 T8 (review of c749638e..7a9107e8): task_status reads the whole file, not its header block",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "\"\\n\".join(header_lines(text)), re.M)",
+      "to": "text, re.M)",
+      "only": "^a Status line inside an Acceptance fence or a later section is not the task's Status$"
+    },
+    {
+      "label": "ADR-120 T8 (review of c749638e..7a9107e8): a local dependent no longer waits on a terminal task",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "if not infos[d][\"done\"] or infos[d].get(\"terminal_stop\"))",
+      "to": "if not infos[d][\"done\"])",
+      "only": "^a task waiting on a task whose own Status is terminal is blocked, local or foreign$"
+    },
+    {
+      "label": "ADR-120 T8 (review of c749638e..7a9107e8): a foreign dependent no longer waits on a terminal task",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "return (\"done\" if not terminal_stop(text) and not human_stop(",
+      "to": "return (\"done\" if not human_stop(",
+      "only": "^a task waiting on a task whose own Status is terminal is blocked, local or foreign$"
     }
   ]
 }

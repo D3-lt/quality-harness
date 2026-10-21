@@ -87,7 +87,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 # TEST_HASH_REQUIRED_FROM is re-exported, not used here: tests/test-lock.test.mjs asserts that adr-lint, adr-next and record
 # answer the same cutover (a test ten tasks lock), so this line waives ruff's F401.
-from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401
+from record import sections_of, header_lines, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401
 from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW, git_read_env  # noqa: E402
 from record import row_date_problem  # noqa: E402
@@ -521,8 +521,8 @@ BUILDABLE_STATUSES = ("pending", "partial", "todo", "ready", "in progress", "in-
 
 
 def task_status(text):
-    """The task file's own `**Status:**` word, lowercased, or None when it has none."""
-    m = re.search(r"^\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", text, re.M)
+    """The task file's own `**Status:**` word, lowercased, or None when it has none: read from its header block only."""
+    m = re.search(r"^\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", "\n".join(header_lines(text)), re.M)
     if not m:
         return None
     return m.group(1).strip().strip("`*").lower()
@@ -1113,7 +1113,7 @@ def foreign_state(pointer, corpus_dir):
                 # digest, or an affirmative human sign-off. A second definition
                 # of "done" is how two tools come to disagree about one corpus.
                 fence, first, digest = acceptance(text)
-                return ("done" if not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
+                return ("done" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
                                           fence, first, git_root(tasks))
 
                         else "pending")
@@ -1430,7 +1430,8 @@ def classify(infos, corpus_dir):
         if inf["stopped_by"]:
             stopped.append(inf)
             continue
-        open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"])
+        # A task whose own Status is terminal is not finished work for what waits on it (ADR-120 T8).
+        open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"] or infos[d].get("terminal_stop"))
         # A foreign dependency that is not done blocks, and one this could not
         # evaluate blocks too — saying which, because "blocked" and "I could not
         # tell" send a reader to different places.

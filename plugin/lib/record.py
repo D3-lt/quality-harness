@@ -159,6 +159,7 @@ def receipt_digests(task):
     return found
 
 __all__ = [
+    "header_lines",
     "sections_of",
     "NO_WINDOW",
     "git_read_env",
@@ -571,6 +572,17 @@ def sections_of(text):
     and what it does to line separators.
     """
     return {heading: lines for heading, lines, _s, _b, _e in _sections(text)}
+
+
+def header_lines(text):
+    """The lines of `text` before its first unfenced `## ` heading, outside any code fence.
+
+    A task file's header block (title, `**Status:**`, `**Depends-on:**`): the lines a field is read from,
+    so a `Status:` line inside an Acceptance heredoc, or in a later section's prose, is not the task's
+    own (ADR-120 T8). The same walk as `sections_of`, so both agree where the first section starts."""
+    sections = _sections(text)
+    end = sections[0][2] if sections else len(text)
+    return unfenced_lines([line for line, _start, _end in split_lines(text[:end])])
 
 
 def section_span(text, heading):

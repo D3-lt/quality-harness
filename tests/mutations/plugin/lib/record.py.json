@@ -2939,6 +2939,22 @@
       "tests": ["tests/adr-next-terminal.test.mjs"],
       "from": "re.findall(r\"\\bS[1-9]\\d*\\b\", line)",
       "to": "re.findall(r\"\\bS[1-9]\", line)"
+    },
+    {
+      "label": "ADR-120 T8 (review of c749638e..7a9107e8): header_lines reads past the first section",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "end = sections[0][2] if sections else len(text)",
+      "to": "end = len(text)",
+      "only": "^a Status line inside an Acceptance fence or a later section is not the task's Status$"
+    },
+    {
+      "label": "ADR-120 T8 (review of c749638e..7a9107e8): header_lines keeps the lines of a fence in the header block",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "return unfenced_lines([line for line, _start, _end in split_lines(text[:end])])",
+      "to": "return [line for line, _start, _end in split_lines(text[:end])]",
+      "only": "^a Status line inside an Acceptance fence or a later section is not the task's Status$"
     }
   ]
 }

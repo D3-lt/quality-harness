@@ -151,7 +151,7 @@ AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
 # are asserted in tests/adr-next.test.mjs, one test each, because a change that
 # only narrowed would be indistinguishable from deleting the word.
 NEGATIVE_WORD = (r"block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
-                 r"fail(?:ed|s|ing)?|refus(?:e|ed|es|ing)?|"
+                 r"fail(?:ed|s|ing|ures?)?|refus(?:e|ed|es|ing)?|"
                  r"withdraw(?:n|s|ing)?|reject(?:ed|s|ing)?|cannot|"
                  r"abort(?:ed|s|ing)?")
 NEGATIVE = re.compile(r"(?<![a-z])(" + NEGATIVE_WORD + r")(?![a-z])", re.I)
@@ -309,7 +309,7 @@ CLAUSE_BREAK = re.compile(r"[;—–]|\.(?=\s|$)|(?<![a-z])(?:but|then|however)(
 # end or one after it. Inside a sentence it may be denied, "the claim that no tests failed is false", and
 # was read as an absence there (the verification review of §361, 2026-10-08); "no tests failed but …" stops.
 ABSENT_FAILURE = re.compile(
-    r"(^|[;,:.—–(])\s*no\s+(?:(?:tests?|checks?|jobs?|cases?)\s+failed|failed\s+(?:tests?|checks?|jobs?|cases?))"
+    r"(^|[;,:.—–(])\s*no\s+(?:(?:tests?|checks?|jobs?|cases?)\s+failed|failed\s+(?:tests?|checks?|jobs?|cases?)|failures?)"
     r"\s*(?=$|[;,.)—–])", re.I | re.M)
 # The red run's clause loses only its fail words: a stop sharing that clause, "TestAlpha failed, deployment
 # remains blocked", still speaks (the same review: blanking the whole clause erased it).

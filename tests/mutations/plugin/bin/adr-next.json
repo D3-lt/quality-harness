@@ -1544,8 +1544,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
-      "to": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:[a-z]+\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
+      "to": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:[a-z]+\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
       "only": "names an absent failure; anything wider still stops$"
     },
     {
@@ -1554,8 +1554,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
-      "to": "    r\"(^|[;,:.—–(])\\s*zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
+      "to": "    r\"(^|[;,:.—–(])\\s*zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
       "only": "names an absent failure; anything wider still stops$"
     },
     {
@@ -1564,8 +1564,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
-      "to": "    r\"(^|[;,:.—–(])\\s*no\\W+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
+      "to": "    r\"(^|[;,:.—–(])\\s*no\\W+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
       "only": "names an absent failure; anything wider still stops$"
     },
     {
@@ -1594,8 +1594,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
-      "to": "    r\"(^|[;,:.—–(]|\\s)\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
+      "to": "    r\"(^|[;,:.—–(]|\\s)\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?)|failures?)\"",
       "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
     },
     {
@@ -1668,6 +1668,22 @@
       "tests": ["tests/adr-next-foreign.test.mjs"],
       "from": "        if not re.fullmatch(r\"\\s*(?:verdict)?\\s*\", before, re.I):\n            return False\n",
       "to": "",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of f4b2b28d..8975d2eb): failure and failures are no negative words",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "                 r\"fail(?:ed|s|ing|ures?)?|refus",
+      "to": "                 r\"fail(?:ed|s|ing)?|refus",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of f4b2b28d..8975d2eb): \"no failures\" is no absent failure",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "(?:tests?|checks?|jobs?|cases?)|failures?)\"\n",
+      "to": "(?:tests?|checks?|jobs?|cases?))\"\n",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {

@@ -23,12 +23,12 @@ const ROW = '| `locked dirty` | `tests/lock-subject.test.mjs` | lock | F-1 |'
 const SECOND_BODY = "test('locked second', () => {\n  assert.equal(4, 4)\n})\n"
 const SECOND_ROW = '| `locked second` | `tests/lock-second.test.mjs` | lock | F-1 |'
 
-const taskText = (vlog, rows = [ROW]) => ['# Task ADR-001-T1: lock', '', '## Tests', '', '| Test name | File | Verifies | Covers |',
+const taskText = (vlog, rows = [ROW], id = 'ADR-001') => [`# Task ${id}-T1: lock`, '', '## Tests', '', '| Test name | File | Verifies | Covers |',
   '|-----------|------|----------|--------|', ...rows, '', '## Verification Log', '', ...vlog, ''].join('\n')
 
 // A repository with one ADR whose T1 is done and locks `locked dirty` (and, with `second`, `locked second` in a second
-// file), plus a test file no task names.
-function fixture({ status = 'done', second = false } = {}) {
+// file; with `twin`, a second ADR whose own tasks/T1-lock.md locks the same test), plus a test file no task names.
+function fixture({ status = 'done', second = false, twin = false } = {}) {
   const dir = realpathSync.native(mkdtempSync(join(os.tmpdir(), 'qh-lockdrift-')))
   const init = spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 10_000, windowsHide: true })
   assert.equal(init.status, 0, init.stderr)
@@ -37,23 +37,26 @@ function fixture({ status = 'done', second = false } = {}) {
   writeFileSync(join(dir, 'tests', 'unlocked.test.mjs'), HEAD + "test('free', () => {\n  assert.equal(1, 1)\n})\n")
   if (second) writeFileSync(join(dir, 'tests', 'lock-second.test.mjs'), HEAD + SECOND_BODY)
   const rows = second ? [ROW, SECOND_ROW] : [ROW]
-  const tasks = join(dir, 'docs', 'adr', 'ADR-001-probe', 'tasks')
-  mkdirSync(tasks, { recursive: true })
-  writeFileSync(join(dir, 'docs', 'adr', 'ADR-001-probe.md'), [
-    '# ADR-001: Probe', '', '**Status:** Accepted', '**Spec:** None — no spec stage',
-    '**Served-path change:** None — this decision changes no served path.', '',
-    '## Existing Primitives Audit', '', 'Nothing existing covers it.', '', '## Decision', '', 'Lock.', '',
-    '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '', '## Consequences', '', 'Locked.', '',
-    '## Wiring & Contract Changes', '', 'None.', '', '## Out of Scope', '', '- The other thing (deferred: ADR-002)', ''].join('\n'))
-  writeFileSync(join(tasks, 'README.md'), ['# Tasks', '', '| ID | Goal | Status | Depends-on | Notes |',
-    '|----|------|--------|------------|-------|', `| T1 | lock | ${status} | | |`, ''].join('\n'))
-  const suffix = spawnSync('python3', ['-c', 'import sys; from pathlib import Path; from record import first_red_lock_suffix; '
-    + 'sys.stdout.write(first_red_lock_suffix(sys.stdin.read(), Path(sys.argv[1])))', dir],
-  { input: taskText([], rows), env: pyEnv, encoding: 'utf8', timeout: 30_000 })
-  assert.equal(suffix.status, 0, suffix.stderr)
-  assert.match(suffix.stdout, /test-lock-sha256:[0-9a-f]{64}/, 'the first-red lock must carry a hash')
-  writeFileSync(join(tasks, 'T1-lock.md'), taskText([
-    `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix.stdout}`], rows))
+  for (const id of twin ? ['ADR-001', 'ADR-002'] : ['ADR-001']) {
+    const tasks = join(dir, 'docs', 'adr', `${id}-probe`, 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    writeFileSync(join(dir, 'docs', 'adr', `${id}-probe.md`), [
+      `# ${id}: Probe`, '', '**Status:** Accepted', '**Spec:** None — no spec stage',
+      '**Served-path change:** None — this decision changes no served path.', '',
+      '## Existing Primitives Audit', '', 'Nothing existing covers it.', '', '## Decision', '', 'Lock.', '',
+      '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '', '## Consequences', '', 'Locked.', '',
+      '## Wiring & Contract Changes', '', 'None.', '', '## Out of Scope', '',
+      `- The other thing (deferred: ${id === 'ADR-001' ? 'ADR-002' : 'ADR-003'})`, ''].join('\n'))
+    writeFileSync(join(tasks, 'README.md'), ['# Tasks', '', '| ID | Goal | Status | Depends-on | Notes |',
+      '|----|------|--------|------------|-------|', `| T1 | lock | ${status} | | |`, ''].join('\n'))
+    const suffix = spawnSync('python3', ['-c', 'import sys; from pathlib import Path; from record import first_red_lock_suffix; '
+      + 'sys.stdout.write(first_red_lock_suffix(sys.stdin.read(), Path(sys.argv[1])))', dir],
+    { input: taskText([], rows, id), env: pyEnv, encoding: 'utf8', timeout: 30_000 })
+    assert.equal(suffix.status, 0, suffix.stderr)
+    assert.match(suffix.stdout, /test-lock-sha256:[0-9a-f]{64}/, 'the first-red lock must carry a hash')
+    writeFileSync(join(tasks, 'T1-lock.md'), taskText([
+      `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix.stdout}`], rows, id))
+  }
   return dir
 }
 
@@ -143,6 +146,26 @@ test('a pass gating a task and a test file it locks says the moved lock once, in
       const lines = driftLines(said)
       assert.equal(lines.length, 1, `the moved lock once:\n${said}`)
       assert.match(lines[0], /locked dirty/)
+    }
+  } finally { remove(dir) }
+})
+
+// The review of 6a3fa2e9: adr-lint names a moved lock by task file name and T-number alone, so two records whose
+// tasks/T1-lock.md lock one test say the same line. Each record's finding is said: one record's never stands for the other's.
+test("two records whose tasks lock one test each say their moved lock, and neither's suppresses the other's", () => {
+  const dir = fixture({ twin: true })
+  try {
+    const locked = join(dir, 'tests', 'lock-subject.test.mjs')
+    const task = join(dir, 'docs', 'adr', 'ADR-002-probe', 'tasks', 'T1-lock.md')
+    // Clean twin: nothing moved, nothing said.
+    assert.equal(driftLines(runArtifactGates([locked, task], dir)).length, 0)
+    writeFileSync(locked, HEAD + "test('locked dirty', () => {\n  assert.equal(1, 2)\n})\n")
+    // With a file no task names beside it, the pass has a ledger and only the drift scan speaks for either record: a pass
+    // of one path keeps none, and a task in the pass is said by its own record's lint.
+    const free = join(dir, 'tests', 'unlocked.test.mjs')
+    for (const order of [[locked], [locked, free], [free, locked], [locked, task], [task, locked]]) {
+      const said = runArtifactGates(order, dir)
+      assert.equal(driftLines(said).length, 2, `one moved lock per record:\n${said}`)
     }
   } finally { remove(dir) }
 })

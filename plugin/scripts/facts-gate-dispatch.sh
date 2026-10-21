@@ -44,15 +44,17 @@ run_adr_lint() {
     return 0
   fi
   # A lock-drift scan (lock_drift) reads the pass's ledger without writing it: a record this pass already linted has said
-  # every lock line, so the scan says none again (the review of 8676b9ac).
-  if [ -n "${QH_LOCK_DRIFT_PASS-}" ] && grep -Fqx -- "$key" "$QH_LOCK_DRIFT_PASS" 2>/dev/null; then
-    return 0
+  # every lock line, so the scan says none again (the review of 8676b9ac). It leaves the record it linted in <ledger>.key,
+  # because adr-lint names a lock by task file name alone: two records' T1-lock.md say one line (the review of 6a3fa2e9).
+  if [ -n "${QH_LOCK_DRIFT_PASS-}" ]; then
+    grep -Fqx -- "$key" "$QH_LOCK_DRIFT_PASS" 2>/dev/null && return 0
+    { printf '%s\n' "$key" > "$QH_LOCK_DRIFT_PASS.key"; } 2>/dev/null || :
   fi
   if [ -n "$ledger" ] && [ -s "$ledger.drift" ]; then
-    # And a lock line this pass already said as lock drift is not said again by the record's own lint.
+    # And a lock line this pass already said as lock drift FOR THIS RECORD is not said again by its own lint.
     lint=$("$BIN/adr-lint" "$@" 2>&1); status=$?
     while IFS= read -r line; do
-      grep -Fqx -- "${line#"${line%%[![:space:]]*}"}" "$ledger.drift" 2>/dev/null || printf '%s\n' "$line"
+      grep -Fqx -- "$key"$'\t'"${line#"${line%%[![:space:]]*}"}" "$ledger.drift" 2>/dev/null || printf '%s\n' "$line"
     done <<< "$lint"
   else
     "$BIN/adr-lint" "$@"; status=$?
@@ -346,19 +348,23 @@ tests_naming() {
 }
 
 lock_drift() {
-  local in_repo in_repo_rel task said line pass=${QUALITY_HARNESS_ADR_LEDGER-}
+  local in_repo in_repo_rel task said line record pass=${QUALITY_HARNESS_ADR_LEDGER-}
   [ "$boundary" = "PostToolUse" ] && return 0
   repo_path_of "$1" || return 0
   while IFS= read -r -d '' task; do
     # The nested gate keeps no adr-lint ledger: its output is filtered to THIS file, so a lint it cached would be silence for
     # the next changed file the same task locks (the Codex review of 0b129010..bca51180). It reads the pass's ledger, and
-    # each line said is kept beside it, so a lock line is said once in a pass (the review of 8676b9ac).
+    # each line said is kept beside it with the record it was said for, so a lock line is said once per record in a pass
+    # (the reviews of 8676b9ac and 6a3fa2e9). An unknown record keys nothing a record's lint matches: said twice, never lost.
+    record=""
+    if [ -n "$pass" ]; then { : > "$pass.key"; } 2>/dev/null || :; fi
     said=$(QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS="$pass" "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
+    if [ -n "$pass" ]; then IFS= read -r record < "$pass.key" 2>/dev/null || record=""; fi
     while IFS= read -r line; do
       line=${line#"${line%%[![:space:]]*}"}
       if [ -n "$pass" ]; then
-        grep -Fqx -- "$line" "$pass.drift" 2>/dev/null && continue
-        { printf '%s\n' "$line" >> "$pass.drift"; } 2>/dev/null || :
+        grep -Fqx -- "$record"$'\t'"$line" "$pass.drift" 2>/dev/null && continue
+        { printf '%s\t%s\n' "$record" "$line" >> "$pass.drift"; } 2>/dev/null || :
       fi
       printf 'lock drift: %s\n' "$line" >&2
     done < <(printf '%s\n' "$said" | grep -F -- "locked test \`$in_repo_rel\`")

@@ -1,11 +1,19 @@
 {
   "mutations": [
     {
+      "label": "the review of 6a3fa2e9: a lock line said for one record does not stand for another record's",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "        grep -Fqx -- \"$record\"$'\\t'\"$line\" \"$pass.drift\" 2>/dev/null && continue",
+      "to": "        grep -Fq -- \"$line\" \"$pass.drift\" 2>/dev/null && continue",
+      "only": "^(?:two records whose tasks lock one test each say their moved lock, and neither's suppresses the other's)$"
+    },
+    {
       "label": "the review of 8676b9ac: a lock-drift scan says nothing for a record the pass already linted",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/lock-drift-commit.test.mjs"],
-      "from": "  if [ -n \"${QH_LOCK_DRIFT_PASS-}\" ] && grep -Fqx -- \"$key\" \"$QH_LOCK_DRIFT_PASS\" 2>/dev/null; then",
-      "to": "  if false; then",
+      "from": "    grep -Fqx -- \"$key\" \"$QH_LOCK_DRIFT_PASS\" 2>/dev/null && return 0",
+      "to": "    :",
       "only": "^(?:a pass gating a task and a test file it locks says the moved lock once, in either order)$"
     },
     {

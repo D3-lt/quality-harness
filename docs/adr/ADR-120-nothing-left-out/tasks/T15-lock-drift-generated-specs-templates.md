@@ -53,6 +53,7 @@ out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spe
 | `the lock-drift scan gates a task whose Tests table names the file, and not one that only lists it as affected` | `tests/lock-drift-scope.test.mjs` | the scan's scope (measured 2026-10-21: a boundary dispatch on plugin/bin/adr-next went from 90 s to 0.18 s) | — | S1, S2 |
 | `two edited test files one task locks each get their drift line in one pass` | `tests/lock-drift-commit.test.mjs` | the review of 0b129010..bca51180: the nested gate keeps no adr-lint ledger, so the second file's drift is not cached into silence; one line per moved file, in either order | — | S1, S2 |
 | `a pass gating a task and a test file it locks says the moved lock once, in either order` | `tests/lock-drift-commit.test.mjs` | the review of 8676b9ac: the scan reads the pass's ledger and keeps what it said beside it, so the record's own lint and the drift line never both say one moved lock | — | S1, S2 |
+| `two records whose tasks lock one test each say their moved lock, and neither's suppresses the other's` | `tests/lock-drift-commit.test.mjs` | the review of 6a3fa2e9: a kept line carries the lint invocation of the record it was said for, since adr-lint names a lock by task file name alone | — | S1, S2 |
 
 ## Reachability
 
@@ -90,6 +91,12 @@ out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spe
 - 2026-10-21 · 8676b9ac* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a lock-drift scan re-says a record the pass already linted · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
 - 2026-10-21 · 8676b9ac* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a record's lint re-says a lock line the pass said as lock drift · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
 - 2026-10-21 · 8676b9ac* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the nested lock-drift gate writes the pass's adr-lint ledger (rerun after the dedupe) · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
+- 2026-10-21 · 6a3fa2e9* · mutant survived · exit 0 · `plugin/scripts/facts-gate-dispatch.sh` · a lock line said for one record stands for another record's identical line · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-21 · 6a3fa2e9* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a lock-drift scan re-says a record the pass already linted (repointed) · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
+- 2026-10-21 · 6a3fa2e9* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a lock line said for one record stands for another record's identical line (rerun with the free-file orders) · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
 
 ## Invariants
 
@@ -138,3 +145,6 @@ Stop if reading the locks needs the record grammar loaded in Node: the artifact 
 - 2026-10-21 · 8676b9ac* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:12153
 - 2026-10-21 · 8676b9ac* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:8428
 - 2026-10-21 · 8676b9ac* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:12830
+- 2026-10-21 · 6a3fa2e9* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:16339
+- 2026-10-21 · 6a3fa2e9* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:32485
+- 2026-10-21 · 6a3fa2e9* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:16930

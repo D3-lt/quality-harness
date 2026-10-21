@@ -29,7 +29,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| [T1](T1-shell-grammar.md) | A shell grammar for the check classifier | pending | none — no spec | `node --test --test-reporter=tap tests/shell-grammar.test.mjs tests/fail-open.test.mjs tests/shell-words.test.mjs tests/qh-core-parity.test.mjs`, named tests, then the Go core |
+| [T1](T1-shell-grammar.md) | A shell grammar for the check classifier | done | none — no spec | `node --test --test-reporter=tap tests/shell-grammar.test.mjs tests/fail-open.test.mjs tests/shell-words.test.mjs tests/qh-core-parity.test.mjs`, named tests, then the Go core |
 | [T2](T2-publish-readers-on-the-tree.md) | The publish readers read the bytes a group prints | pending | none — no spec | `node --test --test-reporter=tap tests/publish-group.test.mjs tests/qh-core-parity.test.mjs`, named tests, then the Go core |
 | [T3](T3-a-retired-spec-fact.md) | A tag that retires a spec fact | done | none — no spec | `node --test --test-reporter=tap tests/spec-retired.test.mjs`, named tests, then `spec-verify --spec` on the ADR-040 spec |
 | [T4](T4-the-session-s-own-plugin.md) | Forwarders run the session's own plugin | done | none — no spec | `node --test --test-reporter=tap tests/plugin-root.test.mjs`, named tests |

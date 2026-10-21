@@ -3378,3 +3378,14 @@ Found 2026-10-21 on the same push run (coverage floor): `every record this repos
 (`tests/corpus-lint.test.mjs:49`) took 415 s and reported `docs/adr/ADR-052-an-explicit-relock-is-not-a-later-red.md:
 SIGKILL`, could-not-look. The dispatched run's coverage floor at the same sha passed. A per-record budget under coverage on a
 loaded runner is the likely cause; unmeasured. Count how often it recurs, and name the budget it hit, before changing it.
+
+## 396. On Windows the lock-drift dedupe does not match its record key, so a moved lock can be said twice in one pass
+
+Found 2026-10-22 on the landing run of d161ec16 (39684429396, windows): `a pass gating a task and a test file it locks says
+the moved lock once, in either order` said it twice, and `two records whose tasks lock one test each say their moved lock`
+said three lines for two records (tests/lock-drift-commit.test.mjs). On macOS and Linux both hold exactly. The scan in
+plugin/scripts/facts-gate-dispatch.sh (lock_drift, run_adr_lint) compares the adr-lint invocation the nested gate ran
+with the one the record's own lint ran, as `printf %q` of its argv; on Windows the two evidently differ, most likely in a
+path's spelling (drive form or separator), unmeasured. A mismatch only disables the dedupe: the line is repeated, never
+lost, which the tests still hold on Windows (`saidOnce`: at least once there). Measure the two keys on a Windows runner and
+normalise them; then make the assertion exact on every platform.

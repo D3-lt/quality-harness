@@ -314,6 +314,41 @@
       "from": "        if GRILL_NUMBER.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1:",
       "to": "        if GRILL_NUMBER.fullmatch(table_row.cells[0]) and len(table_row.cells) > 1 and line.strip().startswith(\"|\"):",
       "only": "^a spec fact and a grill row without their leading pipe are rows spec-verify checks$"
+    },
+    {
+      "label": "ADR-120 T3 spec-verify: a retired scenario heading matches the grammar",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "(draft|spec|implemented|retired)",
+      "to": "(draft|spec|implemented)"
+    },
+    {
+      "label": "ADR-120 T3 spec-verify: a retired fact row is not a bad tag",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if tag not in (\"@draft\", \"@spec\", \"@implemented\", \"@retired\"):",
+      "to": "if tag not in (\"@draft\", \"@spec\", \"@implemented\"):"
+    },
+    {
+      "label": "ADR-120 T3 spec-verify: a retired row is not required to have its test",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if item[\"tag\"] in (\"spec\", \"implemented\") and not is_unbound(item[\"test\"]):",
+      "to": "if item[\"tag\"] in (\"spec\", \"implemented\", \"retired\") and not is_unbound(item[\"test\"]):"
+    },
+    {
+      "label": "ADR-120 T3 spec-verify: a retired row's test is not run",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if item[\"tag\"] == \"implemented\" and not is_unbound(item[\"test\"]):",
+      "to": "if item[\"tag\"] in (\"implemented\", \"retired\") and not is_unbound(item[\"test\"]):"
+    },
+    {
+      "label": "ADR-120 T3 spec-verify: a retired row whose test still exists is advised",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if ok is True:\n                    errors.advise(f\"{item['id']}: @retired",
+      "to": "if ok is None:\n                    errors.advise(f\"{item['id']}: @retired"
     }
   ]
 }

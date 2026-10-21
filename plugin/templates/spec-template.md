@@ -32,7 +32,7 @@
 ## Scenarios
 
 <Markdown Gherkin is the human-readable layer; the bound test is the executable truth.
-Heading grammar (parsed by spec-verify — keep exact): `### UC<n>-S<m> [happy|failure] <title> [@draft|@spec|@implemented] → `path::name``
+Heading grammar (parsed by spec-verify — keep exact): `### UC<n>-S<m> [happy|failure] <title> [@draft|@spec|@implemented|@retired] → `path::name``
 ≥1 happy + ≥1 failure per UC. A failure Then is explicit — never silent. Test may be `— to bind` only while [@draft].>
 
 ### UC1-S1 [happy] <declarative outcome, present tense> [@draft] → `— to bind`
@@ -54,7 +54,7 @@ Then <safe, explicit failure outcome>
 ## Facts
 
 <The registry — replaces prose invariants. Every behavioral decision from the grill lands here.
-Lifecycle: **@draft** (decided, no test yet) → **@spec** (test committed & collectable — MAY FAIL: that is the TDD red state; required for Ready-for-ADR) → **@implemented** (test passes; flipped during /quality-harness:adr-execute).
+Lifecycle: **@draft** (decided, no test yet) → **@spec** (test committed & collectable — MAY FAIL: that is the TDD red state; required for Ready-for-ADR) → **@implemented** (test passes; flipped during /quality-harness:adr-execute). **@retired** is the way out of any of them: the behaviour was reversed by a later record and its test deleted, so no test is required or run and no task covers it; keep the row and name the reversing record in its assertion.
 Cmd column only when the stack default (see spec-verify) is wrong for that fact.>
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |

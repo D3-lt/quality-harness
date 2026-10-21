@@ -109,7 +109,7 @@ UC_RE = re.compile(r"^### UC-(\d+):")
 # `detect_stack` does not know — a Go one, say — could be told honestly that its
 # facts could not be adjudicated AND given a way to fix that, while its scenarios
 # had neither.
-SCEN_RE = re.compile(r"^### UC(\d+)-S(\d+) \[(happy|failure)\] (.+?) \[@(draft|spec|implemented)\]"
+SCEN_RE = re.compile(r"^### UC(\d+)-S(\d+) \[(happy|failure)\] (.+?) \[@(draft|spec|implemented|retired)\]"
                      r" (?:→|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\s*$")
 SCEN_HEAD_RE = re.compile(r"^### UC\d+-S\d+")
 # A fact row's first cell and a grill row's: the row is read by GFM (record.gfm_rows), so a row written without its
@@ -772,7 +772,7 @@ def check_spec(path, mode, root_override, collect):
             # 2026-08-25 on windows-latest as "'`python3' is not recognized".
             cmd = row[4].strip("`").strip() if len(row) > 4 and row[4] else None
             cmd = cmd or None
-            if tag not in ("@draft", "@spec", "@implemented"):
+            if tag not in ("@draft", "@spec", "@implemented", "@retired"):
                 errors.append(f"{fid}: bad tag '{tag}'")
                 continue
             if is_unbound(test) and tag != "@draft":
@@ -822,6 +822,13 @@ def check_spec(path, mode, root_override, collect):
                     unrun.append(f"{item['id']}: could not check — {why}")
                 elif not ok:
                     missing.append(f"{item['id']}: bound test not found — {why}")
+            elif item["tag"] == "retired" and not is_unbound(item["test"]):
+                # ADR-120: a retired row is owed no test, so none is required or run. A test that is still there says the
+                # row is not retired, or that the test is not deleted yet; either way the author should look.
+                ok, _why = test_exists(item["test"], root, stack, collect)
+                if ok is True:
+                    errors.advise(f"{item['id']}: @retired, but its bound test still exists ({item['test']}) — "
+                                  f"delete the test, or tag the row @implemented if the behaviour still holds")
 
     if mode == "implemented":
         root = repo_root(Path(path), root_override)

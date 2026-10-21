@@ -1019,6 +1019,34 @@
       "from": "gfmTableRows(read(path.join(dir, 'README.md')).split('\\n'))",
       "to": "gfmTableRows(read(path.join(dir, 'README.md')).split('\\n')).filter(row => row.width !== null)",
       "only": "^work-next reads the same README done claims as adr-lint, pipe-less rows included$"
+    },
+    {
+      "label": "ADR-120 T3 work-next: a retired fact row is not an owed id",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "cell.trim() === '@retired') ? retired : live).add(fact[1])",
+      "to": "cell.trim() === '@retired') ? live : live).add(fact[1])"
+    },
+    {
+      "label": "ADR-120 T3 work-next: a retired scenario is not an owed id",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if (scen) (/\\[@retired\\]\\s*(?:→|->)/.test(line) ? retired : live).add(scen[1])",
+      "to": "if (scen) (false ? retired : live).add(scen[1])"
+    },
+    {
+      "label": "ADR-120 T3 work-next: a spec whose recognised ids are all retired owes nothing",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if (live.size + retired.size === 0 ||",
+      "to": "if (live.size === 0 ||"
+    },
+    {
+      "label": "ADR-120 T3 work-next: a spec with no recognised id stays uncovered",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if (live.size + retired.size === 0 ||",
+      "to": "if ("
     }
   ]
 }

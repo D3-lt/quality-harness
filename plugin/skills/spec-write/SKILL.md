@@ -54,6 +54,9 @@ Every behavioral decision becomes a Facts-table row: `F-n | assertion | test | t
 - **@spec** — test committed and collectable; it MAY FAIL — that is the TDD red state. Required for
   Ready-for-ADR.
 - **@implemented** — test passes; flipped during /quality-harness:adr-execute, never during spec writing.
+- **@retired** — the behaviour was reversed by a later record and its test deleted. spec-verify neither requires nor
+  runs the test, and adr-lint and work-next owe it no task. Keep the row, name the reversing record in its assertion,
+  and never use it to hide a fact that still holds: spec-verify advises a retired row whose test still exists.
 
 ## Workflow
 

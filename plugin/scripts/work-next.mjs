@@ -422,16 +422,19 @@ export function specStatus(text) {
 }
 
 // A fact row as a Markdown table writes it, its leading pipe optional (`F-2 | b | t | @spec` is a row in GFM, and it
-// was no fact here, so a spec with an uncovered one looked covered: BACKLOG §381).
+// was no fact here, so a spec with an uncovered one looked covered: BACKLOG §381). A row tagged `@retired` (a fact's Tag
+// cell, a scenario's heading) names an id whose behaviour was reversed and whose test is deleted: no record covers it
+// and none is owed it (ADR-120), so it is returned apart from the live ids.
 function specBoundIds(text) {
-  const ids = new Set()
+  const live = new Set()
+  const retired = new Set()
   for (const line of text.split('\n')) {
     const fact = line.match(/^\|?\s*(F-\d+)\s*\|/)
-    if (fact) ids.add(fact[1])
+    if (fact) (line.split(/(?<!\\)\|/).some(cell => cell.trim() === '@retired') ? retired : live).add(fact[1])
     const scen = line.match(/^### (UC\d+-S\d+)\b/)
-    if (scen) ids.add(scen[1])
+    if (scen) (/\[@retired\]\s*(?:→|->)/.test(line) ? retired : live).add(scen[1])
   }
-  return ids
+  return { live, retired }
 }
 
 // The ids a spec's facts and scenarios are covered by, per spec. Ids are not unique across specs (`F-1` and `UC1-S1`
@@ -666,9 +669,11 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
       continue
     }
     if (!/^Ready-for-ADR\b/i.test(status)) continue
-    const ids = [...specBoundIds(text)]
+    // A spec owes its live ids; one whose recognised ids are all retired owes nothing, and one with no recognised id
+    // is still uncovered, as it was before the tag.
+    const { live, retired } = specBoundIds(text)
     const covered = coveredFor(file)
-    if (ids.length === 0 || ids.some(id => !covered.has(id))) uncoveredReady.push(file)
+    if (live.size + retired.size === 0 || [...live].some(id => !covered.has(id))) uncoveredReady.push(file)
   }
 
   // Does this corpus record evidence the way adr-verify writes it at all? On a

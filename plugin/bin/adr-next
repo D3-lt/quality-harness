@@ -432,7 +432,9 @@ def closes_with_approval(text):
     # failed, approved" report or qualify, they do not close (the verifications of 0194fc9a..35d79248). This also holds
     # ADR-119 T3's rule that a numbered run's own word is not the note's verdict.
     if breaks and breaks[-1].group().strip() in (":", ",", "—", "–", "-"):
-        before = body[breaks[-2].end() if len(breaks) > 1 else 0:breaks[-1].start()]
+        # Back to the last ";" or ".", so a label inside a run's own label ("run 222: verdict: approved") is still that run's.
+        strong = [b for b in breaks if b.group().strip() in (";", ".")]
+        before = body[strong[-1].end() if strong else 0:breaks[-1].start()]
         if not re.fullmatch(r"\s*(?:verdict)?\s*", before, re.I):
             return False
     return CLOSING_APPROVAL.fullmatch(body[start:].strip()) is not None

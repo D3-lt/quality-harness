@@ -1671,6 +1671,14 @@
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {
+      "label": "ADR-120 T7 (verification of 35d79248..66c1d726): the label is read only back to the previous break, not the last ; or .",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "        before = body[strong[-1].end() if strong else 0:breaks[-1].start()]",
+      "to": "        before = body[breaks[-2].end() if len(breaks) > 1 else 0:breaks[-1].start()]",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
       "label": "ADR-120 T8: classify reads done before a terminal Status",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-terminal.test.mjs"],

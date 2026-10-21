@@ -4088,6 +4088,17 @@ def _recorded_lock(vlog, sha_format=None):
 
 
 
+
+class LockMove(str):
+    """The advice line for a relock that moved the check binding, carrying the (from, to) pair and the
+    text after the task label, so a caller can say one change once for every task it covers (BACKLOG §392).
+    A str, so every caller that prints or counts advice is unchanged."""
+
+    def __new__(cls, prefix, body, pair):
+        move = super().__new__(cls, f"{prefix}{body}")
+        move.pair, move.body = pair, body
+        return move
+
 def lock_findings(vlog, *, root, tests, label="", advise=True):
     """blocks and advice for a done claim against first-red hashes.
 
@@ -4159,9 +4170,11 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
             def said(check):
                 return ("no declared check" if check == "absent" else "a check that could not be read"
                         if check in (None, "unproven") else f"the check with sha256 {check[:12]}…")
-            advice.append(
-                f"{prefix}the relock moved the check binding from {said(moved_from)} to {said(moved_to)}: "
-                "done rests on the relock, not on a red under the declared check (BACKLOG §390)")
+            advice.append(LockMove(
+                prefix,
+                f"the relock moved the check binding from {said(moved_from)} to {said(moved_to)}: "
+                "done rests on the relock, not on a red under the declared check (BACKLOG §390)",
+                (moved_from, moved_to)))
     elif recorded.get("recovered"):
         advice.append(
             f"{prefix}first-red lock is recovered from a later row, not the "

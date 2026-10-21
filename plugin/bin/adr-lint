@@ -2963,6 +2963,7 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
     if not done:
         return
     frozen = record is not None and record_is_frozen(record, root, tracked)
+    moves = {}
     for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
@@ -2975,12 +2976,22 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
             label=label,
         )
         for msg in advice:
-            errors.advise(msg)
+            pair = getattr(msg, "pair", None)
+            if pair is None:
+                errors.advise(msg)
+            else:
+                moves.setdefault(pair, []).append((label, msg))
         for msg in blocks:
             if frozen:
                 errors.advise(f"archived record: {msg} — history, not a refusal")
             else:
                 errors.append(msg, evidence=True)
+    # One change to a declared check, relocked across many tasks, is one line naming them (BACKLOG §392).
+    for tasks in moves.values():
+        if len(tasks) == 1:
+            errors.advise(tasks[0][1])
+        else:
+            errors.advise(f"{', '.join(label for label, _msg in tasks)}: {tasks[0][1].body}")
 
 
 

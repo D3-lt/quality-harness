@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-120 T5: two check changes stay two advice lines",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "^(?:two check changes are advised once each)$",
+      "from": "moves.setdefault(pair, [])",
+      "to": "moves.setdefault(0, [])"
+    },
+    {
+      "label": "ADR-120 T5: a check change relocked across tasks names every task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "^(?:one check change relocked across tasks is advised once, naming them)$",
+      "from": "if len(tasks) == 1:",
+      "to": "if True:"
+    },
+    {
       "label": "ADR-119 T3: a task no receipt names says its writer may predate receipts",
       "file": "plugin/bin/adr-lint",
       "tests": [

@@ -2579,6 +2579,55 @@ test('a relock that moved the check binding passes done and names the move', () 
   }
 })
 
+// BACKLOG §392: one change to a declared check, relocked across many tasks, was said once per task. The check_test_lock
+// advice is grouped by (from, to) pair; a pair held by one task keeps its per-task line.
+function relockedTasks(dir, firstChecks) {
+  const relockRow = suffix => `- 2026-09-14 · no-git · exit 2 · \`adr-verify --relock\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix} · test-lock-kind:relock`
+  const rows = firstChecks.map(check => {
+    writeFileSync(join(dir, '.quality-harness.json'), check === null ? '{}\n' : `{"check":${JSON.stringify(check)}}\n`)
+    return redRow(dir)
+  })
+  writeFileSync(join(dir, '.quality-harness.json'), '{"check":"node --test --test-reporter=tap"}\n')
+  const now = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix
+  const infos = {}
+  firstChecks.forEach((_check, i) => {
+    infos[`T${i + 1}`] = { human: false, path: join(dir, `T${i + 1}.md`), tests: NAMED, vlog: [rows[i], relockRow(now)] }
+  })
+  const readme = firstChecks.map((_c, i) => `| T${i + 1} | lock | done |`).join('\n')
+  const linted = lintOp({ root: dir, readme, infos })
+  assert.equal(linted.status, 0, linted.stderr)
+  const out = JSON.parse(linted.stdout)
+  assert.deepEqual(out.errors, [], out.errors.join('\n'))
+  return out.advice.filter(a => /moved the check binding/.test(a))
+}
+
+test('one check change relocked across tasks is advised once, naming them', () => {
+  const dir = tmpRepo()
+  try {
+    const moves = relockedTasks(dir, [null, null, null])
+    assert.equal(moves.length, 1, moves.join('\n'))
+    for (const label of ['T1.md: T1', 'T2.md: T2', 'T3.md: T3']) assert.ok(moves[0].includes(label), moves[0])
+    assert.match(moves[0], /moved the check binding from no declared check to the check with sha256/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('two check changes are advised once each', () => {
+  const dir = tmpRepo()
+  try {
+    const moves = relockedTasks(dir, [null, 'node --test', null])
+    assert.equal(moves.length, 2, moves.join('\n'))
+    const grouped = moves.find(m => m.includes('T1.md: T1'))
+    const alone = moves.find(m => m.includes('T2.md: T2'))
+    assert.ok(grouped.includes('T3.md: T3') && !grouped.includes('T2.md'), moves.join('\n'))
+    assert.ok(alone.startsWith('T2.md: T2: the relock moved the check binding from the check with sha256'), alone)
+    assert.ok(!alone.includes('T1.md') && !alone.includes('T3.md'), alone)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 // BACKLOG §388, the owner 2026-10-20: a lock is keyed from the record's repository whatever --cwd is, since that is where
 // adr-lint and adr-next read it back. Reported from an outside corpus whose code lives in a sibling repository: a relock
 // with --cwd <code repo> keyed the Tests table's paths from the code repository, and done was refused for every test.

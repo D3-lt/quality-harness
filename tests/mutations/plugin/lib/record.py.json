@@ -2910,6 +2910,14 @@
       "only": "an Execution Order row with its Depends-on cell dropped",
       "from": "    if len(cells) > 1 and stripped.endswith(\"|\") and not stripped.endswith(\"\\\\|\"):\n        cells.pop()",
       "to": "    while len(cells) > 1 and cells[-1] == \"\":\n        cells.pop()"
+    },
+    {
+      "label": "ADR-120 T7: record_file_number loses the date guard, so a dated file is ADR-2026",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]) or DATE_SHAPED_RE.match(name):\n        return None\n    return int(found.group(1))",
+      "to": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]):\n        return None\n    return int(found.group(1))",
+      "only": "^a foreign record named NNN-slug is found, and a dated file is no record$"
     }
   ]
 }

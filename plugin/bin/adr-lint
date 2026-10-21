@@ -4418,7 +4418,7 @@ def invalidates_pointer(text):
 # so the retire gate and this one read one spelling: RECORD_FILE_RE,
 # TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
 # in every separator and width — a dated note, or an ADR-2026).
-from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, NotText, read_record_text, read_regular, record_id, title_line  # noqa: E402
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, NotText, read_record_text, read_regular, record_file_number, record_id, title_line  # noqa: E402
 from functools import lru_cache  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
@@ -4465,11 +4465,7 @@ def _corpus_record_number(path, root):
     try:
         text = read_record_text(path)
     except FileNotFoundError:
-        found = RECORD_FILE_RE.match(name)
-        if not found:
-            return False
-        ambiguous = TASK_SHAPED_RE.match(name[:-len(".md")]) or DATE_SHAPED_RE.match(name)
-        return None if ambiguous else int(found.group(1))
+        return record_file_number(name)
     except NotText:
         # A NUL-bearing file is no record a reader can read, and `check_adr` FAILs it by name; counting it
         # here resolved its dependency where v3.8.10 resolved none (the last review round of ADR-092's fixes).

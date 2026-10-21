@@ -205,6 +205,7 @@ __all__ = [
     "number_id",
     "first_number_id",
     "title_line",
+    "record_file_number",
     "record_id",
     "references_in",
     "first_reference",
@@ -879,6 +880,20 @@ def record_id(name, title=None):
         return None
     found = _RECORD_NUMBER.match(shaped)
     return number_id(found.group(1)) if found else None
+
+
+def record_file_number(name):
+    """The number a record file's NAME gives, as adr-lint and adr-next both enumerate a corpus.
+
+    `ADR-NNN-slug.md` and `NNN-slug.md` give NNN. False when the name gives none. None when the shape is
+    ambiguous (a task-shaped `003-T2-plan.md`, or a date-shaped `2026-07-12-x.md`, whose year is no record
+    number) and only the file's title can settle it. Callers compare with `is False` and `is None`: 0 is a number."""
+    found = RECORD_FILE_RE.match(name)
+    if not found:
+        return False
+    if TASK_SHAPED_RE.match(name[:-len(".md")]) or DATE_SHAPED_RE.match(name):
+        return None
+    return int(found.group(1))
 
 
 def references_in(text):

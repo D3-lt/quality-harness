@@ -1,0 +1,113 @@
+// ADR-120 T7: adr-next reads another corpus's records, and a sign-off by its last verdict word.
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import { delimiter, dirname, join, resolve } from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { remove } from './helpers/remove.mjs'
+
+const testDir = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(testDir, '..')
+const root = join(repoRoot, 'plugin')
+const bin = join(root, 'bin')
+const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
+
+const temps = []
+test.after(() => {
+  for (const dir of temps) remove(dir)
+})
+
+function next(args, cwd) {
+  const [file, argv] = process.platform === 'win32'
+    ? ['python3', [join(bin, 'adr-next'), ...args]]
+    : ['adr-next', args]
+  return spawnSync(file, argv, { cwd, env, encoding: 'utf8', timeout: 60_000 })
+}
+
+const digestOf = fence => createHash('sha256').update(fence, 'utf8').digest('hex')
+
+// One task file; `done` writes the tool-written exit-0 row that proves its fence.
+function taskFile(id, { dependsOn = 'none', done = false } = {}) {
+  const fence = `printf ${id}`
+  const log = done
+    ? `- 2026-08-26 · no-git · exit 0 · \`${fence}\` · acceptance-sha256:${digestOf(fence)}\n`
+    : ''
+  return `# Task ${id}: probe\n\n**Depends-on:** ${dependsOn}\n**Consumes:** none\n**Produces:** none\n\n`
+    + `## Acceptance\n\n\`\`\`bash\n${fence}\n\`\`\`\n\n## Verification Log\n${log}`
+}
+
+function record(dir, name, tasks) {
+  writeFileSync(join(dir, `${name}.md`), `# ${name}: probe\n\n**Status:** Accepted\n`)
+  const tasksDir = join(dir, name, 'tasks')
+  mkdirSync(tasksDir, { recursive: true })
+  for (const [id, spec] of Object.entries(tasks)) writeFileSync(join(tasksDir, `${id}-t.md`), taskFile(id, spec))
+  return tasksDir
+}
+
+function foreign(targetName, targetT4Done, pointer) {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-foreign-'))
+  temps.push(dir)
+  record(dir, targetName, { T4: { done: targetT4Done } })
+  return record(dir, '033-z', { T5: { dependsOn: pointer } })
+}
+
+const ready = out => /READY\s+T5/.test(out)
+
+test('a foreign record named NNN-slug is found, and a dated file is no record', () => {
+  const finished = next([foreign('032-x', true, 'ADR-032-T4'), '--all'], root).stdout
+  assert.ok(ready(finished), `a done T4 in 032-x frees T5:\n${finished}`)
+  const open = next([foreign('032-x', false, 'ADR-032-T4'), '--all'], root).stdout
+  assert.ok(!ready(open), `a not-done T4 blocks T5:\n${open}`)
+  assert.match(open, /ADR-032-T4/)
+  // The twin: a dated file with a done T4 is no ADR-2026.
+  const dated = next([foreign('2026-07-12-x', true, 'ADR-2026-T4'), '--all'], root).stdout
+  assert.ok(!ready(dated), `a dated file lent its year as a record number:\n${dated}`)
+  // And the long form keeps working.
+  const long = next([foreign('ADR-032-x', true, 'ADR-032-T4'), '--all'], root).stdout
+  assert.ok(ready(long), `ADR-NNN-slug is still found:\n${long}`)
+})
+
+function verdict(note) {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-verdict-'))
+  temps.push(dir)
+  const tasksDir = join(dir, 'tasks')
+  mkdirSync(tasksDir)
+  writeFileSync(join(tasksDir, 'T1-t.md'),
+    '# Task T1: probe\n\n**Depends-on:** none\n**Consumes:** none\n**Produces:** none\n\n'
+    + `## Acceptance\n\nAcceptance is human-observed: a person confirms it.\n\n## Verification Log\n- 2026-08-26 · human-observed · ${note}\n`)
+  const out = next([tasksDir, '--all'], root).stdout
+  return /^done\s+T1/m.test(out) ? 'pass' : 'stop'
+}
+
+test("a sign-off's last verdict word decides", () => {
+  for (const note of [
+    "observed: an empty selection made 'no tests to run' trip the FAIL guard; approved",
+    'observed: reranker stopped: fused order in 0.4 s; approved',
+    'observed: the run printed [build failed]; approved',
+  ]) assert.equal(verdict(note), 'pass', note)
+  for (const note of [
+    'approved, but the run failed',
+    'passed, but stop',
+    'confirmed BLOCKED',
+  ]) assert.equal(verdict(note), 'stop', note)
+})
+
+test('a negator, a question, a taken-back verdict and a cross still stop wherever they sit', () => {
+  for (const note of [
+    'not approved: it failed',
+    'approved? it failed',
+    'not approved, later observed and approved',
+    'approved? no, then observed and approved',
+    'approved, reverted, observed',
+    '❌ observed',
+    'observed approved ❌',
+  ]) assert.equal(verdict(note), 'stop', note)
+})
+
+test('a verdict word inside quotes is not the closing verdict', () => {
+  assert.equal(verdict('the run failed "he wrote; approved" later'), 'stop')
+  assert.equal(verdict('the run failed; approved'), 'pass')
+})

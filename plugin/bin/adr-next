@@ -94,7 +94,7 @@ from record import row_date_problem  # noqa: E402
 from record import signoff_binding, signoff_digest  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
-from record import NotARegularFile, NotText, read_record_text, recognised_as_record  # noqa: E402
+from record import NotARegularFile, NotText, read_record_text, recognised_as_record, record_file_number  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -405,6 +405,22 @@ def quoted(value, limit=160):
     """shown(), and marked as the task file's words rather than this tool's."""
     return f"«{shown(value, limit)}»"
 
+# A sign-off's closing verdict (ADR-120 T7): an affirmative word that SAYS the verdict. It counts only when
+# (a) it is not inside quotes, program-marked or not; (b) it is not an infinitive object, so "fail to pass"
+# and "refusing to ship" are not approvals; (c) it opens a clause: the start of the note, or after ; , . : — or
+# a spaced dash, optionally with "and"/"then"/"so" between. (b) follows from (c): the text before "pass" in
+# "fail to pass" ends in "to ", which opens no clause, so it has no check of its own (a mutant of one survived).
+CLAUSE_OPENER = re.compile(r"(?:^|[;,.:—–]|\s-\s)\s*(?:(?:and|then|so)\s+)?$", re.I)
+
+
+def closing_affirmations(text):
+    """The affirmative matches in text that may be the note's closing verdict."""
+    quoted = [m.span() for m in QUOTED.finditer(text)]
+    return [m for m in AFFIRMATIVE.finditer(text)
+            if not any(a <= m.start() < b for a, b in quoted)
+            and CLAUSE_OPENER.search(text[:m.start()])]
+
+
 def human_outcome(note):
     """"stop", "pass", or None when the note states neither.
 
@@ -440,8 +456,13 @@ def human_outcome(note):
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
     outside = not_the_verdict(outside)
-    if NEGATIVE.search(outside):
-        return "stop"
+    # The LAST verdict word decides (ADR-120 T7): a note that describes a failure it observed and then
+    # approves is done; one that approves and then reports a failure is not. A negative word counts
+    # wherever it sits; an affirmative only as closing_affirmations says.
+    negatives = list(NEGATIVE.finditer(outside))
+    if negatives:
+        affirmations = closing_affirmations(outside)
+        return "pass" if affirmations and affirmations[-1].end() > negatives[-1].end() else "stop"
     if NEGATIVE.search(neutralise(note)):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):
@@ -1024,9 +1045,9 @@ def foreign_state(pointer, corpus_dir):
     if not found or corpus_dir is None or not corpus_dir.is_dir():
         return "unknown"
     number, want = int(found.group("number")), found.group("task").upper()
-    for candidate in sorted(corpus_dir.glob("ADR-*.md")):
-        digits = re.match(r"ADR-0*(\d{1,4})", candidate.name, re.I)
-        if not digits or int(digits.group(1)) != number:
+    for candidate in sorted(corpus_dir.glob("*.md")):
+        got = record_file_number(candidate.name)
+        if got is False or got is None or got != number:
             continue
         tasks = candidate.with_suffix("") / "tasks"
         if not tasks.is_dir():

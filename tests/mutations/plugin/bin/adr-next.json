@@ -365,8 +365,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if NEGATIVE.search(outside):\n        return \"stop\"",
-      "to": "    if False:\n        return \"stop\"",
+      "from": "    if negatives:\n        affirmations = closing_affirmations(outside)",
+      "to": "    if False:\n        affirmations = closing_affirmations(outside)",
       "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready)$"
     },
     {
@@ -953,8 +953,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    outside = not_the_verdict(outside)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
-      "to": "    outside = not_the_verdict(outside)\n",
+      "from": "    negatives = list(NEGATIVE.finditer(outside))\n    if negatives:\n        affirmations = closing_affirmations(outside)\n        return \"pass\" if affirmations and affirmations[-1].end() > negatives[-1].end() else \"stop\"\n",
+      "to": "",
       "only": "inside quoted program output"
     },
     {
@@ -1524,8 +1524,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    outside = not_the_verdict(outside)\n    if NEGATIVE.search(outside):",
-      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n    if NEGATIVE.search(outside):",
+      "from": "    outside = not_the_verdict(outside)\n    # The LAST verdict word decides",
+      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n    # The LAST verdict word decides",
       "only": "^an affirmed red-then-green run report is evidence, not a stop$"
     },
     {
@@ -1628,6 +1628,38 @@
       "tests": ["tests/adr-next.test.mjs"],
       "from": "    r\"|(?<![\\w-])fail[-_]to[-_]pass(?![\\w-])\"\n",
       "to": "    r\"|(?<![a-z])fail[-_]to[-_]pass(?![\\w-])\"\n",
+      "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
+    },
+    {
+      "label": "ADR-120 T7: foreign_state enumerates NNN-slug.md records, not only ADR-NNN-slug.md",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "sorted(corpus_dir.glob(\"*.md\"))",
+      "to": "sorted(corpus_dir.glob(\"ADR-*.md\"))",
+      "only": "^a foreign record named NNN-slug is found, and a dated file is no record$"
+    },
+    {
+      "label": "ADR-120 T7: a negative word anywhere stops, whatever the note closes with",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "        return \"pass\" if affirmations and affirmations[-1].end() > negatives[-1].end() else \"stop\"",
+      "to": "        return \"stop\"",
+      "only": "^a sign-off's last verdict word decides$"
+    },
+    {
+      "label": "ADR-120 T7: an affirmative inside quotes counts as the closing verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "            if not any(a <= m.start() < b for a, b in quoted)",
+      "to": "            if not any(False for a, b in quoted)",
+      "only": "^a verdict word inside quotes is not the closing verdict$"
+    },
+    {
+      "label": "ADR-120 T7: an affirmative mid-clause counts as the closing verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next.test.mjs"],
+      "from": "            and CLAUSE_OPENER.search(text[:m.start()])]",
+      "to": "            and True]",
       "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
     }
   ]

@@ -35,7 +35,7 @@ README must be regenerated.
 | [T4](T4-the-session-s-own-plugin.md) | Forwarders run the session's own plugin | done | none — no spec | `node --test --test-reporter=tap tests/plugin-root.test.mjs`, named tests |
 | [T5](T5-relock-advice-per-pair.md) | The relock advice once per check pair | done | none — no spec | `node --test --test-reporter=tap tests/test-lock.test.mjs`, named tests |
 | [T6](T6-a-stop-that-can-act.md) | A Stop continues a turn to run the check only when it is declared | done | none — no spec | `node --test --test-reporter=tap tests/turn-end-declared.test.mjs tests/turn-end-delivery.test.mjs`, named tests, then the Go core |
-| [T7](T7-adr-next-reads-other-corpora.md) | adr-next reads another corpus's records and a sign-off's last verdict | pending | none — no spec | `node --test --test-reporter=tap tests/adr-next-foreign.test.mjs`, named tests |
+| [T7](T7-adr-next-reads-other-corpora.md) | adr-next reads another corpus's records and a sign-off's last verdict | done | none — no spec | `node --test --test-reporter=tap tests/adr-next-foreign.test.mjs`, named tests |
 
 ## Contract Coupling
 

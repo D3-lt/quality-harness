@@ -409,9 +409,10 @@ def quoted(value, limit=160):
 # A sign-off's closing verdict (ADR-120 T7): an affirmative word that SAYS the verdict. It counts only when
 # (a) it is not inside quotes, program-marked or not; (b) it is not an infinitive object, so "fail to pass"
 # and "refusing to ship" are not approvals; (c) it opens a clause: the start of the note, or after ; , . : — or
-# a spaced dash, optionally with "and"/"then"/"so" between. (b) follows from (c): the text before "pass" in
-# "fail to pass" ends in "to ", which opens no clause, so it has no check of its own (a mutant of one survived).
-CLAUSE_OPENER = re.compile(r"(?:^|[;,.:—–]|\s-\s)\s*(?:(?:and|then|so)\s+)?$", re.I)
+# a spaced dash, optionally with "and"/"then"/"so" between, and optionally after the label "verdict" ("Verdict approved",
+# an owner's closing line in a peer corpus, 2026-10-21, read as a stop three times). (b) follows from (c): the text before
+# "pass" in "fail to pass" ends in "to ", which opens no clause, so it has no check of its own (a mutant of one survived).
+CLAUSE_OPENER = re.compile(r"(?:^|[;,.:—–]|\s-\s)\s*(?:(?:and|then|so)\s+)?(?:verdict\s+)?$", re.I)
 
 
 def closing_affirmations(text):

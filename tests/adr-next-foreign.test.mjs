@@ -157,3 +157,21 @@ test('an affirmative that opens a clause before the last is not the closing verd
   assert.equal(verdict('the run failed; approved, see notes'), 'stop')
   assert.equal(verdict('the run failed; approved'), 'pass')
 })
+
+// A peer corpus, 2026-10-21: an owner's sign-off that described what it observed and closed on "Verdict approved" was read as
+// a stop three times, on "refused", "rejected" and "failed" inside the data it described. The label opens the closing clause.
+test('a closing verdict may carry the label "verdict"', () => {
+  for (const note of [
+    'zy signed off the counts: the table shows 1 refused connection. Verdict approved',
+    'zy signed off the reasons: input-rejected is counted once per call. Verdict approved',
+    'zy signed off the log: the rerank_failed field is set on each failure. Verdict approved',
+    'the run failed. Verdict: approved',
+  ]) assert.equal(verdict(note), 'pass', note)
+  for (const note of [
+    'approved. Verdict failed',
+    'the run failed; verdict rejected',
+    'the run failed; verdict',
+    'the run failed; the verdict approved, see notes',
+    'the run failed; verdict approved by the owner later on',
+  ]) assert.equal(verdict(note), 'stop', note)
+})

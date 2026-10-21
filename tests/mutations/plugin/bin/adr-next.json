@@ -1737,6 +1737,14 @@
       "from": "return (\"done\" if not terminal_stop(text) and not human_stop(",
       "to": "return (\"done\" if not human_stop(",
       "only": "^a task waiting on a task whose own Status is terminal is blocked, local or foreign$"
+    },
+    {
+      "label": "ADR-120 T7 (a peer corpus, 2026-10-21): a closing verdict labelled \"verdict\" is not read as one",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "(?:(?:and|then|so)\\s+)?(?:verdict\\s+)?$\"",
+      "to": "(?:(?:and|then|so)\\s+)?$\"",
+      "only": "^a closing verdict may carry the label \"verdict\"$"
     }
   ]
 }

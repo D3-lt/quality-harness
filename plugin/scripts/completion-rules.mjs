@@ -680,7 +680,7 @@ export function completionFacts(input, ended) {
     commit.fastPassed = fastPassed.get(commit.tree)
   }
   return {
-    log, observation, check, root, baseline, writes, status, commits,
+    log, observation, check, origin: origin.origin, root, baseline, writes, status, commits,
     // ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger, read here so the
     // judgement reaches no file. Null when no bound baseline is kept for that tree and this command.
     baselineVerdict: root !== null && baseline?.ok === true && check && check !== 'refused' ? baselineFor(root, baseline.tree, check)?.verdict ?? null : null,
@@ -708,6 +708,11 @@ export function completionJudgement(facts, input) {
   const actions = []
   // A finding said only to the user has not been said to the agent: each audience is counted on its own (ADR-096).
   const channel = channelOf(input.hook_event_name, facts.turnEnd)
+  // ADR-120 T6: R1 and R2 ask the agent to run the check, and a check the plugin inferred is not one the agent can be sure to
+  // run. On an inferred check they are said to the user alone, so each is judged against, and delivered to, that audience.
+  const inferred = facts.origin === 'inferred'
+  const ruleChannel = inferred ? 'user' : channel
+  const audience = inferred ? { audience: 'user' } : {}
   const recipient = input.agent_id ? 'subagent' : 'main'
   const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
     ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]
@@ -731,7 +736,7 @@ export function completionJudgement(facts, input) {
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
     const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
-    if (!emittedFor(log, 'R1', key, channel, recipient)) {
+    if (!emittedFor(log, 'R1', key, ruleChannel, recipient)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
       // ADR-111 T3: the baseline speaks only for a red run of the same command whose tree held still through it and is
@@ -740,7 +745,7 @@ export function completionJudgement(facts, input) {
       const attributable = latest?.event === 'check.failed' && latest.command === check
         && latest.before?.tree === observation.tree && latest.after?.tree === observation.tree
       const treeMoved = typeof latest?.before?.tree === 'string' && typeof latest?.after?.tree === 'string' && latest.before.tree !== latest.after.tree
-      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: latest?.event ?? null, baselineVerdict: attributable ? facts.baselineVerdict ?? null : null, treeMoved }) })
+      actions.push({ rule: 'R1', key, ...audience, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look', checkEvent: latest?.event ?? null, baselineVerdict: attributable ? facts.baselineVerdict ?? null : null, treeMoved }) })
     }
   }
   const unchecked = commits.filter(commit => {
@@ -751,12 +756,12 @@ export function completionJudgement(facts, input) {
     if (observation?.ok === true && commit.tree === observation.tree) return false
     const commitRevision = checkRevision(log, commit.tree)
     if (namedByPublish(log, commit.tree, commitRevision)) return false
-    return !namedByReview(log, `${commit.sha}:${commitRevision}`, channel, recipient)
+    return !namedByReview(log, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)
   })
   if (unchecked.length) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
     actions.push({
-      rule: 'R2', key: keys.join(' '), detail: { commits: keys },
+      rule: 'R2', key: keys.join(' '), detail: { commits: keys }, ...audience,
       text: uncheckedCommitsReason(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
     })
   }

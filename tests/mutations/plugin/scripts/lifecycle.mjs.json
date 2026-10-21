@@ -209,6 +209,26 @@
       "from": "const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))",
       "to": "const directory = path.resolve(input.cwd ?? process.cwd())",
       "only": "^turnEnd\\ notify\\ holds\\ when\\ the\\ working\\ directory\\ has\\ been\\ deleted$"
+    },
+    {
+      "label": "ADR-120 T6: a user-only finding does not go into the agent's context at Stop",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "action.audience !== 'user'",
+      "to": "true",
+      "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
+    },
+    {
+      "label": "ADR-120 T6: a user-only delivery is recorded as reaching the user alone",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "channel: action.audience === 'user' ? 'user' : reachedBy(input),",
+      "to": "channel: reachedBy(input),",
+      "only": "^(?:an inferred finding is recorded as delivered to the user alone, a declared one to both)$"
     }
   ]
 }

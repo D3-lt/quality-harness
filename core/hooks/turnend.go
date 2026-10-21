@@ -182,6 +182,7 @@ type completionFacts struct {
 	commits         commitList
 	unchangedWrites []string
 	turnEnd         string
+	origin          string
 	cwd             string
 	sentence        func() string
 	baselineVerdict string
@@ -210,7 +211,7 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 	if found.ok {
 		root = found.root
 	}
-	f := &completionFacts{log: log, observation: observation, check: check, root: root, cwd: cwd,
+	f := &completionFacts{log: log, observation: observation, check: check, origin: origin.origin, root: root, cwd: cwd,
 		baseline: get(sessionBaseline(log.E), "observation"), writes: unobservableWrites(log, root)}
 	// ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger.
 	if root != "" && isTrue(get(f.baseline, "ok")) && check != "" && check != "refused" {
@@ -446,6 +447,12 @@ func (h *hookRun) completionRules(ended *recorded) {
 	observation := f.observation
 	channel := channelOf(h.event, f.turnEnd)
 	recipient := h.recipient()
+	// ADR-120 T6: R1 and R2 ask the agent to run the check, and a check the plugin inferred is not one the agent can be sure to
+	// run. On an inferred check they are said to the user alone, so each is judged against, and delivered to, that audience.
+	ruleChannel, audience := channel, ""
+	if f.origin == "inferred" {
+		ruleChannel, audience = "user", "user"
+	}
 	base := f.root
 	if base == "" {
 		base = resolvePath(f.cwd)
@@ -479,7 +486,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 			treeKey = jsString(tree)
 		}
 		key := fmt.Sprintf("%s:%d:%d", treeKey, revision, len(f.writes))
-		if !emittedFor(log, "R1", key, channel, recipient) {
+		if !emittedFor(log, "R1", key, ruleChannel, recipient) {
 			speaksFor := []*commit{}
 			for _, c := range f.commits.list {
 				if observed && strict(c.tree, tree) {
@@ -500,7 +507,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 			}
 			before, beforeIsString := dig(latest, "before", "tree").(string)
 			after, afterIsString := dig(latest, "after", "tree").(string)
-			h.queue(action{rule: "R1", key: key, text: uncheckedWorkReason(f.sentence(), f.status.list, len(f.writes), speaksFor, reasonFlags{
+			h.queue(action{rule: "R1", key: key, audience: audience, text: uncheckedWorkReason(f.sentence(), f.status.list, len(f.writes), speaksFor, reasonFlags{
 				logTorn: logIncomplete(log), tornWords: tornRecord(log, ""),
 				orderUnknown: observed && checkStanding(log, tree) == "unresolved",
 				couldNotLook: observed && checkStanding(log, tree) == "could-not-look", checkEvent: checkEvent,
@@ -517,7 +524,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 		if namedByPublish(log, c.tree, commitRevision) {
 			continue
 		}
-		if namedByReview(log, fmt.Sprintf("%s:%d", c.sha, commitRevision), channel, recipient) {
+		if namedByReview(log, fmt.Sprintf("%s:%d", c.sha, commitRevision), ruleChannel, recipient) {
 			continue
 		}
 		unchecked = append(unchecked, c)
@@ -534,7 +541,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 			orderUnknown = orderUnknown || standing == "unresolved"
 			couldNotLook = couldNotLook || standing == "could-not-look"
 		}
-		h.queue(action{rule: "R2", key: strings.Join(keyStrings, " "), detail: O("commits", keys),
+		h.queue(action{rule: "R2", key: strings.Join(keyStrings, " "), detail: O("commits", keys), audience: audience,
 			text: uncheckedCommitsReason(f.sentence(), unchecked, reasonFlags{logTorn: logIncomplete(log), tornWords: tornRecord(log, ""), orderUnknown: orderUnknown, couldNotLook: couldNotLook})})
 	}
 	if !observed || f.status.failed || f.commits.failed || logIncomplete(log) {

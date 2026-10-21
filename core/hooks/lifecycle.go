@@ -14,11 +14,12 @@ import (
 )
 
 type action struct {
-	rule   string
-	key    any
-	detail *Obj
-	deny   bool
-	text   string
+	rule     string
+	key      any
+	detail   *Obj
+	deny     bool
+	text     string
+	audience string // "user" marks a finding shown to the user alone: it does not continue a Stop (ADR-120 T6)
 }
 
 // hookRun is one hook process: its input, the actions its rules queued and the one JSON object the older rules emit.
@@ -253,15 +254,15 @@ func (h *hookRun) deliver() {
 			if output == nil {
 				output = O()
 			}
-			appendContext := func(eventName string) {
+			appendContext := func(eventName, text string) {
 				specific, ok := output.Get("hookSpecificOutput").(*Obj)
 				if !ok {
 					specific = O("hookEventName", eventName)
 				}
 				if existing, ok := specific.Get("additionalContext").(string); ok && existing != "" {
-					specific.Set("additionalContext", existing+"\n\n"+joined)
+					specific.Set("additionalContext", existing+"\n\n"+text)
 				} else {
-					specific.Set("additionalContext", joined)
+					specific.Set("additionalContext", text)
 				}
 				output.Set("hookSpecificOutput", specific)
 			}
@@ -273,10 +274,18 @@ func (h *hookRun) deliver() {
 				}
 			}
 			if h.event == "PreToolUse" {
-				appendContext("PreToolUse")
+				appendContext("PreToolUse", joined)
 				systemMessage("\n", "quality-harness advised the agent: "+advisoryHeadline(texts[0])+" (full text in the transcript)")
 			} else if h.stopReachesAgent() {
-				appendContext("Stop")
+				forAgent := []string{}
+				for _, a := range delivered {
+					if a.audience != "user" {
+						forAgent = append(forAgent, a.text)
+					}
+				}
+				if len(forAgent) > 0 {
+					appendContext("Stop", strings.Join(forAgent, "\n\n"))
+				}
 				systemMessage("\n\n", joined)
 			} else {
 				systemMessage("\n\n", joined)
@@ -293,6 +302,9 @@ func (h *hookRun) deliver() {
 			row.Set("detail", a.detail)
 		}
 		row.Set("channel", h.reachedBy())
+		if a.audience == "user" {
+			row.Set("channel", "user")
+		}
 		row.Set("recipient", h.recipient())
 		appendEvent(h.cwd, h.session, row)
 	}

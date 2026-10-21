@@ -115,9 +115,13 @@ export function deliver(actions, input, { legacy = null } = {}) {
       } else if (stopReachesAgent(input)) {
         // ADR-096: a turn-end finding is the main agent's to act on. additionalContext reaches it and continues its turn once
         // (the next Stop carries stop_hook_active, and onTurnEnd says nothing then); the user is shown the same text as before.
-        const specific = output.hookSpecificOutput ?? { hookEventName: 'Stop' }
-        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${joined}` : joined
-        output.hookSpecificOutput = specific
+        // ADR-120 T6: a finding marked for the user alone (R1 and R2 on an inferred check) is shown, and does not continue the turn.
+        const forAgent = delivered.filter(action => action.audience !== 'user').map(action => action.text).join('\n\n')
+        if (forAgent) {
+          const specific = output.hookSpecificOutput ?? { hookEventName: 'Stop' }
+          specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${forAgent}` : forAgent
+          output.hookSpecificOutput = specific
+        }
         output.systemMessage = output.systemMessage ? `${output.systemMessage}\n\n${joined}` : joined
       } else {
         output.systemMessage = output.systemMessage ? `${output.systemMessage}\n\n${joined}` : joined
@@ -129,7 +133,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
     if (action.rule) {
       appendEvent(input.cwd, input.session_id, {
         event: 'action.emitted', rule: action.rule, key: action.key ?? null, ...(action.detail ? { detail: action.detail } : {}),
-        channel: reachedBy(input), recipient: recipientOf(input),
+        channel: action.audience === 'user' ? 'user' : reachedBy(input), recipient: recipientOf(input),
       })
     }
   }

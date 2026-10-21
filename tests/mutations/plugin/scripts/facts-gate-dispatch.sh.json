@@ -594,6 +594,14 @@
       "from": "[ \"$status\" -eq 2 ] && say_unproven \"$verdict\"",
       "to": ":",
       "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T15 (the full check of 2026-10-21): the lock-drift scan gates every task that names the file",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-scope.test.mjs"],
+      "from": "  pattern=\"^\\|[^|]*\\|[^|]*$(printf",
+      "to": "  pattern=\"$(printf",
+      "only": "^the lock-drift scan gates a task whose Tests table names the file, and not one that only lists it as affected$"
     }
   ]
 }

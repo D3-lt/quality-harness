@@ -302,7 +302,6 @@ def neutralise(text):
 # stays a false stop, the owner's choice of 2026-10-08.
 RED_RUN = re.compile(r"(?<![a-z])red\s+run(?![a-z])", re.I)
 GREEN_RUN = re.compile(r"(?<![a-z])green\s+run(?![a-z])", re.I)
-RUN_REPORT = re.compile(r"(?<![a-z])run\s+#?\d+", re.I)
 CLAUSE_BREAK = re.compile(r"[;—–]|\.(?=\s|$)|(?<![a-z])(?:but|then|however)(?![a-z])", re.I)
 # "no tests failed", "no failed tests": an absent failure, but only of a CLOSED list of nouns (BACKLOG §361,
 # left open in §354), and only as a WHOLE CLAUSE: the start of the note or a punctuation mark before it, the

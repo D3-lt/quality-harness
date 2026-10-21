@@ -273,9 +273,12 @@ test('a process a fence leaves running is ended before its worktree goes', posix
   let pids = []
   try {
     const run = verify(dir, [], { FIXTURE_LEFTOVER: left })
-    assert.equal(run.status, 0, run.stdout + run.stderr)
+    // ADR-120 T10 (the owner, 2026-10-21): a clean fence that leaves work running records no pass and applies no mutant,
+    // and what it left is still ended before its worktree goes.
+    assert.notEqual(run.status, 0, run.stdout + run.stderr)
+    assert.match(run.stdout + run.stderr, /the fence returned with work it started still running/)
     pids = readFileSync(left, 'utf8').split('\n').filter(Boolean).map(Number)
-    assert.equal(pids.length, 2, 'each fence should have left one process')
+    assert.equal(pids.length, 1, 'the clean fence left one process, and no mutant fence ran')
     assert.deepEqual(aliveOf(pids), [], 'a process a fence left is still running')
     assert.equal(worktrees(dir), 1, 'the worktree outlived the run')
   } finally {

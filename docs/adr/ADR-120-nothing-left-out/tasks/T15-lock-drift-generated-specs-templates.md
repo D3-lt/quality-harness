@@ -19,6 +19,7 @@ When a session's changes move a test body another task locks, the turn end names
 |------|--------|-----|
 | `tests/lock-drift-commit.test.mjs` | create | the lock rows (0 locks: new) |
 | `tests/spec-ignore.test.mjs` | create | the ignore rows (0 locks: new) |
+| `tests/lock-drift-scope.test.mjs` | create | the full check of 2026-10-21: the scan gates only a task whose Tests table names the file (0 locks: new) |
 | `plugin/scripts/facts-gate-dispatch.sh` | edit | at the commit and turn-end boundaries (not per edit), for a changed non-Markdown path, find the tasks that name it (`git grep --untracked`) and gate them, printing each `locked test` line prefixed `lock drift:`; the dispatcher is the one place both the Node pass and the Go core call, so no record grammar loads in Node and Go needs no change (the executor's design, reviewed 2026-10-21); and skip a spec `spec-skip.mjs` marks generated or ignored |
 | `plugin/scripts/spec-skip.mjs` | create | `git check-attr linguist-generated` and the project's `ignore` globs; without node or on any error the spec stays gated, and a refused declaration says UNPROVEN |
 | `plugin/scripts/project-config.mjs` | edit | validate `ignore`, as `prose` is validated (:69-98) |
@@ -35,9 +36,10 @@ When a session's changes move a test body another task locks, the turn end names
 ## Acceptance
 
 ```bash
-out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \
+out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \
   && for n in "an edit that moves another task's locked test names the task and the relock" \
-      "a generated or ignored spec is not gated, and the same spec elsewhere still is"; do
+      "a generated or ignored spec is not gated, and the same spec elsewhere still is" \
+      "the lock-drift scan gates a task whose Tests table names the file, and not one that only lists it as affected"; do
     test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "$n")" = 1 || exit 1
   done
 ```
@@ -48,6 +50,7 @@ out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spe
 |-----------|------|----------|--------|-------|
 | `an edit that moves another task's locked test names the task and the relock` | `tests/lock-drift-commit.test.mjs` | lock drift | — | S1, S2 |
 | `a generated or ignored spec is not gated, and the same spec elsewhere still is` | `tests/spec-ignore.test.mjs` | the ignore rule | — | S1, S2 |
+| `the lock-drift scan gates a task whose Tests table names the file, and not one that only lists it as affected` | `tests/lock-drift-scope.test.mjs` | the scan's scope (measured 2026-10-21: a boundary dispatch on plugin/bin/adr-next went from 90 s to 0.18 s) | — | S1, S2 |
 
 ## Reachability
 
@@ -74,6 +77,7 @@ out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spe
 - 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/spec-skip.mjs` · any listed path skips every spec · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
 - 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/project-config.mjs` · an ignore declaration that could hide the whole tree is accepted · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
 - 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/project-config.mjs` · ignore is never read · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · b76ac9e0* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the lock-drift scan gates every task that names the file, so a boundary dispatch on plugin/bin/adr-next ran 25 task gates and took 90 s (the full check of 2026-10-21) · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a
 
 ## Invariants
 
@@ -110,3 +114,4 @@ Stop if reading the locks needs the record grammar loaded in Node: the artifact 
 - 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:14283
 - 2026-10-21 · 20df5a3c* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:0 · test-lock-sha256:d771e99094668dd24802c97418df03e417dae5278fc9fd58dfa41a3c765756b8 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbG9jay1kcmlmdC1jb21taXQudGVzdC5tanMJYW4gZWRpdCB0aGF0IG1vdmVzIGFub3RoZXIgdGFzaydzIGxvY2tlZCB0ZXN0IG5hbWVzIHRoZSB0YXNrIGFuZCB0aGUgcmVsb2NrCTdjNjMwNTBhMzIxMGNhMzFjNWU4YTNhMjg3MmU3NTljOTg5ZTYzNWJkMTU5ZjBjOThhMThmMWJlODY1MmVjZGUKYm9keQl0ZXN0cy9zcGVjLWlnbm9yZS50ZXN0Lm1qcwlhIGdlbmVyYXRlZCBvciBpZ25vcmVkIHNwZWMgaXMgbm90IGdhdGVkLCBhbmQgdGhlIHNhbWUgc3BlYyBlbHNld2hlcmUgc3RpbGwgaXMJOWUzYmUzNjkxODY1YTZmNTMwMWMyZThiODhhYzc4ZjRiNGViMWYyODU5NGU4YThjNDdkYzM3ZGJmZDg2YTQwYQ · test-lock-kind:replace
 - 2026-10-21 · human-observed · observed by the coordinator at 4d2d6819: the task template's Risks asks what each test double does not model and which test or run meets the real one, and the adr-retire skill states the Archived receipt line and what adr-debt reads from it; the wording matches adr-debt · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · b76ac9e0* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs tests/lock-drift-scope.test.mjs 2>&1) \ …` · acceptance-sha256:ae27dae063f6946d020eee033c688ccd129369c7cf3ae4002673d16199be759a · ms:7773

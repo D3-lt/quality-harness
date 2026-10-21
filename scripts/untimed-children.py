@@ -6,8 +6,10 @@ another project hung in regex backtracking for 15.5 hours at 90% of a core each,
 reparented to launchd, found by a hot laptop rather than by any test output.
 This walks the AST of every gate under plugin/bin and reports each call to
 subprocess.run / call / check_call / check_output / Popen that names no
-`timeout=`. Popen inside `run_bounded` is the one exemption: that helper is the
-bound (its communicate carries the timeout and its cleanup kills the tree).
+`timeout=`. Popen inside `run_bounded` is one exemption: that helper is the
+bound (its communicate carries the timeout and its cleanup kills the tree). Popen inside adr-verify's
+`start_background` is the other: it is waited on by nobody by design, and the detached child it starts bounds itself
+(its fence through run_bounded, the rest through a watchdog timer in run_background, ADR-120 T10).
 
 REPOSITORY TOOLING, never shipped. Exit 1 with one line per finding, exit 0
 with none — and tests/untimed-children.test.mjs shows it returning dirty on a
@@ -68,7 +70,7 @@ def subprocess_calls(source):
             attr = aliases[where][node.func.id]
         else:
             continue
-        if attr == "Popen" and where == "run_bounded":
+        if attr == "Popen" and where in ("run_bounded", "start_background"):
             continue
         yield node, attr, where
 

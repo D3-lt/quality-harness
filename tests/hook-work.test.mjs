@@ -372,21 +372,28 @@ test('historical archive discovery uses one scoped Git query and preserves neare
     'commit', '-qm', 'archive fixture'], project)
   rmSync(archive, { recursive: true })
   const trace = path.join(root, 'git.trace')
-  const check = file => {
+  const check = (file, boundary) => {
     writeFileSync(trace, '')
     const result = run(['bash', path.join(scripts, 'facts-gate-dispatch.sh').replaceAll('\\', '/'),
-      file.replaceAll('\\', '/')], project, { GIT_TRACE: trace })
+      file.replaceAll('\\', '/'), ...(boundary ? [boundary] : [])], project, { GIT_TRACE: trace })
     return { output: result.stderr + result.stdout, trace: readFileSync(trace, 'utf8') }
   }
+  const gitOf = probe => probe.trace.split('\n').filter(line => line.includes('built-in: git'))
   assert.match(check(path.join(nested, 'record.md')).output, /CATALOG .*archive \[x\]\/nested space\/README\.md/)
   assert.match(check(nested).output, /CATALOG .*archive \[x\]\/nested space\/README\.md/,
     'a deleted directory is governed by its own historical catalog')
   assert.match(check(path.join(archive, 'record.md')).output, /CATALOG .*archive \[x\]\/README\.md/)
-  const ordinary = check(source)
+  // Per edit (PostToolUse): repository discovery plus one scoped history query, and nothing more.
+  const ordinary = check(source, 'PostToolUse')
   assert.equal(ordinary.output, '', 'unrelated source must not acquire archive findings')
-  const commands = ordinary.trace.split('\n').filter(line => line.includes('built-in: git'))
+  const commands = gitOf(ordinary)
   assert.ok(commands.length > 0, 'the probe must observe actual Git work')
-  assert.equal(commands.length, 2, 'repository discovery plus one scoped history query')
+  assert.equal(commands.length, 2, `repository discovery plus one scoped history query:\n${commands.join('\n')}`)
+  // At a commit or turn-end boundary ADR-120 T15's lock-drift scan adds its own discovery and one grep of the task files,
+  // once per file and never per edit.
+  const atBoundary = gitOf(check(source))
+  assert.equal(atBoundary.length, 4, `the per-edit work plus the lock-drift discovery and grep:\n${atBoundary.join('\n')}`)
+  assert.match(atBoundary.at(-1), /git grep --untracked -l -z -E .*-- 'tasks\/\*\.md'/)
 
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
@@ -405,7 +412,14 @@ test('historical archive discovery uses one scoped Git query and preserves neare
     'both deleted records still reach their nearest archive checker:\n' + batch.stdout + batch.stderr)
   assert.doesNotMatch(batch.stdout + batch.stderr, /CATALOG .*src/)
   const batchCommands = readFileSync(trace, 'utf8').split('\n').filter(line => line.includes('built-in: git'))
-  assert.ok(batchCommands.length <= 4, 'one history snapshot must replace repeated per-file probes:\n' + batchCommands.join('\n'))
+  // One history snapshot for the whole batch replaces the per-file probes; ADR-120 T15's lock-drift scan adds, per file it
+  // reads, one discovery and one grep of the task files, and nothing else.
+  const history = batchCommands.filter(line => /built-in: git (ls-tree|cat-file|log|show|grep -l -z -G)/.test(line))
+  const lockGreps = batchCommands.filter(line => /built-in: git grep --untracked -l -z -E/.test(line))
+  assert.ok(history.length <= 2, 'one history snapshot must replace repeated per-file probes:\n' + batchCommands.join('\n'))
+  assert.ok(lockGreps.length <= 2, 'at most one lock-drift grep per file the batch reads:\n' + batchCommands.join('\n'))
+  assert.ok(batchCommands.length <= 2 + history.length + 2 * lockGreps.length,
+    'nothing beyond discovery, the snapshot and the lock-drift scan:\n' + batchCommands.join('\n'))
 })
 
 // BACKLOG §378: a deleted file whose name cannot be a record is passed in silence only when history held it as a file.

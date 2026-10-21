@@ -3133,15 +3133,15 @@ def start_background(task, cwd, steps):
     if steps:
         argv += ["--steps", steps]
     # Detached, with its output in the log and no stdin: a child holding this process's pipes would
-    # keep the caller waiting for the very run this call exists to return from.
-    popen = {"stdin": subprocess.DEVNULL, "stderr": subprocess.STDOUT, "close_fds": True}
-    if os.name == "nt":
-        popen["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-    else:
-        popen["start_new_session"] = True
+    # keep the caller waiting for the very run this call exists to return from. On Windows DETACHED_PROCESS and
+    # CREATE_NEW_PROCESS_GROUP; CREATE_NO_WINDOW beside them is ignored there (a detached child has no console at all, and
+    # its own children carry NO_WINDOW) and is named so untimed-children's --hidden reading sees it.
+    windows = os.name == "nt"
     try:
         with open(log, "wb") as out:
-            proc = subprocess.Popen(argv, stdout=out, **popen)
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, close_fds=True,
+                                    creationflags=(0x00000008 | 0x00000200 | 0x08000000) if windows else 0,
+                                    start_new_session=not windows)
         lease.write_text(json.dumps({"id": run_id, "pid": proc.pid}), encoding="utf-8")
     except OSError as exc:
         lease.unlink(missing_ok=True)
@@ -3157,6 +3157,12 @@ def start_background(task, cwd, steps):
 def run_background(task, text, cmd, cwd, steps, run_id):
     """The detached child: run the fence, then write the row a foreground run would write."""
     lease, _ = background_files(task)
+    # The child bounds itself: its fence through run_bounded, and everything else it does (the git reads, the row) through
+    # this watchdog, so a hang after the fence cannot hold the lease for ever. A lease left by the exit is stale by its pid.
+    import threading
+    watchdog = threading.Timer(fence_timeout() + 300, os._exit, args=(124,))
+    watchdog.daemon = True
+    watchdog.start()
     code = 1
     try:
         before = tree_fingerprint(cwd)

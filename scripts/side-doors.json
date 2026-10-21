@@ -7,7 +7,8 @@
       "plugin/bin/adr-verify": "the one writer of a task's Verification Log and Mutation Log (CLAUDE.md §4)",
       "plugin/bin/adr-lint": "names the Mutation Log in its advice; what it writes is its own cache, by write_text and replace (ADR-113)",
       "plugin/scripts/completion-rules.mjs": "names the Verification Log in a turn-end sentence; what it writes is claims.jsonl (ADR-113)",
-      "plugin/lib/record.py": "write_receipts, the one writer of receipts.jsonl, called by adr-verify's append_entry alone (ADR-117 T2)"
+      "plugin/lib/record.py": "write_receipts, the one writer of receipts.jsonl, called by adr-verify's append_entry alone (ADR-117 T2)",
+      "core/hooks/prose_test.go": "a Go test that writes a fixture checks.jsonl into its own temporary repository's state directory (ADR-120 T9); it is never built into qh and never reaches a user's ledger"
     },
     "spawn": {
       "plugin/scripts/qh-check.mjs commit": "qh-check --commit commits only on its own check's pass, and refuses a tree unlike the index (ADR-100)"

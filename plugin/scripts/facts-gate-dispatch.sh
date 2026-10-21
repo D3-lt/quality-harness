@@ -37,13 +37,26 @@ say_unproven() {
 # Keep ownership resolution here and key the full argv, not an ADR basename.
 # The caller retains the first finding; a repeated command need not report it again.
 run_adr_lint() {
-  local ledger="" key status
+  local ledger="" key status lint line
   [ "$boundary" = "PostToolUse" ] || ledger=${QUALITY_HARNESS_ADR_LEDGER-}
   printf -v key '%q ' "$BIN/adr-lint" "$@"
   if [ -n "$ledger" ] && grep -Fqx -- "$key" "$ledger" 2>/dev/null; then
     return 0
   fi
-  "$BIN/adr-lint" "$@"; status=$?
+  # A lock-drift scan (lock_drift) reads the pass's ledger without writing it: a record this pass already linted has said
+  # every lock line, so the scan says none again (the review of 8676b9ac).
+  if [ -n "${QH_LOCK_DRIFT_PASS-}" ] && grep -Fqx -- "$key" "$QH_LOCK_DRIFT_PASS" 2>/dev/null; then
+    return 0
+  fi
+  if [ -n "$ledger" ] && [ -s "$ledger.drift" ]; then
+    # And a lock line this pass already said as lock drift is not said again by the record's own lint.
+    lint=$("$BIN/adr-lint" "$@" 2>&1); status=$?
+    while IFS= read -r line; do
+      grep -Fqx -- "${line#"${line%%[![:space:]]*}"}" "$ledger.drift" 2>/dev/null || printf '%s\n' "$line"
+    done <<< "$lint"
+  else
+    "$BIN/adr-lint" "$@"; status=$?
+  fi
   # A timed-out or interrupted command has not completed a check.
   if [ -n "$ledger" ] && [ "$status" -lt 128 ]; then
     { printf '%s\n' "$key" >> "$ledger"; } 2>/dev/null || :
@@ -333,15 +346,21 @@ tests_naming() {
 }
 
 lock_drift() {
-  local in_repo in_repo_rel task said line
+  local in_repo in_repo_rel task said line pass=${QUALITY_HARNESS_ADR_LEDGER-}
   [ "$boundary" = "PostToolUse" ] && return 0
   repo_path_of "$1" || return 0
   while IFS= read -r -d '' task; do
     # The nested gate keeps no adr-lint ledger: its output is filtered to THIS file, so a lint it cached would be silence for
-    # the next changed file the same task locks (the Codex review of 0b129010..bca51180).
-    said=$(QUALITY_HARNESS_ADR_LEDGER= "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
+    # the next changed file the same task locks (the Codex review of 0b129010..bca51180). It reads the pass's ledger, and
+    # each line said is kept beside it, so a lock line is said once in a pass (the review of 8676b9ac).
+    said=$(QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS="$pass" "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
     while IFS= read -r line; do
-      printf 'lock drift: %s\n' "${line#"${line%%[![:space:]]*}"}" >&2
+      line=${line#"${line%%[![:space:]]*}"}
+      if [ -n "$pass" ]; then
+        grep -Fqx -- "$line" "$pass.drift" 2>/dev/null && continue
+        { printf '%s\n' "$line" >> "$pass.drift"; } 2>/dev/null || :
+      fi
+      printf 'lock drift: %s\n' "$line" >&2
     done < <(printf '%s\n' "$said" | grep -F -- "locked test \`$in_repo_rel\`")
   done < <(git -C "$in_repo" grep --untracked -l -z -F --threads=1 --no-textconv -e "$in_repo_rel" -- 'tasks/*.md' '*/tasks/*.md' 2>/dev/null \
     | tests_naming "$in_repo" "$in_repo_rel")

@@ -127,3 +127,22 @@ test('two edited test files one task locks each get their drift line in one pass
     }
   } finally { remove(dir) }
 })
+
+// The review of 8676b9ac: a pass that gates the task's own record as well as a test file it locks says the lock finding once,
+// whichever comes first; the record's lint says it, or the drift line does.
+test('a pass gating a task and a test file it locks says the moved lock once, in either order', () => {
+  const dir = fixture()
+  try {
+    const locked = join(dir, 'tests', 'lock-subject.test.mjs')
+    const task = join(dir, 'docs', 'adr', 'ADR-001-probe', 'tasks', 'T1-lock.md')
+    // Clean twin: nothing moved, so neither order says a lock finding.
+    for (const order of [[task, locked], [locked, task]]) assert.equal(driftLines(runArtifactGates(order, dir)).length, 0)
+    writeFileSync(locked, HEAD + "test('locked dirty', () => {\n  assert.equal(1, 2)\n})\n")
+    for (const order of [[task, locked], [locked, task]]) {
+      const said = runArtifactGates(order, dir)
+      const lines = driftLines(said)
+      assert.equal(lines.length, 1, `the moved lock once:\n${said}`)
+      assert.match(lines[0], /locked dirty/)
+    }
+  } finally { remove(dir) }
+})

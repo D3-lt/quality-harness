@@ -1,11 +1,27 @@
 {
   "mutations": [
     {
+      "label": "the review of 8676b9ac: a lock-drift scan says nothing for a record the pass already linted",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "  if [ -n \"${QH_LOCK_DRIFT_PASS-}\" ] && grep -Fqx -- \"$key\" \"$QH_LOCK_DRIFT_PASS\" 2>/dev/null; then",
+      "to": "  if false; then",
+      "only": "^(?:a pass gating a task and a test file it locks says the moved lock once, in either order)$"
+    },
+    {
+      "label": "the review of 8676b9ac: a record's lint drops a lock line the pass already said as lock drift",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "  if [ -n \"$ledger\" ] && [ -s \"$ledger.drift\" ]; then",
+      "to": "  if false; then",
+      "only": "^(?:a pass gating a task and a test file it locks says the moved lock once, in either order)$"
+    },
+    {
       "label": "Codex review of 0b129010..bca51180: the nested lock-drift gate keeps no adr-lint ledger",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/lock-drift-commit.test.mjs"],
-      "from": "    said=$(QUALITY_HARNESS_ADR_LEDGER= \"$BASH\" \"${BASH_SOURCE[0]}\" \"$in_repo/$task\" 2>&1) || :",
-      "to": "    said=$(\"$BASH\" \"${BASH_SOURCE[0]}\" \"$in_repo/$task\" 2>&1) || :",
+      "from": "    said=$(QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS=\"$pass\" \"$BASH\"",
+      "to": "    said=$(QH_LOCK_DRIFT_PASS=\"$pass\" \"$BASH\"",
       "only": "^(?:two edited test files one task locks each get their drift line in one pass)$"
     },
     {
@@ -575,8 +591,8 @@
       "label": "ADR-120 T15: lock drift is on the finding stream",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/lock-drift-commit.test.mjs"],
-      "from": "[:space:]]*}\"}\" >&2",
-      "to": "[:space:]]*}\"}\"",
+      "from": "      printf 'lock drift: %s\\n' \"$line\" >&2",
+      "to": "      printf 'lock drift: %s\\n' \"$line\"",
       "only": "^an edit that moves another task's locked test names the task and the relock$"
     },
     {

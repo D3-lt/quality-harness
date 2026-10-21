@@ -88,6 +88,12 @@ that proved itself is handed to memoryd, so the next session starts from it inst
    ADR-163's stage. The watcher becomes the default only if cost's 99% upper bound is below P's and solved's lower bound is
    above −0.10, the bar ADR-163 pre-registered for its Q arm; otherwise it stays opt-in, and the record says so.
 
+7. **mrw and memoryd are optional enhancers, never requirements (the owner, 2026-10-21).** quality-harness works whole
+   without either: with neither present every rule, gate and the watcher behave as decided above. Each integration is
+   detected, never assumed: with mrw present, its receipts make writes visible (T5) and fewer turns reach the gates; with
+   memoryd present, lessons persist across sessions (T5). Absent, the feature is off and said once per session, never an
+   error, a refusal or a degraded verdict. Every task's tests run with each absent as well as present.
+
 What would make this fail: a rule retired for a project that later catches a real defect there (T3 keeps retired rules
 recording, so the ledger shows it), or an intervention that the ledger shows acted on but the bench shows costly.
 

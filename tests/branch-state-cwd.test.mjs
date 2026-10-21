@@ -150,6 +150,8 @@ test('a permanent unknown is heard once by each session and survives a refresh o
   const old = Date.now() - 121_000
   writeFileSync(cache, JSON.stringify({ ...stored, at: old }))
   assert.equal(prompt('two').stdout, '', 'a due snapshot is served to a session that has heard it')
-  assert.ok(waitFor(cache, saved => saved.at > old && saved.state?.looked === true), 'the refresher rewrote the snapshot')
+  // A whole snapshot, not the refresher's git-half checkpoint (`partial`, CI not yet looked at): a prompt between the two
+  // read the checkpoint and said its could-not-look (land/ee3886b0, ubuntu; tests/branch-state.test.mjs waits the same way).
+  assert.ok(waitFor(cache, saved => saved.at > old && saved.partial !== true && saved.state?.looked === true), 'the refresher rewrote the snapshot')
   assert.equal(prompt('two').stdout, '', 'and what the session heard is kept across the refresh')
 })

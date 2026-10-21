@@ -406,54 +406,28 @@ def quoted(value, limit=160):
     """shown(), and marked as the task file's words rather than this tool's."""
     return f"«{shown(value, limit)}»"
 
-# A sign-off's closing verdict (ADR-120 T7): an affirmative word that SAYS the verdict. It counts only when
-# (a) it is not inside quotes, program-marked or not; (b) it is not an infinitive object, so "fail to pass"
-# and "refusing to ship" are not approvals; (c) it opens a clause: the start of the note, or after ; , . : — or
-# a spaced dash, optionally with "and"/"then"/"so" between, and optionally after the label "verdict" ("Verdict approved",
-# an owner's closing line in a peer corpus, 2026-10-21, read as a stop three times). (b) follows from (c): the text before
-# "pass" in "fail to pass" ends in "to ", which opens no clause, so it has no check of its own (a mutant of one survived).
-CLAUSE_OPENER = re.compile(r"(?:^|[;,.:—–]|\s-\s)\s*(?:(?:and|then|so)\s+)?(?:verdict\s+)?$", re.I)
-
-
-def closing_affirmations(text):
-    """The affirmative matches in text that may be the note's closing verdict."""
-    quoted = [m.span() for m in QUOTED.finditer(text)]
-    return [m for m in AFFIRMATIVE.finditer(text)
-            if not any(a <= m.start() < b for a, b in quoted)
-            and CLAUSE_OPENER.search(text[:m.start()])]
-
-
-# The note's closing verdict (ADR-120 T7, Codex review 2026-10-21): an affirmative after a failure counts only when it opens
-# the note's FINAL clause (the text after its last ; . , : — or spaced dash), that clause holds no negative word and is at
-# most four words: "approved", "approved by the owner", "signed off". "step 2 failed; pass rate 0/10, unresolved" is a failure
-# report whose last clause merely starts with "pass". A "." or "," between two digits ("21.10.2026", "1,000") breaks no clause.
+# A sign-off's closing verdict (ADR-120 T7). Once a note names a failure, it is done only when its FINAL clause (the text after
+# its last ; . , : — or spaced dash, with quotes masked) is a closing approval and nothing else: an approval word, optionally
+# labelled "verdict", optionally "by <who>", optionally a date. "passed …" and "ok …" never override a failure, and anything
+# else in that clause stops: a tally, a qualifier, a name, a second thought. The owner chose this on 2026-10-21, after five
+# review rounds in which each patch to a reader of free-form closing clauses ("passed 0 tests", "approved 21 October 2026",
+# "approved 2FA rollout", "passed only 0 tests", "ok 0ms") opened another hole. A "." or "," between two digits
+# ("21.10.2026", "1,000") breaks no clause.
 CLOSING_BREAK = re.compile(r"[;:—–]|(?<!\d)[.,]|[.,](?!\d)|\s-\s")
-CLOSING_WORDS = 4
-# An affirmative followed by a noun that counts ("pass rate zero", "pass count 0", "passed 3 of 10") reports a tally, which is no verdict;
-# so does one followed by any number that is not a date ("passed 0 jobs", "passed 3/10.", "ok 0.0%"). A list of what counts left
-# forms out and read them as approvals (the verification of 9ca659df..e5d6c515), so the exception is the date instead, and a date
-# spelled some other way stops, the safe direction: "2026-10-21", "21/10/2026", "21.10.2026", "21 October 2026", "21st Oct".
 DATE = (r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|"
-        r"\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)(?!\d|[/.-]\d)")
-# A number joined to letters names something ("approved 2FA rollout"), and a hedge before a count does not hide it ("passed
-# only 0 tests"): the verification of e5d6c515..2e0d8726.
-COUNTED = r"(?!" + DATE + r")\d[\d.,/]*(?![a-z_])"
-HEDGE = r"(?:(?:only|just|exactly|about|around|over|under|nearly|almost|roughly)\s+)?"
-MEASURED = re.compile(r"\s+" + HEDGE + r"(?:(?:\d+\s+)?of\s+\d|" + COUNTED + r"|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
+        r"\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?:\s+\d{4})?)")
+CLOSING_APPROVAL = re.compile(r"(?:(?:and|then|so)\s+)?(?:verdict\s+)?(?:approved|signed[- ]off|verified|observed|confirmed)"
+                              r"(?:\s+by\s+(?:the\s+)?[\w.@'-]+)?(?:\s+(?:on\s+)?" + DATE + r")?", re.I)
 
 
-def closes_the_note(text, match):
-    """Whether the affirmative `match` in `text` is the note's whole final clause, and a short one."""
-    # A numbered run's own pass word ("green run 222: ok", "second run 222: ok") reports that run; it is not the note's
-    # verdict (ADR-119 T3).
-    run = list(RUN_REPORT.finditer(text, 0, match.start()))
-    if run and not CLAUSE_BREAK.search(text, run[-1].end(), match.start()):
-        return False
-    # Quotes hide only their break characters: a negative word inside one still counts, as human_outcome reads it.
-    masked = QUOTED.sub(lambda q: " " * len(q.group()), text)
-    tail = re.sub(r"[;,.:—–\s]+$", "", masked[match.start():])
-    return (not CLOSING_BREAK.search(tail) and not NEGATIVE.search(text, match.start())
-            and not MEASURED.match(masked, match.end()) and len(tail.split()) <= CLOSING_WORDS)
+def closes_with_approval(text):
+    """Whether the note's final clause is a closing approval and nothing else."""
+    # Unmasked: a quote in the final clause is more than an approval, so it stops ('approved "see: notes"'). No approval
+    # word is negative, so a clause holding a negative word ("confirmed 'rejected'") never matches.
+    body = re.sub(r"[;,.:—–\s]+$", "", text)
+    breaks = list(CLOSING_BREAK.finditer(body))
+    start = breaks[-1].end() if breaks else 0
+    return CLOSING_APPROVAL.fullmatch(body[start:].strip()) is not None
 
 
 def human_outcome(note):
@@ -491,13 +465,10 @@ def human_outcome(note):
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
     outside = not_the_verdict(outside)
-    # The CLOSING verdict decides (ADR-120 T7): a note that describes a failure it observed and then approves is done; one
-    # that approves and then reports a failure is not. A negative word counts wherever it sits; an affirmative only as
-    # closes_the_note says.
-    negatives = list(NEGATIVE.finditer(outside))
-    if negatives:
-        affirmations = closing_affirmations(outside)
-        return "pass" if affirmations and closes_the_note(outside, affirmations[-1]) else "stop"
+    # The CLOSING verdict decides (ADR-120 T7): a note that describes a failure it observed and then closes on an approval
+    # is done; one that approves and then reports a failure, or closes on anything but an approval, is not.
+    if NEGATIVE.search(outside):
+        return "pass" if closes_with_approval(outside) else "stop"
     if NEGATIVE.search(neutralise(note)):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):

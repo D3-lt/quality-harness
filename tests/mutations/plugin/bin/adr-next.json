@@ -365,8 +365,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if negatives:\n        affirmations = closing_affirmations(outside)",
-      "to": "    if False:\n        affirmations = closing_affirmations(outside)",
+      "from": "    if NEGATIVE.search(outside):\n        return \"pass\" if closes_with_approval(outside) else \"stop\"",
+      "to": "    if False:\n        return \"pass\" if closes_with_approval(outside) else \"stop\"",
       "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready)$"
     },
     {
@@ -953,7 +953,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    negatives = list(NEGATIVE.finditer(outside))\n    if negatives:\n        affirmations = closing_affirmations(outside)\n        return \"pass\" if affirmations and closes_the_note(outside, affirmations[-1]) else \"stop\"\n",
+      "from": "    if NEGATIVE.search(outside):\n        return \"pass\" if closes_with_approval(outside) else \"stop\"\n",
       "to": "",
       "only": "inside quoted program output"
     },
@@ -1642,55 +1642,25 @@
       "label": "ADR-120 T7: a negative word anywhere stops, whatever the note closes with",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "        return \"pass\" if affirmations and closes_the_note(outside, affirmations[-1]) else \"stop\"",
+      "from": "        return \"pass\" if closes_with_approval(outside) else \"stop\"",
       "to": "        return \"stop\"",
       "only": "^a sign-off's last verdict word decides$"
     },
     {
-      "label": "ADR-120 T7: an affirmative inside quotes counts as the closing verdict",
+      "label": "ADR-120 T7 (the owner's whitelist, 2026-10-21): an approval word anywhere in the final clause is a closing approval",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "            if not any(a <= m.start() < b for a, b in quoted)",
-      "to": "            if not any(False for a, b in quoted)",
-      "only": "^a verdict word inside quotes is not the closing verdict$"
-    },
-    {
-      "label": "ADR-120 T7: an affirmative mid-clause counts as the closing verdict",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next.test.mjs"],
-      "from": "            and CLAUSE_OPENER.search(text[:m.start()])]",
-      "to": "            and True]",
-      "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
-    },
-    {
-      "label": "ADR-120 T7 review: an affirmative that opens an earlier clause overrides a failure",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "    return (not CLOSING_BREAK.search(tail) and not NEGATIVE",
-      "to": "    return (not NEGATIVE",
-      "only": "^(an affirmative that is not the note's closing verdict does not override a failure|an affirmative that opens a clause before the last is not the closing verdict)$"
-    },
-    {
-      "label": "ADR-120 T7 review: a long final clause is a closing verdict",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "len(tail.split()) <= CLOSING_WORDS",
-      "to": "True",
+      "from": "CLOSING_APPROVAL.fullmatch(body[start:].strip())",
+      "to": "CLOSING_APPROVAL.search(body[start:].strip())",
       "only": "^an affirmative that is not the note's closing verdict does not override a failure$"
     },
     {
-      "label": "ADR-120 T7 review: a negative word after the affirmative leaves it the closing verdict",
+      "label": "ADR-120 T7 (the owner's whitelist, 2026-10-21): the first clause, not the last, is read as the closing one",
       "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next.test.mjs"],
-      "from": "not NEGATIVE.search(text, match.start())",
-      "to": "True"
-    },
-    {
-      "label": "ADR-120 T7 review: a numbered run's pass word is the note's closing verdict",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next-foreign.test.mjs", "tests/human-stop-red-green.test.mjs"],
-      "from": "    if run and not CLAUSE_BREAK.search(text, run[-1].end(), match.start()):",
-      "to": "    if False:"
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    start = breaks[-1].end() if breaks else 0",
+      "to": "    start = breaks[0].end() if breaks else 0",
+      "only": "^a sign-off's last verdict word decides$"
     },
     {
       "label": "ADR-120 T8: classify reads done before a terminal Status",
@@ -1705,14 +1675,6 @@
       "tests": ["tests/adr-next-terminal.test.mjs"],
       "from": "\"terminal_stop\": terminal_stop(text),",
       "to": "\"terminal_stop\": None,"
-    },
-    {
-      "label": "ADR-120 T7 (review of 692a869c): a tally after an affirmative is no closing verdict",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "            and not MEASURED.match(masked, match.end()) and len(tail.split()) <= CLOSING_WORDS)",
-      "to": "            and len(tail.split()) <= CLOSING_WORDS)",
-      "only": "^a measurement after an affirmative is no closing verdict$"
     },
     {
       "label": "ADR-120 T8 (review of c749638e..7a9107e8): task_status reads the whole file, not its header block",
@@ -1742,41 +1704,33 @@
       "label": "ADR-120 T7 (a peer corpus, 2026-10-21): a closing verdict labelled \"verdict\" is not read as one",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "(?:(?:and|then|so)\\s+)?(?:verdict\\s+)?$\"",
-      "to": "(?:(?:and|then|so)\\s+)?$\"",
+      "from": "(?:(?:and|then|so)\\s+)?(?:verdict\\s+)?(?:approved",
+      "to": "(?:(?:and|then|so)\\s+)?(?:approved",
       "only": "^a closing verdict may carry the label \"verdict\"$"
     },
     {
-      "label": "ADR-120 T7 (verification of dcc4693a..d4f51888): a count after the closing affirmative is read as a verdict",
+      "label": "ADR-120 T7 (the owner's whitelist, 2026-10-21): \"passed\" and \"ok\" close a failed note as approved",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "HEDGE + r\"(?:(?:\\d+\\s+)?of\\s+\\d|\" + COUNTED + r\"|(?:rate",
-      "to": "HEDGE + r\"(?:(?:\\d+\\s+)?of\\s+\\d|(?:rate",
+      "from": "(?:approved|signed[- ]off|verified|observed|confirmed)\"",
+      "to": "(?:approved|signed[- ]off|verified|observed|confirmed|passed|ok)\"",
+      "only": "^a measurement after an affirmative is no closing verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (the owner's whitelist, 2026-10-21): a dated approval is no closing approval",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "(?:\\s+(?:on\\s+)?\" + DATE + r\")?\", re.I)",
+      "to": "\", re.I)",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {
-      "label": "ADR-120 T7 (verification of 9ca659df..e5d6c515): a number that is not a date is read as no count",
+      "label": "ADR-120 T7 (the owner's whitelist, 2026-10-21): an approval by someone is no closing approval",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "COUNTED = r\"(?!\" + DATE + r\")\\d[\\d.,/]*(?![a-z_])\"",
-      "to": "COUNTED = r\"\\d+\\s*%\"",
-      "only": "^a count after the closing affirmative is a tally, not a verdict$"
-    },
-    {
-      "label": "ADR-120 T7 (verification of e5d6c515..2e0d8726): a number joined to letters is read as a count",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "\\d[\\d.,/]*(?![a-z_])\"",
-      "to": "\\d[\\d.,/]*\"",
-      "only": "^a count after the closing affirmative is a tally, not a verdict$"
-    },
-    {
-      "label": "ADR-120 T7 (verification of e5d6c515..2e0d8726): a hedge before a count hides it",
-      "file": "plugin/bin/adr-next",
-      "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "MEASURED = re.compile(r\"\\s+\" + HEDGE + r\"(?:",
-      "to": "MEASURED = re.compile(r\"\\s+\" + r\"(?:",
-      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+      "from": "r\"(?:\\s+by\\s+(?:the\\s+)?[\\w.@'-]+)?",
+      "to": "r\"",
+      "only": "^an affirmative that is not the note's closing verdict does not override a failure$"
     },
     {
       "label": "ADR-120 T7 (verification of d4f51888..9ca659df): a dotted date breaks the closing clause",

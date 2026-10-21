@@ -2976,7 +2976,11 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
             label=label,
         )
         for msg in advice:
-            pair = getattr(msg, "pair", None)
+            # The same words for several tasks are one line naming them (BACKLOG §392, ADR-120 T5): a §390 move is
+            # keyed by its (from, to) pair through its body, and any other lock advice by its words after the label.
+            pair = getattr(msg, "body", None)
+            if pair is None and msg.startswith(f"{label}: "):
+                pair = msg[len(label) + 2:]
             if pair is None:
                 errors.advise(msg)
             else:
@@ -2987,11 +2991,11 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
             else:
                 errors.append(msg, evidence=True)
     # One change to a declared check, relocked across many tasks, is one line naming them (BACKLOG §392).
-    for tasks in moves.values():
+    for pair, tasks in moves.items():
         if len(tasks) == 1:
             errors.advise(tasks[0][1])
         else:
-            errors.advise(f"{', '.join(label for label, _msg in tasks)}: {tasks[0][1].body}")
+            errors.advise(f"{', '.join(label for label, _msg in tasks)}: {pair}")
 
 
 

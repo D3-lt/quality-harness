@@ -21,6 +21,16 @@
       "to": "if True:"
     },
     {
+      "label": "ADR-120 T5: repeated lock advice is said once per task again",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "^(?:the same relock advice across tasks is one line naming them, and a different kind is its own)$",
+      "from": "pair = msg[len(label) + 2:]",
+      "to": "pair = None"
+    },
+    {
       "label": "ADR-119 T3: a task no receipt names says its writer may predate receipts",
       "file": "plugin/bin/adr-lint",
       "tests": [

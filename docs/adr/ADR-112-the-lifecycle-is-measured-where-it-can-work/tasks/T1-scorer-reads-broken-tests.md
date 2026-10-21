@@ -60,6 +60,8 @@ node --test tests/eval-paired.test.mjs
 - 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · false completion is bounded against the broken-tests useful effect · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
 - 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · PAYS reads false completion alone, so broken tests is not a co-primary · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
 - 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · the stage is scored for a pre-registration that does not name it · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · 86282d97* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · the control floor makes the whole look INCONCLUSIVE again, hiding FUTILE and a broken-tests PAYS · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · 86282d97* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · under the control floor false completion makes PAYS again, though the endpoint cannot be shown there · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
 
 ## Invariants
 
@@ -100,3 +102,5 @@ Stop if the endpoint needs any per-instance field the export does not carry.
 - 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2042
 - 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2619
 - 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:1990
+- 2026-10-21 · 86282d97* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2135
+- 2026-10-21 · 86282d97* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2298

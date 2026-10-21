@@ -770,3 +770,23 @@ test('a pre-registration without the endpoint scores exactly as ADR-106\'s', () 
   assert.equal(staged.verdict, 'PAYS')
   assert.ok('stage' in staged)
 })
+
+test('under the control floor, false completion cannot make PAYS, and broken tests and FUTILE are still read', () => {
+  // ADR-112 Decision 5 as amended 2026-10-21: a control false-completion rate under 10% bars PAYS on that endpoint only.
+  const none = atLook(lifecycle({ falseA: 2, falseP: 2 }))
+  assert.ok(none.reasonCodes.includes('without-fc-under-10'))
+  assert.equal(none.verdict, 'FUTILE')
+  const broken = atLook(lifecycle({ falseA: 2, falseP: 2, brokenA: 7 }))
+  assert.equal(broken.stage.permutation.brokeTests.p, 1 / 128)
+  assert.equal(broken.verdict, 'PAYS')
+  // 19 of 200 is 9.5%: removing all of them is p = 2^-19, shown at the level, and still not PAYS under the floor.
+  const withheld = atLook(lifecycle({ falseA: 19, falseP: 0 }), { size: 200 })
+  assert.ok(withheld.reasonCodes.includes('without-fc-under-10'))
+  assert.ok(withheld.stage.permutation.falseCompletion.p < withheld.stage.level)
+  assert.equal(withheld.verdict, 'OPEN')
+  // DIRTY twin: a reason other than the floor still makes the look INCONCLUSIVE.
+  assert.equal(atLook(lifecycle({ falseA: 2, falseP: 2 }), { over: { look: 0 } }).verdict, 'INCONCLUSIVE')
+  // ADR-106's own scoring keeps the floor as a reason: the same rows without the stage are INCONCLUSIVE.
+  const pool = ids(40)
+  assert.equal(scoreOf({ pool, rows: world(pool, 1, lifecycle({ falseA: 2, falseP: 2 })) }).verdict, 'INCONCLUSIVE')
+})

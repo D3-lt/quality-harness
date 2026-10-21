@@ -219,6 +219,26 @@
       "from": "const stage = prereg.co_primaries === undefined ? null : stageOf(",
       "to": "const stage = stageOf(",
       "only": "^(?:a pre-registration without the endpoint scores exactly as ADR-106's)$"
+    },
+    {
+      "label": "stage: under the control floor false completion makes PAYS again",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "!(floored && metric === 'falseCompletion') && level",
+      "to": "level",
+      "only": "^(?:under the control floor, false completion cannot make PAYS, and broken tests and FUTILE are still read)$"
+    },
+    {
+      "label": "stage: the control floor makes the whole look INCONCLUSIVE again",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "verdict: stage ? decideStage(stageReasons,",
+      "to": "verdict: stage ? decideStage(reasons,",
+      "only": "^(?:under the control floor, false completion cannot make PAYS, and broken tests and FUTILE are still read)$"
     }
   ]
 }

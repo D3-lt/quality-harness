@@ -21,7 +21,8 @@
 //   look, looks_max the look L this run scores (⌈scored / block_size⌉) and L_max (⌈pool / block_size⌉), both whole
 //   useful_effects  {"falseCompletion": 0.05, "brokeTests": 0.03}   what the bootstrap bounds are compared with
 // The words are PAYS (either co-primary below zero at one-sided p < 0.0125 / L_max, no guard breached), FUTILE (both
-// co-primaries' 95th-percentile improvement under their useful effect) and OPEN. A pre-registration without
+// co-primaries' 95th-percentile improvement under their useful effect) and OPEN. ADR-106's floor on the control's false
+// completion (10%) bars PAYS on that endpoint only, never the look (Decision 5 as amended 2026-10-21). A pre-registration without
 // `co_primaries` is scored, printed and written exactly as ADR-106 did.
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -455,13 +456,14 @@ function stageProblems(prereg, poolLength, scoredLength) {
   return problems
 }
 
-// ADR-112 Decision 5: both co-primaries' permutation p and bootstrap bounds, and what they say at this look.
-function stageOf(prereg, counted, falseCompletionP) {
+// ADR-112 Decision 5: both co-primaries' permutation p and bootstrap bounds, and what they say at this look. Under the
+// control's false-completion floor that endpoint cannot be shown (Decision 5 as amended 2026-10-21), so it makes no PAYS.
+function stageOf(prereg, counted, falseCompletionP, floored) {
   const looksMax = isRepeatCount(prereg.looks_max) ? prereg.looks_max : null
   const level = looksMax === null ? null : STAGE_LEVEL / looksMax
   const permutation = { falseCompletion: falseCompletionP, brokeTests: permutationP(counted.metrics.brokeTests.diffs) }
   const bootstrap = Object.fromEntries(CO_PRIMARIES.map(metric => [metric, bootstrapPercentiles(counted.metrics[metric].diffs)]))
-  const shown = metric => level !== null && counted.metrics[metric].mean < 0 && permutation[metric].p < level
+  const shown = metric => !(floored && metric === 'falseCompletion') && level !== null && counted.metrics[metric].mean < 0 && permutation[metric].p < level
   // The improvement is without minus with, so its 95th percentile is the difference's 5th, negated.
   const bounded = metric => Number.isFinite(bootstrap[metric].p5) && -bootstrap[metric].p5 < USEFUL_EFFECT[metric] - TOLERANCE
   return {
@@ -506,8 +508,11 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
   if (!(bootstrap.resolve.p5 > -GUARD + TOLERANCE)) breaches.push(problem('resolve-guard', `resolve: the 5th percentile of the difference, ${fixed(bootstrap.resolve.p5)}, is at or below −0.03`))
   if (!(bootstrap.underClaim.p95 < GUARD - TOLERANCE)) breaches.push(problem('underclaim-guard', `under-claim: the 95th percentile of the difference, ${fixed(bootstrap.underClaim.p95)}, is at or above +0.03`))
   const shown = isLevel(alpha) && counted.metrics.falseCompletion.mean < 0 && permutation.p < alpha
-  const stage = prereg.co_primaries === undefined ? null : stageOf(prereg, counted, permutation)
+  const floored = found.some(entry => entry.code === 'without-fc-under-10')
+  const stage = prereg.co_primaries === undefined ? null : stageOf(prereg, counted, permutation, floored)
   const reasons = found.map(entry => entry.text)
+  // The stage reads the floor as a bar on one endpoint, not as a reason the look says nothing.
+  const stageReasons = found.filter(entry => entry.code !== 'without-fc-under-10').map(entry => entry.text)
   const guard = breaches.map(entry => entry.text)
   // Each code once: a reason repeated per row is a count, and counts live in the numeric keys.
   const reasonCodes = [...new Set(found.map(entry => entry.code))]
@@ -515,7 +520,7 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
   return {
     ...counted, arms: counted.arms, armNames: arms, config, instanceCount: universe.size, poolCount: pool.length, k: prereg.k, alpha,
     ignoredArms, ignoredOutsideScored, permutation, bootstrap, guard, reasons, reasonCodes, guardCodes,
-    verdict: stage ? decideStage(reasons, guard, stage) : decide(reasons, guard, shown), ...(stage ? { stage } : {}),
+    verdict: stage ? decideStage(stageReasons, guard, stage) : decide(reasons, guard, shown), ...(stage ? { stage } : {}),
   }
 }
 

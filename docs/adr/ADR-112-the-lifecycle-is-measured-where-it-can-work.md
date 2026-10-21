@@ -65,6 +65,9 @@ This record pre-registers that stage and what its result decides, before any of 
      the arm) is below the useful effect: 0.05 for false completion and 0.03 for broken tests, fixed here;
    - otherwise open. A pair that is PAYS or FUTILE stops; the stage ends when every pair has stopped or the pool is spent,
      and a pair still open then is INCONCLUSIVE.
+   - **Amended 2026-10-21 (the owner):** ADR-106's floor on the control's false-completion incidence (10%) bars PAYS on
+     false completion only, since under it that endpoint cannot be shown; broken tests can still make PAYS, and FUTILE is
+     still read. The look reports the floor among its reasons. ADR-106's own single verdict keeps the floor as a reason.
 6. **What the verdicts decide, pre-registered.**
    - Every pair on both models FUTILE: a new record shrinks the always-on hooks to what costs nothing on an ordinary turn
      (the sanctioned refusals of ADR-061 and ADR-060 stay), ADR-111 is withdrawn or reverted, and the lifecycle stays

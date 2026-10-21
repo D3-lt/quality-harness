@@ -11,7 +11,7 @@ import test from 'node:test'
 
 import {
   DECISION_2_FIELDS, bootstrapPercentiles, chiSquareQuantile, judge, listDigest, main, permutationP, plan, score,
-  REASON_CODES, sdUpperBound, writeVerdict,
+  REASON_CODES, sdUpperBound, strayKey, verdictFile, writeVerdict,
 } from '../scripts/eval-paired.mjs'
 
 const made = []
@@ -650,4 +650,123 @@ test('the verdict file holds only the aggregate, and any other key is refused', 
   }
   // Twin: stdout keeps the words the file leaves out.
   assert.ok(runMain([...leakyScoring, leaky['duplicates.jsonl']]).text.includes(`a duplicate row: instance ${pool[0]}`))
+})
+
+// ADR-112 T1: broken tests as a second co-primary, and PAYS / FUTILE / OPEN at a look of L_max.
+// `lifecycle` is the shape: `falseA` false completions in the control, `falseP` left in the plugin arm, `brokenA` broken
+// tests in the control and none in the plugin arm, and `resolveLost` instances only the control resolves.
+const lifecycle = ({ falseA = 10, falseP = 10, brokenA = 0, resolveLost = 0 } = {}) => index => {
+  const lost = index >= falseA && index < falseA + resolveLost
+  const resolved = index >= falseA && !lost
+  return {
+    A: { resolved: index >= falseA, status: 'done', brokeTests: index < brokenA },
+    P: { resolved, status: resolved || index < falseP ? 'done' : 'not done' },
+  }
+}
+const STAGE_FIELDS = { co_primaries: ['falseCompletion', 'brokeTests'], useful_effects: { falseCompletion: 0.05, brokeTests: 0.03 } }
+
+// One look: `size` scored instances of a pool of `poolSize`, in blocks of `size`, so the look is 1 of poolSize / size.
+function atLook(shape, { size = 40, poolSize = size, over = {} } = {}) {
+  const pool = ids(poolSize)
+  const scored = pool.slice(0, size)
+  const prereg = preregFor(pool, 1, { ...STAGE_FIELDS, block_size: size, look: 1, looks_max: poolSize / size, ...over })
+  return scoreOf({ pool, scored, rows: world(scored, 1, shape), prereg })
+}
+
+test('broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded', () => {
+  // PAYS on false completion alone: ten removed entirely, exact p = 2^-10 under 0.0125.
+  const fc = atLook(lifecycle({ falseP: 0 }))
+  assert.equal(fc.verdict, 'PAYS')
+  assert.deepEqual(fc.reasons, [])
+  assert.deepEqual(fc.guard, [])
+
+  // PAYS on broken tests alone (false completion identical): seven discordant pairs, p = 2^-7 under 0.0125 at L_max 1.
+  const bt = atLook(lifecycle({ brokenA: 7 }))
+  assert.equal(bt.metrics.brokeTests.paired, 40)
+  assert.equal(bt.metrics.brokeTests.mean, -7 / 40)
+  assert.equal(bt.stage.permutation.brokeTests.p, 1 / 128)
+  assert.equal(bt.verdict, 'PAYS')
+  // The level is divided by L_max: the same seven at look 1 of 2 are 2^-7 against 0.0125 / 2.
+  const spread = atLook(lifecycle({ brokenA: 7 }), { poolSize: 80 })
+  assert.equal(spread.stage.level, 0.0125 / 2)
+  assert.equal(spread.stage.permutation.brokeTests.p, 1 / 128)
+  assert.equal(spread.verdict, 'OPEN')
+
+  // The power floor: six discordant pairs at L_max 1 are p = 2^-6, which is neither PAYS nor FUTILE.
+  const floor = atLook(lifecycle({ brokenA: 6 }))
+  assert.equal(floor.stage.permutation.brokeTests.p, 1 / 64)
+  assert.equal(floor.verdict, 'OPEN')
+
+  // A guard keeps PAYS from being said: the plugin also loses five resolves. DIRTY twin: the first case without them.
+  const guarded = atLook(lifecycle({ falseP: 0, resolveLost: 5 }))
+  assert.deepEqual(guarded.guardCodes, ['resolve-guard'])
+  assert.equal(guarded.stage.permutation.falseCompletion.p < 0.0125, true)
+  assert.equal(guarded.verdict, 'GUARD NOT MET')
+
+  // FUTILE needs both co-primaries bounded: no effect on either is FUTILE, and either one unbounded is not.
+  assert.equal(atLook(lifecycle()).verdict, 'FUTILE')
+  const fcOnly = atLook(lifecycle({ falseP: 5 }))
+  assert.equal(fcOnly.stage.permutation.falseCompletion.p, 1 / 32)
+  assert.equal(fcOnly.verdict, 'OPEN')
+  assert.equal(atLook(lifecycle({ brokenA: 4 })).verdict, 'OPEN')
+
+  // The useful effects are 0.05 and 0.03: four discordant pairs in 200 improve by 0.035 at the 95th percentile,
+  // bounded for false completion (under 0.05) and not for broken tests (over 0.03).
+  const big = { size: 200 }
+  const fcBounded = atLook(lifecycle({ falseA: 24, falseP: 20 }), big)
+  const improvement = bound => -bound.p5
+  assert.ok(improvement(fcBounded.stage.bootstrap.falseCompletion) >= 0.03 && improvement(fcBounded.stage.bootstrap.falseCompletion) < 0.05)
+  assert.equal(fcBounded.verdict, 'FUTILE')
+  const btUnbounded = atLook(lifecycle({ falseA: 24, falseP: 24, brokenA: 4 }), big)
+  assert.ok(improvement(btUnbounded.stage.bootstrap.brokeTests) >= 0.03 && improvement(btUnbounded.stage.bootstrap.brokeTests) < 0.05)
+  assert.equal(btUnbounded.verdict, 'OPEN')
+  const btBounded = atLook(lifecycle({ falseA: 24, falseP: 24, brokenA: 2 }), big)
+  assert.ok(improvement(btBounded.stage.bootstrap.brokeTests) < 0.03)
+  assert.equal(btBounded.verdict, 'FUTILE')
+
+  // The pre-registration must name the stage exactly: a wrong co-primary list, look, L_max or effect is INCONCLUSIVE.
+  const refused = [
+    [{ co_primaries: ['falseCompletion'] }, 'stage-co-primaries-invalid'],
+    [{ look: 2, looks_max: 2 }, 'stage-look-differs'],
+    [{ looks_max: 2 }, 'stage-looks-max-differs'],
+    [{ look: 0 }, 'stage-looks-invalid'],
+    [{ useful_effects: { falseCompletion: 0.05, brokeTests: 0.05 } }, 'stage-effects-invalid'],
+  ]
+  for (const [over, code] of refused) {
+    const result = atLook(lifecycle({ falseP: 0 }), { over })
+    assert.equal(result.verdict, 'INCONCLUSIVE', code)
+    assert.ok(result.reasonCodes.includes(code), code)
+    assert.ok(REASON_CODES.includes(code), code)
+  }
+
+  // The verdict file adds only the stage key, and the scorer's own allow list accepts what it writes.
+  const written = verdictFile(bt, { preregSha256: 'x', scorerBlobSha: 'y' })
+  assert.equal(written.verdict, 'PAYS')
+  assert.equal(strayKey(written), null)
+  assert.deepEqual(leafPaths(written.stage), [
+    'bootstrap.brokeTests.p5', 'bootstrap.brokeTests.p95', 'bootstrap.falseCompletion.p5', 'bootstrap.falseCompletion.p95',
+    'level', 'look', 'looksMax', 'paired.brokeTests.mean', 'paired.brokeTests.paired', 'paired.brokeTests.unpaired',
+    'permutation.brokeTests.exact', 'permutation.brokeTests.nonzero', 'permutation.brokeTests.p',
+  ])
+})
+
+test('a pre-registration without the endpoint scores exactly as ADR-106\'s', () => {
+  const pool = ids(40)
+  const rows = mark(world(pool, 1, drop), 'A', 3, { brokeTests: true })
+  const plain = scoreOf({ pool, rows })
+  assert.equal(plain.verdict, 'SHOWN')
+  assert.equal('stage' in plain, false)
+  assert.equal('brokeTests' in verdictFile(plain, { preregSha256: 'x', scorerBlobSha: 'y' }).paired, false)
+  assert.equal('stage' in verdictFile(plain, { preregSha256: 'x', scorerBlobSha: 'y' }), false)
+  // Fields of the stage on their own do not switch it on: only the co-primaries do.
+  const half = scoreOf({ pool, rows, prereg: preregFor(pool, 1, { look: 1, looks_max: 1, useful_effects: STAGE_FIELDS.useful_effects }) })
+  assert.equal(half.verdict, 'SHOWN')
+  assert.equal('stage' in half, false)
+  // The aggregate is the one ADR-106 wrote: a digest of the verdict file, taken before this task.
+  const golden = JSON.stringify(verdictFile(plain, { preregSha256: 'x', scorerBlobSha: 'y' }))
+  assert.equal(createHash('sha256').update(golden).digest('hex'), 'a416d045462b2882a7134f926031d596ec0fef631f29b9f7e78abae41dedb1b0')
+  // DIRTY twin: the same rows under the stage are scored by the stage.
+  const staged = scoreOf({ pool, rows, prereg: preregFor(pool, 1, { ...STAGE_FIELDS, look: 1, looks_max: 1 }) })
+  assert.equal(staged.verdict, 'PAYS')
+  assert.ok('stage' in staged)
 })

@@ -53,6 +53,13 @@ node --test tests/eval-paired.test.mjs
 | 4 — it is used | T3 |
 
 ## Mutation Log
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · the PAYS level is not divided by L_max · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · a breached guard no longer keeps PAYS from being said · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · FUTILE needs only one co-primary bounded · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · broken tests is bounded against the false-completion useful effect · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · false completion is bounded against the broken-tests useful effect · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · PAYS reads false completion alone, so broken tests is not a co-primary · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
+- 2026-10-21 · ee802e5d* · mutant killed · exit 1 · `scripts/eval-paired.mjs` · the stage is scored for a pre-registration that does not name it · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808
 
 ## Invariants
 
@@ -71,3 +78,25 @@ Stop if the endpoint needs any per-instance field the export does not carry.
 - Pooling arms or models (permanent: boundary: ADR-106 Decision 1 as amended)
 
 ## Verification Log
+- 2026-10-21 · ee802e5d* · exit 1 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2800 · test-lock-sha256:5ab2f9ee072eb977d75803d4337a0889674d52280e290ae57ef2a1f5b8c0d878 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvZXZhbC1wYWlyZWQudGVzdC5tanMJYSBnYXAgYmV0d2VlbiB0aGUgYXJtcyBpbiB1bnJ1biBvciB1bnJlYWRhYmxlIHJ1bnMgaXMgaW5jb25jbHVzaXZlCTVmMDI5N2Q1MWE4NDE2YzI0MmYzNmViMzU4NmI5Y2JkNDRkMjk2ZGI4ODBkNmJkNTUyMzg4MjUxZjIwNmM1ZDEKYm9keQl0ZXN0cy9ldmFsLXBhaXJlZC50ZXN0Lm1qcwlhIHByZS1yZWdpc3RyYXRpb24gd2l0aG91dCB0aGUgZW5kcG9pbnQgc2NvcmVzIGV4YWN0bHkgYXMgQURSLTEwNidzCWQ4Y2MxNWFjNDc0OTBjMWIyMTljMGNiZTUxYWZiYjUwNjFkYjVkY2NiMDQ4MDJkZmQwMmRhMDJlODIzOWI3MTkKYm9keQl0ZXN0cy9ldmFsLXBhaXJlZC50ZXN0Lm1qcwlhIHJ1biBpcyBzY29yZWQgb25seSBhZ2FpbnN0IGl0cyBjb21taXR0ZWQgcHJlLXJlZ2lzdHJhdGlvbgljYzM0YTQzNjZiYTcwYmZhZmZhMTBiZTQyZWYwOTM1MzhkZGNiN2UyNTVhMzE2MjhiNzJhN2I4ZjU4ODVmMzcwCmJvZHkJdGVzdHMvZXZhbC1wYWlyZWQudGVzdC5tanMJYW4gaW5mcmFzdHJ1Y3R1cmUgZmFpbHVyZSBpcyBVTlJVTiwgYW5kIGEgcnVuIHRoYXQgaGl0IGl0cyBsaW1pdCBpcyBqdWRnZWQJMWYyNmY0OTYzYmI5YWEwYzFjOGI5M2YwY2IzYTJiMzMxYmU1MzMxMzNiNDRhYWE1MTgyYWRkNWMxNGI3OWViNApib2R5CXRlc3RzL2V2YWwtcGFpcmVkLnRlc3QubWpzCWFuIHVucmVhZGFibGUgU1RBVFVTIGxpbmUgaXMgbm8gY2xhaW0gYW5kIHN0aWxsIGNvdW50cyBmb3IgcmVzb2x2ZSBpbmNpZGVuY2UJYmJiNmQ5MDRiNDM3NTdhYjUwNjlkYWEyM2U4ZTA0MjlhMTlhYmQzYjNjMmU2MGZkZDNjZWY3ZGIzZDdiNGEyNgpib2R5CXRlc3RzL2V2YWwtcGFpcmVkLnRlc3QubWpzCWJyb2tlbiB0ZXN0cyBpcyBhIHBhaXJlZCBlbmRwb2ludCwgUEFZUyBuZWVkcyBhIHNob3duIGNvLXByaW1hcnkgYXQgdGhlIHBlci1sb29rIGxldmVsLCBhbmQgRlVUSUxFIG5lZWRzIGJvdGggYm91bmRlZAk4OWU2NGM0Y2VlNGVmY2M2MDNmZjliOTk2YWU1ZGMzODg3M2QyM2VlODVjMGU3ODQ1NGU3MTNkNmNmYjNhZjIyCmJvZHkJdGVzdHMvZXZhbC1wYWlyZWQudGVzdC5tanMJcGFpcmluZyBpcyBwZXIgbWV0cmljIGFuZCBjb3VudHMgZXZlcnkgcHJlLXJlZ2lzdGVyZWQgaW5zdGFuY2UJY2U2N2VhNzc3ZmM4YWIzMzMyNWEyYjQ4YzVhOTMyZGU1Yjk5OGI3YmRhNGY2ZmZjMDBmM2E1MjU1NjY1MjM3NQpib2R5CXRlc3RzL2V2YWwtcGFpcmVkLnRlc3QubWpzCXRoZSBib290c3RyYXAgcGVyY2VudGlsZXMgYXJlIHRoZSBwYWlyZWQgZGlmZmVyZW5jZSBpdHNlbGYgb24gYSBjb25zdGFudCBzZXQJNjFjODVmZDA2ZDI5MzBjZTdhM2E2ZDUzOTdiMTNiMGQ5NzJkMjc3NTU3NGYxMjUxNmUwMzU5ZTY1YWUyOWZiNApib2R5CXRlc3RzL2V2YWwtcGFpcmVkLnRlc3QubWpzCXRoZSBwZXJtdXRhdGlvbiBwIGlzIGV4YWN0IG9uIGEgc21hbGwgc2V0IGFuZCBjb3JyZWN0IG9uIGEgbGFyZ2Ugb25lCTFkMTFjZmM3ZDE2ZTQ1NDY2OTQxNDUyMjQyNDgyZDcyY2QxMWUxYzViNTllNDg5MGIxYmQ0Y2ZlZTg3M2VlZjYKYm9keQl0ZXN0cy9ldmFsLXBhaXJlZC50ZXN0Lm1qcwl0aGUgcGxhbm5pbmcgb3V0cHV0IG5hbWVzIGVhY2ggU0QsIGl0cyB1cHBlciBib3VuZCBhbmQgdGhlIG4gaXQgaW1wbGllcwliNGVhZDZmNjY3MGQ3YzAwZTJjNzFmM2FhMDRmMGY3ZGRiN2Q3YjU1NGZiNzMzZWFhOWQ4NzM5NGE2MGRlMDk3CmJvZHkJdGVzdHMvZXZhbC1wYWlyZWQudGVzdC5tanMJdGhlIHZlcmRpY3QgZmlsZSBob2xkcyBvbmx5IHRoZSBhZ2dyZWdhdGUsIGFuZCBhbnkgb3RoZXIga2V5IGlzIHJlZnVzZWQJOTFlZGJmMjkzMjUxZWFiOWMyNDZlNGVkODk3Y2FiZTk4MjdiNjJkODdjZmMwYzlhNmIxMTczNTJhNTBiN2NlYQpib2R5CXRlc3RzL2V2YWwtcGFpcmVkLnRlc3QubWpzCXRoZSB2ZXJkaWN0IGZvbGxvd3MgdGhlIHByZS1yZWdpc3RlcmVkIG9yZGVyLCBhbmQgYSBibGFua2V0IGhlZGdlciBkb2VzIG5vdCByZWFjaCBTSE9XTgkxYmIwNDliNGQ5NzZmOGZmYWE5MjRmYzQzYzc4MzY1ODQxM2MzODBkYmRkYzdmNmRmZDM3ZmQ1M2ViN2JiZWZk
+  ```
+  --- last 10 line(s) of stdout (of 64 after folding 64 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 'SHOWN',
+      expected: 'PAYS',
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2409
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2254
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2387
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2263
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2173
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2042
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:2619
+- 2026-10-21 · ee802e5d* · exit 0 · `node --test tests/eval-paired.test.mjs` · acceptance-sha256:a489fca566c123adb252c211cc3401df7aa7733ea087dc0cba931ee494b9f808 · ms:1990

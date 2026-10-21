@@ -149,6 +149,76 @@
       "from": "  if (stray !== null) {",
       "to": "  if (stray) {",
       "only": "^(?:the verdict file holds only the aggregate, and any other key is refused)$"
+    },
+    {
+      "label": "stage: the PAYS level is divided by L_max",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "STAGE_LEVEL / looksMax",
+      "to": "STAGE_LEVEL",
+      "only": "^(?:broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded)$"
+    },
+    {
+      "label": "stage: a breached guard keeps PAYS from being said",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "if (stage.pays && !guard.length) return",
+      "to": "if (stage.pays) return",
+      "only": "^(?:broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded)$"
+    },
+    {
+      "label": "stage: PAYS reads broken tests as a co-primary beside false completion",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "pays: CO_PRIMARIES.some(shown)",
+      "to": "pays: shown('falseCompletion')",
+      "only": "^(?:broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded)$"
+    },
+    {
+      "label": "stage: FUTILE needs both co-primaries bounded",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "futile: CO_PRIMARIES.every(bounded)",
+      "to": "futile: CO_PRIMARIES.some(bounded)",
+      "only": "^(?:broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded)$"
+    },
+    {
+      "label": "stage: broken tests is bounded against its own useful effect, not false completion's",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "< USEFUL_EFFECT[metric] - TOLERANCE",
+      "to": "< 0.05 - TOLERANCE",
+      "only": "^(?:broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded)$"
+    },
+    {
+      "label": "stage: false completion is bounded against its own useful effect, not broken tests'",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "< USEFUL_EFFECT[metric] - TOLERANCE",
+      "to": "< 0.03 - TOLERANCE",
+      "only": "^(?:broken tests is a paired endpoint, PAYS needs a shown co-primary at the per-look level, and FUTILE needs both bounded)$"
+    },
+    {
+      "label": "stage: a pre-registration that does not name the co-primaries is scored as ADR-106's",
+      "file": "scripts/eval-paired.mjs",
+      "tests": [
+        "tests/eval-paired.test.mjs"
+      ],
+      "from": "const stage = prereg.co_primaries === undefined ? null : stageOf(",
+      "to": "const stage = stageOf(",
+      "only": "^(?:a pre-registration without the endpoint scores exactly as ADR-106's)$"
     }
   ]
 }

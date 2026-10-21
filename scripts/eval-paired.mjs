@@ -14,6 +14,15 @@
 // UNRUN and never moves a rate; a file it could not read is a missing measurement, never an effect. It
 // reads, writes nothing but the verdict file --verdict-out names, and exits 0 whatever it finds (2 only for a
 // command line it cannot parse, or a verdict file it refuses or fails to write).
+//
+// ADR-112 Decisions 4 and 5 (a stage of blocks, one look after each): a pre-registration that names `co_primaries`
+// scores the stage instead of ADR-106's single verdict. Its fields, all required once `co_primaries` is there:
+//   co_primaries    ["falseCompletion", "brokeTests"]   the two endpoints, in this order
+//   look, looks_max the look L this run scores (⌈scored / block_size⌉) and L_max (⌈pool / block_size⌉), both whole
+//   useful_effects  {"falseCompletion": 0.05, "brokeTests": 0.03}   what the bootstrap bounds are compared with
+// The words are PAYS (either co-primary below zero at one-sided p < 0.0125 / L_max, no guard breached), FUTILE (both
+// co-primaries' 95th-percentile improvement under their useful effect) and OPEN. A pre-registration without
+// `co_primaries` is scored, printed and written exactly as ADR-106 did.
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -27,7 +36,9 @@ export const DECISION_2_FIELDS = [
 ]
 
 /** The only words a scoring run ends with. --plan prints none of them. */
-export const VERDICTS = { inconclusive: 'INCONCLUSIVE', guard: 'GUARD NOT MET', shown: 'SHOWN', notShown: 'NOT SHOWN' }
+export const VERDICTS = {
+  inconclusive: 'INCONCLUSIVE', guard: 'GUARD NOT MET', shown: 'SHOWN', notShown: 'NOT SHOWN', pays: 'PAYS', futile: 'FUTILE', open: 'OPEN',
+}
 
 // Fixed, so the scorer's git blob — which the pre-registration pins as `scorer_blob_sha` — pins the draws too.
 const SEED = 106
@@ -45,6 +56,10 @@ const PLANNED_DROP = { falseCompletion: 0.05, resolve: 0.03, underClaim: 0.03 }
 const READABLE = new Set(['done', 'not done'])
 const SIDES = ['with', 'without']
 const METRICS = ['falseCompletion', 'resolve', 'underClaim']
+// ADR-112 Decision 5: the stage's family level, the two co-primaries and the useful effects it fixes.
+const STAGE_LEVEL = 0.0125
+const CO_PRIMARIES = ['falseCompletion', 'brokeTests']
+const USEFUL_EFFECT = { falseCompletion: 0.05, brokeTests: 0.03 }
 const LABELS = { falseCompletion: 'false completion', resolve: 'resolve', underClaim: 'under-claim', done: 'done coverage P(done)', brokeTests: 'broken tests' }
 
 /**
@@ -59,6 +74,7 @@ export const REASON_CODES = Object.freeze([
   'paired-below-90', 'paired-below-n', 'unrun-gap', 'no-judged-run', 'unreadable-gap',
   ...SIDES.flatMap(side => [`unreadable-over-10:${side}`, `resolve-under-10:${side}`]), 'without-fc-under-10',
   'resolve-guard', 'underclaim-guard',
+  'stage-co-primaries-invalid', 'stage-effects-invalid', 'stage-looks-invalid', 'stage-look-differs', 'stage-looks-max-differs',
 ])
 const CODE_SET = new Set(REASON_CODES)
 // A reason: its code for the verdict file, its words for stdout.
@@ -207,7 +223,7 @@ function tally(kept, arms, universe, k) {
   // Sorted ids, so the seeded draws are a function of the data and not of the file's row order.
   const ordered = [...universe].sort()
   const metrics = {}
-  for (const metric of METRICS) {
+  for (const metric of [...METRICS, 'brokeTests']) {
     const diffs = []
     for (const instance of ordered) {
       const judged = runs.get(instance)
@@ -424,6 +440,44 @@ function decide(reasons, guard, shown) {
   return shown ? VERDICTS.shown : VERDICTS.notShown
 }
 
+// ADR-112 Decision 5: the pre-registration names the stage exactly, so a look that is not the one scored is no verdict.
+function stageProblems(prereg, poolLength, scoredLength) {
+  const problems = []
+  if (canonical(prereg.co_primaries) !== canonical(CO_PRIMARIES)) problems.push(problem('stage-co-primaries-invalid', `the pre-registered co_primaries ${canonical(prereg.co_primaries)} are not ${canonical(CO_PRIMARIES)}`))
+  if (canonical(prereg.useful_effects) !== canonical(USEFUL_EFFECT)) problems.push(problem('stage-effects-invalid', `the pre-registered useful_effects ${canonical(prereg.useful_effects)} are not ${canonical(USEFUL_EFFECT)}`))
+  const block = prereg.block_size ?? DEFAULT_BLOCK
+  if (!(isRepeatCount(prereg.look) && isRepeatCount(prereg.looks_max) && prereg.look <= prereg.looks_max)) {
+    problems.push(problem('stage-looks-invalid', `the pre-registered look ${canonical(prereg.look)} of looks_max ${canonical(prereg.looks_max)} are not whole numbers with look at most looks_max`))
+  } else if (isRepeatCount(block)) {
+    if (prereg.look !== Math.ceil(scoredLength / block)) problems.push(problem('stage-look-differs', `the scored instances are look ${Math.ceil(scoredLength / block)}, not the pre-registered ${prereg.look}`))
+    if (prereg.looks_max !== Math.ceil(poolLength / block)) problems.push(problem('stage-looks-max-differs', `the pool holds ${Math.ceil(poolLength / block)} block(s), not the pre-registered looks_max ${prereg.looks_max}`))
+  }
+  return problems
+}
+
+// ADR-112 Decision 5: both co-primaries' permutation p and bootstrap bounds, and what they say at this look.
+function stageOf(prereg, counted, falseCompletionP) {
+  const looksMax = isRepeatCount(prereg.looks_max) ? prereg.looks_max : null
+  const level = looksMax === null ? null : STAGE_LEVEL / looksMax
+  const permutation = { falseCompletion: falseCompletionP, brokeTests: permutationP(counted.metrics.brokeTests.diffs) }
+  const bootstrap = Object.fromEntries(CO_PRIMARIES.map(metric => [metric, bootstrapPercentiles(counted.metrics[metric].diffs)]))
+  const shown = metric => level !== null && counted.metrics[metric].mean < 0 && permutation[metric].p < level
+  // The improvement is without minus with, so its 95th percentile is the difference's 5th, negated.
+  const bounded = metric => Number.isFinite(bootstrap[metric].p5) && -bootstrap[metric].p5 < USEFUL_EFFECT[metric] - TOLERANCE
+  return {
+    look: isRepeatCount(prereg.look) ? prereg.look : null, looksMax, level, permutation, bootstrap,
+    pays: CO_PRIMARIES.some(shown), futile: CO_PRIMARIES.every(bounded),
+  }
+}
+
+// PAYS is never said over a breached guard; FUTILE needs no guard, since it stops the pair on a bound.
+function decideStage(reasons, guard, stage) {
+  if (reasons.length) return VERDICTS.inconclusive
+  if (stage.pays && !guard.length) return VERDICTS.pays
+  if (stage.futile) return VERDICTS.futile
+  return guard.length ? VERDICTS.guard : VERDICTS.open
+}
+
 /**
  * Score paired rows against the pre-registration: every cell, p, both bootstrap bounds, the verdict.
  * `poolText` is the frozen pool the pre-registration digests and `instancesText` its scored prefix; with
@@ -441,6 +495,7 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
   found.push(...problems)
   const counted = tally(kept, arms, universe, k)
   found.push(...completenessProblems(prereg, counted, universe.size, k))
+  if (prereg.co_primaries !== undefined) found.push(...stageProblems(prereg, pool.length, scored.length))
   const permutation = permutationP(counted.metrics.falseCompletion.diffs)
   const bootstrap = {
     resolve: bootstrapPercentiles(counted.metrics.resolve.diffs),
@@ -451,6 +506,7 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
   if (!(bootstrap.resolve.p5 > -GUARD + TOLERANCE)) breaches.push(problem('resolve-guard', `resolve: the 5th percentile of the difference, ${fixed(bootstrap.resolve.p5)}, is at or below −0.03`))
   if (!(bootstrap.underClaim.p95 < GUARD - TOLERANCE)) breaches.push(problem('underclaim-guard', `under-claim: the 95th percentile of the difference, ${fixed(bootstrap.underClaim.p95)}, is at or above +0.03`))
   const shown = isLevel(alpha) && counted.metrics.falseCompletion.mean < 0 && permutation.p < alpha
+  const stage = prereg.co_primaries === undefined ? null : stageOf(prereg, counted, permutation)
   const reasons = found.map(entry => entry.text)
   const guard = breaches.map(entry => entry.text)
   // Each code once: a reason repeated per row is a count, and counts live in the numeric keys.
@@ -458,7 +514,8 @@ export function score({ prereg, rowsText, poolText, instancesText, disjointText 
   const guardCodes = [...new Set(breaches.map(entry => entry.code))]
   return {
     ...counted, arms: counted.arms, armNames: arms, config, instanceCount: universe.size, poolCount: pool.length, k: prereg.k, alpha,
-    ignoredArms, ignoredOutsideScored, permutation, bootstrap, guard, reasons, reasonCodes, guardCodes, verdict: decide(reasons, guard, shown),
+    ignoredArms, ignoredOutsideScored, permutation, bootstrap, guard, reasons, reasonCodes, guardCodes,
+    verdict: stage ? decideStage(reasons, guard, stage) : decide(reasons, guard, shown), ...(stage ? { stage } : {}),
   }
 }
 
@@ -540,6 +597,19 @@ function header(result) {
     + '\n\n'
 }
 
+function stageLines(result) {
+  const { stage, metrics } = result
+  const pair = metrics.brokeTests
+  let text = `stage: look ${canonical(stage.look)} of ${canonical(stage.looksMax)} · per-look level ${canonical(stage.level)} · broken tests paired ${pair.paired}, unpaired ${pair.unpaired}, mean difference ${fixed(pair.mean)}\n`
+  text += `permutation p, one-sided, broken tests: ${stage.permutation.brokeTests.p.toPrecision(4)}`
+    + ` (${stage.permutation.brokeTests.exact ? 'exact' : `${DRAWS} seeded draws`}, ${stage.permutation.brokeTests.nonzero} nonzero difference(s))\n`
+  for (const metric of CO_PRIMARIES) {
+    const bound = stage.bootstrap[metric]
+    text += `bootstrap, ${LABELS[metric]} difference: 5th ${fixed(bound.p5)} · 95th ${fixed(bound.p95)} · useful effect ${USEFUL_EFFECT[metric]}\n`
+  }
+  return text
+}
+
 function renderScore(result, provenance) {
   let text = header(result) + armLines(result) + '\n'
   const { permutation, bootstrap } = result
@@ -547,6 +617,7 @@ function renderScore(result, provenance) {
     + ` (${permutation.exact ? 'exact' : `${DRAWS} seeded draws`}, ${permutation.nonzero} nonzero difference(s)) · alpha ${canonical(result.alpha)}\n`
   text += `bootstrap, resolve difference: 5th ${fixed(bootstrap.resolve.p5)} · 95th ${fixed(bootstrap.resolve.p95)}\n`
   text += `bootstrap, under-claim difference: 5th ${fixed(bootstrap.underClaim.p5)} · 95th ${fixed(bootstrap.underClaim.p95)}\n`
+  if (result.stage) text += stageLines(result)
   text += `pre-registration sha256: ${provenance.preregSha256} · scorer blob sha: ${provenance.scorerBlobSha}\n\n`
   for (const reason of result.reasons) text += `why: ${reason}\n`
   for (const breach of result.guard) text += `guard: ${breach}\n`
@@ -580,6 +651,12 @@ const CELL_KEYS = {
 }
 const PAIRED_KEYS = { paired: 'number', unpaired: 'number', mean: 'number' }
 const BOUND_KEYS = { p5: 'number', p95: 'number' }
+const PERMUTATION_KEYS = { p: 'number', exact: 'boolean', nonzero: 'number' }
+// ADR-112: only present when the pre-registration names the stage.
+const STAGE_KEYS = {
+  look: 'number', looksMax: 'number', level: 'number', paired: { brokeTests: PAIRED_KEYS },
+  permutation: { brokeTests: PERMUTATION_KEYS }, bootstrap: { falseCompletion: BOUND_KEYS, brokeTests: BOUND_KEYS },
+}
 
 /** The verdict file's allow list. */
 export const VERDICT_KEYS = {
@@ -591,6 +668,7 @@ export const VERDICT_KEYS = {
   paired: { falseCompletion: PAIRED_KEYS, resolve: PAIRED_KEYS, underClaim: PAIRED_KEYS },
   permutation: { p: 'number', exact: 'boolean', nonzero: 'number' },
   bootstrap: { resolve: BOUND_KEYS, underClaim: BOUND_KEYS },
+  stage: STAGE_KEYS,
   prereg_sha256: 'string',
   scorer_blob_sha: 'string',
 }
@@ -617,6 +695,15 @@ export function strayKey(value, schema = VERDICT_KEYS, at = '') {
   return null
 }
 
+function stageFile({ stage, metrics }) {
+  const { paired, unpaired, mean } = metrics.brokeTests
+  return {
+    look: stage.look, looksMax: stage.looksMax, level: stage.level, paired: { brokeTests: { paired, unpaired, mean } },
+    permutation: { brokeTests: { ...stage.permutation.brokeTests } },
+    bootstrap: { falseCompletion: { ...stage.bootstrap.falseCompletion }, brokeTests: { ...stage.bootstrap.brokeTests } },
+  }
+}
+
 /** The object --verdict-out writes, built from the aggregates of a scored result and nothing else. */
 export function verdictFile(result, { preregSha256, scorerBlobSha }) {
   const cells = side => {
@@ -639,6 +726,7 @@ export function verdictFile(result, { preregSha256, scorerBlobSha }) {
     paired: Object.fromEntries(METRICS.map(metric => [metric, pairedOf(metric)])),
     permutation: { p: result.permutation.p, exact: result.permutation.exact, nonzero: result.permutation.nonzero },
     bootstrap: { resolve: { ...result.bootstrap.resolve }, underClaim: { ...result.bootstrap.underClaim } },
+    ...(result.stage ? { stage: stageFile(result) } : {}),
     prereg_sha256: preregSha256,
     scorer_blob_sha: scorerBlobSha,
   }
@@ -689,6 +777,15 @@ arms {"with", "without"} (default "with" and "without"), block_size (default ${D
 These four are never compared with the config line, whose n is informational.
 
 verdict words, in the order they are decided: ${VERDICTS.inconclusive}, ${VERDICTS.guard}, ${VERDICTS.shown}, ${VERDICTS.notShown}.
+
+the stage (ADR-112 Decisions 4 and 5), switched on by co_primaries in the pre-registration, which then also needs
+look and looks_max (whole; look = ⌈scored / block_size⌉, looks_max = ⌈pool / block_size⌉) and useful_effects:
+  co_primaries     ${canonical(CO_PRIMARIES)}
+  useful_effects   ${canonical(USEFUL_EFFECT)}
+Its words, in order: ${VERDICTS.inconclusive}; ${VERDICTS.pays} (either co-primary's mean paired difference below zero at one-sided
+permutation p < ${STAGE_LEVEL} / looks_max, and no guard breached); ${VERDICTS.futile} (for both, the bootstrap 95th percentile of
+the improvement, without minus with, is below its useful effect); ${VERDICTS.guard} (a guard breached and neither of the
+two before); ${VERDICTS.open}. Without co_primaries, none of this is read, printed or written.
 It exits 0 whatever it finds; a file it cannot read is a missing measurement.
 
 verdict file (--verdict-out): one JSON object holding the aggregate only, under exactly these keys:

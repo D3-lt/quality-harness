@@ -1,6 +1,66 @@
 {
   "mutations": [
     {
+      "label": "ADR-120 T12: a relative operand is dots and then plain names, never a dot after a name",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "PLAIN_NAME.test(part) && !part.endsWith('.')",
+      "to": "PLAIN_NAME.test(part)",
+      "only": "^(?:a path that resolves home, or is not a literal, is not proven foreign)$"
+    },
+    {
+      "label": "ADR-120 T12: a cd operand is read only when absolute, never as a relative -C",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "(moved || !relativeOn(platform, target))",
+      "to": "(!relativeOn(platform, target))",
+      "only": "^(?:a path that resolves home, or is not a literal, is not proven foreign)$"
+    },
+    {
+      "label": "ADR-120 T12: a relative operand holds no expansion",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "const PLAIN_NAME = /^[\\w.@+=,%][\\w.@+=,%-]*$/",
+      "to": "const PLAIN_NAME = /^[\\w.@+=,%$][\\w.@+=,%$-]*$/",
+      "only": "^(?:a quoted operand holding an expansion, a glob or a tilde is not proven foreign)$"
+    },
+    {
+      "label": "ADR-120 T12: a relative operand does not begin with a dash",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "const PLAIN_NAME = /^[\\w.@+=,%][",
+      "to": "const PLAIN_NAME = /^[\\w.@+=,%-][",
+      "only": "^(?:a path that resolves home, or is not a literal, is not proven foreign)$"
+    },
+    {
+      "label": "ADR-120 T12: on POSIX a backslash is a name's character, not a separator",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "word.split(platform === 'win32' ? /[\\\\/]/ : '/')",
+      "to": "word.split(/[\\\\/]/)",
+      "only": "^(?:a path that resolves home, or is not a literal, is not proven foreign)$"
+    },
+    {
+      "label": "ADR-120 T12: dots alone name no directory the rule reads",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "return names.length > 0 && names.every(",
+      "to": "return names.every(",
+      "only": "^(?:an operand with no name after the dots is not proven foreign)$"
+    },
+    {
       "label": "ADR-119 T3: a literal repeated as data is masked per occurrence, not only when it occurs once",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": [

@@ -264,6 +264,43 @@ func absoluteOn(word string) bool {
 	return strings.HasPrefix(word, "/")
 }
 
+// literalTarget is an absolute path the shell expands nothing in and that never steps through `..`.
+func literalTarget(word string) bool {
+	if !absoluteOn(word) || targetUnsafe.MatchString(word) {
+		return false
+	}
+	for _, part := range pathSplit.Split(word, -1) {
+		if part == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+var plainName = regexp.MustCompile(`^[A-Za-z0-9_.@+=,%][A-Za-z0-9_.@+=,%-]*$`)
+
+// relativeOn is publish-command.mjs's relativeOn (ADR-120 T12): a leading run of `..`, then plain names.
+func relativeOn(word string) bool {
+	parts := strings.Split(word, "/")
+	if runtime.GOOS == "windows" {
+		parts = pathSplit.Split(word, -1)
+	}
+	at := 0
+	for at < len(parts) && parts[at] == ".." {
+		at++
+	}
+	names := parts[at:]
+	if len(names) == 0 {
+		return false
+	}
+	for _, part := range names {
+		if !plainName.MatchString(part) || strings.HasSuffix(part, ".") {
+			return false
+		}
+	}
+	return true
+}
+
 func foreignCommitPath(command any) string {
 	text, ok := command.(string)
 	if !ok {
@@ -317,13 +354,9 @@ func foreignCommitPath(command any) string {
 	if moved {
 		target = commands[0].argv[1]
 	}
-	if !absoluteOn(target) || targetUnsafe.MatchString(target) {
+	// A `cd` operand is read only when absolute: `cd` resolves logically and git physically (ADR-120 T12).
+	if !literalTarget(target) && (moved || !relativeOn(target)) {
 		return ""
-	}
-	for _, part := range pathSplit.Split(target, -1) {
-		if part == ".." {
-			return ""
-		}
 	}
 	at := 3
 	if moved {

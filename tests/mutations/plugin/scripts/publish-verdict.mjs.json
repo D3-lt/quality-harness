@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-120 T12: the probe asks git from the payload cwd, where the operand was written",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/foreign-relative.test.mjs"
+      ],
+      "from": "const there = commonDirectory(target, input.cwd)",
+      "to": "const there = commonDirectory(target, process.cwd())",
+      "only": "^(?:a commit into another repository by a relative path is judged there)$"
+    },
+    {
       "label": "ADR-113 T2: the publish verdict speaks over an unreadable declaration",
       "file": "plugin/scripts/publish-verdict.mjs",
       "tests": [

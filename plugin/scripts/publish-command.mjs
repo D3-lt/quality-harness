@@ -157,12 +157,24 @@ function commitStagesAll(words) {
 // drive and a separator; an MSYS `/c/x` is Git Bash's to translate, so it is not read here.
 const absoluteOn = (platform, word) => (platform === 'win32' ? /^[A-Za-z]:[\\/]/.test(word) : word.startsWith('/'))
 
+// ADR-120 T12: what git itself resolves from the payload cwd, spelled as plain names: a leading run of `..`, then one
+// or more names, each without `.`, `..`, a trailing dot, `$`, a glob, `~`, a drive or (on POSIX) a backslash. The
+// probe asks git with the operand as written, so git's own path semantics decide where it lands; this only keeps a
+// spelling the shell could expand or git read differently out of the proof.
+const PLAIN_NAME = /^[\w.@+=,%][\w.@+=,%-]*$/
+const relativeOn = (platform, word) => {
+  const parts = word.split(platform === 'win32' ? /[\\/]/ : '/')
+  const lead = parts.findIndex(part => part !== '..')
+  const names = lead === -1 ? [] : parts.slice(lead)
+  return names.length > 0 && names.every(part => PLAIN_NAME.test(part) && !part.endsWith('.'))
+}
+
 // What may end the commit or a command after it: a `&`, `|`, `||` or `)` is not data's join.
 const DATA_JOINS = new Set(['', ';', '&&', '\n'])
 
 /**
  * foreignCommitPath proves from the text alone that a command is ONE git commit into the
- * absolute literal path it names with `-C`, and returns that path (ADR-104 Decision 1); the
+ * absolute literal path it names with `-C` (or a relative one, ADR-120 T12), and returns that path (ADR-104 Decision 1); the
  * hook then asks git where that path's repository is (Decision 2). One git command, because
  * one git process finds its repository once: a second git step could run the target's
  * clean filter and re-point a symlinked path first (Codex cold review). After the commit
@@ -196,7 +208,9 @@ export function foreignCommitPath(command, env = process.env, platform = process
   if (moved && !plain(commands[0])) return null
   if (!plain(commit) || commit.dynamic.length || commit.argv[0] !== 'git' || (!moved && commit.argv[1] !== '-C')) return null
   const target = moved ? commands[0].argv[1] : commit.argv[2] ?? ''
-  if (!absoluteOn(platform, target) || /[$`~*?[\]{}]/.test(target) || target.split(/[\\/]/).includes('..')) return null
+  // A `cd` operand is read only when absolute: `cd` resolves logically and git physically (ADR-120 T12).
+  const literal = absoluteOn(platform, target) && !/[$`~*?[\]{}]/.test(target) && !target.split(/[\\/]/).includes('..')
+  if (!literal && (moved || !relativeOn(platform, target))) return null
   let at = moved ? 1 : 3
   while (commit.argv[at] === '-c' && USER_IDENTITY.test(commit.argv[at + 1] ?? '')) at += 2
   if (commit.argv[at] !== 'commit' || !plainGitArguments('commit', commit.argv.slice(at + 1))) return null

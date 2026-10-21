@@ -643,6 +643,16 @@
       "from": "  const key = invoked === null ? `${verdict.key}:mention` : verdict.key",
       "to": "  const key = verdict.key",
       "only": "^a mention on a tree does not silence the advice a softened refusal gets there$"
+    },
+    {
+      "label": "ADR-120 T4: the plugin root line is appended again on every SessionStart",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "  if (existing.split('\\n').includes(rootExport.trimEnd())) return null",
+      "to": "  if (false) return null",
+      "only": "^(?:the session start writes the plugin root once, whatever the git hook probe found)$"
     }
   ]
 }

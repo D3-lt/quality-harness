@@ -64,6 +64,16 @@ out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \
 | 4 — it is used | every bare `adr-verify`/`adr-lint` from a session's Bash |
 
 ## Mutation Log
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · RESOLVER tries CLAUDE_PLUGIN_ROOT before QH_PLUGIN_ROOT · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · RESOLVER takes a named copy that holds no bin · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · RESOLVER lets the installed manifest override a named copy · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/bin/qh-root` · qh-root tries CLAUDE_PLUGIN_ROOT before QH_PLUGIN_ROOT · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/bin/qh-root` · qh-root takes a named copy that holds no bin · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/scripts/publish-verdict.mjs` · the plugin root is appended again on every SessionStart · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/scripts/on-session-start.mjs` · SessionStart never calls the plugin root writer · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `core/hooks/orientation.go` · the Go session start never calls the plugin root writer · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `core/hooks/orientation.go` · the Go writer appends the plugin root again on every SessionStart · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
+- 2026-10-21 · 9a8463f7* · mutant killed · exit 1 · `plugin/scripts/on-session-start.mjs` · SessionStart never calls the plugin root writer (separate call site) · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee
 
 ## Invariants
 
@@ -84,3 +94,16 @@ wrong one, and the design needs a per-session key.
 - A pointer file keyed by session id (permanent: boundary: rejected in ADR-120's Alternatives; the env file already carries this plugin's exports)
 
 ## Verification Log
+- 2026-10-21 · 9a8463f7* · exit 1 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:878 · test-lock-sha256:e7b200e2b3141bbf3ccb0e9a29e35c458fe9c638ceb05d8ba001aa84b0d8ca97 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcGx1Z2luLXJvb3QudGVzdC5tanMJYSBmb3J3YXJkZXIgcnVucyB0aGUgY29weSB0aGUgc2Vzc2lvbiBuYW1lcywgb3ZlciBhIG5ld2VyIGluc3RhbGxlZCBvbmUJYmZmYTNmOWZkYWRiNTRhNDA5YmE1MWU1ZDQ3ZmJiOTUzNzdjY2I3Y2E2ZTZjYmExOWNmMjc3MWZmYWVjMGJiNgpib2R5CXRlc3RzL3BsdWdpbi1yb290LnRlc3QubWpzCWEgbmFtZWQgY29weSB3aXRob3V0IGJpbiBmYWxscyB0aHJvdWdoLCBpbiBvcmRlcgljZDkzYTlmNjlhNmMyYTNiYzE1MTdjMGU5OGZiNmNkNjU3ZGQwNzZiZjUwYTcwZmJlMTdmMmM3MzMxZDg0NGQ1CmJvZHkJdGVzdHMvcGx1Z2luLXJvb3QudGVzdC5tanMJdGhlIEdvIHNlc3Npb24gc3RhcnQgd3JpdGVzIHRoZSBzYW1lIHBsdWdpbiByb290IGxpbmUJZmJhYThkM2FlMTFjZGNlZmQ2OGM1ZjQyYzA3NTQ4ODZmYjU0Mjg0NTcwYjIzMzIxOTI2MzFiMmRiN2JiNGE5MApib2R5CXRlc3RzL3BsdWdpbi1yb290LnRlc3QubWpzCXRoZSBzZXNzaW9uIHN0YXJ0IHdyaXRlcyB0aGUgcGx1Z2luIHJvb3Qgb25jZSwgd2hhdGV2ZXIgdGhlIGdpdCBob29rIHByb2JlIGZvdW5kCWY3YTFkYWEwZjc3OWViYmNlN2EwNDI1MWVjMDRhOTgxYmE3MDM3YTM1NTE2ZTVjYTdkZDNmNTlkNjA4YWJhODI
+  ```
+  ```
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:8413
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:6365
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:5262
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:2724
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:6803
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:8506
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:10136
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:5433
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:5806
+- 2026-10-21 · 9a8463f7* · exit 0 · `out=$(node --test --test-reporter=tap tests/plugin-root.test.mjs 2>&1) \ …` · acceptance-sha256:8d2fca0926ebb4780232ed96777d560194ab78c5f223a10c30b46365c736d4ee · ms:2326

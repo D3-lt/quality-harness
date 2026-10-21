@@ -79,13 +79,17 @@ def newest(cache: Path) -> Path | None:
 def resolve() -> Path | None:
     """The plugin root to print.
 
-    `CLAUDE_PLUGIN_ROOT` first when the environment already carries one — a hook
+    `QH_PLUGIN_ROOT` first: the session's own hooks wrote it (ADR-120 T4), so a
+    forwarder runs the copy they run rather than the newest installed one. Then
+    `CLAUDE_PLUGIN_ROOT` when the environment already carries one — a hook
     or a plugin-context invocation knows better than this search does, and
     disagreeing with it would answer a different question than the caller asked.
+    Each counts only where it holds `bin/`.
     """
-    environment = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if environment and (Path(environment) / "bin").is_dir():
-        return Path(environment)
+    for name in ("QH_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
+        environment = os.environ.get(name)
+        if environment and (Path(environment) / "bin").is_dir():
+            return Path(environment)
     return newest(cache_directory(Path.home()))
 
 

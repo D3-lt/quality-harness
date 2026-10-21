@@ -536,6 +536,24 @@ func armedByGit(entries []any) bool {
 	return false
 }
 
+// pluginRootExport is the shell line that names the plugin copy for the session's shell (ADR-120 T4), as the Node writer's.
+func pluginRootExport() string {
+	return "export QH_PLUGIN_ROOT='" + strings.ReplaceAll(strings.ReplaceAll(pluginRoot(), `\`, "/"), "'", `'\''`) + "'\n"
+}
+
+// appendEnvFile appends text to the host's env file, which is only ever appended to.
+func appendEnvFile(file, text string) error {
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(text)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
 // publishHookExports are the POSIX shell lines that add git's publish hook for a session (ADR-066 T2).
 func publishHookExports() string {
 	node, err := exec.LookPath("node")
@@ -570,6 +588,29 @@ func publishHookExports() string {
 
 var qhprobe = regexp.MustCompile(`\bqhprobe\b`)
 
+// offerPluginRoot names this session's plugin copy in the host's env file, once per file by the line's own text (ADR-120 T4).
+// Apart from offerPublishHook on purpose: a git that lists no config hook, or an older git block already in the file, must not
+// skip it. Silent where the file is unset or unreadable, which offerPublishHook records.
+func offerPluginRoot(cwd string, session any) {
+	file := os.Getenv("CLAUDE_ENV_FILE")
+	if file == "" {
+		return
+	}
+	existing := ""
+	if b, err := os.ReadFile(file); err == nil {
+		existing = string(b)
+	} else if !os.IsNotExist(err) {
+		return
+	}
+	rootExport := pluginRootExport()
+	if strings.Contains("\n"+existing, "\n"+strings.TrimSuffix(rootExport, "\n")+"\n") {
+		return
+	}
+	if err := appendEnvFile(file, rootExport); err != nil {
+		appendEvent(cwd, session, O("event", "publish.unarmed", "reason", "the env file could not be written ("+errCode(err, err.Error())+")"))
+	}
+}
+
 // offerPublishHook offers git's hook for this session through the host's env file, and records what happened.
 func offerPublishHook(cwd string, session any) {
 	record := func(entry *Obj) { appendEvent(cwd, session, entry) }
@@ -600,13 +641,7 @@ func offerPublishHook(cwd string, session any) {
 		record(O("event", "publish.unarmed", "reason", "git here does not list a config-based hook ("+why+"); git 2.54 or later runs them"))
 		return
 	}
-	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
-	if err == nil {
-		_, err = f.WriteString(publishHookExports())
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-	}
+	err := appendEnvFile(file, publishHookExports())
 	if err != nil {
 		record(O("event", "publish.unarmed", "reason", "the env file could not be written ("+errCode(err, err.Error())+")"))
 		return
@@ -632,6 +667,7 @@ func onSessionStart(h *hookRun, input *Obj) {
 		bumpSessionGeneration(session)
 	}
 	sweepStaleSessionLogs(cwd, session)
+	offerPluginRoot(cwd, session)
 	offerPublishHook(cwd, session)
 	sections := []string{}
 	once := strict(source, "startup") || strict(source, "resume") || isUndefined(source)

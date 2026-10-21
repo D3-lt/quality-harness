@@ -145,6 +145,16 @@
       "from": "  if (offer?.event === 'publish.unarmed' && offer.reason !== 'CLAUDE_ENV_FILE is not set') {",
       "to": "  if (offer?.event === 'publish.unarmed') {",
       "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
+    },
+    {
+      "label": "ADR-120 T4: SessionStart never names the plugin root",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "  try { offerPluginRoot({ cwd: input.cwd, session: input.session_id }) } catch (failure) {",
+      "to": "  try { null } catch (failure) {",
+      "only": "^(?:the session start writes the plugin root once, whatever the git hook probe found)$"
     }
   ]
 }

@@ -90,6 +90,12 @@ export function readOnlyRole(agentType) {
 // environment outranks a repository's own file — a repo-local `enabled false`
 // does not switch it off (measured 2026-09-26).
 const PUBLISH_HOOK_SCRIPT = fileURLToPath(new URL('./publish-hook.mjs', import.meta.url))
+// ADR-120 T4: the copy this session's hooks run, named to every forwarder the session's shell starts, so an older writer
+// and a newer hook no longer meet (BACKLOG section 389). Its own line, ahead of and apart from the git block below.
+const PLUGIN_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+
+/** The POSIX shell line that names the plugin copy for the session's shell. Forward slashes, as git's block does. */
+export const pluginRootExport = (root = PLUGIN_ROOT) => `export QH_PLUGIN_ROOT='${String(root).replace(/\\/g, '/').replace(/'/g, `'\\''`)}'\n`
 
 /** The POSIX shell lines that add the hook for a session, after any GIT_CONFIG_* already in force. */
 export function publishHookExports(node = process.execPath, script = PUBLISH_HOOK_SCRIPT) {
@@ -136,6 +142,25 @@ export function awaitingArming(events) {
 // prompt (ADR-068 T2; the ADR-098 Follow-up).
 function armedByGit(events) {
   return !awaitingArming(events) && events.some(entry => entry.event === 'publish.hook-ran')
+}
+
+/**
+ * Name this session's plugin copy in the env file, once per file by the line's own text (ADR-120 T4). Apart from
+ * `offerPublishHook` on purpose: a git that lists no config hook, or an older git block already in the file, must not skip
+ * it. Silent where the file is unset or unreadable, which `offerPublishHook` records.
+ */
+export function offerPluginRoot({ cwd, session, env = process.env, rootExport = pluginRootExport() }) {
+  const file = env.CLAUDE_ENV_FILE
+  if (typeof file !== 'string' || !file) return null
+  let existing = ''
+  try { existing = readFileSync(file, 'utf8') } catch (error) {
+    if (error?.code !== 'ENOENT') return null
+  }
+  if (existing.split('\n').includes(rootExport.trimEnd())) return null
+  try { appendFileSync(file, rootExport) } catch (error) {
+    return appendEvent(cwd, session, { event: 'publish.unarmed', reason: `the env file could not be written (${error?.code ?? error})` })
+  }
+  return null
 }
 
 /** Offer the hook for this session, and record what happened. */

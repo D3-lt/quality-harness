@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T4: the Go session start never names the plugin root",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "\tofferPluginRoot(cwd, session)",
+      "to": "\t_ = cwd",
+      "only": "^(?:the Go session start writes the same plugin root line)$"
+    },
+    {
+      "label": "ADR-120 T4: the Go writer appends the plugin root again on every SessionStart",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "strings.Contains(\"\\n\"+existing, \"\\n\"+strings.TrimSuffix(rootExport, \"\\n\")+\"\\n\")",
+      "to": "false",
+      "only": "^(?:the Go session start writes the same plugin root line)$"
+    }
+  ]
+}

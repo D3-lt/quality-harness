@@ -36,9 +36,29 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    if environment and (Path(environment) / \"bin\").is_dir():\n        return Path(environment)",
-      "to": "    if environment:\n        return Path(environment)",
+      "from": "        if environment and (Path(environment) / \"bin\").is_dir():\n            return Path(environment)",
+      "to": "        if environment:\n            return Path(environment)",
       "only": "^(?:qh-root answers with a plugin directory, or with nothing at all)$"
+    },
+    {
+      "label": "ADR-120 T4: qh-root tries the session's QH_PLUGIN_ROOT before CLAUDE_PLUGIN_ROOT",
+      "file": "plugin/bin/qh-root",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "(\"QH_PLUGIN_ROOT\", \"CLAUDE_PLUGIN_ROOT\")",
+      "to": "(\"CLAUDE_PLUGIN_ROOT\", \"QH_PLUGIN_ROOT\")",
+      "only": "^(?:a named copy without bin falls through, in order)$"
+    },
+    {
+      "label": "ADR-120 T4: qh-root takes a named session copy that holds no bin",
+      "file": "plugin/bin/qh-root",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "        if environment and (Path(environment) / \"bin\").is_dir():\n            return Path(environment)",
+      "to": "        if environment:\n            return Path(environment)",
+      "only": "^(?:a named copy without bin falls through, in order)$"
     }
   ]
 }

@@ -3,7 +3,7 @@
 // lifecycle.mjs unchanged (BACKLOG section 375, stage D). It never blocks.
 import { bumpSessionGeneration, claimCompaction, firstMentionHere, previousSessionNotice, readSessionNote } from './session-notes.mjs'
 import { sweepStaleSessionLogs } from './housekeeping.mjs'
-import { awaitingArming, offerPublishHook } from './publish-verdict.mjs'
+import { awaitingArming, offerPluginRoot, offerPublishHook } from './publish-verdict.mjs'
 import { sessionOrientation } from './session-orientation.mjs'
 import { appendEvent, readEvents } from './event-log.mjs'
 import path from 'node:path'
@@ -52,6 +52,10 @@ export function onSessionStart(input, recorded) {
   // The state directory grows by a full copy of checks.jsonl per session; a week-old
   // log with no unseen write in it is dead weight (never throws, once a day).
   try { sweepStaleSessionLogs(input.cwd ?? process.cwd(), input.session_id) } catch { /* disk only */ }
+  // ADR-120 T4: name this session's plugin copy to the shell's forwarders, whatever git's hook finds below.
+  try { offerPluginRoot({ cwd: input.cwd, session: input.session_id }) } catch (failure) {
+    process.stderr.write(`[quality-harness] the plugin root was not named (${failure?.message ?? failure}).\n`)
+  }
   // ADR-066 T2: offer git the publish hook for this session's Bash. A failure
   // here is said and costs the session nothing but the offer.
   try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {

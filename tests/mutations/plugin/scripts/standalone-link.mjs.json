@@ -419,6 +419,36 @@
       "from": "  return mine !== '' && mine === firstMeaningfulLine(readOrEmpty(source))",
       "to": "  return mine === firstMeaningfulLine(readOrEmpty(source))",
       "only": "^a copy and a source that both read as empty are not the same file \\(Codex review of f9c639a2\\)$"
+    },
+    {
+      "label": "ADR-120 T4: RESOLVER tries the session's QH_PLUGIN_ROOT before CLAUDE_PLUGIN_ROOT",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "[\"QH_PLUGIN_ROOT\",\"CLAUDE_PLUGIN_ROOT\"]",
+      "to": "[\"CLAUDE_PLUGIN_ROOT\",\"QH_PLUGIN_ROOT\"]",
+      "only": "^(?:a named copy without bin falls through, in order)$"
+    },
+    {
+      "label": "ADR-120 T4: RESOLVER takes a named session copy that holds no bin",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "if(!root&&has(d))root=d",
+      "to": "if(!root&&d)root=d",
+      "only": "^(?:a named copy without bin falls through, in order)$"
+    },
+    {
+      "label": "ADR-120 T4: RESOLVER lets the installed manifest override a named session copy",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/plugin-root.test.mjs"
+      ],
+      "from": "'if(!root)try{',",
+      "to": "'try{',",
+      "only": "^(?:a forwarder runs the copy the session names, over a newer installed one)$"
     }
   ]
 }

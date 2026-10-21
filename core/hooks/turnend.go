@@ -466,7 +466,7 @@ func checkCanStart(command, directory string, lookup func(string) (string, bool)
 		return true
 	}
 	first := commands[0]
-	if len(first.argv) == 0 || len(first.opens) > 0 || first.bangs > 0 || first.defines != "" {
+	if len(first.argv) == 0 || len(first.opens) > 0 || first.bangs > 0 || first.defines != "" || len(first.assignments) > 0 {
 		return true
 	}
 	program, rest := first.argv[0], first.argv[1:]

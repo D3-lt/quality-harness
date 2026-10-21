@@ -430,11 +430,13 @@ function ledgerRecordCount(cwd, file) {
 // differs only under the list, and a newer failure on that code still beats it.
 function checkEventsFor(log, tree, carry = null) {
   if (typeof tree !== 'string' || !tree) return []
-  const carried = entry => typeof carry?.codeTree === 'string' && entry.after?.codeTree === carry.codeTree && sameList(entry.prose, carry.prose)
+  const carried = carriedBy(carry)
   return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && (entry.after?.tree === tree || carried(entry)))
 }
 
 const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((spec, at) => spec === b[at])
+// The events a carry speaks for: those taken on its code tree under its list.
+const carriedBy = carry => entry => typeof carry?.codeTree === 'string' && entry.after?.codeTree === carry.codeTree && sameList(entry.prose, carry.prose)
 
 /**
  * ADR-120 T9. What a pass may be carried by for one tree: its code tree and the declared list it was taken under, or null.
@@ -442,7 +444,22 @@ const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === 
  * see is outstanding: the code tree speaks for what git lists, so it cannot speak for that write (ADR-005).
  */
 export function carryFor(log, root, codeTree, prose) {
-  return unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null
+  const carry = unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null
+  return carry && !carriedPassUnseen(log, root, carry) ? carry : null
+}
+
+/**
+ * Whether a write git cannot see, in ANY session's log of this repository, follows the pass a carry would stand on: the pass is the
+ * latest check event taken on that code tree under that list, and the veto is `passedAlready`'s (`unseenWriteSince`, from the
+ * pass's own start and ledger position). `carryFor` looked only at the log it was handed, so a write another session made to a
+ * file the check reads (an ignored one) left the carry standing. No root says nothing about where to look, so it vetoes nothing.
+ */
+export function carriedPassUnseen(log, root, carry) {
+  if (!carry || !root) return false
+  const carried = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && carriedBy(carry)(entry))
+  const latest = latestOf(carried)
+  if (latest?.event !== 'check.passed') return false
+  return unseenWriteSince(root, { seen: 'checksSeen', seq: latest.seq, started: Date.parse(latest.before?.at) })
 }
 
 // The carry without the write check, for a judge that is handed its writes (tests/pure-judges.test.mjs keeps it from reading files).

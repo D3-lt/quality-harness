@@ -116,7 +116,8 @@ type carry struct {
 }
 
 // carryFor is check-ledger.mjs's: nil when the tree has no code tree (the project declares nothing, or git could not say), and
-// nil while a write git cannot see is outstanding, since the code tree speaks for what git lists and cannot speak for that write.
+// nil while a write git cannot see is outstanding, in this session's log or any other session's, since the code tree speaks for what
+// git lists and cannot speak for that write.
 func carryFor(log Log, root string, codeTree any, prose any) *carry {
 	tree, ok := codeTree.(string)
 	if !ok || tree == "" {
@@ -129,7 +130,35 @@ func carryFor(log Log, root string, codeTree any, prose any) *carry {
 	if len(unobservableWrites(log, root)) > 0 {
 		return nil
 	}
-	return &carry{codeTree: tree, prose: list}
+	c := &carry{codeTree: tree, prose: list}
+	if carriedPassUnseen(log, root, c) {
+		return nil
+	}
+	return c
+}
+
+// carriedPassUnseen is check-ledger.mjs's: whether a write git cannot see, in any session's log of this repository, follows the
+// pass a carry would stand on (the latest check event on that code tree under that list), judged as passedAlready judges it. No
+// root says nothing about where to look, so it vetoes nothing.
+func carriedPassUnseen(log Log, root string, c *carry) bool {
+	if c == nil || root == "" {
+		return false
+	}
+	carried := []any{}
+	for _, e := range log.E {
+		if isCheckEvent(e) && strict(dig(e, "after", "codeTree"), c.codeTree) && sameProse(get(e, "prose"), c.prose) {
+			carried = append(carried, e)
+		}
+	}
+	latest := latestOf(carried, false)
+	if latest == nil || !strict(get(latest, "event"), "check.passed") {
+		return false
+	}
+	seq := -1
+	if n, ok := get(latest, "seq").(float64); ok {
+		seq = int(n)
+	}
+	return unseenWriteSince(root, "checksSeen", seq, dateParse(dig(latest, "before", "at")))
 }
 
 // carriedAsRecorded is whether a check event's code tree and list are the ledger record's: an event that names either must name

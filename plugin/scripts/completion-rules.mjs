@@ -6,7 +6,7 @@ import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents, walk } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
-import { carryFor, carryWith, channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
+import { carriedPassUnseen, carryFor, carryWith, channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { baselineFor } from './check-ledger.mjs'
 import { codeTreeOf, gitRepositoryLookup, mark, sameObservation, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
@@ -591,7 +591,7 @@ function couldNotLookReason(sentence, reason) {
 // THEMSELVES — never from whether a rule spoke. A P warning, a dedupe or a
 // suppression must not be able to turn an unchecked state into `verified`
 // (ADR-035, ADR-060 revision 4 review).
-function ledgerEvidence(log, observation, baseline, commits, writes, check, status) {
+function ledgerEvidence(log, observation, baseline, commits, writes, check, status, carryOf) {
   if (observation?.ok !== true) return 'could-not-look'
   // ⚠ AN ENUMERATION THAT FAILED IS COULD-NOT-LOOK TOO. The observation can be
   // fine while the follow-up git query that lists the paths or the commits is not,
@@ -606,10 +606,10 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
   // only by a read that really happened and really lost something.
   if (logIncomplete(log)) return 'could-not-look'
   if (!check) return 'no-check'
-  const treeUnchecked = checkStanding(log, observation.tree, carryWith(observation.codeTree, observation.prose)) !== 'passed'
+  const treeUnchecked = checkStanding(log, observation.tree, carryOf(observation.codeTree)) !== 'passed'
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   if (treeUnchecked || writes.length > 0) return 'unverified'
-  if (commits.some(commit => checkStanding(log, commit.tree, carryWith(commit.codeTree, observation.prose)) !== 'passed')) return 'unverified'
+  if (commits.some(commit => checkStanding(log, commit.tree, carryOf(commit.codeTree)) !== 'passed')) return 'unverified'
   return 'verified'
 }
 
@@ -687,8 +687,13 @@ export function completionFacts(input, ended) {
       if (checkStanding(log, commit.tree) !== 'passed') commit.codeTree = codeTreeOf(root, commit.tree, observation.prose) ?? undefined
     }
   }
+  // A write another session made, to a file git cannot see, after the pass a carry would stand on: read here, once per code tree,
+  // so the judgement reaches no file. The code trees it names carry nothing.
+  const carryVetoed = root !== null && observation?.ok === true
+    ? [...new Set([observation.codeTree, ...commits.map(commit => commit.codeTree)])].filter(codeTree => carriedPassUnseen(log, root, carryWith(codeTree, observation.prose)))
+    : []
   return {
-    log, observation, check, origin: origin.origin, root, baseline, writes, status, commits,
+    log, observation, check, origin: origin.origin, root, baseline, writes, status, commits, carryVetoed,
     // ADR-120 T11: whether a declared check's first program can start here, probed once per Stop without running the check.
     unstartable: origin.origin === 'declared' && !checkCanStart(origin.command, root ?? path.resolve(input.cwd ?? process.cwd())),
     // ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger, read here so the
@@ -704,7 +709,8 @@ export function completionFacts(input, ended) {
 
 // ADR-120 T11: whether a declared check's first program can start here, judged without running it. Only what is certain says no: a
 // plain program word that is no shell builtin and is on no PATH directory, or a script handed straight to an interpreter that is not
-// there. Anything this does not read (a variable, a glob, a group, an unclosed quote, no PATH at all) can start, as before. It does
+// there. Anything this does not read (a variable, a glob, a group, an unclosed quote, no PATH at all, a command-local assignment that
+// can put the program on a PATH of its own) can start, as before. It does
 // not run the project's shell setup, so a PATH an `nvm`-style setup extends reads as absent: a finding said to the user, never lost.
 const SHELL_OWN_WORDS = new Set(['.', ':', '[', '[[', 'alias', 'bg', 'break', 'cd', 'command', 'continue', 'declare', 'do', 'done', 'elif', 'else', 'esac', 'eval', 'exec', 'exit', 'export', 'false', 'fg', 'fi', 'for', 'function', 'getopts', 'hash', 'if', 'in', 'let', 'local', 'read', 'readonly', 'return', 'select', 'set', 'shift', 'source', 'test', 'then', 'time', 'times', 'trap', 'true', 'type', 'typeset', 'ulimit', 'umask', 'unalias', 'unset', 'until', 'wait', 'while'])
 const SCRIPT_RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'node', 'python', 'python3', 'ruby', 'perl'])
@@ -712,7 +718,7 @@ const UNREAD_WORD = /[$`*?[\]{}~\\]/
 export function checkCanStart(command, directory, env = process.env, platform = process.platform) {
   const { commands, complete } = shellWords(command)
   const first = commands[0]
-  if (!complete || !first || first.argv.length === 0 || first.opens.length || first.bangs || first.defines) return true
+  if (!complete || !first || first.argv.length === 0 || first.opens.length || first.bangs || first.defines || first.assignments.length) return true
   const [program, ...rest] = first.argv
   if (first.dynamic[0] || UNREAD_WORD.test(program) || SHELL_OWN_WORDS.has(program)) return true
   if (program.includes('/')) return existsSync(path.resolve(directory, program))
@@ -735,14 +741,14 @@ export function checkCanStart(command, directory, env = process.env, platform = 
  * tests/completion-judgement.test.mjs walks it. Returns `{ claim, actions }`; the caller records the claim and queues the actions.
  */
 export function completionJudgement(facts, input) {
-  const { log, observation, check, root, baseline, writes, status, commits, unchangedWrites = [] } = facts
+  const { log, observation, check, root, baseline, writes, status, commits, unchangedWrites = [], carryVetoed = [] } = facts
   // ADR-120 T9: each tree is asked with its own code tree (null when it has none or a write git cannot see is outstanding).
-  const carryOf = codeTree => (observation?.ok === true && writes.length === 0 ? carryWith(codeTree, observation.prose) : null)
+  const carryOf = codeTree => (observation?.ok === true && writes.length === 0 && !carryVetoed.includes(codeTree) ? carryWith(codeTree, observation.prose) : null)
   const treeCarry = carryOf(observation?.codeTree)
   const commitStanding = commit => checkStanding(log, commit.tree, carryOf(commit.codeTree))
   const claim = {
     claim: completionClaim(input.last_assistant_message),
-    evidence: ledgerEvidence(log, observation, baseline, commits, writes, check, status),
+    evidence: ledgerEvidence(log, observation, baseline, commits, writes, check, status, carryOf),
     mutations: status.length + writes.length,
   }
   const actions = []

@@ -837,6 +837,22 @@
       "from": "const treeCarry = observation?.ok === true ? carryFor(log, root, observation.codeTree, observation.prose) : null",
       "to": "const treeCarry = null",
       "only": "^(?:the compaction note says a pass that stands for the tree passed on the changed paths, in Node and Go)$"
+    },
+    {
+      "label": "ADR-120 T9: the turn end carries a pass across a write another session logged after it",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
+      "from": "writes.length === 0 && !carryVetoed.includes(codeTree) ?",
+      "to": "writes.length === 0 ?",
+      "only": "^(?:a write another session made after the pass ends the carry-over, and one made before it does not)$"
+    },
+    {
+      "label": "ADR-120 T11: a command-local assignment is read as no PATH change",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
+      "from": "first.defines || first.assignments.length) return true",
+      "to": "first.defines) return true",
+      "only": "^(?:a declared check with a command-local assignment can start, and a plain missing program cannot)$"
     }
   ]
 }

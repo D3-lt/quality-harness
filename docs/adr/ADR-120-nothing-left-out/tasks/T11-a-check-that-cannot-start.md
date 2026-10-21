@@ -18,6 +18,7 @@ A declared check whose program cannot be found on this machine's PATH (or whose 
 | File | Change | Why |
 |------|--------|-----|
 | `tests/turn-end-declared.test.mjs` | edit | new tests beside T6's (0 locks on the new ones; T6's are locked by its own task and stay byte-identical) |
+| `tests/carry-and-probe-fixes.test.mjs` | create | the review's P2 here and P1 of T9, Node and Go (0 locks: new); `core/hooks/carry_review_test.go` is its Go half |
 | `plugin/scripts/completion-rules.mjs` | edit | R1 and R2 read whether the declared check's first program resolves (`command -v`-equivalent over PATH, or the named script file exists); one that does not routes to the user, as T6 does for an inferred check. The class, from `mrw read --grep 'unstarted|could not start|validationVerdict|checkEventName' plugin/scripts/ core/hooks/`: `check-record.mjs:18-25` and `check-ledger.mjs:165-183` classify a run's outcome after it ran and are retained; `completion-rules.mjs:208-243` and `:544-546` say a run that did not start and are retained; only the turn end's decision to continue changes |
 | `core/hooks/turnend.go` | edit | the same |
 | `tests/mutations/plugin/scripts/completion-rules.mjs.json` | edit | one entry per mechanism |
@@ -37,6 +38,8 @@ out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \
       "a declared check that can start continues as before"; do
     test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "$n")" = 1 || exit 1
   done \
+  && out=$(node --test --test-reporter=tap tests/carry-and-probe-fixes.test.mjs 2>&1) \
+  && test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "a declared check with a command-local assignment can start, and a plain missing program cannot")" = 1 \
   && (cd core && go test ./hooks/)
 ```
 
@@ -46,6 +49,7 @@ out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \
 |-----------|------|----------|--------|-------|
 | `a declared check that cannot start continues no turn and is said to the user once` | `tests/turn-end-declared.test.mjs` | the probe | — | S1, S2, S3 |
 | `a declared check that can start continues as before` | `tests/turn-end-declared.test.mjs` | the twin | — | S1, S2 |
+| `a declared check with a command-local assignment can start, and a plain missing program cannot` | `tests/carry-and-probe-fixes.test.mjs` | the probe reads `PATH=/bin sh -c ...` as startable and `nosuchprogram-xyz` as not (review of 7a9107e8..dcc4693a, P2); its Go twin is `TestCheckCanStartReadsAssignments` | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -64,6 +68,7 @@ out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \
 - 2026-10-21 · 543e0bc9* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · no program on PATH can start · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce
 - 2026-10-21 · 543e0bc9* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · turnEnd continue is ignored by the rules · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce
 - 2026-10-21 · 543e0bc9* · mutant killed · exit 1 · `plugin/scripts/project-config.mjs` · turnEnd continue is not read · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce
+- 2026-10-21 · a5ac6999* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · a command-local assignment read as no PATH change makes a runnable check unstartable (review of 7a9107e8..dcc4693a, finding 5) · acceptance-sha256:ee247173c6880060a80c2503acbad4befee3fded422a432ab61a1ee9b683d077
 
 ## Invariants
 
@@ -93,3 +98,4 @@ Stop if resolving the program needs to run the project's shell setup (an `nvm`-s
 - 2026-10-21 · 543e0bc9* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce · ms:29202
 - 2026-10-21 · 543e0bc9* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce · ms:35457
 - 2026-10-21 · 543e0bc9* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce · ms:88709
+- 2026-10-21 · a5ac6999* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:ee247173c6880060a80c2503acbad4befee3fded422a432ab61a1ee9b683d077 · ms:20538

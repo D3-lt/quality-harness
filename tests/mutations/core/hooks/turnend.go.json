@@ -23,6 +23,14 @@
       "from": "c.codeTree = codeTreeOf(root, c.tree, list)",
       "to": "c.codeTree = strOr(get(observation, \"codeTree\"))",
       "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T11: the Go probe reads a command-local assignment as no PATH change",
+      "file": "core/hooks/turnend.go",
+      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
+      "from": "first.defines != \"\" || len(first.assignments) > 0 {",
+      "to": "first.defines != \"\" {",
+      "only": "^(?:the Go core's foreign-write veto and assignment probe hold)$"
     }
   ]
 }

@@ -570,6 +570,14 @@
       "from": "(entry.after?.codeTree === undefined || entry.after.codeTree === record.after?.codeTree)",
       "to": "true",
       "only": "^(?:a check event names its code tree and list only as the ledger record holds them)$"
+    },
+    {
+      "label": "ADR-120 T9: the carry stands against a write another session logged after the pass",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
+      "from": "return carry && !carriedPassUnseen(log, root, carry) ? carry : null",
+      "to": "return carry",
+      "only": "^(?:a write another session made after the pass ends the carry-over, and one made before it does not)$"
     }
   ]
 }

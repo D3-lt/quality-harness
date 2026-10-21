@@ -15,6 +15,14 @@
       "from": "(proseExtension.MatchString(spec) && strings.HasSuffix(lower, \".json\"))",
       "to": "false",
       "only": "^(?:the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar)$"
+    },
+    {
+      "label": "ADR-120 T9: the Go carry stands against a write another session logged after the pass",
+      "file": "core/hooks/prose.go",
+      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
+      "from": "if carriedPassUnseen(log, root, c) {",
+      "to": "if false {",
+      "only": "^(?:the Go core's foreign-write veto and assignment probe hold)$"
     }
   ]
 }

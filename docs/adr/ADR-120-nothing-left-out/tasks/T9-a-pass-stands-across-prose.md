@@ -18,6 +18,7 @@ A pass on tree X stands for a later tree Y whenever the only paths that differ a
 | File | Change | Why |
 |------|--------|-----|
 | `tests/prose-pass.test.mjs` | create | the rows below (0 locks: new) |
+| `tests/carry-and-probe-fixes.test.mjs` | create | the review's P1 (a write another session logged after the carried pass) and the T11 probe's P2, Node and Go (0 locks: new); `core/hooks/carry_review_test.go` is its Go half |
 | `plugin/scripts/check-ledger.mjs` | edit | `checkEventsFor` (:422-425) and `checkStanding` (:512-522) accept a pass whose `codeTree` equals the `codeTree` of the specific tree asked about (the working tree, the staged index, a historical commit), never the current observation's; a newer non-pass on that code tree still wins; the prose list is carried and authenticated through import and ledger binding (:272-276, :320-323) |
 | `plugin/scripts/tree-facts.mjs` | edit | the session's observation computes `codeTree` (the `without` option, :115-118, :157-160) when `prose` is declared |
 | `core/hooks/ledger.go` | edit | the prose branch `passedAlready` lacks (:174-186), and the same standing rule |
@@ -42,6 +43,8 @@ out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \
       "a prose-only unchecked diff with no prose declared names the setting once"; do
     test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "$n")" = 1 || exit 1
   done \
+  && out=$(node --test --test-reporter=tap tests/carry-and-probe-fixes.test.mjs 2>&1) \
+  && test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "a write another session made after the pass ends the carry-over, and one made before it does not")" = 1 \
   && (cd core && go test ./hooks/)
 ```
 
@@ -52,6 +55,7 @@ out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \
 | `a pass stands across a prose-only change for every reader` | `tests/prose-pass.test.mjs` | the publish verdict and the turn end, Node and Go | — | S1, S2, S3 |
 | `a code change, a changed prose list or an unseen write ends the carry-over` | `tests/prose-pass.test.mjs` | the twins | — | S1, S2 |
 | `a prose-only unchecked diff with no prose declared names the setting once` | `tests/prose-pass.test.mjs` | the advisory | — | S1, S4 |
+| `a write another session made after the pass ends the carry-over, and one made before it does not` | `tests/carry-and-probe-fixes.test.mjs` | the repository-wide veto on a carried pass, through `carryFor` and the turn end (review of 7a9107e8..dcc4693a, P1); its Go twin is `TestCarryForRefusesAForeignWrite` | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -77,6 +81,7 @@ out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \
 - 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/turnend.go` · the Go turn end asks a commit with the working tree's code tree instead of its own · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
 - 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/publish.go` · the Go refusal names the prose setting again on a tree it was already named for · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
 - 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/notes.go` · the Go previous-session notice does not know the project's declared prose · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · a5ac6999* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · the carry stands against a write another session logged after the pass (review of 7a9107e8..dcc4693a, finding 1) · acceptance-sha256:49a5ef78184cdaf70fd16db9fc4f2459e1d20c3e05453392417136abdc0ddba0
 
 ## Invariants
 
@@ -113,3 +118,4 @@ Stop if a reader outside these four judges a tree by its pass: it joins the clas
 - 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:42687
 - 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:86419
 - 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:71912
+- 2026-10-21 · a5ac6999* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:49a5ef78184cdaf70fd16db9fc4f2459e1d20c3e05453392417136abdc0ddba0 · ms:39037

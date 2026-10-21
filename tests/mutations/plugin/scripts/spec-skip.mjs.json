@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T15: a spec git marks linguist-generated is not gated",
+      "file": "plugin/scripts/spec-skip.mjs",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "if (!attribute.error && attribute.status === 0 &&",
+      "to": "if (false &&",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T15: a spec whose linguist-generated is unset or false is still gated",
+      "file": "plugin/scripts/spec-skip.mjs",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "/: linguist-generated: (?:set|true)\\s*$/",
+      "to": "/: linguist-generated: /",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T15: only the spec an ignore glob names is skipped",
+      "file": "plugin/scripts/spec-skip.mjs",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "listed.stdout.split('\\0').includes(rel)",
+      "to": "listed.stdout.length > 0",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T15: a refused ignore declaration exits 2 so the dispatcher says it",
+      "file": "plugin/scripts/spec-skip.mjs",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "    return 2\n  }",
+      "to": "    return 1\n  }",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    }
+  ]
+}

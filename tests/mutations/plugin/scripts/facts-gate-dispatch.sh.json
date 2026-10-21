@@ -546,6 +546,54 @@
       "from": "    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*[- ]T[0-9]+' <<< \"$structure\"; then",
       "to": "    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< \"$structure\"; then",
       "only": "^a task titled with a space outside tasks/ is still checked as a task$"
+    },
+    {
+      "label": "ADR-120 T15: a non-Markdown file is checked for the lock drift it caused",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "    *) lock_drift \"$f\"; exit 0 ;;",
+      "to": "    *) exit 0 ;;",
+      "only": "^an edit that moves another task's locked test names the task and the relock$"
+    },
+    {
+      "label": "ADR-120 T15: lock drift is said at the boundary, not on every edit",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "  [ \"$boundary\" = \"PostToolUse\" ] && return 0",
+      "to": "  :",
+      "only": "^an edit that moves another task's locked test names the task and the relock$"
+    },
+    {
+      "label": "ADR-120 T15: lock drift is on the finding stream",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "[:space:]]*}\"}\" >&2",
+      "to": "[:space:]]*}\"}\"",
+      "only": "^an edit that moves another task's locked test names the task and the relock$"
+    },
+    {
+      "label": "ADR-120 T15: a task not yet tracked is searched for the test it locks",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "grep --untracked -l -z",
+      "to": "grep -l -z",
+      "only": "^an edit that moves another task's locked test names the task and the relock$"
+    },
+    {
+      "label": "ADR-120 T15: a spec the project or git says to skip is skipped",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "  if spec_skipped \"$f\"; then exit 0; fi",
+      "to": "  if false; then exit 0; fi",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T15: a refused ignore declaration is said",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "[ \"$status\" -eq 2 ] && say_unproven \"$verdict\"",
+      "to": ":",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
     }
   ]
 }

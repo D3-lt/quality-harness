@@ -51,7 +51,7 @@ README must be regenerated.
 | [T12](T12-another-repository-by-relative-path.md) | A commit into another repository by a relative path is judged there | pending | none — no spec | `node --test --test-reporter=tap tests/foreign-relative.test.mjs`, named tests, then the Go core |
 | [T13](T13-quieter-brief-and-mention.md) | branch-state reads the session's worktree and says a permanent unknown once; `git stash push` is no push | pending | none — no spec | `node --test --test-reporter=tap tests/branch-state-cwd.test.mjs tests/mention-stash.test.mjs`, named tests, then the Go core |
 | [T14](T14-a-mutant-the-fence-never-sees.md) | A mutant the fence never sees is inconclusive; a missing dependency is could-not-run | pending | none — no spec | `node --test --test-reporter=tap tests/mutant-escape.test.mjs`, named tests |
-| [T15](T15-lock-drift-generated-specs-templates.md) | Lock drift named at commit; generated specs skipped; the template and skill lines | pending | none — no spec | `node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs`, named tests |
+| [T15](T15-lock-drift-generated-specs-templates.md) | Lock drift named at commit; generated specs skipped; the template and skill lines | done | none — no spec | `node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs`, named tests |
 
 ## Contract Coupling
 

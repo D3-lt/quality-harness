@@ -74,25 +74,39 @@ export function proseSpecProblem(spec) {
   return null
 }
 
-export function proseSpecs(root) {
+// A declared list of pathspecs under `key`, read by the grammar `prose` is read by: one to PROSE_MOST plain pathspecs, or the
+// whole declaration is refused and said. `ignore` (ADR-120 T15) is the second reader, so the two cannot drift apart.
+function declaredPathspecs(root, key) {
   let config
   try { config = JSON.parse(readFileSync(path.join(root, '.quality-harness.json'), 'utf8')) } catch { return { specs: [], problem: null } }
-  if (config === null || typeof config !== 'object' || !('prose' in config)) return { specs: [], problem: null }
-  const refuse = reason => ({ specs: [], problem: `the \`prose\` declaration in .quality-harness.json was ignored: ${reason}` })
-  const declared = config.prose
+  if (config === null || typeof config !== 'object' || !(key in config)) return { specs: [], problem: null }
+  const declared = config[key]
   if (!Array.isArray(declared) || declared.length === 0 || declared.length > PROSE_MOST) {
-    return refuse(`it must be an array of one to ${PROSE_MOST} pathspecs`)
+    return refused(key, `it must be an array of one to ${PROSE_MOST} pathspecs`)
   }
   for (const spec of declared) {
     const problem = proseSpecProblem(spec)
-    if (problem) return refuse(problem)
-  }
-  for (const spec of declared) {
-    const tracked = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-    if (tracked.error || tracked.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
-    const entries = tracked.stdout.split('\0').filter(Boolean)
-    if (entries.length === 0) return refuse(`${JSON.stringify(spec)} matches no tracked path`)
-    if (entries.some(entry => entry.startsWith('160000'))) return refuse(`${JSON.stringify(spec)} matches a submodule`)
+    if (problem) return refused(key, problem)
   }
   return { specs: declared, problem: null }
+}
+
+const refused = (key, reason) => ({ specs: [], problem: `the \`${key}\` declaration in .quality-harness.json was ignored: ${reason}` })
+
+/** The paths the spec gate skips, as `"ignore"` declares them (ADR-120 T15), or why the declaration was refused. */
+export function ignoreSpecs(root) {
+  return declaredPathspecs(root, 'ignore')
+}
+
+export function proseSpecs(root) {
+  const declared = declaredPathspecs(root, 'prose')
+  if (declared.problem) return declared
+  for (const spec of declared.specs) {
+    const tracked = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
+    if (tracked.error || tracked.status !== 0) return refused('prose', `git could not list ${JSON.stringify(spec)}`)
+    const entries = tracked.stdout.split('\0').filter(Boolean)
+    if (entries.length === 0) return refused('prose', `${JSON.stringify(spec)} matches no tracked path`)
+    if (entries.some(entry => entry.startsWith('160000'))) return refused('prose', `${JSON.stringify(spec)} matches a submodule`)
+  }
+  return declared
 }

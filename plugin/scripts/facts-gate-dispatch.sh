@@ -296,6 +296,34 @@ is_architecture() {
   [ "$markers" -ge 3 ]
 }
 
+# ADR-120 T15: a test file edited this session that a task's lock may hold. Only a task whose text NAMES the file can lock a
+# body in it (the Tests table carries the path), so those tasks are gated as themselves, their owning record resolved as for
+# any task, and what they say about THIS file's locked tests is the advice: which task, which test, and the relock. At the
+# commit and turn-end boundaries only: a test is edited many times before the change is reviewed, and the relock waits for
+# the review. Said on stderr, where the batch reads findings. A task not claimed done has no lock to withhold, and says nothing.
+lock_drift() {
+  local in_repo in_repo_rel task said line
+  [ "$boundary" = "PostToolUse" ] && return 0
+  repo_path_of "$1" || return 0
+  while IFS= read -r -d '' task; do
+    said=$("$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
+    while IFS= read -r line; do
+      printf 'lock drift: %s\n' "${line#"${line%%[![:space:]]*}"}" >&2
+    done < <(printf '%s\n' "$said" | grep -F -- "locked test \`$in_repo_rel\`")
+  done < <(git -C "$in_repo" grep --untracked -l -z -F --threads=1 --no-textconv -e "$in_repo_rel" -- 'tasks/*.md' '*/tasks/*.md' 2>/dev/null)
+}
+
+# ADR-120 T15: a spec the gate skips: one git marks `linguist-generated`, or one the project lists under `ignore`. Only a
+# positive answer skips, so a missing node, a refused declaration or a repository git cannot read leaves the spec gated; a
+# refusal is said, because the project believes something is skipped that is not.
+spec_skipped() {
+  local verdict status
+  command -v node >/dev/null 2>&1 || return 1
+  verdict=$(node "$SCRIPT_DIR/spec-skip.mjs" "$1" 2>/dev/null); status=$?
+  [ "$status" -eq 2 ] && say_unproven "$verdict"
+  [ "$status" -eq 0 ]
+}
+
 archive_readme=$(archive_catalog_for "$f")
 if [ -z "$archive_readme" ]; then
   # Batch argument 3 is a completed read of these same historical candidates.
@@ -324,7 +352,7 @@ if [ -z "$archive_readme" ]; then
   fi
   case "$f" in
     *.md) ;;
-    *) exit 0 ;;
+    *) lock_drift "$f"; exit 0 ;;
   esac
 fi
 # A tasks index (`tasks/README.md`) is derived from its task files (§10), and its
@@ -436,6 +464,7 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
 elif [[ "$f" == */docs/specs/*.md ]] \
   || { grep -q '^## Facts' "$f" 2>/dev/null && grep -q '^## Grill Log' "$f" 2>/dev/null; }; then
   # facts-first spec (structure-only draft gate while authoring; --spec stays a deliberate step)
+  if spec_skipped "$f"; then exit 0; fi
   gate="spec-verify --draft"
   out=$("$BIN/spec-verify" --draft "$f" 2>&1); rc=$?
 elif [[ "$base_lc" == "architecture.md" ]] \

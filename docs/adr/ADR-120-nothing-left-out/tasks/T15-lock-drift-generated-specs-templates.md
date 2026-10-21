@@ -19,8 +19,8 @@ When a session's changes move a test body another task locks, the turn end names
 |------|--------|-----|
 | `tests/lock-drift-commit.test.mjs` | create | the lock rows (0 locks: new) |
 | `tests/spec-ignore.test.mjs` | create | the ignore rows (0 locks: new) |
-| `plugin/scripts/artifact-pass.mjs` | edit | for a changed test file, read the corpus's recorded locks (`plugin/lib/record.py`, as `scripts/test-locks.py` does) and advise each done task whose locked body moved |
-| `plugin/scripts/facts-gate-dispatch.sh` | edit | skip a path `git check-attr linguist-generated` sets, or one matching the project's `ignore` globs |
+| `plugin/scripts/facts-gate-dispatch.sh` | edit | at the commit and turn-end boundaries (not per edit), for a changed non-Markdown path, find the tasks that name it (`git grep --untracked`) and gate them, printing each `locked test` line prefixed `lock drift:`; the dispatcher is the one place both the Node pass and the Go core call, so no record grammar loads in Node and Go needs no change (the executor's design, reviewed 2026-10-21); and skip a spec `spec-skip.mjs` marks generated or ignored |
+| `plugin/scripts/spec-skip.mjs` | create | `git check-attr linguist-generated` and the project's `ignore` globs; without node or on any error the spec stays gated, and a refused declaration says UNPROVEN |
 | `plugin/scripts/project-config.mjs` | edit | validate `ignore`, as `prose` is validated (:69-98) |
 | `plugin/templates/task-template.md` | edit | Risks gains "What the test doubles do not model" |
 | `plugin/skills/adr-retire/SKILL.md` | edit | the `Archived: [file](path)` line and what adr-debt reads from it (`plugin/bin/adr-debt:438-457`) |
@@ -59,6 +59,21 @@ out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spe
 | 4 — it is used | every session or run of the gate in question |
 
 ## Mutation Log
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the lock-drift call removed from the non-Markdown arm · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · lock drift also said per edit · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the spec skip call disabled · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant survived · exit 0 · `plugin/scripts/facts-gate-dispatch.sh` · a refused ignore declaration is not said · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · lock drift advice on stdout, not the finding stream · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · an untracked task is not searched · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a refused ignore declaration is not said (rerun on the tightened row) · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/spec-skip.mjs` · the linguist-generated skip disabled · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/spec-skip.mjs` · unset and false read as generated · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/spec-skip.mjs` · any listed path skips every spec · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/project-config.mjs` · an ignore declaration that could hide the whole tree is accepted · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
+- 2026-10-21 · 0a54cb25* · mutant killed · exit 1 · `plugin/scripts/project-config.mjs` · ignore is never read · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf
 
 ## Invariants
 
@@ -78,3 +93,20 @@ Stop if reading the locks needs the record grammar loaded in Node: the artifact 
 - An advisory acknowledgement mechanism (permanent: boundary: ADR-037 declined rationing advice that is true each time it fires; a repeated true line is fixed by grouping, as T5 does, or by its cause)
 
 ## Verification Log
+- 2026-10-21 · 0a54cb25* · exit 1 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:1612 · test-lock-sha256:9b7a1df3df9bc03ff7e6ec38d9eda8aa4bf9663eb50aef78123eed4dba17f9e9 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbG9jay1kcmlmdC1jb21taXQudGVzdC5tanMJYW4gZWRpdCB0aGF0IG1vdmVzIGFub3RoZXIgdGFzaydzIGxvY2tlZCB0ZXN0IG5hbWVzIHRoZSB0YXNrIGFuZCB0aGUgcmVsb2NrCTdjNjMwNTBhMzIxMGNhMzFjNWU4YTNhMjg3MmU3NTljOTg5ZTYzNWJkMTU5ZjBjOThhMThmMWJlODY1MmVjZGUKYm9keQl0ZXN0cy9zcGVjLWlnbm9yZS50ZXN0Lm1qcwlhIGdlbmVyYXRlZCBvciBpZ25vcmVkIHNwZWMgaXMgbm90IGdhdGVkLCBhbmQgdGhlIHNhbWUgc3BlYyBlbHNld2hlcmUgc3RpbGwgaXMJYzMwZGVlNTk0ODJlYWFhNjMzYzZjNjVmZjlkMDFjZWYzNWJmZjNkM2MzMDQ4NmZkYjk0ZjA2ZDNiNWRjNGE4Zg
+  ```
+  ```
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:7692
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:7246
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:6339
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:14943
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:18444
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:30135
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:15957
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:13055
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:23232
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:12038
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:15761
+- 2026-10-21 · 0a54cb25* · exit 0 · `out=$(node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs 2>&1) \ …` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:14283
+- 2026-10-21 · 20df5a3c* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf · ms:0 · test-lock-sha256:d771e99094668dd24802c97418df03e417dae5278fc9fd58dfa41a3c765756b8 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbG9jay1kcmlmdC1jb21taXQudGVzdC5tanMJYW4gZWRpdCB0aGF0IG1vdmVzIGFub3RoZXIgdGFzaydzIGxvY2tlZCB0ZXN0IG5hbWVzIHRoZSB0YXNrIGFuZCB0aGUgcmVsb2NrCTdjNjMwNTBhMzIxMGNhMzFjNWU4YTNhMjg3MmU3NTljOTg5ZTYzNWJkMTU5ZjBjOThhMThmMWJlODY1MmVjZGUKYm9keQl0ZXN0cy9zcGVjLWlnbm9yZS50ZXN0Lm1qcwlhIGdlbmVyYXRlZCBvciBpZ25vcmVkIHNwZWMgaXMgbm90IGdhdGVkLCBhbmQgdGhlIHNhbWUgc3BlYyBlbHNld2hlcmUgc3RpbGwgaXMJOWUzYmUzNjkxODY1YTZmNTMwMWMyZThiODhhYzc4ZjRiNGViMWYyODU5NGU4YThjNDdkYzM3ZGJmZDg2YTQwYQ · test-lock-kind:replace
+- 2026-10-21 · human-observed · observed by the coordinator at 4d2d6819: the task template's Risks asks what each test double does not model and which test or run meets the real one, and the adr-retire skill states the Archived receipt line and what adr-debt reads from it; the wording matches adr-debt · acceptance-sha256:f30291c346c53cf5edfdfedd94a5a9954b6c994ac6b6afbcccd4f8e3ce3f47bf

@@ -149,6 +149,22 @@
       "from": "catch { return 'agent' }",
       "to": "catch { return 'notify' }",
       "only": "^an\\ unreadable\\ project\\ configuration\\ means\\ the\\ default,\\ said\\ as\\ such$"
+    },
+    {
+      "label": "ADR-120 T15: an ignore declaration that could hide too much is refused",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "if (problem) return refused(key, problem)",
+      "to": "if (false) return refused(key, problem)",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T15: the ignore key is what ignoreSpecs reads",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": ["tests/spec-ignore.test.mjs"],
+      "from": "declaredPathspecs(root, 'ignore')",
+      "to": "declaredPathspecs(root, 'prose')",
+      "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
     }
   ]
 }

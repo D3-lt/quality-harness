@@ -30,6 +30,11 @@ decision effect controls whether a choice still governs. Archive is not a synony
   `BACKLOG.md` before retirement: the active root's own, or, where it has none, the one in the directory
   the active and archive roots share. Receipts name the source ADR exactly, by ADR id or a dated record's
   stem or path; archive pointers and unrelated external files are never backlog destinations.
+- A backlog that became an index keeps each closed section's heading, with its text moved verbatim to an archive file and a
+  receipt line under the heading: `Archived: [name](path)`, at the start of the line, the path relative to the backlog file.
+  `adr-debt` reads a receipt from the backlog and from every file those lines link to (`plugin/bin/adr-debt:438-457`); a
+  link it cannot read, or one that leaves the git root, adds nothing, so a receipt moved there and linked any other way is
+  read as missing.
 
 ## Workflow
 

@@ -304,6 +304,7 @@ contradiction, because both halves read as current.>
 ## Risks
 
 - <risk and mitigation, or none>
+- <what the test doubles do not model: for each stub, fake or fixture the tests stand on, what the real thing does that it does not (a platform, a timing, a failure, a second caller), and which test or run meets the real one; or "none: no doubles">
 
 ## Stop Condition
 

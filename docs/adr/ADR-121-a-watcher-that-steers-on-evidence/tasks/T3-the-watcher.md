@@ -11,7 +11,7 @@
 
 ## Goal
 
-`qh watch` tails every session log of a repository, keeps the state the rules need, answers hooks over a local socket, and retires a rule for this project when its acted rate falls below the threshold, telling the user once; with no watcher, hooks answer in-process.
+`qh watch` tails every session log of a repository, keeps the state the rules need, answers hooks over a local socket, and retires a rule for this project when its acted rate falls below the threshold, telling the user once and keeping a `retired_by` trail of the ledger rows that decided it; with no watcher, hooks answer in-process. Where two installed copies of a hook would both answer (a home forwarder and the plugin), one stands down; each hook's budget is read from the timeout actually installed in the host's settings, not from a default. Amended 2026-10-21 from prior art (ADR-121 Decision 8).
 
 ## Affected Files
 

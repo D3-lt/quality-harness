@@ -16,6 +16,7 @@ README must be regenerated.
 | 4 | T4 | T2 |
 | 5 | T5 | T1, T3 |
 | 6 | T6 | T3, T4, T5 |
+| 7 | T7 | T1 |
 
 ## Waves
 
@@ -23,7 +24,7 @@ README must be regenerated.
 |------|-------|--------------|
 | 1 | T1 | every later decision reads its numbers |
 | 2 | T2 | consumes T1's outcomes |
-| 3 | T3, T4 | consume the gate |
+| 3 | T3, T4, T7 | consume the gate or the ledger |
 | 4 | T5 | consumes the watcher |
 | 5 | T6 | measures the whole |
 
@@ -37,3 +38,4 @@ README must be regenerated.
 | [T4](T4-evidence-grounded-self-evaluation.md) | The Stop question is built from the evidence | pending | none — no spec | `node --test --test-reporter=tap tests/self-evaluation.test.mjs`, named tests |
 | [T5](T5-lessons-in-memoryd.md) | Proven lessons go to memoryd; mrw writes become visible | pending | none — no spec | `node --test --test-reporter=tap tests/lessons.test.mjs`, named tests |
 | [T6](T6-the-bench-arm.md) | The watcher is measured in the bench, with a kill criterion | pending | none — no spec | the verdict recorded in docs/BENCHMARKS.md |
+| [T7](T7-a-diff-against-what-was-decided.md) | A diff is checked against what Accepted records decided | pending | none — no spec | `node --test --test-reporter=tap tests/decisions-check.test.mjs`, named tests |

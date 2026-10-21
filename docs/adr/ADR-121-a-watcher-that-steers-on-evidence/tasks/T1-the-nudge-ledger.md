@@ -11,7 +11,7 @@
 
 ## Goal
 
-Every finding a hook emits gets an outcome (acted, ignored, contradicted) read from the session's later events, and `qh nudges` reports emissions and outcomes per rule and project, read-only.
+Every finding a hook emits gets an outcome (acted, ignored, contradicted, pending, unknown) read from the session's later events, and, where the log cannot decide it, from a bounded tail of the host's transcript (the agent's own words are never the outcome, only what it did); each finding also records its cost until its outcome (active minutes with idle gaps over ten minutes dropped, fresh tokens without cache reads, files touched). `qh nudges` reports emissions, outcomes and cost per rule and project, read-only. Amended 2026-10-21 from prior art (ADR-121 Decision 8).
 
 ## Affected Files
 

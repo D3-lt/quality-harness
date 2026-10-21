@@ -13,6 +13,8 @@
 
 A finding acted on and followed by a pass becomes an anchored lesson in the project's memoryd space; SessionStart lists the lessons for the area a session works in; mrw's `--json` receipt feeds `file.written` for every path an mrw write touched. The memoryd contract, from memory-runtime's answers of 2026-10-21 (checked there at 6740b1f): plain MCP JSON-RPC over the unix socket `host.json` names (mode 0600, same user); principal the human the session works for, `agent: quality-harness-watcher`; `insert` of kind `procedure` or `correction` with labels `source=quality-harness`, `project`, `rule` and a coarse `area` (`insert` attests identical text, so a retry writes nothing twice); an `anchor` of type `file-snippet` keyed on a stable verbatim span, never a line number; the watcher records `record_verdict` (verifier `quality-harness`, the commit) at each commit, so a drifted lesson reads stale and is never hidden; SessionStart uses `list` by exact labels (no embedding, milliseconds), never `recall` (an embed per query, about a second on a CPU TEI); an outcome on a recalled lesson goes to the `recall-feedback` space as one `fact` with labels `feedback`, `verdict` and `memory_id`. Findings and check results are never written as memories.
 
+Amended 2026-10-21 from prior art (ADR-121 Decision 8): a lesson is written only when every piece of text it quotes is found verbatim, by code, in the evidence it cites (the emission, the command, the check's output tail, the anchored span); a lesson already shown in a session is not shown again in it; when lessons merge, the survivor keeps a `folded_in` list of what it absorbed.
+
 ## Affected Files
 
 | File | Change | Why |

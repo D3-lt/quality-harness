@@ -46,6 +46,15 @@ per-project statistics of each rule's outcomes across sessions, used to retire a
 negative-evidence path stays open, and proven lessons handed to a separate memory (memoryd) with code anchors that go
 stale when the code drifts.
 
+**Prior art read 2026-10-21 in an MIT-licensed tool for coding agents** (Trail-Code, a downloaded copy read and never run;
+patterns adopted as designs, no code copied): a Stop hook that blocks at most once a session and only on counted
+evidence; compliance read from the transcript's tail instead of the agent's word; cost per piece of work from the
+transcript (active minutes with idle gaps dropped, fresh tokens without cache reads, files touched); a model's claim kept
+only when the text it quotes is found by code; two installed copies of a hook where only one answers; a hook's budget read
+from the timeout actually installed; nudge wording that rotates and never repeats within a session; corrections folded
+into a rule keeping a `folded_in` trail; and a rule-based check of a diff against recorded decisions that errs towards
+silence and quotes its source.
+
 ### The class, enumerated
 
 | Class | Command | Output |
@@ -110,6 +119,15 @@ stale when the code drifts.
    detected, never assumed: with mrw present, its receipts make writes visible (T5) and fewer turns reach the gates; with
    memoryd present, lessons persist across sessions (T5). Absent, the feature is off and said once per session, never an
    error, a refusal or a degraded verdict. Every task's tests run with each absent as well as present.
+8. **Patterns adopted from that prior art (the owner, 2026-10-21), each in the task that owns it:** T1 reads a
+   finding's compliance from the transcript tail (bounded, as the host writes it) where the session log cannot decide it,
+   and records each finding's cost: active minutes, fresh tokens and files touched between the finding and its outcome.
+   T2 blocks at most once per rule per session, never twice in one turn, and records which wording it used, rotating
+   wordings so the ledger can tell a rule from its phrasing. T3 answers through one installed copy only (a home forwarder
+   and the plugin stand down to one) and takes each hook's budget from the timeout actually installed in the host's
+   settings; a retired rule keeps a `retired_by` trail (the ledger rows that retired it). T5 keeps a lesson only when every
+   piece of text it quotes is found verbatim in the evidence it cites, never re-injects a lesson already shown in the
+   session, and keeps a `folded_in` trail when lessons merge. T7 checks a diff against what Accepted records decided.
 
 What would make this fail: a rule retired for a project that later catches a real defect there (T3 keeps retired rules
 recording, so the ledger shows it), or an intervention that the ledger shows acted on but the bench shows costly.
@@ -138,6 +156,7 @@ recording, so the ledger shows it), or an intervention that the ledger shows act
 | Local socket | hook → watcher decision | T3 | `lifecycle.mjs`, `lifecycle.go` |
 | memoryd project space | lesson memories with anchors | T5 | SessionStart recall |
 | `.quality-harness.json` | `watch` (on/off), retirement threshold | T3 | the watcher |
+| `qh decisions-check` | new: a diff against Accepted records' decided values and rejected alternatives, advice only | T7 | the commit and turn-end advice |
 
 ## Inter-task Contracts
 
@@ -149,8 +168,8 @@ recording, so the ledger shows it), or an intervention that the ledger shows act
 
 ## Implementation
 
-See `tasks/README.md`: T1 first and alone, because every later decision reads its numbers; then T2, T3, T4 and T5; T6 last,
-on ADR-116's release assets and the bench peer's stage.
+See `tasks/README.md`: T1 first and alone, because every later decision reads its numbers; then T2, T3, T4 and T5; T7 after
+T1, measured before it advises; T6 last, on ADR-116's release assets and the bench peer's stage.
 
 ## Consequences
 

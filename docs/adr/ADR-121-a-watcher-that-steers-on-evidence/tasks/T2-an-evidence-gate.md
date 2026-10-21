@@ -11,7 +11,7 @@
 
 ## Goal
 
-A finding may reach the agent only with a concrete fact behind it, under per-rule cooldowns that widen after an advisory and reset after one acted on, and a per-session budget of turn continuations.
+A finding may reach the agent only with a concrete fact behind it, under per-rule cooldowns that widen after an advisory and reset after one acted on, a per-session budget of turn continuations, at most one block per rule per session and never two in one turn; each delivery records which wording it used, and wordings rotate so the ledger can tell a rule from its phrasing. Amended 2026-10-21 from prior art (ADR-121 Decision 8).
 
 ## Affected Files
 

@@ -4,14 +4,14 @@
 **Covers:** none — no spec
 **Estimated scope:** S
 **Owner:** Zy
-**Produces:** `foreignCommitPath` accepting a relative literal and `cd <path>;`
+**Produces:** `foreignCommitPath` accepting `git -C <relative> commit`
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
 
 ## Goal
 
-`git -C ../b commit` and `cd ../b && git commit` are advised as foreign, as their absolute forms already are, when git, asked with the operand as written from the payload `cwd`, places it in another repository. `;` after a `cd` stays unproven, because a failed `cd` commits in the session's repository. A push is unchanged.
+`git -C ../b commit` is advised as foreign, as its absolute form already is, when git, asked with the operand as written from the payload `cwd`, places it in another repository. `cd <relative> && git commit` stays unproven, because `cd` resolves logically and git physically; `;` after a `cd` stays unproven too. A push is unchanged.
 
 ## Affected Files
 
@@ -25,7 +25,7 @@
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run, with real repositories a and b in a temporary directory and the session in a: `git -C ../b commit` and `cd ../b && git commit` are foreign advice; refusal twins that stay unproven or judged as a: `cd ../b; git commit`, `git -C ../b/link/.. commit` (where `b/link` points into a), `git -C ../a commit` (resolves home), `cd b && git commit` with `CDPATH` set, `cd $X && git commit`, `cd ~/b && git commit`, `cd ../b && make && git commit`, and `git -C ../b push` (a push is unchanged). Class: `mrw read --grep 'foreignCommitPath|ForeignCommitPath|commonDirectory' plugin/scripts/ core/hooks/` names every recogniser and probe; each is changed or named retained in the task's log.
+1. [S1] Write the failing tests and record the red run, with real repositories a and b in a temporary directory and the session in a: `git -C ../b commit` is foreign advice; refusal twins that stay unproven or judged as a: `cd ../b && git commit` (the logical/physical twin, with a symlinked cwd fixture where `cd ../b` reaches a), `cd ../b; git commit`, `git -C ../b/link/.. commit` (where `b/link` points into a), `git -C ../a commit` (resolves home), `git -C ../$X commit`, `git -C ~/b commit`, and `git -C ../b push` (a push is unchanged). Class: `mrw read --grep 'foreignCommitPath|ForeignCommitPath|commonDirectory' plugin/scripts/ core/hooks/` names every recogniser and probe; each is changed or named retained in the task's log.
 2. [S2] Accept the relative operand and probe it with git as written, in Node and Go.
 3. [S3] Record a killed mutant per mechanism, with catalogue entries. [proof: mutation]
 

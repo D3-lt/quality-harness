@@ -1691,6 +1691,20 @@
       "tests": ["tests/adr-next-foreign.test.mjs", "tests/human-stop-red-green.test.mjs"],
       "from": "    if run and not CLAUSE_BREAK.search(text, run[-1].end(), match.start()):",
       "to": "    if False:"
+    },
+    {
+      "label": "ADR-120 T8: classify reads done before a terminal Status",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "if inf[\"done\"] and inf.get(\"terminal_stop\"):",
+      "to": "if False:"
+    },
+    {
+      "label": "ADR-120 T8: the terminal word is not carried to classify",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "\"terminal_stop\": terminal_stop(text),",
+      "to": "\"terminal_stop\": None,"
     }
   ]
 }

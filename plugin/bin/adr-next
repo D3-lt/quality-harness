@@ -545,12 +545,11 @@ def acceptance_stop(text):
 
 
 
-def status_stop(text):
-    """Why this task's own Status says not to build it, or None when it does not.
+def terminal_stop(text):
+    """Why this task's own Status says it will never be built, or None when it names no terminal word.
 
-    Returns a reason for a terminal status and for an unrecognised one; None only
-    when the status is absent or names something this router knows is buildable.
-    """
+    Read by `classify` before `done` (ADR-120 T8): a withdrawn task with an exit-0 row is withdrawn, not
+    finished, and the file's own word wins over whatever its log holds."""
     status = task_status(text)
     if status is None:
         return None
@@ -563,6 +562,23 @@ def status_stop(text):
     first = words[0].strip(".,;:").strip("`*") if words else ""
     if status in TERMINAL_STATUSES or first in TERMINAL_STATUSES:
         return f"its own **Status:** says `{first}` — {status}"
+    return None
+
+
+def status_stop(text):
+    """Why this task's own Status says not to build it, or None when it does not.
+
+    Returns a reason for a terminal status and for an unrecognised one; None only
+    when the status is absent or names something this router knows is buildable.
+    """
+    terminal = terminal_stop(text)
+    if terminal:
+        return terminal
+    status = task_status(text)
+    if status is None:
+        return None
+    words = status.split()
+    first = words[0].strip(".,;:").strip("`*") if words else ""
     if status in BUILDABLE_STATUSES or first in BUILDABLE_STATUSES:
         return None
     return (f"its own **Status:** reads `{status}`, which this router does not "
@@ -979,6 +995,8 @@ def load(tasks_dir):
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
             "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),
+            # ADR-120 T8: the file's own terminal word, read by `classify` before `done`.
+            "terminal_stop": terminal_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this
@@ -1390,6 +1408,9 @@ def classify(infos, corpus_dir):
     ready, done, blocked, stopped = [], [], [], []
     for tid in sorted(infos, key=lambda t: int(t[1:])):
         inf = infos[tid]
+        if inf["done"] and inf.get("terminal_stop"):
+            stopped.append({**inf, "stopped_by": inf["terminal_stop"]})
+            continue
         if inf["done"]:
             done.append(inf)
             continue

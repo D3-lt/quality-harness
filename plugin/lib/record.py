@@ -1223,8 +1223,15 @@ def unsigned_human_proof_steps(text):
     its own reason). It asks only whether a sign-off EXISTS: whether its note reads as a stop is
     adr-next's `human_outcome`, and `done` keeps its own rule — this is advice, never a refusal."""
     sections = sections_of(text)
-    if any("· human-observed ·" in line for line in sections.get("Verification Log", [])):
-        return []
+    # ADR-120 T8: a sign-off covers the steps it names as whole words (`S2`, never `S20`); one naming none
+    # covers every step, as before.
+    signed = set()
+    for line in sections.get("Verification Log", []):
+        if "· human-observed ·" in line:
+            named = re.findall(r"\bS[1-9]\d*\b", line)
+            if not named:
+                return []
+            signed.update(named)
     steps, current = [], None
     for line in sections.get("Ordered Steps", []):
         step = _STEP_ID.match(line)
@@ -1235,7 +1242,7 @@ def unsigned_human_proof_steps(text):
             current = f"S{step.group('number')}"
         elif step and step.group("ordinal"):
             current = f"step {step.group('ordinal')}"
-        if (current and current not in steps
+        if (current and current not in steps and current not in signed
                 and any(proof.group("reason").strip() for proof in _HUMAN_PROOF.finditer(line))):
             steps.append(current)
     return steps

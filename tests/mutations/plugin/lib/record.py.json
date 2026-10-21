@@ -1910,8 +1910,8 @@
       "tests": [
         "tests/human-proof-advice.test.mjs"
       ],
-      "from": "    if any(\"· human-observed ·\" in line for line in sections.get(\"Verification Log\", [])):",
-      "to": "    if False:",
+      "from": "        if \"· human-observed ·\" in line:\n            named = re.findall",
+      "to": "        if False:\n            named = re.findall",
       "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
     },
     {
@@ -2918,6 +2918,27 @@
       "from": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]) or DATE_SHAPED_RE.match(name):\n        return None\n    return int(found.group(1))",
       "to": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]):\n        return None\n    return int(found.group(1))",
       "only": "^a foreign record named NNN-slug is found, and a dated file is no record$"
+    },
+    {
+      "label": "ADR-120 T8: a sign-off naming no step no longer covers all",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "            if not named:\n                return []",
+      "to": "            if False:\n                return []"
+    },
+    {
+      "label": "ADR-120 T8: a sign-off covers no step it names",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "            signed.update(named)",
+      "to": "            pass"
+    },
+    {
+      "label": "ADR-120 T8: a step id is one number place, so S20 reads as S2",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/adr-next-terminal.test.mjs"],
+      "from": "re.findall(r\"\\bS[1-9]\\d*\\b\", line)",
+      "to": "re.findall(r\"\\bS[1-9]\", line)"
     }
   ]
 }

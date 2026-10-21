@@ -60,6 +60,15 @@ out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr
 | 4 — it is used | every corpus with a withdrawn task or a human-proved step |
 
 ## Mutation Log
+- 2026-10-21 · bc865aff* · mutant killed · exit 1 · `plugin/bin/adr-next` · classify no longer reads a terminal Status before done · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df
+- 2026-10-21 · bc865aff* · mutant killed · exit 1 · `plugin/bin/adr-next` · the terminal word is not carried to classify · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df
+- 2026-10-21 · bc865aff* · mutant killed · exit 1 · `plugin/lib/record.py` · a sign-off naming no step no longer covers all · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df
+- 2026-10-21 · bc865aff* · mutant killed · exit 1 · `plugin/lib/record.py` · a sign-off covers no step it names · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df
+- 2026-10-21 · bc865aff* · mutant survived · exit 0 · `plugin/lib/record.py` · a step id is not a whole word, so S20 covers S2 · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-21 · bc865aff* · mutant killed · exit 1 · `plugin/lib/record.py` · a step id is one number place, so S20 reads as S2 · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df
 
 ## Invariants
 
@@ -80,3 +89,14 @@ decides.
 - A step field in the sign-off grammar (permanent: boundary: the owner chose on 2026-10-21 to read step ids in the note, so existing rows keep their meaning)
 
 ## Verification Log
+- 2026-10-21 · bc865aff* · exit 1 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:60987 · test-lock-sha256:70ef959423a432f21e92265768ff3489815ed2a9d36e01069bfc6279475acbde · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLW5leHQtdGVybWluYWwudGVzdC5tanMJYSBzaWduLW9mZiBuYW1pbmcgYSBzdGVwIGNvdmVycyB0aGF0IHN0ZXAgb25seSwgYW5kIG9uZSBuYW1pbmcgbm9uZSBjb3ZlcnMgYWxsCWMxMmRkNGE2ZjMzNjYzNmM4MDc4NDkwOWExNjI2MTI4NjY2OTJmNzRkZDMyYjljY2M0OGY1NmIxMTVlODY3MGEKYm9keQl0ZXN0cy9hZHItbmV4dC10ZXJtaW5hbC50ZXN0Lm1qcwlhIHRhc2sgd2hvc2Ugb3duIFN0YXR1cyBpcyB0ZXJtaW5hbCByZWFkcyBzdG9wcGVkLCB3aGF0ZXZlciBpdHMgZXZpZGVuY2UJODM0Mjc2NDI5YTIwMTk5ZDNkMjk5MjU5NTE4ZjVjYTcyNjZjOTU1NTY2ZjhlNWU2NDYxMjllNDhmZjE2OGNkZA
+  ```
+  ```
+- 2026-10-21 · bc865aff* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:85892
+- 2026-10-21 · bc865aff* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:40186
+- 2026-10-21 · bc865aff* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:50359
+- 2026-10-21 · bc865aff* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:40491
+- 2026-10-21 · bc865aff* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:39532
+- 2026-10-21 · bc865aff* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-terminal.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:37627
+- 2026-10-21 · c749638e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df · ms:0 · test-lock-sha256:5d137c6b33c315a3d7c7392b416955788b19f1029b82b8cba0cc76c6717b2366 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRyLW5leHQtdGVybWluYWwudGVzdC5tanMJYSBzaWduLW9mZiBuYW1pbmcgYSBzdGVwIGNvdmVycyB0aGF0IHN0ZXAgb25seSwgYW5kIG9uZSBuYW1pbmcgbm9uZSBjb3ZlcnMgYWxsCWMxMmRkNGE2ZjMzNjYzNmM4MDc4NDkwOWExNjI2MTI4NjY2OTJmNzRkZDMyYjljY2M0OGY1NmIxMTVlODY3MGEKYm9keQl0ZXN0cy9hZHItbmV4dC10ZXJtaW5hbC50ZXN0Lm1qcwlhIHRhc2sgd2hvc2Ugb3duIFN0YXR1cyBpcyB0ZXJtaW5hbCByZWFkcyBzdG9wcGVkLCB3aGF0ZXZlciBpdHMgZXZpZGVuY2UJODlmYWVkNTIwODIyZjMwMmM3MzIwOWIxNDU0YTcxMDAwOGQ0NTUxOWZlMzM5MjRiNzJkZDliNjE3NGFmMjUxZg · test-lock-kind:replace
+- 2026-10-21 · human-observed · observed by the coordinator at dd900d15: the tasks README template says a task file's terminal word makes adr-next report it stopped whatever its log holds, that its cell may carry the same word adr-lint accepts, and that the gates route on the file · acceptance-sha256:3f46ee923b10ff4aa1034753ecc8516d38f9cbf200f8f0f3618f1a275a9543df

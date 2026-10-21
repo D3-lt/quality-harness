@@ -47,9 +47,10 @@ Status: `pending` | `partial` | `blocked` | `done`.
   only someone with other access can confirm it, say who.
 - `done` — finished, with tool-written acceptance and mutation evidence to match.
 
-Use only these four words here: the gates act on no other status in this index. A task that will
-never be built says so in its own file — `**Status:** withdrawn`, `superseded`, `abandoned` or
-`cancelled` — and `adr-next` reports it as stopped.
+Use only these four words here, and the terminal word a task file carries: the gates act on no other status in this
+index. A task that will never be built says so in its own file — `**Status:** withdrawn`, `superseded`, `abandoned` or
+`cancelled` — and `adr-next` reports it as stopped, whatever its Verification Log holds. Its cell here may carry that
+same word, which `adr-lint` accepts; the gates route on the task file, not on the cell.
 
 ## Contract Coupling
 

@@ -1316,8 +1316,10 @@ test('tool-written evidence outranks the task file\'s own Status word', () => {
   // the safety property. Named in BACKLOG §167 rather than guessed at — the corpus
   // that reported §166 has no instance of it, so nothing but this test exercises the
   // case at all.
-  assert.equal(routeOf(body('withdrawn', evidence)), 'done',
-    'evidence is read before the status word, for a terminal status too')
+  // THE OWNER DECIDED ON 2026-10-21 (ADR-120 T8, BACKLOG §167 closed): a terminal Status outranks
+  // evidence, so a task built and then withdrawn routes `stopped`, with its reason.
+  assert.equal(routeOf(body('withdrawn', evidence)), 'stopped',
+    'a terminal status is read before the evidence')
 })
 
 // ADR-045. adr-next carried its own `sections` with no code-fence toggle, so a

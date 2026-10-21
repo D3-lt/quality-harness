@@ -131,3 +131,29 @@ test("an affirmative that is not the note's closing verdict does not override a 
     'the run failed; approved.',
   ]) assert.equal(verdict(note), 'pass', note)
 })
+
+// ADR-120 T7, the Codex review of 692a869c: the closing clause is a verdict, not a measurement. An affirmative followed in its
+// clause by a noun it counts (rate, count, ratio, percent, total, "of N") reports a tally.
+test('a measurement after an affirmative is no closing verdict', () => {
+  for (const note of [
+    'the run failed; pass rate zero',
+    'the run failed; pass count 0',
+    'the run failed; passed 3 of 10',
+    'the run failed; pass ratio low',
+    'the run failed; passes of 10',
+    'the run failed; ok percent 40',
+  ]) assert.equal(verdict(note), 'stop', note)
+  // DIRTY twins: the same words as a verdict.
+  for (const note of [
+    'the run failed; passed',
+    'the run failed; passed after a rerun',
+    'the run failed; verified by hand',
+    'the run failed; ok',
+  ]) assert.equal(verdict(note), 'pass', note)
+})
+
+// The clause break is its own mechanism: "pass rate 0/10, unresolved" is also a measurement, so a row without one pins it.
+test('an affirmative that opens a clause before the last is not the closing verdict', () => {
+  assert.equal(verdict('the run failed; approved, see notes'), 'stop')
+  assert.equal(verdict('the run failed; approved'), 'pass')
+})

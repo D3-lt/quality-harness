@@ -1668,7 +1668,7 @@
       "tests": ["tests/adr-next-foreign.test.mjs"],
       "from": "    return (not CLOSING_BREAK.search(tail) and not NEGATIVE",
       "to": "    return (not NEGATIVE",
-      "only": "^an affirmative that is not the note's closing verdict does not override a failure$"
+      "only": "^(an affirmative that is not the note's closing verdict does not override a failure|an affirmative that opens a clause before the last is not the closing verdict)$"
     },
     {
       "label": "ADR-120 T7 review: a long final clause is a closing verdict",
@@ -1705,6 +1705,14 @@
       "tests": ["tests/adr-next-terminal.test.mjs"],
       "from": "\"terminal_stop\": terminal_stop(text),",
       "to": "\"terminal_stop\": None,"
+    },
+    {
+      "label": "ADR-120 T7 (review of 692a869c): a tally after an affirmative is no closing verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "            and not MEASURED.match(masked, match.end()) and len(tail.split()) <= CLOSING_WORDS)",
+      "to": "            and len(tail.split()) <= CLOSING_WORDS)",
+      "only": "^a measurement after an affirmative is no closing verdict$"
     }
   ]
 }

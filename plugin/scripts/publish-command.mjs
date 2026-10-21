@@ -672,11 +672,12 @@ function xargsInvocations(commands, n, start, tree) {
     else if (argv[k] === '-i') replace = '{}'
   }
   const texts = heredocs.map(doc => doc.body)
-  // ADR-120 T2: a group of several commands feeds xargs the bytes its printers write, in order, not its last command's; one the
-  // renderer cannot read feeds nothing (its last command is not read alone either), so only what the xargs words name
-  // themselves is read: could-not-look for the rest.
+  // ADR-120 T2: a group of several commands feeds xargs the bytes its printers write, in order, not its last command's. One the
+  // renderer cannot read gives its printers' words (candidateWords), or nothing where a program that may write anything is in it:
+  // the words the xargs line names itself are read, and the rest is could-not-look.
   const fed = groupFeeding(commands, n, tree)
   if (typeof fed.bytes === 'string') texts.push(fed.bytes)
+  else if (fed.stage) texts.push(...(candidateWords(fed.stage, commands, fed.defined) ?? []))
   for (const m of feederIndexes(commands, n, fed)) {
     const upstream = commands[m]
     const from = programIndex(upstream.argv)
@@ -685,8 +686,44 @@ function xargsInvocations(commands, n, start, tree) {
   }
   const input = texts.join('\n')
   const tail = argv.slice(start)
-  if (replace) return input.split('\n').filter(line => line.trim()).map(line => tail.map(word => word.split(replace).join(line.trim())))
-  return [[...tail, ...input.split(/\s+/).filter(Boolean)]]
+  if (replace) {
+    const built = []
+    for (const line of input.split('\n')) {
+      if (!line.trim()) continue
+      built.push(tail.map(word => word.split(replace).join(line.trim())))
+    }
+    return built
+  }
+  const words = xargsWords(input)
+  return words === null ? [] : [[...tail, ...words]]
+}
+
+// What xargs makes of its stdin, measured on /bin/sh and /bin/dash with a stub for git (2026-10-21): blanks and newlines separate
+// words; a quote groups what follows up to its mate (a newline or the end of the input inside one is an "unterminated quote":
+// xargs runs nothing, so null); a backslash outside quotes takes the next character literally, a trailing one the newline the
+// input ends with; inside quotes a backslash is itself.
+function xargsWords(input) {
+  const words = []
+  let word = null
+  let quote = ''
+  for (let k = 0; k < input.length; k++) {
+    const ch = input[k]
+    if (quote) {
+      if (ch === quote) quote = ''
+      else if (ch === '\n') return null
+      else word += ch
+    } else if (ch === "'" || ch === '"') {
+      quote = ch
+      word ??= ''
+    } else if (ch === '\\') word = `${word ?? ''}${input[++k] ?? '\n'}`
+    else if (/\s/.test(ch)) {
+      if (word !== null) words.push(word)
+      word = null
+    } else word = `${word ?? ''}${ch}`
+  }
+  if (quote) return null
+  if (word !== null) words.push(word)
+  return words
 }
 
 const NON_EXECUTORS = new Set(['echo', 'printf'])
@@ -838,26 +875,59 @@ function printfBytes([format, ...args]) {
   return out
 }
 
-function printerBytes({ argv, dynamic, substitutions, redirections }) {
-  if (dynamic.length || substitutions.length) return null
+// A name the text itself defines (`echo() { :; }`) is that function and not the builtin: what it writes is not known.
+function definedNames(node, names = new Set()) {
+  if (node.t === 'def') names.add(node.name)
+  for (const kid of node.kids) definedNames(kid, names)
+  return names
+}
+
+function printerBytes({ argv, dynamic, substitutions, redirections }, defined) {
+  if (dynamic.length || substitutions.length || defined.has(argv[0])) return null
   const stays = stdoutStays(redirections)
   const bytes = argv[0] === 'echo' ? echoBytes(argv.slice(1)) : argv[0] === 'printf' ? printfBytes(argv.slice(1)) : null
   return bytes === null || stays === null ? null : stays ? bytes : ''
 }
 
 // A list's bytes: each item one printer or one nested group, joined by `;` or a newline.
-function listBytes(list, commands) {
+function listBytes(list, commands, defined) {
   let out = ''
   for (let k = 0; k < list.kids.length; k++) {
     const { kids } = list.kids[k]
     if (list.ops[k] !== ';' || kids.length !== 1 || kids[0].kids.length !== 1) return null
     const stage = kids[0].kids[0]
-    const bytes = stage.t === 'cmd' ? printerBytes(commands[stage.i])
-      : stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands) : null
+    const bytes = stage.t === 'cmd' ? printerBytes(commands[stage.i], defined)
+      : stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands, defined) : null
     if (bytes === null) return null
     out += bytes
   }
   return out
+}
+
+// What a group the renderer cannot read (a `||`, an unsupported redirection) may write, as words: those of its `echo` commands,
+// whatever the joiners, and nothing from `:`, `true` and `false`. A program that may write anything (`printf` included), a name the text
+// defines, or a definition inside it makes it null. The pre-T2 reading kept for xargs, whose words name a verb the group's
+// printers spell: `{ :; echo push; } | xargs git` and `{ false || echo push; } | xargs git` run `git push`.
+const SILENT = new Set([':', 'true', 'false'])
+
+function candidateWords(node, commands, defined) {
+  if (node.t === 'def') return null
+  if (node.t !== 'cmd') {
+    const out = []
+    for (const kid of node.kids) {
+      const words = candidateWords(kid, commands, defined)
+      if (words === null) return null
+      out.push(...words)
+    }
+    return out
+  }
+  const { argv, dynamic } = commands[node.i]
+  const at = programIndex(argv)
+  if (typeof at !== 'number' || dynamic.includes(at)) return null
+  const name = programName(argv[at] ?? '')
+  if (defined.has(name)) return null
+  if (name === 'echo') return literalOutput(argv, at)
+  return SILENT.has(name) ? [] : null
 }
 
 // The stage that feeds command `n` in the pipeline holding it, or null.
@@ -875,13 +945,19 @@ function feederOf(node, n) {
 
 const lastCommand = node => (node.t === 'cmd' ? node.i : lastCommand(node.kids.at(-1)))
 
-// What feeds a shell or xargs from a group or subshell: `{ m }` when the stage is one pipeline, whose last command is read as
-// any other upstream; `{ bytes, tail }` when it is a list, with its exact bytes (null: could-not-look) and the index of its last
-// command, which the flat upstream scan must not read alone. `{ tail: -1 }` for no group, and with no tree (text the grammar
-// does not read) the flat scan stands as it was.
+// What feeds a shell or xargs from a group or subshell: `{ bytes, tail }` when it renders (one printer, several, a subshell with
+// its redirections), with its exact bytes and the index of its last command, which the flat upstream scan must not read alone;
+// `{ stage, defined, tail }` when it does not and holds several commands (xargs reads their printers' words, a shell nothing);
+// `{ m }` when it is one pipeline, whose last command is read as any other upstream. `{ tail: -1 }` for no group, and with no tree
+// (text the grammar does not read) the flat scan stands as it was.
 function groupFeeding(commands, n, tree) {
   const stage = tree ? feederOf(tree, n) : null
   if (!stage || (stage.t !== 'group' && stage.t !== 'sub')) return { tail: -1 }
+  const tail = lastCommand(stage)
+  const defined = definedNames(tree)
+  // `|&` also pipes the group's stderr, which this does not read.
+  const bytes = commands[tail].closes.at(-1)?.joiner === '|&' ? null : listBytes(stage.kids[0], commands, defined)
+  if (bytes !== null) return { bytes, tail }
   let resolved = stage
   while (resolved.t === 'group' || resolved.t === 'sub') {
     const body = resolved.kids[0]
@@ -889,10 +965,7 @@ function groupFeeding(commands, n, tree) {
     resolved = body.kids[0].kids[0].kids.at(-1)
   }
   if (resolved.t === 'cmd') return { m: resolved.i, tail: -1 }
-  if (resolved.t !== 'group' && resolved.t !== 'sub') return { tail: -1 }
-  const tail = lastCommand(stage)
-  // `|&` also pipes the group's stderr, which this does not read.
-  return { bytes: commands[tail].closes.at(-1)?.joiner === '|&' ? null : listBytes(resolved.kids[0], commands), tail }
+  return resolved.t === 'group' || resolved.t === 'sub' ? { stage, defined, tail } : { tail: -1 }
 }
 
 // The commands whose own output feeds `n`: those piped to it, and the one a single-pipeline group resolves to.

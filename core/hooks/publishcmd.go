@@ -1006,6 +1006,54 @@ func gitRunsCommands(argv []string, at int) []string {
 var xargsModelled = regexp.MustCompile(`^(?:-I.*|-i|--replace(?:=.*)?|-r|--no-run-if-empty|-t|--verbose)$`)
 var anySpace = regexp.MustCompile(`[\t\n\v\f\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]+`)
 
+// xargsWords is what xargs makes of its stdin (publish-command.mjs's): blanks and newlines separate words; a quote groups what
+// follows up to its mate (a newline or the end of the input inside one is an unterminated quote: xargs runs nothing, so false); a
+// backslash outside quotes takes the next character literally, a trailing one the newline the input ends with.
+func xargsWords(input string) ([]string, bool) {
+	words := []string{}
+	word := []rune{}
+	started := false
+	var quote rune
+	runes := []rune(input)
+	for k := 0; k < len(runes); k++ {
+		ch := runes[k]
+		switch {
+		case quote != 0:
+			if ch == quote {
+				quote = 0
+			} else if ch == '\n' {
+				return nil, false
+			} else {
+				word = append(word, ch)
+			}
+		case ch == '\'' || ch == '"':
+			quote, started = ch, true
+		case ch == '\\':
+			started = true
+			k++
+			if k < len(runes) {
+				word = append(word, runes[k])
+			} else {
+				word = append(word, '\n')
+			}
+		case anySpace.MatchString(string(ch)):
+			if started {
+				words = append(words, string(word))
+			}
+			word, started = word[:0], false
+		default:
+			word, started = append(word, ch), true
+		}
+	}
+	if quote != 0 {
+		return nil, false
+	}
+	if started {
+		words = append(words, string(word))
+	}
+	return words, true
+}
+
 func xargsInvocations(commands []*shellCommand, n, start int, tree *shellNode) [][]string {
 	argv := commands[n].argv
 	x := -1
@@ -1047,11 +1095,15 @@ func xargsInvocations(commands []*shellCommand, n, start int, tree *shellNode) [
 		texts = append(texts, doc.body)
 	}
 	// ADR-120 T2 (publish-command.mjs's): a group of several commands feeds xargs the bytes its printers write, in order, not its
-	// last command's; one the renderer cannot read feeds nothing (its last command is not read alone either), so only what the
-	// xargs words name themselves is read: could-not-look for the rest.
+	// last command's. One the renderer cannot read gives its printers' words (candidateWords), or nothing where a program that may
+	// write anything is in it: the words the xargs line names itself are read, and the rest is could-not-look.
 	fed := groupFeeding(commands, n, tree)
 	if fed.read {
 		texts = append(texts, fed.bytes)
+	} else if fed.stage != nil {
+		if words, ok := candidateWords(fed.stage, commands, fed.defined); ok {
+			texts = append(texts, words...)
+		}
 	}
 	for _, m := range feederIndexes(commands, n, fed) {
 		upstream := commands[m]
@@ -1077,13 +1129,11 @@ func xargsInvocations(commands []*shellCommand, n, start int, tree *shellNode) [
 		}
 		return out
 	}
-	built := append([]string{}, tail...)
-	for _, w := range anySpace.Split(input, -1) {
-		if w != "" {
-			built = append(built, w)
-		}
+	words, ok := xargsWords(input)
+	if !ok {
+		return nil
 	}
-	return [][]string{built}
+	return [][]string{append(append([]string{}, tail...), words...)}
 }
 
 var nonExecutors = map[string]bool{"echo": true, "printf": true}
@@ -1371,8 +1421,20 @@ func printfBytes(words []string) (string, bool) {
 	return out.String(), true
 }
 
-func printerBytes(c *shellCommand) (string, bool) {
-	if len(c.dynamic) > 0 || len(c.substitutions) > 0 || len(c.argv) == 0 {
+// definedNames are the names the text itself defines (`echo() { :; }`): each is that function and not the builtin, so what it
+// writes is not known.
+func definedNames(node *shellNode, names map[string]bool) map[string]bool {
+	if node.T == "def" {
+		names[node.Name] = true
+	}
+	for _, kid := range node.Kids {
+		definedNames(kid, names)
+	}
+	return names
+}
+
+func printerBytes(c *shellCommand, defined map[string]bool) (string, bool) {
+	if len(c.dynamic) > 0 || len(c.substitutions) > 0 || len(c.argv) == 0 || defined[c.argv[0]] {
 		return "", false
 	}
 	stays, ok := stdoutStays(c.redirections)
@@ -1398,7 +1460,7 @@ func printerBytes(c *shellCommand) (string, bool) {
 }
 
 // listBytes is a list's bytes: each item one printer or one nested group, joined by `;` or a newline.
-func listBytes(list *shellNode, commands []*shellCommand) (string, bool) {
+func listBytes(list *shellNode, commands []*shellCommand, defined map[string]bool) (string, bool) {
 	var out strings.Builder
 	for k, andor := range list.Kids {
 		if list.Ops[k] != ";" || len(andor.Kids) != 1 || len(andor.Kids[0].Kids) != 1 {
@@ -1408,9 +1470,9 @@ func listBytes(list *shellNode, commands []*shellCommand) (string, bool) {
 		bytes, ok := "", false
 		switch stage.T {
 		case "cmd":
-			bytes, ok = printerBytes(commands[stage.I])
+			bytes, ok = printerBytes(commands[stage.I], defined)
 		case "group", "sub":
-			bytes, ok = listBytes(stage.Kids[0], commands)
+			bytes, ok = listBytes(stage.Kids[0], commands, defined)
 		}
 		if !ok {
 			return "", false
@@ -1418,6 +1480,42 @@ func listBytes(list *shellNode, commands []*shellCommand) (string, bool) {
 		out.WriteString(bytes)
 	}
 	return out.String(), true
+}
+
+// silentBuiltins write nothing to stdout.
+var silentBuiltins = map[string]bool{":": true, "true": true, "false": true}
+
+// candidateWords is what a group the renderer cannot read (a `||`, an unsupported redirection) may write, as words: those of its
+// `echo` commands, whatever the joiners, and nothing from `:`, `true` and `false`. A program that may write anything (`printf` included),
+// a name the text defines, or a definition inside it makes it unread (publish-command.mjs's). The pre-T2 reading kept for xargs.
+func candidateWords(node *shellNode, commands []*shellCommand, defined map[string]bool) ([]string, bool) {
+	if node.T == "def" {
+		return nil, false
+	}
+	if node.T != "cmd" {
+		out := []string{}
+		for _, kid := range node.Kids {
+			words, ok := candidateWords(kid, commands, defined)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, words...)
+		}
+		return out, true
+	}
+	c := commands[node.I]
+	at, text := programIndex(c.argv)
+	if text != nil || c.isDynamic(at) {
+		return nil, false
+	}
+	name := programName(argAt(c.argv, at))
+	if defined[name] {
+		return nil, false
+	}
+	if name == "echo" {
+		return literalOutput(c.argv, at), true
+	}
+	return []string{}, silentBuiltins[name]
 }
 
 // feederOf is the stage that feeds command n in the pipeline holding it, or nil.
@@ -1444,13 +1542,16 @@ func lastCommand(node *shellNode) int {
 	return node.I
 }
 
-// groupFed is what feeds a shell or xargs from a group or subshell: m, the command a single-pipeline group resolves to (-1 for
-// none), or a list's exact bytes (read), with tail the index of its last command, which the flat upstream scan must not read
-// alone (-1 for none). A list that cannot be read has a tail and no bytes: it feeds nothing.
+// groupFed is what feeds a shell or xargs from a group or subshell: a group that renders has its exact bytes (read) and tail, the
+// index of its last command, which the flat upstream scan must not read alone (-1 for none); one that does not and holds several
+// commands has its stage and the defined names (xargs reads their printers' words, a shell nothing); m is the command a
+// single-pipeline group resolves to (-1 for none).
 type groupFed struct {
 	m, tail int
 	bytes   string
 	read    bool
+	stage   *shellNode
+	defined map[string]bool
 }
 
 func groupFeeding(commands []*shellCommand, n int, tree *shellNode) groupFed {
@@ -1461,6 +1562,15 @@ func groupFeeding(commands []*shellCommand, n int, tree *shellNode) groupFed {
 	stage := feederOf(tree, n)
 	if stage == nil || (stage.T != "group" && stage.T != "sub") {
 		return none
+	}
+	tail := lastCommand(stage)
+	defined := definedNames(tree, map[string]bool{})
+	// `|&` also pipes the group's stderr, which this does not read.
+	closes := commands[tail].closes
+	if len(closes) == 0 || closes[len(closes)-1].joiner != "|&" {
+		if bytes, ok := listBytes(stage.Kids[0], commands, defined); ok {
+			return groupFed{m: -1, tail: tail, bytes: bytes, read: true}
+		}
 	}
 	resolved := stage
 	for resolved.T == "group" || resolved.T == "sub" {
@@ -1478,16 +1588,7 @@ func groupFeeding(commands []*shellCommand, n int, tree *shellNode) groupFed {
 	if resolved.T != "group" && resolved.T != "sub" {
 		return none
 	}
-	fed := groupFed{m: -1, tail: lastCommand(stage)}
-	// `|&` also pipes the group's stderr, which this does not read.
-	closes := commands[fed.tail].closes
-	if len(closes) > 0 && closes[len(closes)-1].joiner == "|&" {
-		return fed
-	}
-	if bytes, ok := listBytes(resolved.Kids[0], commands); ok {
-		fed.bytes, fed.read = bytes, true
-	}
-	return fed
+	return groupFed{m: -1, tail: tail, stage: stage, defined: defined}
 }
 
 // feederIndexes are the commands whose own output feeds n: those piped to it, and the one a single-pipeline group resolves to.

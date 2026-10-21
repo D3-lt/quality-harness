@@ -1897,16 +1897,16 @@
       "label": "ADR-120 T2: a printer with a word the lexer cannot read is could-not-look",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": "if (dynamic.length || substitutions.length) return null",
-      "to": "if (substitutions.length) return null",
+      "from": "if (dynamic.length || substitutions.length || defined.has(argv[0])) return null",
+      "to": "if (substitutions.length || defined.has(argv[0])) return null",
       "only": "^a redirected or conditional printer is never summed into the pipe$"
     },
     {
       "label": "ADR-120 T2: a substitution on a printer is could-not-look",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": "if (dynamic.length || substitutions.length) return null",
-      "to": "if (dynamic.length) return null",
+      "from": "if (dynamic.length || substitutions.length || defined.has(argv[0])) return null",
+      "to": "if (dynamic.length || defined.has(argv[0])) return null",
       "only": "^a redirected or conditional printer is never summed into the pipe$"
     },
     {
@@ -1945,7 +1945,7 @@
       "label": "ADR-120 T2: a group nested in a group is part of the same stream",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": ": stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands) : null",
+      "from": ": stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands, defined) : null",
       "to": ": null",
       "only": "^a group piped to a shell is read through the bytes it prints$"
     },
@@ -2004,6 +2004,70 @@
       "from": "if (typeof fed.bytes === 'string') texts.push(fed.bytes)",
       "to": "void fed",
       "only": "^xargs reads a group's bytes, not its last command$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): an unreadable group's printers' words reach xargs",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "  else if (fed.stage) texts.push(...(candidateWords(fed.stage, commands, fed.defined) ?? []))",
+      "to": "  else if (fed.stage) void candidateWords",
+      "only": "^a group the renderer cannot read still gives xargs what its printers write$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a silent builtin in an unreadable group does not make it unread",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "  return SILENT.has(name) ? [] : null",
+      "to": "  return null",
+      "only": "^a group the renderer cannot read still gives xargs what its printers write$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a printer name the text defines is not rendered as the builtin",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (dynamic.length || substitutions.length || defined.has(argv[0])) return null",
+      "to": "if (dynamic.length || substitutions.length) return null",
+      "only": "^a printer name a definition shadows is not rendered$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a defined printer name gives no candidate words",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "  if (defined.has(name)) return null",
+      "to": "  void name",
+      "only": "^a printer name a definition shadows is not rendered$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a subshell of one command is rendered with its redirections",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (bytes !== null) return { bytes, tail }",
+      "to": "if (bytes !== null && !(stage.t === 'sub' && stage.kids[0].kids.length === 1)) return { bytes, tail }",
+      "only": "^a subshell of one command is rendered with its redirections$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a quote open at the end of xargs input is unproven",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "  if (quote) return null",
+      "to": "  void quote",
+      "only": "^xargs splits its input by its quoting rules, and input it cannot split is unproven$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a newline inside a quote fails xargs",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "      else if (ch === '\\n') return null",
+      "to": "      else word += ch",
+      "only": "^xargs splits its input by its quoting rules, and input it cannot split is unproven$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 692a869c): a backslash outside quotes takes the next character",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "ch === '\\\\') word",
+      "to": "ch === '\\\\x') word",
+      "only": "^xargs splits its input by its quoting rules, and input it cannot split is unproven$"
     }
   ]
 }

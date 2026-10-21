@@ -155,3 +155,64 @@ test("xargs reads a group's bytes, not its last command", () => {
     "{ cat f; echo x; } | xargs -I{} git push {}",
   ])
 })
+
+// ADR-120 T2, the Codex review of 692a869c. Every row was run with a stub for git on PATH under /bin/sh and /bin/dash (the same
+// answer from both, 2026-10-21): a row in `publishes` ran the stub with `push`, one in `publishesNothing` ran no git at all.
+test("a group the renderer cannot read still gives xargs what its printers write", () => {
+  // `:`, `true` and `false` write nothing, so the group's text is its printers' words; T2 read these as nothing.
+  publishes([
+    "{ :; echo push; } | xargs git",
+    "{ false || echo push; } | xargs git",
+    "{ true; echo push; } | xargs git",
+  ])
+  // DIRTY twins: a program that may write anything first, or words that do not name the verb, are still not a push.
+  publishesNothing([
+    "{ :; cat f; echo push; } | xargs git",
+    "{ echo x && echo push; } | xargs git",
+  ])
+})
+
+test("a printer name a definition shadows is not rendered", () => {
+  publishesNothing([
+    "echo() { :; }; { echo 'git push'; echo hi; } | sh",
+    "echo() { :; }; { echo push; echo x; } | xargs git",
+    "echo() { :; }; { :; echo push; } | xargs git",
+    "printf() { :; }; { printf 'git push\\n'; echo hi; } | sh",
+  ])
+  // DIRTY twins: a definition of another name shadows nothing here.
+  publishes([
+    "printf() { :; }; { echo 'git push'; echo hi; } | sh",
+    "printf() { :; }; { echo push; echo x; } | xargs git",
+  ])
+})
+
+test("a subshell of one command is rendered with its redirections", () => {
+  publishesNothing([
+    "(echo 'git push' >/dev/null) | sh",
+    "(echo 'git push' >&2) | sh",
+    "(echo push >/dev/null) | xargs git",
+  ])
+  // DIRTY twins: stdout stays when only stderr is redirected, or nothing is.
+  publishes([
+    "(echo 'git push') | sh",
+    "(echo 'git push' 2>/dev/null) | sh",
+    "(echo push) | xargs git",
+  ])
+})
+
+test("xargs splits its input by its quoting rules, and input it cannot split is unproven", () => {
+  // A quote it cannot close makes xargs fail before it runs git.
+  publishesNothing([
+    "{ echo 'push \"'; echo x; } | xargs git",
+    "echo 'push \"' | xargs git",
+    "echo \"push 'o\" | xargs git",
+    "{ echo 'push \"a'; echo 'b\"'; } | xargs git",
+  ])
+  // DIRTY twins: a quote that closes groups its words, a backslash takes the next character, and the words are the verb.
+  publishes([
+    "{ echo 'push \"a b\"'; echo x; } | xargs git",
+    "{ echo \"'push'\"; echo x; } | xargs git",
+    "echo \"p\\ush\" | xargs git",
+    "echo 'push \\' | xargs git",
+  ])
+})

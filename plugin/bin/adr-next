@@ -428,6 +428,8 @@ def closing_affirmations(text):
 # report whose last clause merely starts with "pass".
 CLOSING_BREAK = re.compile(r"[;,.:—–]|\s-\s")
 CLOSING_WORDS = 4
+# An affirmative followed by a noun that counts ("pass rate zero", "pass count 0", "passed 3 of 10") reports a tally, which is no verdict.
+MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
 
 
 def closes_the_note(text, match):
@@ -441,7 +443,7 @@ def closes_the_note(text, match):
     masked = QUOTED.sub(lambda q: " " * len(q.group()), text)
     tail = re.sub(r"[;,.:—–\s]+$", "", masked[match.start():])
     return (not CLOSING_BREAK.search(tail) and not NEGATIVE.search(text, match.start())
-            and len(tail.split()) <= CLOSING_WORDS)
+            and not MEASURED.match(masked, match.end()) and len(tail.split()) <= CLOSING_WORDS)
 
 
 def human_outcome(note):

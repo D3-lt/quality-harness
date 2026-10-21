@@ -227,3 +227,15 @@ test('a count after the closing affirmative is a tally, not a verdict', () => {
     'observed: the suite ran; no failures',
   ]) assert.equal(verdict(note), 'pass', note)
 })
+
+// A stale-contract review run of 2026-10-22, confirmed against v3.8.50: a note that states only an absent failure states no
+// verdict, and an unclassifiable note is done. b76ac9e0 made `failures` a negative word, and the scan for a negative only
+// program output holds read the note without its absences, so a bare "no failures" became a stop.
+test('a note that states only an absent failure is done, and a failure beside it still stops', () => {
+  for (const note of ['no failures', 'no failure', 'no tests failed', 'no failed checks.']) {
+    assert.equal(verdict(note), 'pass', note)
+  }
+  for (const note of ['failures', 'no failures but blocked', 'no failures; deployment failed', 'the claim that no failures happened is false']) {
+    assert.equal(verdict(note), 'stop', note)
+  }
+})

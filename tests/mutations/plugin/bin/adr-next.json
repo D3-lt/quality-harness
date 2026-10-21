@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "a note stating only an absent failure: the program-output scan blanks absences too",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    if NEGATIVE.search(not_the_verdict(note)):",
+      "to": "    if NEGATIVE.search(neutralise(note)):",
+      "only": "^(?:a note that states only an absent failure is done, and a failure beside it still stops)$"
+    },
+    {
       "label": "ADR-119 T3: a hyphened code name after \"no\" is no verdict (no canary-failed code was raised)",
       "file": "plugin/bin/adr-next",
       "tests": [

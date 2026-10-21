@@ -393,7 +393,7 @@ test('historical archive discovery uses one scoped Git query and preserves neare
   // once per file and never per edit.
   const atBoundary = gitOf(check(source))
   assert.equal(atBoundary.length, 4, `the per-edit work plus the lock-drift discovery and grep:\n${atBoundary.join('\n')}`)
-  assert.match(atBoundary.at(-1), /git grep --untracked -l -z -E .*-- 'tasks\/\*\.md'/)
+  assert.match(atBoundary.at(-1), /git grep --untracked -l -z -F .*-- 'tasks\/\*\.md'/)
 
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
@@ -415,7 +415,7 @@ test('historical archive discovery uses one scoped Git query and preserves neare
   // One history snapshot for the whole batch replaces the per-file probes; ADR-120 T15's lock-drift scan adds, per file it
   // reads, one discovery and one grep of the task files, and nothing else.
   const history = batchCommands.filter(line => /built-in: git (ls-tree|cat-file|log|show|grep -l -z -G)/.test(line))
-  const lockGreps = batchCommands.filter(line => /built-in: git grep --untracked -l -z -E/.test(line))
+  const lockGreps = batchCommands.filter(line => /built-in: git grep --untracked -l -z -F/.test(line))
   assert.ok(history.length <= 2, 'one history snapshot must replace repeated per-file probes:\n' + batchCommands.join('\n'))
   assert.ok(lockGreps.length <= 2, 'at most one lock-drift grep per file the batch reads:\n' + batchCommands.join('\n'))
   assert.ok(batchCommands.length <= 2 + history.length + 2 * lockGreps.length,

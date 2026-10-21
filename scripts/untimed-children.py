@@ -8,8 +8,10 @@ This walks the AST of every gate under plugin/bin and reports each call to
 subprocess.run / call / check_call / check_output / Popen that names no
 `timeout=`. Popen inside `run_bounded` is one exemption: that helper is the
 bound (its communicate carries the timeout and its cleanup kills the tree). Popen inside adr-verify's
-`start_background` is the other: it is waited on by nobody by design, and the detached child it starts bounds itself
-(its fence through run_bounded, the rest through a watchdog timer in run_background, ADR-120 T10).
+`start_background` is the other: nobody waits on it, by design, so it cannot hang the gate that starts it, and the
+detached child it starts makes only calls this sweep holds to a timeout of their own (its fence through run_bounded),
+so the child ends (ADR-120 T10; a watchdog over the whole child was tried and cut real evidence short, the review of
+e3764d1a).
 
 REPOSITORY TOOLING, never shipped. Exit 1 with one line per finding, exit 0
 with none — and tests/untimed-children.test.mjs shows it returning dirty on a

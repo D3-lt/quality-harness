@@ -297,25 +297,42 @@ is_architecture() {
 }
 
 # ADR-120 T15: a test file edited this session that a task's lock may hold. A lock hashes test bodies in the files a task's
-# Tests table names (record.py snapshot_lock), so only a task whose Tests table names the file in its File column can lock a
-# body in it; one that lists it under Affected Files cannot, and is not gated (measured 2026-10-21: plugin/bin/adr-next is
-# named by 25 task files, all as an affected file, and gating each made one boundary dispatch take 90 s). Those tasks are
-# gated as themselves, their owning record resolved as for any task, and what they say about THIS file's locked tests is the
-# advice: which task, which test, and the relock. At the commit and turn-end boundaries only: a test is edited many times
-# before the change is reviewed, and the relock waits for the review. Said on stderr, where the batch reads findings. A task
-# not claimed done has no lock to withhold, and says nothing.
+# Tests table names (record.py snapshot_lock), so only a task whose Tests table names the file can lock a body in it; one
+# that lists it under Affected Files cannot, and is not gated (measured 2026-10-21: plugin/bin/adr-next is named by 25 task
+# files, all as an affected file, and gating each made one boundary dispatch take 90 s). The candidates are the task files
+# whose text names the path; a candidate is kept when its `## Tests` section holds the file's repository path anywhere (a cell
+# written from the record, `../repo/<path>`, ends in it too), which is
+# every row form record.py's parser reads there (an escaped pipe in a cell, no leading pipe, an indented row: the review of
+# e3764d1a) and more, so it over-gates rather than misses. The section is read fence-aware, as record.py reads sections, and
+# case-insensitively. A candidate that cannot be read is kept: unsure is gated. Those tasks are gated as themselves, their
+# owning record resolved as for any task, and what they say about THIS file's locked tests is the advice: which task, which
+# test, and the relock. At the commit and turn-end boundaries only: a test is edited many times before the change is
+# reviewed, and the relock waits for the review. Said on stderr, where the batch reads findings. A task not claimed done has
+# no lock to withhold, and says nothing.
+tests_naming() {
+  local root="$1" task
+  while IFS= read -r -d '' task; do
+    [ -r "$root/$task" ] || { printf '%s\0' "$task"; continue; }
+    QH_LOCK_PATH="$2" awk '
+      /^[ \t]*(```|~~~)/ { fence = !fence }
+      !fence && /^## / { tests = (tolower($0) ~ /^##[ \t]+tests[ \t]*$/); next }
+      tests && index($0, ENVIRON["QH_LOCK_PATH"]) { found = 1; exit }
+      END { exit found ? 0 : 1 }
+    ' "$root/$task" && printf '%s\0' "$task"
+  done
+}
+
 lock_drift() {
-  local in_repo in_repo_rel task said line pattern
+  local in_repo in_repo_rel task said line
   [ "$boundary" = "PostToolUse" ] && return 0
   repo_path_of "$1" || return 0
-  # A Tests row is `| name | file | …`: the file in the second cell. The path is a literal, so its regex characters are escaped.
-  pattern="^\|[^|]*\|[^|]*$(printf '%s' "$in_repo_rel" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
   while IFS= read -r -d '' task; do
     said=$("$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
     while IFS= read -r line; do
       printf 'lock drift: %s\n' "${line#"${line%%[![:space:]]*}"}" >&2
     done < <(printf '%s\n' "$said" | grep -F -- "locked test \`$in_repo_rel\`")
-  done < <(git -C "$in_repo" grep --untracked -l -z -E --threads=1 --no-textconv -e "$pattern" -- 'tasks/*.md' '*/tasks/*.md' 2>/dev/null)
+  done < <(git -C "$in_repo" grep --untracked -l -z -F --threads=1 --no-textconv -e "$in_repo_rel" -- 'tasks/*.md' '*/tasks/*.md' 2>/dev/null \
+    | tests_naming "$in_repo" "$in_repo_rel")
 }
 
 # ADR-120 T15: a spec the gate skips: one git marks `linguist-generated`, or one the project lists under `ignore`. Only a

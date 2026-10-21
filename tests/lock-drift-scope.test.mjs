@@ -4,7 +4,7 @@
 // names it still is. Run on a staged copy of the dispatcher that logs every file it is handed, so the scan's choice is seen.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -21,6 +21,8 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   const bin = path.join(root, 'plugin', 'bin')
   mkdirSync(scripts, { recursive: true })
   mkdirSync(bin)
+  // The scan reads Tests tables with plugin/lib/record.py; without it the scan gates every candidate, the safe direction.
+  cpSync(path.join(pluginRoot, 'lib'), path.join(root, 'plugin', 'lib'), { recursive: true })
   const source = readFileSync(path.join(pluginRoot, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
   const log = path.join(root, 'gated.log')
   // Each run, the outer one and every task the scan gates, logs its own argument first.
@@ -37,6 +39,12 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
     '# Task ADR-001-T1: affected\n\n## Affected Files\n\n| File | Change | Why |\n|------|--------|-----|\n| `src/a.js` | edit | it changes |\n| `src/a.test.js` | edit | it changes |\n')
   writeFileSync(path.join(tasks, 'T2-tests.md'),
     '# Task ADR-001-T2: tests\n\n## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n|-----------|------|----------|--------|-------|\n| `a works` | `src/a.test.js` | it | — | S1 |\n')
+  // The row forms record.py's parser accepts and a cell regex missed (the review of e3764d1a): an escaped pipe in a cell,
+  // a row with no leading pipe, an indented row.
+  const header = '## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n|-----------|------|----------|--------|-------|\n'
+  writeFileSync(path.join(tasks, 'T3-escaped.md'), `# Task ADR-001-T3: escaped\n\n${header}| \`works \\| variant\` | \`src/a.test.js\` | it | — | S1 |\n`)
+  writeFileSync(path.join(tasks, 'T4-bare.md'), `# Task ADR-001-T4: bare\n\n${header}\`a bare\` | \`src/a.test.js\` | it | — | S1\n`)
+  writeFileSync(path.join(tasks, 'T5-indented.md'), `# Task ADR-001-T5: indented\n\n${header}  | \`an indented\` | \`src/a.test.js\` | it | — | S1 |\n`)
   for (const args of [['init', '-q'], ['add', '.']]) {
     const run = spawnSync('git', args, { cwd: project, encoding: 'utf8', timeout: 30_000, windowsHide: true })
     assert.equal(run.status, 0, run.stderr)
@@ -51,5 +59,6 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   assert.doesNotMatch(gated('src/a.js'), /T1-affected/, 'a task that only lists the file as affected was gated')
   const forTest = gated('src/a.test.js')
   assert.match(forTest, /T2-tests\.md/, 'the task whose Tests table names the file was not gated')
+  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented']) assert.match(forTest, new RegExp(`${task}\\.md`), `${task} was not gated`)
   assert.doesNotMatch(forTest, /T1-affected/, 'the affected-files task was gated for the test file too')
 })

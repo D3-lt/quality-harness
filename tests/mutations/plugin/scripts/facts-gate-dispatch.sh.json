@@ -599,8 +599,8 @@
       "label": "ADR-120 T15 (the full check of 2026-10-21): the lock-drift scan gates every task that names the file",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/lock-drift-scope.test.mjs"],
-      "from": "  pattern=\"^\\|[^|]*\\|[^|]*$(printf",
-      "to": "  pattern=\"$(printf",
+      "from": "    | tests_naming \"$in_repo\" \"$in_repo_rel\")",
+      "to": "    )",
       "only": "^the lock-drift scan gates a task whose Tests table names the file, and not one that only lists it as affected$"
     }
   ]

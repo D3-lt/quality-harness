@@ -3157,12 +3157,6 @@ def start_background(task, cwd, steps):
 def run_background(task, text, cmd, cwd, steps, run_id):
     """The detached child: run the fence, then write the row a foreground run would write."""
     lease, _ = background_files(task)
-    # The child bounds itself: its fence through run_bounded, and everything else it does (the git reads, the row) through
-    # this watchdog, so a hang after the fence cannot hold the lease for ever. A lease left by the exit is stale by its pid.
-    import threading
-    watchdog = threading.Timer(fence_timeout() + 300, os._exit, args=(124,))
-    watchdog.daemon = True
-    watchdog.start()
     code = 1
     try:
         before = tree_fingerprint(cwd)

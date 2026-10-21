@@ -175,3 +175,14 @@ test('a closing verdict may carry the label "verdict"', () => {
     'the run failed; verdict approved by the owner later on',
   ]) assert.equal(verdict(note), 'stop', note)
 })
+
+// The verification review of dcc4693a..d4f51888: a number that counts after the affirmative is a tally, labelled or not.
+test('a count after the closing affirmative is a tally, not a verdict', () => {
+  for (const note of [
+    'the run failed; verdict passed 0 tests',
+    'the run failed; passed 0 tests',
+    'the run failed; passed 3/10',
+    'the run failed; ok 40%',
+  ]) assert.equal(verdict(note), 'stop', note)
+  assert.equal(verdict('the run failed; approved 2026-10-21'), 'pass', 'a date is no count')
+})

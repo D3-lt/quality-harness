@@ -53,12 +53,12 @@ func TestCheckCanStartReadsAssignments(t *testing.T) {
 		}
 		return "", false
 	}
-	for _, command := range []string{"PATH=/bin sh -c 'test -f CLAUDE.md'", "PATH=/bin sh -c true", "FOO=1 nosuchprogram-xyz"} {
+	for _, command := range []string{"PATH=/bin sh -c 'test -f CLAUDE.md'", "PATH=/bin sh -c true", "PATHEXT=.X nosuchprogram-xyz"} {
 		if !checkCanStart(command, empty, lookup, "linux") {
 			t.Errorf("%q cannot start", command)
 		}
 	}
-	for _, command := range []string{"nosuchprogram-xyz", "sh -c true"} {
+	for _, command := range []string{"nosuchprogram-xyz", "sh -c true", "FOO=1 nosuchprogram-xyz"} {
 		if checkCanStart(command, empty, lookup, "linux") {
 			t.Errorf("%q can start", command)
 		}

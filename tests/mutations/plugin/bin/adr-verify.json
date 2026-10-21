@@ -585,8 +585,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                        encoding=\"utf-8\", errors=\"replace\", timeout=fence_timeout())",
-      "to": "                        encoding=\"utf-8\", errors=\"replace\", timeout=None)",
+      "from": "                        encoding=\"utf-8\", errors=\"replace\", timeout=fence_timeout(), outcome=settled)",
+      "to": "                        encoding=\"utf-8\", errors=\"replace\", timeout=None, outcome=settled)",
       "only": "^(?:a fence that never returns is UNRUN, and writes nothing)$"
     },
     {
@@ -2022,6 +2022,22 @@
       "from": "        elif note is None and (left.get(\"left\") or not left.get(\"ended\")):",
       "to": "        elif note is None and (False or not left.get(\"ended\")):",
       "only": "^(?:a background fence that leaves work running is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10 (the owner, 2026-10-21): a foreground fence that leaves work running is recorded as passed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-leftover.test.mjs"],
+      "from": "    if r.returncode == 0 and settled.get(\"left\"):",
+      "to": "    if r.returncode == 0 and False:",
+      "only": "^a foreground fence that leaves work running is never recorded as passed$"
+    },
+    {
+      "label": "ADR-120 T10 (the owner, 2026-10-21): a mutant run's clean fence that leaves work running is taken as passed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-leftover.test.mjs"],
+      "from": "        if clean.returncode == 0 and clean_settled.get(\"left\"):",
+      "to": "        if clean.returncode == 0 and False:",
+      "only": "^a mutant run's clean fence that leaves work running records no pass and applies no mutant$"
     }
   ]
 }

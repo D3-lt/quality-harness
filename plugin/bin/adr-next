@@ -429,8 +429,9 @@ def closing_affirmations(text):
 # report whose last clause merely starts with "pass".
 CLOSING_BREAK = re.compile(r"[;,.:—–]|\s-\s")
 CLOSING_WORDS = 4
-# An affirmative followed by a noun that counts ("pass rate zero", "pass count 0", "passed 3 of 10") reports a tally, which is no verdict.
-MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
+# An affirmative followed by a noun that counts ("pass rate zero", "pass count 0", "passed 3 of 10") reports a tally, which is no verdict;
+# so does one followed by a number that counts something ("passed 0 tests", "passed 3/10", "ok 40%"), which a date does not.
+MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|\d+\s*(?:/|%|[a-z])|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
 
 
 def closes_the_note(text, match):

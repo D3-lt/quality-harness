@@ -458,6 +458,17 @@ var (
 	unreadWord         = regexp.MustCompile("[$`*?\\[\\]{}~\\\\]")
 )
 
+
+// setsPath is whether a command-local assignment names PATH or PATHEXT, the two that can move where its program is found; any other
+// assignment leaves the program and its script to be read (the verification review of dcc4693a..d4f51888).
+func setsPath(assignments []string) bool {
+	for _, word := range assignments {
+		if strings.HasPrefix(word, "PATH=") || strings.HasPrefix(word, "PATHEXT=") {
+			return true
+		}
+	}
+	return false
+}
 // checkCanStart is plugin/scripts/completion-rules.mjs's: whether a declared check's first program can start here, judged without
 // running it (ADR-120 T11). Only what is certain says no; anything it does not read can start, as before.
 func checkCanStart(command, directory string, lookup func(string) (string, bool), goos string) bool {
@@ -466,7 +477,7 @@ func checkCanStart(command, directory string, lookup func(string) (string, bool)
 		return true
 	}
 	first := commands[0]
-	if len(first.argv) == 0 || len(first.opens) > 0 || first.bangs > 0 || first.defines != "" || len(first.assignments) > 0 {
+	if len(first.argv) == 0 || len(first.opens) > 0 || first.bangs > 0 || first.defines != "" || setsPath(first.assignments) {
 		return true
 	}
 	program, rest := first.argv[0], first.argv[1:]

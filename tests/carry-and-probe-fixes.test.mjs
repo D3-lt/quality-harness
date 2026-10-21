@@ -70,7 +70,9 @@ test('a declared check with a command-local assignment can start, and a plain mi
     const env = { PATH: empty }
     assert.equal(checkCanStart("PATH=/bin sh -c 'test -f CLAUDE.md'", empty, env), true, 'the assignment may put the program on a PATH the probe cannot see')
     assert.equal(checkCanStart('PATH=/bin sh -c true', empty, env), true)
-    assert.equal(checkCanStart('FOO=1 nosuchprogram-xyz', empty, env), true, 'any leading assignment: the probe does not guess')
+    assert.equal(checkCanStart('FOO=1 nosuchprogram-xyz', empty, env), false, 'an assignment that is not PATH moves nothing')
+    assert.equal(checkCanStart('CI=1 node scripts/definitely-missing-t11.mjs', empty, { PATH: process.env.PATH }), false, 'nor does it hide a missing script')
+    assert.equal(checkCanStart('PATHEXT=.X nosuchprogram-xyz', empty, env), true)
     assert.equal(checkCanStart('nosuchprogram-xyz', empty, env), false, 'the twin: no assignment, no such program')
     assert.equal(checkCanStart('sh -c true', empty, env), false, 'and a real program on no PATH directory')
   } finally { remove(empty) }

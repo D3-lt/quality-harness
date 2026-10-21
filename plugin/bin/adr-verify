@@ -1953,11 +1953,13 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # discarded. Monotonic for the reason main() gives — a clock that steps
         # backwards turns a finding about NTP into a finding about the work.
         clean_started = time.monotonic()
+        # A clean fence that leaves work running did not finish what it began: no pass, and no mutant (LEFT_RUNNING).
+        clean_settled = placement if isolated else {}
         try:
             clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",
                                 timeout=fence_timeout(), on_start=fence_start,
-                                outcome=placement if isolated else None)
+                                outcome=clean_settled)
         except subprocess.TimeoutExpired as expired:
             partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
             print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
@@ -1977,6 +1979,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # would include the mutant run this function is about to do.
         clean_elapsed_ms = round((time.monotonic() - clean_started) * 1000)
         clean_out = (clean.stdout or "") + (clean.stderr or "")
+        if clean.returncode == 0 and clean_settled.get("left"):
+            clean = subprocess.CompletedProcess(clean.args, 1, clean.stdout, (clean.stderr or "") + "\n" + LEFT_RUNNING)
+            clean_out = (clean.stdout or "") + (clean.stderr or "")
         clean_usable = clean.returncode == 0 and not scored_nothing(clean_out)
         # ADR-025. This run happened: the exact normalized fence, same shell, cwd,
         # environment and timeout the mutant will get. That is the observation a
@@ -3088,6 +3093,13 @@ def release_background(lease, run_id):
     except (OSError, ValueError):
         pass
 
+# A fence that returns with work it started still running did not finish what it began, so its row is never a pass: foreground,
+# background, or the clean fence of a mutant run (ADR-120 T10; the owner, 2026-10-21, for the foreground). Only a group seen to
+# keep members counts in the foreground, so a platform that cannot say (Windows, where only `ended` is known) records as before.
+LEFT_RUNNING = ("[adr-verify] UNPROVEN: the fence returned with work it started still running, or its "
+                "process group was not seen to end, so it did not finish what it began. Recorded as a "
+                "failure, never as passed; background nothing from a fence.")
+
 
 def tree_fingerprint(cwd):
     """What a run's tree was: HEAD and the tracked content, or None where git cannot say.
@@ -3172,9 +3184,7 @@ def run_background(task, text, cmd, cwd, steps, run_id):
                     "never as passed; run it again on a quiet tree.")
             r = subprocess.CompletedProcess(argv, r.returncode or 1, r.stdout, r.stderr)
         elif note is None and (left.get("left") or not left.get("ended")):
-            note = ("[adr-verify] UNPROVEN: the fence returned with work it started still running, or its "
-                    "process group was not seen to end, so it did not finish what it began. Recorded as a "
-                    "failure, never as passed; background nothing from a fence.")
+            note = LEFT_RUNNING
             r = subprocess.CompletedProcess(argv, r.returncode or 1, r.stdout, r.stderr)
         if note:
             r = subprocess.CompletedProcess(argv, r.returncode, r.stdout, (r.stderr or "") + "\n" + note)
@@ -3773,9 +3783,10 @@ def main():
     # DST change, and a negative duration handed to the floor is a finding about
     # the clock reported as a finding about the work.
     started = time.monotonic()
+    settled = {}
     try:
         r = run_bounded([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
-                        encoding="utf-8", errors="replace", timeout=fence_timeout())
+                        encoding="utf-8", errors="replace", timeout=fence_timeout(), outcome=settled)
     except subprocess.TimeoutExpired as expired:
         # UNRUN, not FAILED. A fence that never returned has not judged the code,
         # and recording exit 1 would put a verdict in the log that nothing
@@ -3798,6 +3809,8 @@ def main():
                 print(f"  {line}")
         sys.exit(2)
 
+    if r.returncode == 0 and settled.get("left"):
+        r = subprocess.CompletedProcess(r.args, 1, r.stdout, (r.stderr or "") + "\n" + LEFT_RUNNING)
     sha = git_sha(cwd)
 
     code = record_run(task, text, cmd, today, r,

@@ -69,6 +69,7 @@ out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \
 - 2026-10-21 · 543e0bc9* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · turnEnd continue is ignored by the rules · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce
 - 2026-10-21 · 543e0bc9* · mutant killed · exit 1 · `plugin/scripts/project-config.mjs` · turnEnd continue is not read · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce
 - 2026-10-21 · a5ac6999* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · a command-local assignment read as no PATH change makes a runnable check unstartable (review of 7a9107e8..dcc4693a, finding 5) · acceptance-sha256:ee247173c6880060a80c2503acbad4befee3fded422a432ab61a1ee9b683d077
+- 2026-10-21 · d4f51888* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · any assignment, not only PATH, makes a check with a missing script read as startable (verification of dcc4693a..d4f51888) · acceptance-sha256:ee247173c6880060a80c2503acbad4befee3fded422a432ab61a1ee9b683d077
 
 ## Invariants
 
@@ -99,3 +100,4 @@ Stop if resolving the program needs to run the project's shell setup (an `nvm`-s
 - 2026-10-21 · 543e0bc9* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce · ms:35457
 - 2026-10-21 · 543e0bc9* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:50c87d6950ad4db9df6ed2cbe3e1e019015696ba15544dfaa4857136e7c96fce · ms:88709
 - 2026-10-21 · a5ac6999* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:ee247173c6880060a80c2503acbad4befee3fded422a432ab61a1ee9b683d077 · ms:20538
+- 2026-10-21 · d4f51888* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-declared.test.mjs 2>&1) \ …` · acceptance-sha256:ee247173c6880060a80c2503acbad4befee3fded422a432ab61a1ee9b683d077 · ms:15561

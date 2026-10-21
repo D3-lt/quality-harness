@@ -28,8 +28,8 @@
       "label": "ADR-120 T11: the Go probe reads a command-local assignment as no PATH change",
       "file": "core/hooks/turnend.go",
       "tests": ["tests/carry-and-probe-fixes.test.mjs"],
-      "from": "first.defines != \"\" || len(first.assignments) > 0 {",
-      "to": "first.defines != \"\" {",
+      "from": "first.defines != \"\" || setsPath(first.assignments) {",
+      "to": "first.defines != \"\" || len(first.assignments) > 0 {",
       "only": "^(?:the Go core's foreign-write veto and assignment probe hold)$"
     }
   ]

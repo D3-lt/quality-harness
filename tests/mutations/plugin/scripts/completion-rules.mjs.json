@@ -850,8 +850,8 @@
       "label": "ADR-120 T11: a command-local assignment is read as no PATH change",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/carry-and-probe-fixes.test.mjs"],
-      "from": "first.defines || first.assignments.length) return true",
-      "to": "first.defines) return true",
+      "from": "first.assignments.some(word => /^PATH(?:EXT)?=/.test(word))) return true",
+      "to": "first.assignments.length) return true",
       "only": "^(?:a declared check with a command-local assignment can start, and a plain missing program cannot)$"
     }
   ]

@@ -709,8 +709,9 @@ export function completionFacts(input, ended) {
 
 // ADR-120 T11: whether a declared check's first program can start here, judged without running it. Only what is certain says no: a
 // plain program word that is no shell builtin and is on no PATH directory, or a script handed straight to an interpreter that is not
-// there. Anything this does not read (a variable, a glob, a group, an unclosed quote, no PATH at all, a command-local assignment that
-// can put the program on a PATH of its own) can start, as before. It does
+// there. Anything this does not read (a variable, a glob, a group, an unclosed quote, no PATH at all, a command-local PATH or
+// PATHEXT that can put the program on a path of its own) can start, as before; any other command-local assignment changes nothing
+// this looks at, so the program and its script are still read. It does
 // not run the project's shell setup, so a PATH an `nvm`-style setup extends reads as absent: a finding said to the user, never lost.
 const SHELL_OWN_WORDS = new Set(['.', ':', '[', '[[', 'alias', 'bg', 'break', 'cd', 'command', 'continue', 'declare', 'do', 'done', 'elif', 'else', 'esac', 'eval', 'exec', 'exit', 'export', 'false', 'fg', 'fi', 'for', 'function', 'getopts', 'hash', 'if', 'in', 'let', 'local', 'read', 'readonly', 'return', 'select', 'set', 'shift', 'source', 'test', 'then', 'time', 'times', 'trap', 'true', 'type', 'typeset', 'ulimit', 'umask', 'unalias', 'unset', 'until', 'wait', 'while'])
 const SCRIPT_RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'node', 'python', 'python3', 'ruby', 'perl'])
@@ -718,7 +719,7 @@ const UNREAD_WORD = /[$`*?[\]{}~\\]/
 export function checkCanStart(command, directory, env = process.env, platform = process.platform) {
   const { commands, complete } = shellWords(command)
   const first = commands[0]
-  if (!complete || !first || first.argv.length === 0 || first.opens.length || first.bangs || first.defines || first.assignments.length) return true
+  if (!complete || !first || first.argv.length === 0 || first.opens.length || first.bangs || first.defines || first.assignments.some(word => /^PATH(?:EXT)?=/.test(word))) return true
   const [program, ...rest] = first.argv
   if (first.dynamic[0] || UNREAD_WORD.test(program) || SHELL_OWN_WORDS.has(program)) return true
   if (program.includes('/')) return existsSync(path.resolve(directory, program))

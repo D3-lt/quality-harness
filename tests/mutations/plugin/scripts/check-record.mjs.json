@@ -182,6 +182,66 @@
       ],
       "from": "after: { ...already.now, at: original.after.at }",
       "to": "after: { ...already.now, at }"
+    },
+    {
+      "label": "ADR-120 T16: a passing run keeps no output file",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "if (verdict !== 'passed' && output) {",
+      "to": "if (output) {",
+      "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
+    },
+    {
+      "label": "ADR-120 T16: the file holds the last 400 lines, not all it was given",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "lines = lines.slice(-LINES_KEPT)",
+      "to": "lines = lines.slice(0)",
+      "only": "^(?:a failed check keeps the tail of its output, named by its row)$"
+    },
+    {
+      "label": "ADR-120 T16: a cut output begins at a whole line",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "if (cut) lines.shift()",
+      "to": "if (false) lines.shift()",
+      "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
+    },
+    {
+      "label": "ADR-120 T16: the 51st kept file removes the oldest",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "older.slice(FILES_KEPT - 1)",
+      "to": "older.slice(FILES_KEPT)",
+      "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
+    },
+    {
+      "label": "ADR-120 T16: a file that cannot be written costs the file, never the row",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "        stderr.write(`qh-check: its output could not be kept (${failure.code ?? failure.message}).\\n`)",
+      "to": "        throw failure",
+      "only": "^(?:a failed check keeps the tail of its output, named by its row)$"
+    },
+    {
+      "label": "ADR-120 T16: the row names the file that was kept",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "row = { ...record, output: keepOutput(directory, record.id, output) }",
+      "to": "keepOutput(directory, record.id, output)",
+      "only": "^(?:a failed check keeps the tail of its output, named by its row)$"
     }
   ]
 }

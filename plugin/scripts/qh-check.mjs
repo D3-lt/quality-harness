@@ -28,6 +28,8 @@ import { classifyRun, recordBaseline, recordRun, recordSkip, reuseByProse, runRe
 import { once } from './lazily.mjs'
 
 const KEEP_BYTES = 64 * 1024
+// What a failed run keeps of its output beside its row (check-record.mjs cuts that to its last lines).
+const KEEP_OUTPUT_BYTES = 256 * 1024
 
 // A spawn error or a missing status is not "this directory is not a repository".
 // That reading is the non-git exemption, and a pass then skips the tree comparison.
@@ -112,15 +114,21 @@ export function checkPlan(facts, { fast, again, env }) {
 // replaced by the host's.
 const loadOptions = (loadavg, cores) => ({ ...(loadavg !== undefined ? { loadavg } : {}), ...(cores !== undefined ? { cores } : {}) })
 
-// The last KEEP_BYTES of the check's output, for the verdict: a test runner prints its summary at the end.
+// The last KEEP_OUTPUT_BYTES of the check's output, kept whole for a failed run's file; the verdict reads the last KEEP_BYTES of
+// it, since a test runner prints its summary at the end. `cut` says the front of the output was dropped.
 function tailKeeper() {
   let kept = Buffer.alloc(0)
+  let cut = false
   return {
     keep: chunk => {
       kept = Buffer.concat([kept, chunk])
-      if (kept.length > KEEP_BYTES) kept = kept.subarray(kept.length - KEEP_BYTES)
+      if (kept.length > KEEP_OUTPUT_BYTES) {
+        kept = kept.subarray(kept.length - KEEP_OUTPUT_BYTES)
+        cut = true
+      }
     },
-    kept: () => kept,
+    kept: () => kept.subarray(Math.max(0, kept.length - KEEP_BYTES)),
+    output: () => ({ bytes: kept, cut }),
   }
 }
 
@@ -182,7 +190,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const contended = contention(before.load, after.load, loadAtStart.cores)
   const record = runRecord({ id: randomUUID(), git, command, origin, before, after, run: { exit, signal, verdict }, cores: loadAtStart.cores,
     contended, beside, besideAtEnd, waitedMs, prose })
-  recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr })
+  recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr, output: tail.output() })
   if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)
     && onlyTextChangedSince(root, previousHead) && firstMentionHere(root, PROSE_HINT)) {
     stderr.write(`qh-check: ${PROSE_HINT}\n`)

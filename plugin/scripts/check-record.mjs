@@ -3,7 +3,7 @@
 // (BACKLOG section 376). The first three are functions of what they are handed; the writes are the only part that touches
 // the ledgers, and a ledger that cannot be written is said and never changes the check's exit (CLAUDE.md section 3).
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { stateDir } from './event-log.mjs'
 import { inSeconds } from './check-child.mjs'
@@ -117,14 +117,52 @@ export function recordBaseline({ record, root, stderr }) {
   }
 }
 
+// ADR-120 T16: a run that did not pass keeps the tail of its output, so a failure seen once under load can be read afterwards.
+// The last LINES_KEPT lines of what the run kept (at most 256 KB, cut at a line: `cut` says the front was dropped, so its first
+// line may be partial), under the newest FILES_KEPT files.
+const LINES_KEPT = 400
+const FILES_KEPT = 50
+export function outputTail({ bytes, cut }) {
+  const text = bytes.toString('utf8')
+  const ended = text.endsWith('\n')
+  let lines = text.split('\n')
+  if (ended) lines.pop()
+  if (cut) lines.shift()
+  lines = lines.slice(-LINES_KEPT)
+  return lines.length ? `${lines.join('\n')}${ended ? '\n' : ''}` : ''
+}
+
+// Writes the file and removes the oldest past the newest FILES_KEPT, this run's own never among them. Returns the name the row
+// carries, relative to the state directory, with a forward slash on every platform.
+function keepOutput(directory, id, output) {
+  const outputs = path.join(directory, 'outputs')
+  mkdirSync(outputs, { recursive: true })
+  const own = `${id}.log`
+  writeFileSync(path.join(outputs, own), outputTail(output), 'utf8')
+  const older = readdirSync(outputs).filter(name => name.endsWith('.log') && name !== own)
+    .map(name => ({ name, at: statSync(path.join(outputs, name)).mtimeMs }))
+    .sort((a, b) => b.at - a.at || (a.name < b.name ? 1 : -1))
+  for (const { name } of older.slice(FILES_KEPT - 1)) rmSync(path.join(outputs, name), { force: true })
+  return `outputs/${own}`
+}
+
 // Said on STDERR, once, after the record exists; the record is the check's and the sentence is for whoever ran it.
-export function recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr }) {
+export function recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr, output }) {
   try {
     const directory = stateDir(root)
     mkdirSync(directory, { recursive: true })
+    // The row is the evidence and the output a convenience: a file that cannot be written costs the file, never the row.
+    let row = record
+    if (verdict !== 'passed' && output) {
+      try {
+        row = { ...record, output: keepOutput(directory, record.id, output) }
+      } catch (failure) {
+        stderr.write(`qh-check: its output could not be kept (${failure.code ?? failure.message}).\n`)
+      }
+    }
     // A fast record goes where no reader of a full pass looks, in any version (ADR-081).
     const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')
-    appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8')
+    appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8')
     // Said on STDERR, once, after the record exists: a check run by hand showed only
     // its own output, so nobody could tell what ran, whether it was declared or
     // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
@@ -133,6 +171,7 @@ export function recordRun({ record, fast, root, startedAt, after, signal, verdic
     const took = inSeconds(Date.parse(after.at) - Date.parse(startedAt))
     const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`
     stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
+    if (row.output) stderr.write(`qh-check: the tail of its output is kept as ${row.output} beside the record.\n`)
   } catch (failure) {
     stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
   }

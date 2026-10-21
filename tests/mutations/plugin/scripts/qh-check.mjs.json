@@ -137,8 +137,8 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "kept = kept.subarray(kept.length - KEEP_BYTES)",
-      "to": "kept = kept.subarray(0, KEEP_BYTES)",
+      "from": "kept: () => kept.subarray(Math.max(0, kept.length - KEEP_BYTES))",
+      "to": "kept: () => kept.subarray(0, KEEP_BYTES)",
       "only": "^(?:a check event is written by qh-check)$"
     },
     {
@@ -305,6 +305,16 @@
       ],
       "from": "notes: prose.problem ? [`qh-check: ${prose.problem}\\n`] : []",
       "to": "notes: []"
+    },
+    {
+      "label": "ADR-120 T16: output past 256 KB is cut",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "const KEEP_OUTPUT_BYTES = 256 * 1024",
+      "to": "const KEEP_OUTPUT_BYTES = 1024 * 1024",
+      "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
     }
   ]
 }

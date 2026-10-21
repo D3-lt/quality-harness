@@ -209,6 +209,16 @@
       "from": "    const colon = /^[-–—―][A-Za-z]+:([\\s\\S]*)$/.exec(c.argv[at])",
       "to": "    const colon = /^[-][A-Za-z]+:([\\s\\S]*)$/.exec(c.argv[at])",
       "only": "^(?:a PowerShell parameter spelled with a Unicode dash names its colon value)$"
+    },
+    {
+      "label": "ADR-120 T16: the Node refusal names outputs/",
+      "file": "plugin/scripts/ledger-guard.mjs",
+      "tests": [
+        "tests/check-output.test.mjs"
+      ],
+      "from": "skips.jsonl and outputs/<run id>.log",
+      "to": "skips.jsonl",
+      "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
     }
   ]
 }

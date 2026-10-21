@@ -61,8 +61,8 @@
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
       "only": "^the hook writes the unreviewed count into its cache from the review ledger, with real git$",
-      "from": "    return run(argv, { ...options, timeout: Math.min(left, 15_000) })",
-      "to": "    return run(argv, { timeout: Math.min(left, 15_000) })"
+      "from": "    return run(argv, { ...(cwd ? { cwd } : {}), ...options, timeout: Math.min(left, 15_000) })",
+      "to": "    return run(argv, { ...(cwd ? { cwd } : {}), timeout: Math.min(left, 15_000) })"
     },
     {
       "label": "status line: no review ledger, no unreviewed field and no spawn",
@@ -103,8 +103,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "both snapshot writers replace the file",
-      "from": "    replaceFile(store, JSON.stringify({ ...current, said, ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }) }))",
-      "to": "    writeFileSync(store, JSON.stringify({ ...current, said, ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }) }))"
+      "from": "    replaceFile(store, JSON.stringify({ ...current, ...(said === undefined ? {} : { said }), ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }), ...extra }))",
+      "to": "    writeFileSync(store, JSON.stringify({ ...current, ...(said === undefined ? {} : { said }), ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }), ...extra }))"
     },
     {
       "label": "branch-state: the refresher replaces the snapshot rather than rewriting it in place",
@@ -113,8 +113,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "both snapshot writers replace the file",
-      "from": "      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey }))",
-      "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey }))"
+      "from": "      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey,",
+      "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey,"
     },
     {
       "label": "branch-state: a refused rename still writes the snapshot in place",
@@ -203,8 +203,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "host is not kept waiting",
-      "from": "    cwd: process.cwd(), detached: true, stdio: 'ignore', windowsHide: true,",
-      "to": "    cwd: process.cwd(), detached: true, stdio: 'inherit', windowsHide: true,"
+      "from": "    cwd, detached: true, stdio: 'ignore', windowsHide: true,",
+      "to": "    cwd, detached: true, stdio: 'inherit', windowsHide: true,"
     },
     {
       "label": "branch-state: a refresher that cannot run git still writes what it saw",
@@ -213,7 +213,7 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "a due brief is served",
-      "from": "    const home = findGitDir(process.cwd())",
+      "from": "    const home = findGitDir(dir)",
       "to": "    const home = gitDir(run)"
     },
     {
@@ -651,8 +651,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (brief && key === null && previous && previous.said === text) return false",
-      "to": "  if (brief && previous && previous.said === text) return false",
+      "from": "  if (brief && key === null && previous && previous.said === text && !permanent) return false",
+      "to": "  if (brief && previous && previous.said === text && !permanent) return false",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     },
     {
@@ -797,7 +797,7 @@
       "label": "§381 item 13: an unchanged unknown clause is one word on the head's line",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
-      "from": "  if (unknown !== null && saidKey(previous?.said) === unknown) {",
+      "from": "  if (unknown !== null && !permanent && saidKey(previous?.said) === unknown) {",
       "to": "  if (false) {",
       "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
     },
@@ -813,7 +813,7 @@
       "label": "§381 item 13: the short line stamps the full text, so the next unchanged prompt is silent",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
-      "from": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n    stampBriefSaid(store, text, key)\n",
+      "from": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n    stampBriefSaid(store, text, key, forget)\n",
       "to": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n",
       "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
     },
@@ -864,8 +864,8 @@
       "label": "stale HEAD: the served-behind brief is not told which HEAD is live",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-moved.test.mjs"],
-      "from": "stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)) })",
-      "to": "stale: true, movedTo: null })"
+      "from": "stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)), session })",
+      "to": "stale: true, movedTo: null, session })"
     },
     {
       "label": "stale HEAD: the unknown-CI shortcut on a due snapshot carries no age",
@@ -885,8 +885,104 @@
       "label": "stale HEAD: an age is added to what an unchanged brief is compared with",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-moved.test.mjs"],
-      "from": "if (brief && key === null && previous && previous.said === text) return false",
-      "to": "if (brief && key === null && previous && previous.said === `${text} (read ${age}s ago)`) return false"
+      "from": "if (brief && key === null && previous && previous.said === text && !permanent) return false",
+      "to": "if (brief && key === null && previous && previous.said === `${text} (read ${age}s ago)` && !permanent) return false"
+    },
+    {
+      "label": "ADR-120 T13: the shell runs in the process directory, not the session's",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "return run(argv, { ...(cwd ? { cwd } : {}), ...options,",
+      "to": "return run(argv, { ...options,"
+    },
+    {
+      "label": "ADR-120 T13: the detached refresher starts in the process directory",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "    cwd, detached: true, stdio: 'ignore'",
+      "to": "    cwd: process.cwd(), detached: true, stdio: 'ignore'"
+    },
+    {
+      "label": "ADR-120 T13: the review ledger is the process directory's",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "reviewedHeads(stateDir(dir, { spawn: false }))",
+      "to": "reviewedHeads(stateDir(process.cwd(), { spawn: false }))"
+    },
+    {
+      "label": "ADR-120 T13: the cache lookup starts in the process directory",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "const hint = overridden ? null : findGitDir(dir)",
+      "to": "const hint = overridden ? null : findGitDir(process.cwd())"
+    },
+    {
+      "label": "ADR-120 T13: a relative git directory is read against the process directory",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "(relative ? resolve(dir, relative) : null)",
+      "to": "(relative ? relative : null)"
+    },
+    {
+      "label": "ADR-120 T13: a payload cwd that is no directory is used anyway",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "payload.cwd && statSync(payload.cwd).isDirectory())",
+      "to": "payload.cwd && true)"
+    },
+    {
+      "label": "ADR-120 T13: a permanent unknown is said again to the session that heard it",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "if (permanent && previous?.permanentFor === session) return false",
+      "to": "if (false) return false"
+    },
+    {
+      "label": "ADR-120 T13: what a session heard is never forgotten",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "const forget = { permanentFor: permanent ? session : null }",
+      "to": "const forget = { permanentFor: session }"
+    },
+    {
+      "label": "ADR-120 T13: a host naming no session is keyed as one",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
+      "from": "const permanent = brief && session !== null && state.looked",
+      "to": "const permanent = brief && state.looked"
+    },
+    {
+      "label": "ADR-120 T13: a new session at an unchanged head hears nothing",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^a permanent unknown is heard once by each session and survives a refresh of its snapshot$",
+      "from": "previous.said === text && !permanent) return false",
+      "to": "previous.said === text) return false"
+    },
+    {
+      "label": "ADR-120 T13: a new session hears the shortened unknown, not the line",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^a permanent unknown is heard once by each session and survives a refresh of its snapshot$",
+      "from": "if (unknown !== null && !permanent && saidKey",
+      "to": "if (unknown !== null && saidKey"
+    },
+    {
+      "label": "ADR-120 T13: a refresh of the snapshot drops what the session heard",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-cwd.test.mjs"],
+      "only": "^a permanent unknown is heard once by each session and survives a refresh of its snapshot$",
+      "from": "permanentFor: payload.permanentFor ?? current?.permanentFor }))",
+      "to": "permanentFor: payload.permanentFor }))"
     }
   ]
 }

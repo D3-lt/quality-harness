@@ -284,7 +284,7 @@ test('a mention of push before the turn end does not silence it, and a real publ
     const said = run => run.stdout?.hookSpecificOutput?.additionalContext ?? run.stdout?.hookSpecificOutput?.permissionDecisionReason ?? ''
     return { before: said(before), end: said(end) }
   }
-  const mention = turn('stash', 'git stash push -q src/a.js; git stash pop -q')
+  const mention = turn('mention', "echo 'push later'")
   assert.match(mention.before, /only mentions commit or push/, 'the command is advised as a mention')
   assert.match(mention.end, /Changed paths: src\/a\.js/, 'the turn end still names the unchecked work')
   const publish = turn('commit', 'git commit -am x')

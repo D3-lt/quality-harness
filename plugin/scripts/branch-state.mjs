@@ -22,6 +22,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
+import { isatty } from 'node:tty'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 import { findGitDir } from './git-directory.mjs'
@@ -57,7 +58,11 @@ export function gitDir(run = shell) {
 // instead of a session that will not start.
 const BUDGET_MS = 8_000
 
-export function budgeted(totalMs, run = shell, now = Date.now) {
+// ADR-120 T13: the note of a repository no remote of which names a GitHub host. It cannot change by waiting, so the brief says it
+// once per session (`permanentFor` in the snapshot), not once per head.
+export const NO_GITHUB_NOTE = 'no remote names a GitHub host, so `gh` was not asked'
+
+export function budgeted(totalMs, run = shell, now = Date.now, cwd = null) {
   const deadline = now() + totalMs
   return (argv, options = {}) => {
     const left = deadline - now()
@@ -68,7 +73,7 @@ export function budgeted(totalMs, run = shell, now = Date.now) {
     if (left <= 0) {
       return { ok: false, out: '', budget: true, note: `budget of ${totalMs}ms spent before \`${argv.join(' ')}\`` }
     }
-    return run(argv, { ...options, timeout: Math.min(left, 15_000) })
+    return run(argv, { ...(cwd ? { cwd } : {}), ...options, timeout: Math.min(left, 15_000) })
   }
 }
 /** Run a command and report what happened, never throwing. */
@@ -237,7 +242,7 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
       out: '',
       note: unreadable
         ? `the remotes could not be read (${remotes.note ?? 'no reason given'}), so \`gh\` was not asked`
-        : 'no remote names a GitHub host, so `gh` was not asked',
+        : NO_GITHUB_NOTE,
     }
     : detached && !whole.ok
       ? { ok: false, out: '', note: 'HEAD is detached and its commit could not be read, so `gh` was not asked' }
@@ -798,11 +803,11 @@ export function unknownKey(state) {
 }
 const saidKey = said => (typeof said === 'string' && said.includes(' · ') ? said.slice(said.indexOf(' · ')) : null)
 
-function stampBriefSaid(store, said, redKeyNow) {
+function stampBriefSaid(store, said, redKeyNow, extra = {}) {
   if (!store) return
   try {
     const current = JSON.parse(readFileSync(store, 'utf8'))
-    replaceFile(store, JSON.stringify({ ...current, said, ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }) }))
+    replaceFile(store, JSON.stringify({ ...current, ...(said === undefined ? {} : { said }), ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }), ...extra }))
   } catch { /* a cache that cannot be written is not a failure */ }
 }
 
@@ -829,11 +834,11 @@ export function pastShowCap(ageMs) {
 const LOCK = 'qh-branch-state.lock'
 const SCRIPT = fileURLToPath(import.meta.url)
 
-function startRefresher() {
+function startRefresher(cwd = process.cwd()) {
   // `stdio: 'ignore'` is what keeps the hook host from waiting on the child: an
   // inherited pipe stays open until the refresher exits (ADR-065 review).
   const child = spawn(process.execPath, [SCRIPT, '--refresh'], {
-    cwd: process.cwd(), detached: true, stdio: 'ignore', windowsHide: true,
+    cwd, detached: true, stdio: 'ignore', windowsHide: true,
     // Its collection already runs under BUDGET_MS; this is the backstop (BACKLOG §130).
     timeout: BUDGET_MS + 5_000,
   })
@@ -900,16 +905,23 @@ export function movedSince(stored, live) {
 // live sha is part of what `said` compares and the age is not: a moved HEAD is a change worth saying once, an age never is.
 const movedClause = movedTo => ` (moved since this was read: HEAD now ${movedTo}; uncommitted and ahead not re-read)`
 
-function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null }) {
+function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null, session = null }) {
   const claim = movedTo && state.looked ? movedClause(movedTo) : ''
   const head = headOf(state)
   const mark = shown => (claim && shown.startsWith(head) ? `${head}${claim}${shown.slice(head.length)}` : shown)
   const text = mark(render(state, { brief }))
   const key = brief ? redKey(state) : null
-  if (brief && key === null && previous && previous.said === text) return false
+  // ADR-120 T13: an unknown no wait can change is said once per session, whatever the head does. A host that names no session
+  // cannot key one, and then the unknown is only shortened (below).
+  const permanent = brief && session !== null && state.looked && state.ci?.looked === false && state.ci.note === NO_GITHUB_NOTE
+  if (permanent && previous?.permanentFor === session) return false
+  // Any other line printed ends the session's hearing of it: a repository that gains a remote and loses it again says it again.
+  const forget = { permanentFor: permanent ? session : null }
+  if (brief && key === null && previous && previous.said === text && !permanent) return false
   // ADR-094 T1: the same red run, already said in full, is one line. It is never stored.
   if (key !== null && previous?.redKey === key) {
     process.stdout.write(`${redLine(state)}\n`)
+    if (previous.permanentFor) stampBriefSaid(store, undefined, undefined, forget)
     return true
   }
   const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''
@@ -917,24 +929,44 @@ function emitCachedBranchState(state, { brief, age, previous, store, refreshing 
   // the next unchanged prompt says nothing. Served from a due snapshot it still carries the snapshot's age: it prints that
   // snapshot's HEAD and dirty count, and an unmarked line reads as current.
   const unknown = brief ? unknownKey(state) : null
-  if (unknown !== null && saidKey(previous?.said) === unknown) {
+  if (unknown !== null && !permanent && saidKey(previous?.said) === unknown) {
     process.stdout.write(`${mark(head)} · ⚠ CI COULD NOT LOOK, unchanged${stale ? suffix : ''}\n`)
-    stampBriefSaid(store, text, key)
+    stampBriefSaid(store, text, key, forget)
     return true
   }
   process.stdout.write(`${text}${suffix}\n`)
-  if (brief) stampBriefSaid(store, text, key)
+  if (brief) stampBriefSaid(store, text, key, forget)
   return true
+}
+// The hook payload the host writes to stdin, or {} when there is none: a terminal, an empty pipe, a body that is not an object.
+function hookPayload() {
+  try {
+    if (isatty(0)) return {}
+    const parsed = JSON.parse(readFileSync(0, 'utf8'))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch { return {} }
+}
+
+// ADR-120 T13: the directory the SESSION works in is the payload's `cwd`, not where the host happened to start this process.
+// A payload without a usable directory leaves the process's own (UserPromptSubmit may carry none).
+function sessionDirectory(payload) {
+  try {
+    if (typeof payload.cwd === 'string' && payload.cwd && statSync(payload.cwd).isDirectory()) return resolve(payload.cwd)
+  } catch { /* not a directory this process can see */ }
+  return process.cwd()
 }
 function main(argv = process.argv.slice(2)) {
   const brief = argv.includes('--brief')
   const at = argv.indexOf('--cached')
   const finish = startPerformanceTrace('branch-state', JSON.stringify(argv))
+  const payload = argv.includes('--refresh') ? {} : hookPayload()
+  const dir = sessionDirectory(payload)
+  const session = typeof payload.session_id === 'string' && payload.session_id ? payload.session_id : null
   // Cache discovery shares the collection's deadline too. It previously had a
   // separate 15s Git timeout before the reader even began its 8s budget.
-  const run = budgeted(BUDGET_MS)
+  const run = budgeted(BUDGET_MS, shell, Date.now, dir)
   // The review ledger, found the way the hook finds its own state: without starting a process.
-  const ledgerHeads = () => reviewedHeads(stateDir(process.cwd(), { spawn: false }))
+  const ledgerHeads = () => reviewedHeads(stateDir(dir, { spawn: false }))
   const read = store => {
     if (!store) return null
     try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null }
@@ -945,7 +977,8 @@ function main(argv = process.argv.slice(2)) {
       const current = read(store)
       // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
       // an unchanged green brief (CLAUDE.md §17).
-      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey }))
+      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey,
+        permanentFor: payload.permanentFor ?? current?.permanentFor }))
     } catch { /* a cache that cannot be written is not a failure */ }
   }
   if (argv.includes('--refresh')) {
@@ -954,7 +987,7 @@ function main(argv = process.argv.slice(2)) {
     // Found the way the prompt found it, from files: the refresher must still write
     // what it saw when git itself cannot run, or a failed refresh leaves the stale
     // answer standing with nothing to replace it.
-    const home = findGitDir(process.cwd())
+    const home = findGitDir(dir)
     try {
       if (home) {
         const store = join(home, 'qh-branch-state.json')
@@ -978,7 +1011,7 @@ function main(argv = process.argv.slice(2)) {
   // must still be interpreted by Git, and only Git chooses a cache WRITE path.
   const overridden = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR',
     'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM'].some(key => process.env[key] !== undefined)
-  const hint = overridden ? null : findGitDir(process.cwd())
+  const hint = overridden ? null : findGitDir(dir)
   const previous = read(hint && join(hint, 'qh-branch-state.json'))
   const now = Date.now()
   // A brief never shows an answer past the cap, however long --cached allows: a fresh
@@ -987,7 +1020,7 @@ function main(argv = process.argv.slice(2)) {
   if (freshSnapshot(previous, now, servedFor, hint ? snapshotKey(hint) : null)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const store = hint ? join(hint, 'qh-branch-state.json') : null
-    emitCachedBranchState(previous.state, { brief, age, previous, store })
+    emitCachedBranchState(previous.state, { brief, age, previous, store, session })
     finish('cache-hit', { status: 0 })
     return 0
   }
@@ -996,7 +1029,7 @@ function main(argv = process.argv.slice(2)) {
   // a session's one full answer is never an old one (ADR-065 review, P1).
   if (brief && hint && usableCache(previous, now)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
-    const refreshing = refreshBehind({ gitDir: hint })
+    const refreshing = refreshBehind({ gitDir: hint, spawnRefresher: () => startRefresher(dir) })
     if (pastShowCap(now - previous.at)) {
       const line = pastCapLine(refreshing, previous)
       if (line) {
@@ -1007,11 +1040,11 @@ function main(argv = process.argv.slice(2)) {
       return 0
     }
     emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing,
-      stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)) })
+      stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)), session })
     finish('served-behind', { status: 0 })
     return 0
   }
-  const home = gitDir(run)
+  const home = (relative => (relative ? resolve(dir, relative) : null))(gitDir(run))
   const store = home ? join(home, 'qh-branch-state.json') : null
   const { state, fromCache, ageSeconds } = cached(servedFor, {
     read: () => read(store),
@@ -1020,7 +1053,7 @@ function main(argv = process.argv.slice(2)) {
     key: home ? snapshotKey(home) : null,
   })
   emitCachedBranchState(state, {
-    brief, age: fromCache ? ageSeconds : 0, previous: read(store) ?? previous, store,
+    brief, age: fromCache ? ageSeconds : 0, previous: read(store) ?? previous, store, session,
   })
   finish(fromCache ? 'cache-hit' : state.looked ? 'refreshed' : 'unavailable', { status: 0 })
   return 0

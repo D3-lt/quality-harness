@@ -43,6 +43,20 @@ var (
 	backtickEscape = regexp.MustCompile("(?s)`(.)")
 )
 
+// stashPush is publish-verdict.mjs's STASH_PUSH: `git stash push`, options before the subcommand allowed, is a stash and no push.
+var stashPush = regexp.MustCompile(`(^|[^A-Za-z0-9_.-])git(?:[ \t]+(?:-[Cc][ \t]+[^ \t\r\n]+|--[A-Za-z][A-Za-z-]*(?:=[^ \t\r\n]+)?|-[A-Za-z]))*[ \t]+stash[ \t]+push($|[^A-Za-z0-9_-])`)
+
+// withoutStashPush repeats the replacement until nothing changes, as the Node twin does.
+func withoutStashPush(text string) string {
+	for {
+		next := stashPush.ReplaceAllString(text, "${1}git stash${2}")
+		if next == text {
+			return text
+		}
+		text = next
+	}
+}
+
 func mentionsCommitOrPush(given any) bool {
 	text, ok := given.(string)
 	if !ok {
@@ -56,7 +70,7 @@ func mentionsCommitOrPush(given any) bool {
 		}
 	}
 	for _, c := range candidates {
-		if publishMention(c) {
+		if publishMention(withoutStashPush(c)) {
 			return true
 		}
 	}

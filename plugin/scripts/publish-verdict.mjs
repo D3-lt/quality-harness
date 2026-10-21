@@ -35,6 +35,16 @@ export function containsCommitOrPush(command) {
 // (`git comm`it`, a Windows chaos round of 626934a), so it reads both spellings too.
 const PUBLISH_MENTION = /(?<![A-Za-z0-9_.-])(?:commit|push)(?![A-Za-z0-9_-])/
 
+// ADR-120 T13: `git stash push` is a stash, not a push. The words after `git` may carry its options (`-C dir`, `-c k=v`, `--flag`),
+// and the same rule is core/hooks/publish.go's `withoutStashPush`. Repeated until nothing changes, since two of them share a boundary.
+const STASH_PUSH = /(^|[^A-Za-z0-9_.-])git(?:[ \t]+(?:-[Cc][ \t]+[^ \t\r\n]+|--[A-Za-z][A-Za-z-]*(?:=[^ \t\r\n]+)?|-[A-Za-z]))*[ \t]+stash[ \t]+push($|[^A-Za-z0-9_-])/g
+function withoutStashPush(text) {
+  for (let before = text; ; before = text) {
+    text = text.replace(STASH_PUSH, '$1git stash$2')
+    if (text === before) return text
+  }
+}
+
 export function mentionsCommitOrPush(given) {
   if (typeof given !== 'string') return false
   // A quoted here-document that only `cat`, `tee` or `mrw write` reads is data, not words (BACKLOG §381).
@@ -44,7 +54,7 @@ export function mentionsCommitOrPush(given) {
   // hook before Rule P was read (a Windows chaos round of 916b515, F7). The words are
   // the same runs, and a missing `=` pad decodes to the same bytes.
   const decoded = command.split(/[^A-Za-z0-9+/]+/).filter(word => word.length >= 8).map(decodedPowerShell)
-  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(text => PUBLISH_MENTION.test(text))
+  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(text => PUBLISH_MENTION.test(withoutStashPush(text)))
 }
 
 // The shell tools a session runs commands through. Claude Code on Windows ships a

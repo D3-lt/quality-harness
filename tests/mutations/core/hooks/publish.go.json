@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T13: the Go advisory arm mentions a push in git stash push",
+      "file": "core/hooks/publish.go",
+      "tests": ["tests/qh-core-parity.test.mjs"],
+      "only": "^the Go classifier answers every literal of the classifier's own tests as the Node one does$",
+      "from": "if publishMention(withoutStashPush(c)) {",
+      "to": "if publishMention(c) {"
+    },
+    {
+      "label": "ADR-120 T13: the Go stash rule reads one pass, not to a fixed point",
+      "file": "core/hooks/publish.go",
+      "tests": ["tests/qh-core-parity.test.mjs"],
+      "only": "^the Go classifier answers every literal of the classifier's own tests as the Node one does$",
+      "from": "\t\tif next == text {",
+      "to": "\t\tif true {"
+    }
+  ]
+}

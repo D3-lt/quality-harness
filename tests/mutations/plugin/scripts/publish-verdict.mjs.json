@@ -663,6 +663,38 @@
       "from": "  if (existing.split('\\n').includes(rootExport.trimEnd())) return null",
       "to": "  if (false) return null",
       "only": "^(?:the session start writes the plugin root once, whatever the git hook probe found)$"
+    },
+    {
+      "label": "ADR-120 T13: the advisory arm mentions a push in git stash push",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/mention-stash.test.mjs"],
+      "only": "^git stash push is no push, and a real push is still mentioned$",
+      "from": "PUBLISH_MENTION.test(withoutStashPush(text))",
+      "to": "PUBLISH_MENTION.test(text)"
+    },
+    {
+      "label": "ADR-120 T13: the stash rule matches git inside a longer word",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/mention-stash.test.mjs"],
+      "only": "^git stash push is no push, and a real push is still mentioned$",
+      "from": "const STASH_PUSH = /(^|[^A-Za-z0-9_.-])git",
+      "to": "const STASH_PUSH = /(^|.?)git"
+    },
+    {
+      "label": "ADR-120 T13: the stash rule reads one pass, not to a fixed point",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/mention-stash.test.mjs"],
+      "only": "^git stash push repeated without a separator is still no push$",
+      "from": "    if (text === before) return text",
+      "to": "    return text"
+    },
+    {
+      "label": "ADR-120 T13: the stash rule does not read a -C directory before the subcommand",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/mention-stash.test.mjs"],
+      "only": "^git stash push is no push, and a real push is still mentioned$",
+      "from": "git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t\\r\\n]+|",
+      "to": "git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t\\r\\n]+X|"
     }
   ]
 }

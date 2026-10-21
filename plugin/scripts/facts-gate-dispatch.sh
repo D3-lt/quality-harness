@@ -337,7 +337,9 @@ lock_drift() {
   [ "$boundary" = "PostToolUse" ] && return 0
   repo_path_of "$1" || return 0
   while IFS= read -r -d '' task; do
-    said=$("$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
+    # The nested gate keeps no adr-lint ledger: its output is filtered to THIS file, so a lint it cached would be silence for
+    # the next changed file the same task locks (the Codex review of 0b129010..bca51180).
+    said=$(QUALITY_HARNESS_ADR_LEDGER= "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
     while IFS= read -r line; do
       printf 'lock drift: %s\n' "${line#"${line%%[![:space:]]*}"}" >&2
     done < <(printf '%s\n' "$said" | grep -F -- "locked test \`$in_repo_rel\`")

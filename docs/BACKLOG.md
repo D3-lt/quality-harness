@@ -3359,3 +3359,22 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 ## 393. CLOSED 2026-10-21 (fixed by ADR-120 T1 and T2, 13ba9efa, 692a869c, dcc4693a) — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
+
+## 394. A mutant is written in place, so a SIGKILL during the write leaves a torn file that recovery refuses
+
+Found 2026-10-21 on main's push run 39660165930 at a38360be (selftest, ubuntu-latest): `a SIGKILLed mutant plan leaves both
+files mutated, and the next run restores both` (`tests/evidence-chain.test.mjs:1906`) failed with `--restore` exit 2,
+"two_b.py: target differs from both known source states". The dispatched run 39660323363 and the landing run 39652598538 at
+the same sha passed it. `write_source` (`plugin/bin/adr-verify:716-729`) writes with `path.write_bytes`, which truncates and
+then writes; the test's `landed()` takes any change, a truncated file included, as the mutant having landed, then kills.
+Recovery refusing a torn file is the fail-closed answer, so nothing was overwritten. Two members: the test's race (it can
+kill mid-write), and the product (a mutant written through a temporary file and `os.replace`, mode kept, would leave a
+target in one of its two known states). This session's T10 commits changed adr-verify's fence handling, not `write_source`
+(`git log ee802e5d..a38360be -- plugin/bin/adr-verify`). Not fixed in 3.8.51.
+
+## 395. The coverage floor's corpus lint killed adr-lint on one record under instrumentation
+
+Found 2026-10-21 on the same push run (coverage floor): `every record this repository tracks passes its own adr-lint`
+(`tests/corpus-lint.test.mjs:49`) took 415 s and reported `docs/adr/ADR-052-an-explicit-relock-is-not-a-later-red.md:
+SIGKILL`, could-not-look. The dispatched run's coverage floor at the same sha passed. A per-record budget under coverage on a
+loaded runner is the likely cause; unmeasured. Count how often it recurs, and name the budget it hit, before changing it.

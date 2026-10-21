@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 0b129010..bca51180: the nested lock-drift gate keeps no adr-lint ledger",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "    said=$(QUALITY_HARNESS_ADR_LEDGER= \"$BASH\" \"${BASH_SOURCE[0]}\" \"$in_repo/$task\" 2>&1) || :",
+      "to": "    said=$(\"$BASH\" \"${BASH_SOURCE[0]}\" \"$in_repo/$task\" 2>&1) || :",
+      "only": "^(?:two edited test files one task locks each get their drift line in one pass)$"
+    },
+    {
       "label": "Codex review of cdcfcf84..290669db: a sibling record meets the task's id filter",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/gates.test.mjs"],

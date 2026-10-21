@@ -9,6 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
+import { remove } from './helpers/remove.mjs'
 import { resolveBashExecutable } from '../plugin/scripts/run-shell-hook.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -19,18 +20,23 @@ const pyEnv = { ...cleanEnv, PYTHONPATH: join(repoRoot, 'plugin', 'lib'), PYTHON
 const LOCKED_BODY = "test('locked dirty', () => {\n  assert.equal(2, 2)\n})\n"
 const HEAD = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
 const ROW = '| `locked dirty` | `tests/lock-subject.test.mjs` | lock | F-1 |'
+const SECOND_BODY = "test('locked second', () => {\n  assert.equal(4, 4)\n})\n"
+const SECOND_ROW = '| `locked second` | `tests/lock-second.test.mjs` | lock | F-1 |'
 
-const taskText = vlog => ['# Task ADR-001-T1: lock', '', '## Tests', '', '| Test name | File | Verifies | Covers |',
-  '|-----------|------|----------|--------|', ROW, '', '## Verification Log', '', ...vlog, ''].join('\n')
+const taskText = (vlog, rows = [ROW]) => ['# Task ADR-001-T1: lock', '', '## Tests', '', '| Test name | File | Verifies | Covers |',
+  '|-----------|------|----------|--------|', ...rows, '', '## Verification Log', '', ...vlog, ''].join('\n')
 
-// A repository with one ADR whose T1 is done and locks `locked dirty`, plus a test file no task names.
-function fixture({ status = 'done' } = {}) {
+// A repository with one ADR whose T1 is done and locks `locked dirty` (and, with `second`, `locked second` in a second
+// file), plus a test file no task names.
+function fixture({ status = 'done', second = false } = {}) {
   const dir = realpathSync.native(mkdtempSync(join(os.tmpdir(), 'qh-lockdrift-')))
   const init = spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 10_000, windowsHide: true })
   assert.equal(init.status, 0, init.stderr)
   mkdirSync(join(dir, 'tests'), { recursive: true })
   writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'), HEAD + LOCKED_BODY)
   writeFileSync(join(dir, 'tests', 'unlocked.test.mjs'), HEAD + "test('free', () => {\n  assert.equal(1, 1)\n})\n")
+  if (second) writeFileSync(join(dir, 'tests', 'lock-second.test.mjs'), HEAD + SECOND_BODY)
+  const rows = second ? [ROW, SECOND_ROW] : [ROW]
   const tasks = join(dir, 'docs', 'adr', 'ADR-001-probe', 'tasks')
   mkdirSync(tasks, { recursive: true })
   writeFileSync(join(dir, 'docs', 'adr', 'ADR-001-probe.md'), [
@@ -43,11 +49,11 @@ function fixture({ status = 'done' } = {}) {
     '|----|------|--------|------------|-------|', `| T1 | lock | ${status} | | |`, ''].join('\n'))
   const suffix = spawnSync('python3', ['-c', 'import sys; from pathlib import Path; from record import first_red_lock_suffix; '
     + 'sys.stdout.write(first_red_lock_suffix(sys.stdin.read(), Path(sys.argv[1])))', dir],
-  { input: taskText([]), env: pyEnv, encoding: 'utf8', timeout: 30_000 })
+  { input: taskText([], rows), env: pyEnv, encoding: 'utf8', timeout: 30_000 })
   assert.equal(suffix.status, 0, suffix.stderr)
   assert.match(suffix.stdout, /test-lock-sha256:[0-9a-f]{64}/, 'the first-red lock must carry a hash')
   writeFileSync(join(tasks, 'T1-lock.md'), taskText([
-    `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix.stdout}`]))
+    `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix.stdout}`], rows))
   return dir
 }
 
@@ -98,4 +104,26 @@ test("an edit that moves another task's locked test names the task and the reloc
     writeFileSync(locked, HEAD + "test('locked dirty', () => {\n  assert.equal(1, 2)\n})\n")
     assert.equal(runArtifactGates([locked], open), null, 'a task not claimed done is not held by its lock')
   } finally { rmSync(open, { recursive: true, force: true }) }
+})
+
+// The Codex review of 0b129010..bca51180: the nested gate of a task shared the batch's adr-lint ledger, so gating the first
+// changed file cached the task's lint and the second file's drift was never said. Each file's drift is said.
+test('two edited test files one task locks each get their drift line in one pass', () => {
+  const dir = fixture({ second: true })
+  try {
+    const first = join(dir, 'tests', 'lock-subject.test.mjs')
+    const second = join(dir, 'tests', 'lock-second.test.mjs')
+    // Clean twin: only the first file's body moves, so one line, naming its test and not the other.
+    writeFileSync(first, HEAD + "test('locked dirty', () => {\n  assert.equal(1, 2)\n})\n")
+    const one = driftLines(runArtifactGates([first, second], dir))
+    assert.equal(one.length, 1, one.join('\n'))
+    assert.match(one[0], /locked dirty/)
+    // Dirty: both bodies move. In either order, each file's drift is said.
+    writeFileSync(second, HEAD + "test('locked second', () => {\n  assert.equal(4, 5)\n})\n")
+    for (const order of [[first, second], [second, first]]) {
+      const lines = driftLines(runArtifactGates(order, dir))
+      assert.equal(lines.length, 2, `one drift line per file:\n${lines.join('\n')}`)
+      assert.ok(lines.some(line => /locked dirty/.test(line)) && lines.some(line => /locked second/.test(line)), lines.join('\n'))
+    }
+  } finally { remove(dir) }
 })

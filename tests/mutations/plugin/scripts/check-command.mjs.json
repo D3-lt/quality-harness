@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 0b129010..bca51180: only the word exit is the exit builtin",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": ["tests/shell-grammar.test.mjs"],
+      "from": "  if (program === 'exit') {",
+      "to": "  if (name === 'exit') {",
+      "only": "^(?:only the word exit is the exit builtin, not a path named exit)$"
+    },
+    {
       "label": "ADR-113 T2: an unreadable declaration is its own origin",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [

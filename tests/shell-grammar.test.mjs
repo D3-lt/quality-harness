@@ -223,3 +223,15 @@ test('a negated definition head and an exit with extra operands are could-not-lo
   for (const row of ['exit 256 1', 'npm test; exit 256 1', 'npm test; exit 0 1']) assert.equal(constantSuccessCheck(row), false, row)
   assert.equal(constantSuccessCheck('npm test; exit 256'), true)
 })
+
+// The Codex review of 0b129010..bca51180: `exit` is the builtin only as the command word itself. A path to a program named
+// exit is that program (absent here, so 127), and `/usr/bin/exit +0 || npm test` runs the check in every shell.
+test('only the word exit is the exit builtin, not a path named exit', () => {
+  for (const statuses of measured('/usr/bin/exit +0 || npm test')) assert.deepEqual(statuses, [1, 0], 'the check after it decides')
+  for (const row of ['/usr/bin/exit +0 || npm test', '/usr/bin/exit 0 || npm test', './exit 0 || npm test']) {
+    assert.equal(constantSuccessCheck(row), false, row)
+  }
+  // DIRTY twin: a quoted `exit` is still the builtin once the shell removes the quotes, and ends the shell with 0.
+  for (const statuses of measured('"exit" 0 || npm test')) assert.deepEqual(statuses, [0, 0], '"exit" 0 exits 0')
+  assert.equal(constantSuccessCheck('"exit" 0 || npm test'), true)
+})

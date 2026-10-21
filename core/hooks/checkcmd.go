@@ -462,7 +462,9 @@ func commandStatus(c *shellCommand, depth int) cmdStatus {
 	}
 	name := programName(c.argv[0])
 	args := c.argv[1:]
-	if name == "exit" {
+	// Only the word itself is the builtin: `/usr/bin/exit` is a program by that name, and runs or is not found (the Codex
+	// review of 0b129010..bca51180). A quoted `"exit"` is the word once the shell removes the quotes.
+	if c.argv[0] == "exit" {
 		// One operand, unsigned or `+N`: bash and sh refuse a second ("too many arguments", 1) where dash takes the first, and
 		// `-N` is 255 under bash and sh but a refused number (2) under dash (measured 2026-10-21).
 		if len(args) != 1 || !allDigits.MatchString(strings.TrimPrefix(args[0], "+")) {

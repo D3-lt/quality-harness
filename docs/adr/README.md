@@ -121,3 +121,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-117](ADR-117-the-evidence-is-written-only-by-its-tools.md) | The evidence is written only by its tools, and a door that cannot close here is named where it closes | Accepted |
 | [ADR-118](ADR-118-main-lands-only-a-sha-ci-passed.md) | Main lands only a sha CI has already passed | Accepted |
 | [ADR-119](ADR-119-what-the-backlog-still-holds.md) | What the backlog still holds after the 2026-10-20 re-check | Accepted |
+| [ADR-120](ADR-120-nothing-left-out.md) | Nothing left out: the shell grammar, a retired spec fact, the session's own plugin, a Stop that can act | Accepted |

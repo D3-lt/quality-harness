@@ -3175,7 +3175,7 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 22. `tests/review-contract.test.mjs` reads `plugin/` from disk, not `git ls-files` (from §378; CLAUDE.md §8). It can only err red. Hygiene, S.
 23. `walk`, `outsideRoot`, `inside` and `GIT_LISTING_BUFFER` still live in `decision-corpus.mjs`, and the hook goldens skip on Windows (from §375). Hygiene, S.
 24. `.claude/rules/19-adopter-footprint.md` gives a stale figure for the listing (from §374). Re-measure it and write the date. Hygiene, S.
-25. A tag that retires a spec fact (from §378): `spec-verify` accepts only `@draft`, `@spec` and `@implemented`, so a fact can never be retired. Needs a record. Hygiene, M.
+25. A tag that retires a spec fact (from §378): `spec-verify` accepts only `@draft`, `@spec` and `@implemented`, so a fact can never be retired. Needs a record. Hygiene, M. **Carried by ADR-120 T3 (Accepted 2026-10-21).**
 
 **Questions only the owner can answer** (not ranked):
 - Stage 3 of the check-speed plan: should the replay judge only uncontended red runs, or does a contended red count as a miss? (§378, 2026-10-15.)
@@ -3339,7 +3339,7 @@ destinations, if a run shows either used against a ledger.
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 389. CLOSED 2026-10-20 (the receipt wording by ADR-119 T3, 3fd4db37; the resolver half decided against, as CLAUDE_PLUGIN_ROOT is unset in a session's Bash) — An older adr-verify writes no receipt, and the newer hook then refuses its row
+## 389. REOPENED 2026-10-21, carried by ADR-120 T4 (the receipt wording closed by ADR-119 T3, 3fd4db37; the resolver half, decided against on 2026-10-20 because CLAUDE_PLUGIN_ROOT is unset in a session's Bash, is built through the SessionStart env file, which reaches it) — An older adr-verify writes no receipt, and the newer hook then refuses its row
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
@@ -3351,14 +3351,14 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 392. OPEN 2026-10-20 — One check change draws the §390 relock advice once per task
+## 392. OPEN 2026-10-20, carried by ADR-120 T5 (Accepted 2026-10-21) — One check change draws the §390 relock advice once per task
 
 An outside run of 3.8.49 over a peer's Go corpus (55 records, 239 tasks; attestation go-kernel at 7712a333, 0 verdicts changed) printed
 57 advice lines of one form, every one with the same pair of check digests: one change to the declared check, relocked across records
 005–023. The advice is right each time; said 57 times it is an adopter cost (CLAUDE.md §19) and a reader stops reading it. Left: say the
 move once per record, or once per (from, to) check pair with the tasks it covers, keeping the per-task line where the pair differs.
 
-## 393. OPEN 2026-10-20 — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
+## 393. OPEN 2026-10-20, carried by ADR-120 T1 and T2 (Accepted 2026-10-21; with §381's `! { …; }` and function-definition lines) — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
 
 Found by the Codex reviews of ADR-119 T1's rounds (c48dd5b0..cfd24edc and 7e7c59ee..892ba222). Since 892ba222 a group of several
 commands piped onward proves nothing from its last command (`plugin/scripts/publish-command.mjs` `stdinScripts`, `core/hooks/publishcmd.go`),

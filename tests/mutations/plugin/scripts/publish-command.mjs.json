@@ -1972,41 +1972,97 @@
     {
       "label": "ADR-120 T2: a background in a group is could-not-look",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/publish-group.test.mjs"],
-      "from": "if (list.ops[k] !== ';' || kids.length !== 1",
-      "to": "if (kids.length !== 1",
-      "only": "^a redirected or conditional printer is never summed into the pipe$"
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "if (list.ops[k] !== ';') return null",
+      "to": "if (false) return null",
+      "only": "^a group the reader cannot prove is could-not-look, though the shell may run its push$"
     },
     {
-      "label": "ADR-120 T2: a && or || in a group is could-not-look",
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a branch the shell skips writes nothing",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/publish-group.test.mjs"],
-      "from": " || kids.length !== 1 || kids[0].kids.length !== 1) return null",
-      "to": " || kids[0].kids.length !== 1) return null",
-      "only": "^a redirected or conditional printer is never summed into the pipe$"
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "    if (k === 0 || (andor.ops[k - 1] === '&&' ? status === 0 : status !== 0)) {",
+      "to": "    if (true) {",
+      "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): && runs the next pipeline after status 0 and || after any other",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "(andor.ops[k - 1] === '&&' ? status === 0 : status !== 0)",
+      "to": "(andor.ops[k - 1] === '&&' ? status !== 0 : status === 0)",
+      "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a skipped pipeline leaves the status as it was",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "      status = result.status\n    }\n  }\n  return { bytes, status }",
+      "to": "    }\n    status = result.status\n  }\n  return { bytes, status }",
+      "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): false has status 1",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "['false', 1]",
+      "to": "['false', 0]",
+      "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): true has status 0",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "['true', 0]",
+      "to": "['true', 1]",
+      "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a printer has status 0",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "if (bytes !== null) return { bytes, status: 0 }",
+      "to": "if (bytes !== null) return { bytes, status: 1 }",
+      "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a nested group's last status reaches the operator after it",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "    status = result.status\n  }\n  return { bytes, status }",
+      "to": "    status = 0\n  }\n  return { bytes, status }",
+      "only": "^a nested group or subshell carries its last status to the operator after it$"
     },
     {
       "label": "ADR-120 T2: a pipeline of several stages inside a group is could-not-look",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/publish-group.test.mjs"],
-      "from": " || kids[0].kids.length !== 1) return null",
-      "to": ") return null",
-      "only": "^a redirected or conditional printer is never summed into the pipe$"
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "if (pipe.bang || pipe.kids.length !== 1) return null",
+      "to": "if (pipe.bang) return null",
+      "only": "^a group the reader cannot prove is could-not-look, though the shell may run its push$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a negation in a group is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "if (pipe.bang || pipe.kids.length !== 1) return null",
+      "to": "if (pipe.kids.length !== 1) return null",
+      "only": "^a group the reader cannot prove is could-not-look, though the shell may run its push$"
     },
     {
       "label": "ADR-120 T2: a subshell nested in a group is part of the same stream",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": ": stage.t === 'group' || stage.t === 'sub' ? listBytes",
-      "to": ": stage.t === 'group' ? listBytes",
+      "from": "if (stage.t === 'group' || stage.t === 'sub') return listResult(stage.kids[0], commands, defined)",
+      "to": "if (stage.t === 'group') return listResult(stage.kids[0], commands, defined)",
       "only": "^a group piped to a shell is read through the bytes it prints$"
     },
     {
       "label": "ADR-120 T2: a group nested in a group is part of the same stream",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": ": stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands, defined) : null",
-      "to": ": null",
+      "from": "if (stage.t === 'group' || stage.t === 'sub') return listResult(stage.kids[0], commands, defined)",
+      "to": "if (false) return listResult(stage.kids[0], commands, defined)",
       "only": "^a group piped to a shell is read through the bytes it prints$"
     },
     {
@@ -2066,20 +2122,28 @@
       "only": "^xargs reads a group's bytes, not its last command$"
     },
     {
-      "label": "ADR-120 T2 (review of 692a869c): an unreadable group's printers' words reach xargs",
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): xargs keeps the whitespace reading of an echo it cannot split",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/publish-group.test.mjs"],
-      "from": "  else if (fed.stage) texts.push(...(candidateWords(fed.stage, commands, fed.defined) ?? []))",
-      "to": "  else if (fed.stage) void candidateWords",
-      "only": "^a group the renderer cannot read still gives xargs what its printers write$"
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": " ?? (loose ? input.split(/\\s+/).filter(Boolean) : null)",
+      "to": " ?? null",
+      "only": "^xargs reads an echo whose text the shells disagree on as written, and splits what it can$"
     },
     {
-      "label": "ADR-120 T2 (review of 692a869c): a silent builtin in an unreadable group does not make it unread",
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): an echo option or backslash lets xargs fall back to whitespace",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/publish-group.test.mjs"],
-      "from": "  return SILENT.has(name) ? [] : null",
-      "to": "  return null",
-      "only": "^a group the renderer cannot read still gives xargs what its printers write$"
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "if (echoBytes(upstream.argv.slice(from + 1)) === null) loose = true",
+      "to": "void echoBytes",
+      "only": "^xargs reads an echo whose text the shells disagree on as written, and splits what it can$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): an echo that prints as written never falls back to whitespace",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "if (echoBytes(upstream.argv.slice(from + 1)) === null) loose = true",
+      "to": "loose = true",
+      "only": "^xargs reads an echo whose text the shells disagree on as written, and splits what it can$"
     },
     {
       "label": "ADR-120 T2 (review of 692a869c): a printer name the text defines is not rendered as the builtin",
@@ -2090,19 +2154,43 @@
       "only": "^a printer name a definition shadows is not rendered$"
     },
     {
-      "label": "ADR-120 T2 (review of 692a869c): a defined printer name gives no candidate words",
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a definition in a subshell shadows nothing",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/publish-group.test.mjs"],
-      "from": "  if (defined.has(name)) return null",
-      "to": "  void name",
-      "only": "^a printer name a definition shadows is not rendered$"
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "else if (node.t !== 'cmd' && node.t !== 'sub') for (const kid of node.kids) collectDefinitions(kid, names)",
+      "to": "else if (node.t !== 'cmd') for (const kid of node.kids) collectDefinitions(kid, names)",
+      "only": "^a definition shadows a printer only when it runs earlier in a shell the group inherits$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a definition in a group that runs in this shell shadows",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "else if (node.t !== 'cmd' && node.t !== 'sub') for (const kid of node.kids) collectDefinitions(kid, names)",
+      "to": "else if (node.t !== 'cmd' && node.t !== 'sub' && node.t !== 'group') for (const kid of node.kids) collectDefinitions(kid, names)",
+      "only": "^a definition shadows a printer only when it runs earlier in a shell the group inherits$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a definition after the pipeline shadows nothing",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "      if (containsNode(kid, target)) return walk(kid)",
+      "to": "      if (containsNode(kid, target)) walk(kid)",
+      "only": "^a definition shadows a printer only when it runs earlier in a shell the group inherits$"
+    },
+    {
+      "label": "ADR-120 T2 (review of c749638e..7a9107e8): a function defined earlier gives the flat reading no proof",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-shell-answers.test.mjs"],
+      "from": "  if (defined.size) return { tail }",
+      "to": "  void defined",
+      "only": "^a definition shadows a printer only when it runs earlier in a shell the group inherits$"
     },
     {
       "label": "ADR-120 T2 (review of 692a869c): a subshell of one command is rendered with its redirections",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": "if (bytes !== null) return { bytes, tail }",
-      "to": "if (bytes !== null && !(stage.t === 'sub' && stage.kids[0].kids.length === 1)) return { bytes, tail }",
+      "from": "if (rendered !== null) return { bytes: rendered.bytes, tail }",
+      "to": "if (rendered !== null && !(stage.t === 'sub' && stage.kids[0].kids.length === 1)) return { bytes: rendered.bytes, tail }",
       "only": "^a subshell of one command is rendered with its redirections$"
     },
     {

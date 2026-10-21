@@ -75,6 +75,11 @@ test('a redirected or conditional printer is never summed into the pipe', () => 
     "{ printf %s '#' >&2; printf 'git p%s\\n' ush; } | sh",
     "{ printf %s '#' 1>&2; echo 'git push'; } | sh",
     "{ printf %s '#' >/dev/null; echo 'git push'; } | sh",
+    // The review of c749638e..7a9107e8 (fix round 3): `&&` and `||` over known statuses are read as the shell runs them, so
+    // these three, each measured to push under /bin/sh and /bin/dash, moved here from could-not-look (T2 relocked).
+    "{ false || echo 'git push'; } | sh",
+    "{ echo hi && echo 'git push'; } | sh",
+    "{ echo 'git push' && echo hi; } | sh",
   ])
   // Stderr joined to stdout writes into the pipe, so the same group is a comment; stdout sent away takes its text with it.
   publishesNothing([
@@ -86,12 +91,10 @@ test('a redirected or conditional printer is never summed into the pipe', () => 
     "{ echo 'git push' 1>out; echo hi; } | sh",
   ])
   // Could-not-look: a joiner, a background, another program, an option or escape, a word the lexer cannot read, a conversion or
-  // an escape outside the model, and a redirection outside the two it reads. Several of these really push (`false || …`, the
-  // third), which is why they are could-not-look and not "not a publish".
+  // an escape outside the model, and a redirection outside the two it reads. Some of these really push (a background, the
+  // `echo -n` row), which is why they are could-not-look and not "not a publish".
   publishesNothing([
     "{ echo '#' || echo 'git push'; } | sh",
-    "{ false || echo 'git push'; } | sh",
-    "{ echo hi && echo 'git push'; } | sh",
     "{ echo hi & echo 'git push'; } | sh",
     "{ echo -e 'git\\x20push'; } | sh",
     "{ echo -n; echo 'git push'; } | sh",
@@ -108,7 +111,6 @@ test('a redirected or conditional printer is never summed into the pipe', () => 
     "{ echo hi >&2 2>&1; echo 'git push'; } | sh",
     "{ echo hi >$f; echo 'git push'; } | sh",
     "{ echo hi 2>/dev/null; echo 'git push'; } | sh",
-    "{ echo 'git push' && echo hi; } | sh",
     "{ echo hi; echo 'git push' | cat; } | sh",
     "{ A=$(echo x) echo hi; echo 'git push'; } | sh",
     "{ printf '-\\n'; echo 'git push'; } | sh",

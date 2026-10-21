@@ -11,7 +11,7 @@
 
 ## Goal
 
-A declared check whose program cannot be found on this machine's PATH (or whose script file is absent) continues no turn; its finding reaches the user once, naming the program.
+A declared check whose program cannot be found on this machine's PATH (or whose script file is absent) continues no turn; its finding reaches the user once, naming the program. `"turnEnd": "continue"` in `.quality-harness.json` restores the pre-3.8.51 behaviour, a continuation on an inferred or unstartable check (T6 and this task), so a benchmark can run the old and the new behaviour at one tag with the setting as the only difference (the bench peer's ADR-163 Q arm, 2026-10-21).
 
 ## Affected Files
 
@@ -24,7 +24,7 @@ A declared check whose program cannot be found on this machine's PATH (or whose 
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run: a declared `bash scripts/missing.sh` (file absent) and a declared `nosuchtool test` do not continue the turn and tell the user once; a declared `node --test` continues as today; a declared `npm test` with `npm` on PATH continues.
+1. [S1] Write the failing tests and record the red run: a declared `bash scripts/missing.sh` (file absent) and a declared `nosuchtool test` do not continue the turn and tell the user once; a declared `node --test` continues as today; a declared `npm test` with `npm` on PATH continues; with `"turnEnd": "continue"`, the unstartable check and an inferred check (T6) continue the turn as before 3.8.51, and `"turnEnd": "notify"` keeps everything user-only as today.
 2. [S2] Probe once per session and tree, without running the check; reuse T6's user routing.
 3. [S3] Port to Go.
 4. [S4] Record a killed mutant per mechanism, with catalogue entries. [proof: mutation]

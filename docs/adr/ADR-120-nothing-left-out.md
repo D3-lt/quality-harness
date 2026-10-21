@@ -5,10 +5,10 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's approved plan of 2026-10-21 over what ADR-119 named as left out, explored read-only at ee802e5d
 **Cross-references:** docs/BACKLOG.md, docs/adr-archive/ADR-040-sessionstart-ready-uses-the-listing.md, docs/specs/2026-09-10-sessionstart-ready-uses-the-listing.md, docs/adr/ADR-066-git-refuses-an-unchecked-publish.md, docs/adr/ADR-067-the-publish-classifier-reads-the-command-as-the-shell-splits-it.md, docs/adr/ADR-096-turn-end-findings-reach-the-agent.md, docs/adr/ADR-097-remove-what-nothing-acts-on.md, docs/adr/ADR-099-sessionstart-does-not-list-ready-tasks.md, docs/adr/ADR-108-the-hooks-say-what-to-do-next.md, docs/adr/ADR-110-a-static-core-owns-the-hooks.md, docs/adr/ADR-111-the-turn-end-judges-against-a-baseline.md, docs/adr/ADR-112-the-lifecycle-is-measured-where-it-can-work.md, docs/adr/ADR-116-qh-ships-as-release-assets-fetched-and-verified.md, docs/adr/ADR-119-what-the-backlog-still-holds.md
-**Governs:** `plugin/scripts/shell-words.mjs`, `core/hooks/shellwords.go`, `plugin/scripts/shell-grammar.mjs`, `core/hooks/shellgrammar.go`, `plugin/scripts/check-command.mjs`, `core/hooks/checkcmd.go`, `plugin/scripts/publish-command.mjs`, `core/hooks/publishcmd.go`, `plugin/bin/spec-verify`, `plugin/scripts/work-next.mjs`, `plugin/scripts/standalone-link.mjs`, `plugin/bin/qh-root`, `plugin/scripts/publish-verdict.mjs`, `core/hooks/orientation.go`, `plugin/scripts/completion-rules.mjs`, `core/hooks/turnend.go`, `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `plugin/templates/tasks-readme-template.md`
+**Governs:** `plugin/scripts/shell-words.mjs`, `core/hooks/shellwords.go`, `plugin/scripts/shell-grammar.mjs`, `core/hooks/shellgrammar.go`, `plugin/scripts/check-command.mjs`, `core/hooks/checkcmd.go`, `plugin/scripts/publish-command.mjs`, `core/hooks/publishcmd.go`, `plugin/bin/spec-verify`, `plugin/scripts/work-next.mjs`, `plugin/scripts/standalone-link.mjs`, `plugin/bin/qh-root`, `plugin/scripts/publish-verdict.mjs`, `core/hooks/orientation.go`, `plugin/scripts/completion-rules.mjs`, `core/hooks/turnend.go`, `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `plugin/templates/tasks-readme-template.md`, `plugin/scripts/check-ledger.mjs`, `core/hooks/ledger.go`, `plugin/scripts/publish-hook.mjs`, `plugin/bin/adr-verify`, `plugin/scripts/branch-state.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/scripts/artifact-pass.mjs`, `plugin/templates/task-template.md`
 **Enforced-by:** None — declared by its tasks. Each task adds one campaign mutation per mechanism; naming them before they exist would be a pointer to nothing.
 **Invalidates:** ADR-096 — its Decision continues a turn on any check; under T6 the two rules that tell the agent to run the check (R1, an unchecked tree; R2, unchecked commits) continue the turn only when the check is declared, and on an inferred check reach the user alone. Every other rule (A, W, N, R4, R5) and every other origin (`none`, `refused`, `unreadable`, `unproven`) keeps ADR-096's, ADR-108's and ADR-111's delivery unchanged. ADR-097 — its deferral of removing `post-edit-check.sh` until a retirement tag exists becomes a decision against removal (T3). ADR-119 T3 — its narrow reading of a stop word in a sign-off (any negative word in the note's own words stops it) becomes, under T7, the note's last verdict word deciding; the forms it neutralised stay neutralised. ADR-096's locked tests in `tests/turn-end-delivery.test.mjs` (36 locks over ADR-096 T1–T3, from `python3 scripts/test-locks.py tests/turn-end-delivery.test.mjs` on 2026-10-21) stay byte-identical unless a row's fixture asserts R1 or R2 on an inferred check, which T6 then relocks with its reason.
-**Served-path change:** a declared check whose exit status the shell grammar fixes under every POSIX shell is refused, including a skipped group, a negated group, a POSIX function definition and a shadowed builtin; a check using bash-only syntax is no longer refused as constant; a group piped to a shell or to xargs is read through the bytes it prints; a spec fact can be tagged `@retired`; a home-directory forwarder runs the session's own plugin copy; the §390 relock advice is said once per check pair; a Stop continues a turn to run the check only when the project declared it; adr-next evaluates a cross-record dependency in a corpus named `NNN-slug.md`; a sign-off's last verdict word decides whether it stops; a withdrawn task reads stopped whatever its evidence; and a human sign-off naming a step covers that step only.
+**Served-path change:** a declared check whose exit status the shell grammar fixes under every POSIX shell is refused, including a skipped group, a negated group, a POSIX function definition and a shadowed builtin; a check using bash-only syntax is no longer refused as constant; a group piped to a shell or to xargs is read through the bytes it prints; a spec fact can be tagged `@retired`; a home-directory forwarder runs the session's own plugin copy; the §390 relock advice is said once per check pair; a Stop continues a turn to run the check only when the project declared it; adr-next evaluates a cross-record dependency in a corpus named `NNN-slug.md`; a sign-off's last verdict word decides whether it stops; a withdrawn task reads stopped whatever its evidence; a human sign-off naming a step covers that step only; a pass stands while only declared prose changed, for every reader; adr-verify runs a long fence in the background and records it; a check that cannot start here continues no turn; a commit into another repository named by a relative path is judged by that repository; branch-state reports the session's worktree and says a permanent unknown once; the mention advisory no longer fires on `git stash push`; a mutant fence that never sees the mutated copy is inconclusive, and a missing ignored dependency is could-not-run; an edit that moves another task's locked test names that task at commit; generated specs are not gated.
 
 ## Context
 
@@ -70,6 +70,24 @@ What three read-only explorations and a cold Codex review found at ee802e5d:
   `plugin/templates/tasks-readme-template.md:36,50` allows four README cell words while adr-lint accepts a terminal word
   that matches the task file (`plugin/bin/adr-lint:2583-2613`). Two other claims did not hold: exit 3 is documented
   (`plugin/bin/adr-next:35-37`), and a relock's snapshot is the lock read (`plugin/lib/record.py:4054-4058`).
+- **Three field reports the owner asked for** (2026-10-21: an infrastructure repository, a Go CLI repository, a product
+  repository; each a peer session's measured transcript and ledger summary, cited here by finding, never by figure, CLAUDE.md
+  §6). They agree: the gates re-prove facts nothing changed (a full check demanded on markdown-only trees, repeatedly),
+  hooks spend turns they cannot use, and the value is in independent review and tool-written evidence. Confirmed against
+  source at 6f895503, each with its site: a pass carries over only through ADR-094's `prose` reuse inside `qh-check`
+  (`plugin/scripts/check-ledger.mjs:140-159`), while the publish verdict and the turn end match `after.tree` alone
+  (`:422-425`), and the Go twin has no prose branch at all (`core/hooks/ledger.go:174-186`); a long Acceptance has no way to
+  be recorded but by re-running it in the foreground; a declared check whose program is absent still continues a turn; a
+  commit into another repository is judged by the session's repository unless the path is one absolute literal
+  (`plugin/scripts/publish-command.mjs:172-204`); branch-state ignores the payload's `cwd` and repeats a permanent
+  "COULD NOT LOOK" on every head change (`plugin/scripts/branch-state.mjs:224-241`, `:919-924`); the mention arm reads `git
+  stash push` as a push (BACKLOG §383); `adr-verify --mutant` cannot tell a fence that `cd`s out of the copy from a weak
+  test (`plugin/bin/adr-verify:954-984`, `:2036-2041`) and grades a missing ignored dependency exit 1, not could-not-run
+  (`:1966-1977`); nothing at commit names a task whose locked test an edit moved (`scripts/test-locks.py` is manual);
+  the spec gate honours a fixed skip list but no `linguist-generated` or project ignore list
+  (`plugin/scripts/uninteresting.mjs:18`); the task template has no line for what a test double does not model. Two
+  findings did not hold at HEAD: the "still stands" repetition is no longer emitted, and the commit advisory already names
+  `qh-check`.
 
 ### The class, enumerated
 
@@ -142,6 +160,22 @@ the decisions this record changes (Invalidates).
 8. **T8:** a task whose own Status is terminal (withdrawn, superseded, abandoned, cancelled) reads stopped, whatever its
    evidence. A human sign-off whose note names `S<n>` covers that step only; a note naming no step covers every step, as
    before (the owner, 2026-10-21). The README template says a cell may carry the task file's terminal word.
+9. **T9:** a pass stands for a later tree while the only paths that changed are the project's declared `prose`, for every
+   reader: the publish verdict, the turn end, git's hook and the Go core, not only `qh-check`'s own skip; an advisory on a
+   tree whose unchecked diff is prose-only names the `prose` setting once.
+10. **T10:** `adr-verify --background` runs a task's fence detached, bounded by `fenceTimeout`, and writes its row when it
+    ends, so a long Acceptance is run once by the tool rather than by hand and again by the tool.
+11. **T11:** a declared check whose program cannot be found here continues no turn; its finding reaches the user once.
+12. **T12:** a commit or push into another repository named by a relative literal path, or after `cd <path>;`, is judged
+    by that repository, as an absolute one is today.
+13. **T13:** branch-state reads the payload's `cwd`; a repository with no GitHub remote is said once per session, not on
+    each head change; the mention arm reads `git stash push` as no push (BACKLOG §383's stated fix).
+14. **T14:** `adr-verify --mutant` reports a fence that names an existing directory outside the copy as inconclusive ("this
+    fence never sees the mutated copy"), never survived; a clean fence that fails for a missing module or dependency in the
+    worktree is could-not-run (exit 4), with the hint it already prints.
+15. **T15:** a commit that moves another task's locked test body names that task and the relock at the turn end; the spec
+    gate skips a path git marks `linguist-generated` or the project lists in `"ignore"`; the task template's Risks asks what
+    a test double does not model; the adr-retire skill states the `Archived: [..](..)` receipt grammar.
 
 What would make this fail: a twin listed as "must still refuse", "must still be a publish" or "must still continue" that does
 not after its task. Each is a row in that task's tests, so the fence goes red.
@@ -182,6 +216,9 @@ in T1's commit. Nothing moves.
 | Foreign record lookup | `NNN-slug.md` records found, through a shared helper | T7 | adr-next `foreign_state` |
 | Task state for a terminal Status | `stopped`, before `done` | T8 | adr-next `classify`, `--json` |
 | Unsigned human steps | per step when the sign-off names one | T8 | adr-next, adr-lint advice |
+| A pass's reach | stands across a prose-only change for every reader | T9 | publish verdict, turn end, git hook, Go core |
+| `adr-verify --background` | new flag: a detached, bounded fence run that records its row | T10 | adr-verify, adr-execute skill |
+| `.quality-harness.json` `ignore` | new key: globs the spec gate skips | T15 | facts-gate-dispatch.sh |
 
 ## Inter-task Contracts
 
@@ -192,7 +229,7 @@ in T1's commit. Nothing moves.
 
 ## Implementation
 
-See `tasks/README.md`: T1, then T2; T3, T4, T5, T6, T7 and T8 are independent. The same plan executes, under their own records:
+See `tasks/README.md`: T1, then T2; T3 to T15 are independent. The same plan executes, under their own records:
 ADR-112 T1; ADR-116 T1–T3 and the §386 measurement; ADR-110 T2 S1–S2; and, on the bench peer's rows, ADR-110 T2 S3, ADR-112
 T2–T3 and ADR-110 T3. The bench peer answered on 2026-10-21: ADR-112's pilot is its ADR-163, Accepted and not yet built, and
 runs only after its current stage closes and its owner approves; a Go-hooks arm needs a record there and that owner's
@@ -212,6 +249,7 @@ acceptance, and its containers are linux/amd64, so it needs that asset from ADR-
 
 - ADR-116 T1–T3, ADR-110 T2–T3 and ADR-112 T1–T3 as tasks of this record (permanent: boundary: each is its own Accepted record's task, executed in this same plan, never deferred)
 - BACKLOG §380, §382, §384, §387, the rest of §383 and ADR-091 T3 (permanent: boundary: the owner's 2026-10-21 request named the seven items ADR-119 left out; these were not among them, and the plan says so)
+- From the field reports, not chosen by the owner on 2026-10-21: a secret-aware read guard, declared reality probes (live state against the repository), CI results in the commit gate, running the check automatically after every edit, a scoped default check per language, and trimming the skill listing (permanent: boundary: the owner chose the option that folds the gates-know-their-inputs work into this record and named these separately; each needs its own decision)
 
 ## Risks
 

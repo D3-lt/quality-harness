@@ -4,7 +4,7 @@
 // code tree has no pass, and a staged index whose code differs. Run through the real hooks and the real qh-check.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -16,6 +16,7 @@ import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 import { fixtureRepo, git, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
 import { required } from './helpers/require.mjs'
+import { remove } from './helpers/remove.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const coreDir = path.resolve(here, '..', 'core')
@@ -26,7 +27,7 @@ const posixOnly = process.platform === 'win32' && 'the sessions this runs are re
 
 let goDirectory = null
 let goBinary = null
-after(() => { if (goDirectory) rmSync(goDirectory, { recursive: true, force: true }) })
+after(() => { if (goDirectory) remove(goDirectory) })
 function goCore() {
   if (goBinary) return goBinary
   goDirectory = mkdtempSync(path.join(os.tmpdir(), 'qh-prose-pass-bin-'))
@@ -234,7 +235,7 @@ test('the status line reads a pass carried to a prose-only tree, and not to one 
     assert.equal(render(reading(at('line-prose'), { now })), 'QH ✓ checked · last observed 10s ago', 'only the prose differs')
     logFor('line-code', 'T2', 'C2')
     assert.doesNotMatch(render(reading(at('line-code'), { now })), /✓/, 'other code does not stand on the pass')
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { remove(dir) }
 })
 
 test("the previous session's notice is silent on a tree a pass stands for, and speaks on one it does not", { skip: posixOnly }, t => {

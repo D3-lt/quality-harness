@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
+import { remove } from './helpers/remove.mjs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -134,7 +135,7 @@ test('the Go core reads the same fields and tree as the Node classifier', { skip
   ].map(nodeRow)
   assert.ok(rows.some(row => row.tree !== null) && rows.some(row => row.tree === null), 'the rows hold trees and refusals')
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-parity-'))
-  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  t.after(() => remove(scratch))
   const corpus = path.join(scratch, 'corpus.json')
   writeFileSync(corpus, JSON.stringify(rows))
   const run = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestClassifierParity$', './hooks/'], {

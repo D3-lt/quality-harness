@@ -3260,6 +3260,7 @@ ADR-095's Follow-ups (a per-test verdict cache, the Stop timing outside run) sta
 - ADR-110's amended Decision 4 said a detached child "is reaped at SessionEnd"; neither the Node path nor the Go core reaps one (SessionEnd kills nothing; the artifact pass ends by its own budget and its lock lapses at the deadline), so the record now carries a correction. Open: whether SessionEnd should reap a still-running pass or refresher, and how on Windows, where a kill does not take the children. Bounded today by each child's deadline. S.
 - **Re-checked 2026-10-20 at 14bc3430** (read-only passes over the code, by mrw reads and direct calls): items 1–5 are fixed (035be390, 5b9108d3, 9f7d1573, c74ff306 and 76d23349, 2eb10c61), item 6 (c24e7f56), 8 (f0f4cbf7, 897c4649), 9 (f62d0015, dd5f2748), 10 (f596b8ce), 11 (6e2cebed), 12 (5c6641ff, 3c6fe6ac), 13 (05562ebe), 14 (3bff7696, 0bbf5eb1, 834a23b7), 15 (36cdcafd); item 7 is closed by the owner's decision (e957da1e); the reviewer `--output` limit is gone with the shell-less reviewer (6c30eba6). What is still present goes to ADR-119 (Proposed at this re-check; Accepted 2026-10-20, executed): item 6's two README-only sites in adr-lint (5027, 5817), 16's unplaced node error, 17–24, the pipe after a group (`{ false; } | cat`, `|&` too), the doubled literal, plus §383's false stops and §389. Item 25 and the several-command negated group stay out (a record of their own; the owner's grammar).
 - 2026-10-20: every task of ADR-119 is done (`docs/adr/ADR-119-what-the-backlog-still-holds/tasks/README.md`), so what it took from this list is answered there, and §389 and §391 are archived. Still open here: item 25 and the several-command negated group, as the re-check above says.
+- 2026-10-21: item 25 is closed by ADR-120 T3 (66cf9843): `@retired` retires a spec fact, and the ADR-040 spec's F-1 rows carry it. The several-command negated group, and the definition and group forms of the lines above (3202-3206, and items (2) and (3) left at 3208), are closed by ADR-120 T1's grammar (13ba9efa), which reads `!`, groups and definitions as units in both cores. ADR-110's SessionEnd reaping (3260) stays open, in ADR-110 T3's scope.
 
 ## 382. OPEN 2026-10-16 — What ADR-106's paired benchmark deliberately leaves for after its first verdict
 
@@ -3339,7 +3340,7 @@ destinations, if a run shows either used against a ledger.
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 389. REOPENED 2026-10-21, carried by ADR-120 T4 (the receipt wording closed by ADR-119 T3, 3fd4db37; the resolver half, decided against on 2026-10-20 because CLAUDE_PLUGIN_ROOT is unset in a session's Bash, is built through the SessionStart env file, which reaches it) — An older adr-verify writes no receipt, and the newer hook then refuses its row
+## 389. CLOSED 2026-10-20 (the receipt wording by ADR-119 T3, 3fd4db37; the resolver half decided against, as CLAUDE_PLUGIN_ROOT is unset in a session's Bash) — An older adr-verify writes no receipt, and the newer hook then refuses its row
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
@@ -3351,29 +3352,10 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 392. OPEN 2026-10-20, carried by ADR-120 T5 (Accepted 2026-10-21) — One check change draws the §390 relock advice once per task
+## 392. CLOSED 2026-10-21 (fixed by ADR-120 T5, 831df3b5) — One check change draws the §390 relock advice once per task
 
-An outside run of 3.8.49 over a peer's Go corpus (55 records, 239 tasks; attestation go-kernel at 7712a333, 0 verdicts changed) printed
-57 advice lines of one form, every one with the same pair of check digests: one change to the declared check, relocked across records
-005–023. The advice is right each time; said 57 times it is an adopter cost (CLAUDE.md §19) and a reader stops reading it. Left: say the
-move once per record, or once per (from, to) check pair with the tasks it covers, keeping the per-task line where the pair differs.
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 393. OPEN 2026-10-20, carried by ADR-120 T1 and T2 (Accepted 2026-10-21; with §381's `! { …; }` and function-definition lines) — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
+## 393. CLOSED 2026-10-21 (fixed by ADR-120 T1 and T2, 13ba9efa, 692a869c, dcc4693a) — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
 
-Found by the Codex reviews of ADR-119 T1's rounds (c48dd5b0..cfd24edc and 7e7c59ee..892ba222). Since 892ba222 a group of several
-commands piped onward proves nothing from its last command (`plugin/scripts/publish-command.mjs` `stdinScripts`, `core/hooks/publishcmd.go`),
-which closed a false refusal (`{ printf %s '#'; echo 'git push'; } | sh`, a comment to the shell). Left, each as it was before T1:
-- **Fail-open, mitigated:** `{ echo hi; echo 'git push'; } | sh` really pushes (the shell runs its second line) and the text refusal reads
-  it as no publish. Git's own pre-push hook (ADR-066) still refuses it where the session armed it.
-- **False refusal:** nested groups sharing a first command overwrite the inner group's boundary, so
-  `{ { printf %s '#'; echo 'git push'; } | sh; echo MARK; } | cat` is still a proven publish (`shell-words.mjs:106`, `shellwords.go:222`).
-- **False refusal:** the xargs reader (`publish-command.mjs:671`, `publishcmd.go:1044`) still trusts a group's last command:
-  `{ printf %s '#'; echo push; } | xargs git` reads as `git push` though its input is `#push`.
-Left: model a group's combined output (its commands' printed lines, in order) for `sh` and `xargs`, or read any group of several
-commands feeding either as could-not-look, which advises rather than refuses. The owner's 2026-10-15 direction for this area is a
-grammar, not another patch.
-  - **Added 2026-10-20, from ADR-119 T1's second fix round (95bb1ef9):** the same gap on the check side, a fail-open older than
-    T1. A group that is not piped onward is flattened into the outer list, because the lexer marks `groupEnd` only when a pipe
-    follows the group, so a group's own `;` escapes an outer `||` skip: `true || { true; false; }` exits 0 in bash, sh and zsh
-    and is accepted as a real check (`plugin/scripts/check-command.mjs` `listStatus`, `core/hooks/checkcmd.go`), and so is
-    `true || npm test | { cat; false; }`. Contrived in shape; the same grammar closes it.
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)

@@ -2206,7 +2206,7 @@
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
       "from": "      else if (ch === '\\n') return null",
-      "to": "      else word += ch",
+      "to": "      else if (ch === '\\n') word += ch",
       "only": "^xargs splits its input by its quoting rules, and input it cannot split is unproven$"
     },
     {

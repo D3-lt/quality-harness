@@ -3133,6 +3133,9 @@ when a row's writer may predate receipts, and the forwarder could prefer the plu
     (3.8.48) and that updating the installed plugin is the remedy. The resolver half is not built: `printenv
     CLAUDE_PLUGIN_ROOT` exited 1 in the main session's Bash tool (T3 S4), so a forwarder started from a session's Bash
     cannot read the plugin root the session runs, and preferring it would change nothing.
+  - **Reopened and closed 2026-10-21 by ADR-120 T4 (86692f9f).** The resolver half is built after all: `printenv
+    CLAUDE_PLUGIN_ROOT` still fails in a session's Bash, but SessionStart now writes `QH_PLUGIN_ROOT` into the session's env
+    file, which reaches it from the next prompt, and the forwarders and `qh-root` prefer it over the newest installed copy.
 
 ## 390. CLOSED 2026-10-20 (the owner: a relock may move the check binding, and it is said) — A relock takes the current check into the lock, so "check absent at first-red" clears with no red run
 
@@ -3159,3 +3162,36 @@ a record that says less than the tool observed, not an open gate. To be closed b
   - **Closed 2026-10-20 by ADR-119 T2 (28a69f70).** A row's `model` is the pinned one, `reportedModel` what the reviewer
     printed when it differs, and `bound` is `pinned`, `disagrees` or `unproven` (`reviewFromOutput` in
     `plugin/scripts/host-review.mjs`, and the rows `hostReview` and the `--prompt-file` form record).
+
+## 392. CLOSED 2026-10-21 (fixed by ADR-120 T5, 831df3b5) — One check change draws the §390 relock advice once per task
+
+An outside run of 3.8.49 over a peer's Go corpus (55 records, 239 tasks; attestation go-kernel at 7712a333, 0 verdicts changed) printed
+57 advice lines of one form, every one with the same pair of check digests: one change to the declared check, relocked across records
+005–023. The advice is right each time; said 57 times it is an adopter cost (CLAUDE.md §19) and a reader stops reading it. Left: say the
+move once per record, or once per (from, to) check pair with the tasks it covers, keeping the per-task line where the pair differs.
+  - **Closed 2026-10-21 by ADR-120 T5 (831df3b5, amended 8d021b2a).** adr-lint says a relock's check move once per (from, to)
+    pair, naming the tasks it covers, and keeps the per-task line where a pair is unique.
+
+## 393. CLOSED 2026-10-21 (fixed by ADR-120 T1 and T2, 13ba9efa, 692a869c, dcc4693a) — What a group of several commands pipes onward is not modelled, so three publish forms read wrong
+
+Found by the Codex reviews of ADR-119 T1's rounds (c48dd5b0..cfd24edc and 7e7c59ee..892ba222). Since 892ba222 a group of several
+commands piped onward proves nothing from its last command (`plugin/scripts/publish-command.mjs` `stdinScripts`, `core/hooks/publishcmd.go`),
+which closed a false refusal (`{ printf %s '#'; echo 'git push'; } | sh`, a comment to the shell). Left, each as it was before T1:
+- **Fail-open, mitigated:** `{ echo hi; echo 'git push'; } | sh` really pushes (the shell runs its second line) and the text refusal reads
+  it as no publish. Git's own pre-push hook (ADR-066) still refuses it where the session armed it.
+- **False refusal:** nested groups sharing a first command overwrite the inner group's boundary, so
+  `{ { printf %s '#'; echo 'git push'; } | sh; echo MARK; } | cat` is still a proven publish (`shell-words.mjs:106`, `shellwords.go:222`).
+- **False refusal:** the xargs reader (`publish-command.mjs:671`, `publishcmd.go:1044`) still trusts a group's last command:
+  `{ printf %s '#'; echo push; } | xargs git` reads as `git push` though its input is `#push`.
+Left: model a group's combined output (its commands' printed lines, in order) for `sh` and `xargs`, or read any group of several
+commands feeding either as could-not-look, which advises rather than refuses. The owner's 2026-10-15 direction for this area is a
+grammar, not another patch.
+  - **Added 2026-10-20, from ADR-119 T1's second fix round (95bb1ef9):** the same gap on the check side, a fail-open older than
+    T1. A group that is not piped onward is flattened into the outer list, because the lexer marks `groupEnd` only when a pipe
+    follows the group, so a group's own `;` escapes an outer `||` skip: `true || { true; false; }` exits 0 in bash, sh and zsh
+    and is accepted as a real check (`plugin/scripts/check-command.mjs` `listStatus`, `core/hooks/checkcmd.go`), and so is
+    `true || npm test | { cat; false; }`. Contrived in shape; the same grammar closes it.
+  - **Closed 2026-10-21 by ADR-120 T1 (13ba9efa) and T2 (692a869c, reworked in dcc4693a).** T1's grammar reads groups,
+    negation and definitions as units in both cores, so the check-side forms are refused. T2 reads a group piped to a shell or
+    to xargs through the bytes it prints, evaluated over known statuses, and a group it cannot render gives nothing; nested
+    groups keep their own boundaries.

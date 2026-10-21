@@ -45,6 +45,13 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   writeFileSync(path.join(tasks, 'T3-escaped.md'), `# Task ADR-001-T3: escaped\n\n${header}| \`works \\| variant\` | \`src/a.test.js\` | it | — | S1 |\n`)
   writeFileSync(path.join(tasks, 'T4-bare.md'), `# Task ADR-001-T4: bare\n\n${header}\`a bare\` | \`src/a.test.js\` | it | — | S1\n`)
   writeFileSync(path.join(tasks, 'T5-indented.md'), `# Task ADR-001-T5: indented\n\n${header}  | \`an indented\` | \`src/a.test.js\` | it | — | S1 |\n`)
+  // And the shapes a fence-tracking, end-anchored reader lost (the review of 42796035): a four-backtick fence holding a
+  // triple-backtick line, `~~~` inside a backtick fence, a CRLF task, a heading that ends in a non-breaking space.
+  const row = '| `a works` | `src/a.test.js` | it | — | S1 |\n'
+  writeFileSync(path.join(tasks, 'T6-long-fence.md'), `# Task ADR-001-T6: long fence\n\n## Acceptance\n\n\`\`\`\`bash\ncat <<EOF\n\`\`\`\nEOF\n\`\`\`\`\n\n${header}${row}`)
+  writeFileSync(path.join(tasks, 'T7-tilde.md'), `# Task ADR-001-T7: tilde\n\n## Acceptance\n\n\`\`\`bash\n~~~\n\`\`\`\n\n${header}${row}`)
+  writeFileSync(path.join(tasks, 'T8-crlf.md'), `# Task ADR-001-T8: crlf\n\n${header}${row}`.replaceAll('\n', '\r\n'))
+  writeFileSync(path.join(tasks, 'T9-nbsp.md'), `# Task ADR-001-T9: nbsp\n\n${header.replace('## Tests', '## Tests ')}${row}`)
   for (const args of [['init', '-q'], ['add', '.']]) {
     const run = spawnSync('git', args, { cwd: project, encoding: 'utf8', timeout: 30_000, windowsHide: true })
     assert.equal(run.status, 0, run.stderr)
@@ -59,6 +66,8 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   assert.doesNotMatch(gated('src/a.js'), /T1-affected/, 'a task that only lists the file as affected was gated')
   const forTest = gated('src/a.test.js')
   assert.match(forTest, /T2-tests\.md/, 'the task whose Tests table names the file was not gated')
-  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented']) assert.match(forTest, new RegExp(`${task}\\.md`), `${task} was not gated`)
+  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented', 'T6-long-fence', 'T7-tilde', 'T8-crlf', 'T9-nbsp']) {
+    assert.match(forTest, new RegExp(`${task}\\.md`), `${task} was not gated`)
+  }
   assert.doesNotMatch(forTest, /T1-affected/, 'the affected-files task was gated for the test file too')
 })

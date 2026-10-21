@@ -300,22 +300,25 @@ is_architecture() {
 # Tests table names (record.py snapshot_lock), so only a task whose Tests table names the file can lock a body in it; one
 # that lists it under Affected Files cannot, and is not gated (measured 2026-10-21: plugin/bin/adr-next is named by 25 task
 # files, all as an affected file, and gating each made one boundary dispatch take 90 s). The candidates are the task files
-# whose text names the path; a candidate is kept when its `## Tests` section holds the file's repository path anywhere (a cell
-# written from the record, `../repo/<path>`, ends in it too), which is
-# every row form record.py's parser reads there (an escaped pipe in a cell, no leading pipe, an indented row: the review of
-# e3764d1a) and more, so it over-gates rather than misses. The section is read fence-aware, as record.py reads sections, and
-# case-insensitively. A candidate that cannot be read is kept: unsure is gated. Those tasks are gated as themselves, their
-# owning record resolved as for any task, and what they say about THIS file's locked tests is the advice: which task, which
-# test, and the relock. At the commit and turn-end boundaries only: a test is edited many times before the change is
-# reviewed, and the relock waits for the review. Said on stderr, where the batch reads findings. A task not claimed done has
-# no lock to withhold, and says nothing.
+# whose text names the path; a candidate is kept when the path appears after any line that opens a `## Tests` heading and
+# before the next `## Verification Log` or `## Mutation Log` heading (a cell written from the record, `../repo/<path>`, ends
+# in the same path). That is every row form record.py's parser reads in a Tests section (an escaped pipe in a cell, no
+# leading pipe, an indented row: the review of e3764d1a) and more. It deliberately reads no fences and anchors no heading
+# end, so a fence it would misread, a CRLF line end or a trailing non-breaking space can only widen it (the review of
+# 42796035): it over-gates rather than misses. Only the two log sections are cut off, because their rows name gates such as
+# plugin/bin/adr-verify in nearly every task. A candidate that cannot be read is kept: unsure is gated. Those tasks are
+# gated as themselves, their owning record resolved as for any task, and what they say about THIS file's locked tests is
+# the advice: which task, which test, and the relock. At the commit and turn-end boundaries only: a test is edited many
+# times before the change is reviewed, and the relock waits for the review. Said on stderr, where the batch reads
+# findings. A task not claimed done has no lock to withhold, and says nothing.
 tests_naming() {
   local root="$1" task
   while IFS= read -r -d '' task; do
     [ -r "$root/$task" ] || { printf '%s\0' "$task"; continue; }
     QH_LOCK_PATH="$2" awk '
-      /^[ \t]*(```|~~~)/ { fence = !fence }
-      !fence && /^## / { tests = (tolower($0) ~ /^##[ \t]+tests[ \t]*$/); next }
+      { heading = tolower($0) }
+      heading ~ /^##[ \t]+(verification log|mutation log)/ { tests = 0; next }
+      heading ~ /^##[ \t]+tests/ { tests = 1; next }
       tests && index($0, ENVIRON["QH_LOCK_PATH"]) { found = 1; exit }
       END { exit found ? 0 : 1 }
     ' "$root/$task" && printf '%s\0' "$task"

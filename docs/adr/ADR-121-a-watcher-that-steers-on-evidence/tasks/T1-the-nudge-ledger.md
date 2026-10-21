@@ -23,8 +23,8 @@ Every finding a hook emits gets an outcome (acted, ignored, contradicted) read f
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run: a session log where R1 is followed by a qh-check run reads acted; one where the turn ends with no check reads ignored; one where a commit follows a refusal-advice reads contradicted; `qh nudges` prints the counts per rule; a log with no findings prints none.
-2. [S2] Classify outcomes from the events after each `action.emitted` row, in Go, writing no new state.
+1. [S1] Write the failing tests and record the red run: a session log where R1 is followed by a qh-check run recorded after it reads acted; one where the check ran before the emission (an earlier record imported later) does not; one where the turn ends with no check reads ignored; a refused publish request after a refusal-advice reads contradicted, an allowed one does not; a shell command's result reads unknown; a session still open reads pending; `qh nudges` prints the counts per rule, unknown and pending apart; a log with no findings prints none.
+2. [S2] Classify outcomes from the events after each `action.emitted` row, in Go, by recorded order; the watcher writes `nudge.outcome` rows, the hooks write nothing new.
 3. [S3] Hand-label ten real sessions of this repository and compare: the record carries the agreement rate, and T2 waits on it. [proof: human: the labelled sample, read by the owner]
 4. [S4] Record a killed mutant per mechanism. [proof: mutation]
 

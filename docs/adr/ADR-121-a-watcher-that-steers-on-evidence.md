@@ -1,6 +1,6 @@
 # ADR-121: A watcher that steers on evidence, learns which nudges work, and remembers the lessons
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-21
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's direction of 2026-10-21 ("a watcher that steers on evidence … ledger, novelty, learning pair well here"), grounded in three field reports and the published work cited in Context
@@ -39,10 +39,12 @@ read. ADR-120 T6, T9, T11 and T13 fix named instances. Nothing measures whether 
 - The monitoring-and-control frame (a meta level reads state up and sends regulation down): Nelson and Narens, as used in
   arXiv 2607.24339 and arXiv 2602.18806.
 
-**What is new here.** Each system above fixes its intervention policy at design time or learns it offline. None keeps,
-per project, a ledger of each intervention and what the agent did next, and retires what is ignored while keeping what
-works. ADR-037's principle (advice earns its place by being acted on) becomes a measured, automatic rule; and a lesson
-that proved itself is handed to memoryd, so the next session starts from it instead of being nudged into it again.
+**What is new here, narrowly.** AgentTether already carries corrective state across iterations and checks whether an
+expected action occurred, and Cadence widens its inspection interval after an advisory; both are prior art for
+outcome-sensitive guidance and adaptive spacing. The combination proposed here is the narrower claim: persistent,
+per-project statistics of each rule's outcomes across sessions, used to retire a rule for that project while its
+negative-evidence path stays open, and proven lessons handed to a separate memory (memoryd) with code anchors that go
+stale when the code drifts.
 
 ### The class, enumerated
 
@@ -62,31 +64,46 @@ that proved itself is handed to memoryd, so the next session starts from it inst
 
 ## Decision
 
-1. **T1, the nudge ledger (measure first):** every finding a hook emits gets an outcome, read from the events that follow it
-   in the same session: *acted* (the agent ran the named command, touched the named path, declared the named setting),
-   *ignored* (the turn ended or the same finding returned with none of those), *contradicted* (the agent did the opposite,
-   such as committing anyway). `qh nudges` reports, per rule and per project, emissions and outcomes. Read-only; nothing
-   changes behaviour.
-2. **T2, an evidence gate on every intervention:** a finding may reach the agent only with a concrete fact behind it (a
-   changed path in the check's inputs since its last pass, a check that can start, a claim of done with no validation since
-   the last edit), with per-rule cooldowns that widen after an advisory and reset after one that was acted on (Cadence's
-   schedule, applied per rule), and a per-session budget of turn continuations.
-3. **T3, the watcher:** `qh watch` runs one process per repository, tails every session log, keeps the state the rules need
-   (what was said, when, how often, what changed, in what scope, which check would answer it), and answers hooks over a
-   local socket; a hook with no watcher answers in-process as today. A rule whose acted rate over its last N emissions in
-   this project is below a threshold is retired for this project, and the user is told once with the numbers.
-4. **T4, evidence-grounded self-evaluation:** when the trajectory shows premature disengagement (a done claim, edits since
-   the last validation, a check that can start), the Stop continuation asks one question built from the evidence ("you
-   changed X and Y; the check that covers them last passed before both; what did you run that shows they work?"), never a
-   generic "are you sure". It replaces today's R1 text, not adds to it.
-5. **T5, memoryd and mrw:** a finding acted on and followed by a pass becomes a lesson: a memory in the project's space
-   (kind procedure or correction, labelled with the rule and the paths), anchored to the code it is about so a drifted
-   anchor marks it stale. SessionStart recalls the lessons for the paths the session is likely to touch. mrw's `--json`
-   receipt feeds `file.written` for every path an mrw write touched, closing the invisible-write gap ADR-120 T9 leaves.
-   Cross-session nudges go through a memoryd room, never through a peer's permissions.
-6. **T6, the evaluation and the kill criterion:** the bench peer runs a P-watch arm (the watcher with T2 and T4) against P in
-   ADR-163's stage. The watcher becomes the default only if cost's 99% upper bound is below P's and solved's lower bound is
-   above −0.10, the bar ADR-163 pre-registered for its Q arm; otherwise it stays opt-in, and the record says so.
+1. **T1, the nudge ledger (measure first):** a finding's outcome is classified only where the session log supports it:
+   *acted*, *ignored*, *contradicted*, and also *pending* (the session has not reached a deciding event) and *unknown* (the
+   log does not hold the event that would decide). Supported today: a check recorded after the emission (by its recorded
+   order, not its import order), an observable write to a named path, a refused or allowed publish request. Not observed
+   today, so *unknown*: a shell command's result (no shell PostToolUse hook is registered), a completed publish, a setting
+   declared through a shell. Each emission carries its expected action and audience as data. `qh nudges` reads and
+   reports; T1 writes `nudge.outcome` rows from the watcher's own pass, never from a hook. Unknown and pending outcomes never
+   count toward retirement.
+2. **T2, an evidence gate on every intervention:** a finding is withheld only when its evidence is unchanged since it was
+   last delivered (the same tree, the same check standing, the same rule key); new negative evidence (a failed or
+   unproven check, a newly changed path in the check's scope) always reopens delivery, whatever the cooldown. Per-rule
+   cooldowns widen after an unheeded advisory and reset after one acted on (an adaptation of Cadence's spacing, not its
+   schedule), and a per-session budget caps turn continuations. The sanctioned refusals (CLAUDE.md §3) are outside every
+   learned suppression.
+3. **T3, the watcher:** `qh watch` runs one process per repository and worktree, tails every session log, keeps request-
+   scoped state (no process-global caches across worktrees), and answers hooks over a Unix socket on macOS and Linux and a
+   named pipe on Windows, at a short endpoint name, with a connect deadline and a response deadline that leave the hook its
+   in-process fallback time inside its registered timeout, and a request id so a retried request never repeats a side
+   effect. A hook with no watcher, or with one that stops answering, answers in-process as today. A rule whose acted rate
+   over its last N *classified* emissions in this project is below a threshold is retired for this project: it keeps
+   recording, a finding of it backed by new negative evidence is still delivered, and the user is told once with the
+   numbers; a project can pin a rule on.
+4. **T4, evidence-grounded self-evaluation:** when the evidence alone shows a gap (edits to paths in the check's scope since
+   its last pass, a check that can start, and the turn ending), the Stop continuation asks one question built from that
+   evidence ("you changed X and Y; the check that covers them last passed before both; what did you run that shows they
+   work?"), never a generic "are you sure". It does not classify the agent's text as a done claim: that detector was
+   retired after measurement (`plugin/scripts/claim-status.mjs:3`). Where the check cannot start, ADR-120 T11's user-only
+   notice stands.
+5. **T5, memoryd and mrw:** a lesson is a bounded observation, not a general rule: the emission id, the rule, the command
+   or path acted on, the passing check's id and tree, and a code anchor, stored as a procedure or correction memory in the
+   project's space, so a reader sees what was observed rather than a claim. SessionStart lists the lessons for the session's
+   area. mrw receipts reach the hooks by named routes: the MCP write's PostToolUse result receipt for MCP writes, and, for
+   CLI writes, a route T5 measures first (a narrowly matched shell PostToolUse, or a receipt file mrw itself appends),
+   costed per CLAUDE.md §19 before it is registered. Real-session samples stay local; tracked fixtures are generated in
+   temporary repositories. Cross-session nudges go through a memoryd room, never through a peer's permissions.
+6. **T6, the evaluation and the kill criterion:** the bench peer runs a P-watch arm (the plugin with T1 to T4, memoryd
+   absent, so the arm measures the watcher alone) against P in ADR-163's stage, the decision computed by the peer's
+   scorer from its pre-registered bar: cost's 99% upper bound below P's and solved's lower bound above −0.10. Otherwise the
+   watcher stays opt-in, and the record says so. Installed output and latency are measured on a fresh repository and one
+   corpus as well (CLAUDE.md §19).
 
 7. **mrw and memoryd are optional enhancers, never requirements (the owner, 2026-10-21).** quality-harness works whole
    without either: with neither present every rule, gate and the watcher behave as decided above. Each integration is
@@ -165,5 +182,5 @@ retracted there.
 
 ## Follow-ups
 
-- [ ] A cold Codex review of this draft before the owner's acceptance
+- [x] A cold Codex review of this draft before the owner's acceptance: REQUEST CHANGES on 2026-10-21 (one blocking: a learned suppression could silence a fresh failed check; six advisory), all folded into Decisions 1 to 6 and the tasks; the owner accepted on 2026-10-21
 - [ ] T1's numbers on this repository and one peer corpus before T2 is written in detail

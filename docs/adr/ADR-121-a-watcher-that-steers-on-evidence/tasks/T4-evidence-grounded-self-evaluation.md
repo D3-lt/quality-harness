@@ -11,7 +11,7 @@
 
 ## Goal
 
-On a premature disengagement (a done claim, edits since the last validation, a check that can start), the Stop continuation asks one question built from the changed paths and the check that covers them, replacing R1's generic text.
+When the evidence alone shows a gap (edits to paths in the check's scope since its last pass, a check that can start, the turn ending), the Stop continuation asks one question built from the changed paths and the check that covers them, replacing R1's generic text; it classifies no text as a done claim (that detector was retired after measurement, `plugin/scripts/claim-status.mjs:3`).
 
 ## Affected Files
 
@@ -23,7 +23,7 @@ On a premature disengagement (a done claim, edits since the last validation, a c
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run: a session that edited a.mjs and b.mjs after the last pass and ends with a done claim gets one question naming both paths and the check; a session with no done claim gets today's R1; a session whose check cannot start gets nothing (ADR-120 T11).
+1. [S1] Write the failing tests and record the red run: a session that edited a.mjs and b.mjs after the last pass gets one question naming both paths and the check; a session whose edits are all outside the check's scope gets today's R1 or nothing as today; a session whose check cannot start keeps ADR-120 T11's user-only notice.
 2. [S2] Build the question in Node and Go.
 3. [S3] Record a killed mutant per mechanism. [proof: mutation]
 

@@ -23,7 +23,7 @@ A finding may reach the agent only with a concrete fact behind it, under per-rul
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run: R1 with no changed path in the check's inputs since its last pass says nothing; a second R1 within its cooldown says nothing; the cooldown doubles after an advisory and resets after an acted one; a session past its continuation budget continues no turn.
+1. [S1] Write the failing tests and record the red run: R1 whose evidence (tree, check standing, rule key) is unchanged since it was delivered says nothing; a failed or unproven check recorded since, or a newly changed path in the check's scope, reopens it whatever the cooldown; a second R1 within its cooldown and on unchanged evidence says nothing; the cooldown widens after an unheeded advisory and resets after an acted one; a session past its continuation budget continues no turn; a sanctioned refusal is never withheld.
 2. [S2] Implement the gate in Go and Node.
 3. [S3] Record a killed mutant per mechanism. [proof: mutation]
 

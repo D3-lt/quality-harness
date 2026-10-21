@@ -21,7 +21,7 @@ The bench peer runs P-watch against P in ADR-163's stage; the watcher becomes th
 
 ## Ordered Steps
 
-1. [S1] Ask the bench peer for the P-watch arm at a tag carrying T1 to T5, with the switch named. [proof: human: the peer's answer, cited by location]
+1. [S1] Ask the bench peer for the P-watch arm: the plugin with T1 to T4, memoryd absent, at one tag with P, the switch named, the decision computed by the peer's scorer from its pre-registered bar. [proof: human: the peer's answer, cited by location]
 2. [S2] Read the verdict at 40 paired tasks per model. [proof: human: the owner reads the verdict]
 3. [S3] Record the decision in docs/BENCHMARKS.md. [proof: acceptance]
 

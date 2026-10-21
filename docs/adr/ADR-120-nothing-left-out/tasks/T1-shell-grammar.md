@@ -67,7 +67,7 @@ out=$(node --test --test-reporter=tap tests/shell-grammar.test.mjs tests/fail-op
 | `a definition that shadows a command gives its later calls the body's status` | `tests/shell-grammar.test.mjs` | `false() { :; }; false` refused (body 0); `true() { false; }; true` accepted (body 1); `f() { npm test; }; f` accepted (body unknown) | — | S1, S4 |
 | `the lexer's new boundary fields leave every existing field unchanged` | `tests/shell-grammar.test.mjs` | the additive contract | — | S2 |
 | `the Go core reads the same fields and tree as the Node classifier` | `tests/qh-core-parity.test.mjs` | parity of fields, tree and outcome | — | S5 |
-| `a function named like a pass-through sink is the function, not the sink` | `tests/shell-grammar.test.mjs` | Codex round A, finding 1: `cat() { false; }; ! false | cat` refused, its unnegated twin accepted | — | S4 |
+| `a function named like a pass-through sink is the function, not the sink` | `tests/shell-grammar.test.mjs` | Codex round A, finding 1: `cat() { false; }; ! false \| cat` refused, its unnegated twin accepted | — | S4 |
 | `a signed exit status is read only where every shell agrees` | `tests/shell-grammar.test.mjs` | finding 2: `exit +256` is 0, `exit -1` could-not-look | — | S4 |
 | `a negated definition head and an exit with extra operands are could-not-look` | `tests/shell-grammar.test.mjs` | findings 4 and 5: `! f() { :; }`, `exit 256 1` | — | S3, S4 |
 

@@ -52,6 +52,12 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   writeFileSync(path.join(tasks, 'T7-tilde.md'), `# Task ADR-001-T7: tilde\n\n## Acceptance\n\n\`\`\`bash\n~~~\n\`\`\`\n\n${header}${row}`)
   writeFileSync(path.join(tasks, 'T8-crlf.md'), `# Task ADR-001-T8: crlf\n\n${header}${row}`.replaceAll('\n', '\r\n'))
   writeFileSync(path.join(tasks, 'T9-nbsp.md'), `# Task ADR-001-T9: nbsp\n\n${header.replace('## Tests', '## Tests ')}${row}`)
+  // A fenced log heading inside the Tests section, before its table, does not end it (the review of 82e1e203); the twin, a
+  // real log heading whose rows name the file, is not a Tests mention and gates nothing.
+  const fencedLog = heading => `# Task ADR-001: fenced\n\n## Tests\n\n\`\`\`text\n${heading}\n\`\`\`\n\n| Test name | File | Verifies | Covers | Steps |\n|-----------|------|----------|--------|-------|\n${row}`
+  writeFileSync(path.join(tasks, 'T10-fenced-vlog.md'), fencedLog('## Verification Log'))
+  writeFileSync(path.join(tasks, 'T11-fenced-mlog.md'), fencedLog('## Mutation Log'))
+  writeFileSync(path.join(tasks, 'T12-logged.md'), `# Task ADR-001-T12: logged\n\n${header}| \`other\` | \`src/other.test.js\` | it | — | S1 |\n\n## Verification Log\n- 2026-10-21 · abc1234 · exit 0 · \`node --test src/a.test.js\` · acceptance-sha256:00\n`)
   for (const args of [['init', '-q'], ['add', '.']]) {
     const run = spawnSync('git', args, { cwd: project, encoding: 'utf8', timeout: 30_000, windowsHide: true })
     assert.equal(run.status, 0, run.stderr)
@@ -66,8 +72,9 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   assert.doesNotMatch(gated('src/a.js'), /T1-affected/, 'a task that only lists the file as affected was gated')
   const forTest = gated('src/a.test.js')
   assert.match(forTest, /T2-tests\.md/, 'the task whose Tests table names the file was not gated')
-  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented', 'T6-long-fence', 'T7-tilde', 'T8-crlf', 'T9-nbsp']) {
+  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented', 'T6-long-fence', 'T7-tilde', 'T8-crlf', 'T9-nbsp', 'T10-fenced-vlog', 'T11-fenced-mlog']) {
     assert.match(forTest, new RegExp(`${task}\\.md`), `${task} was not gated`)
   }
   assert.doesNotMatch(forTest, /T1-affected/, 'the affected-files task was gated for the test file too')
+  assert.doesNotMatch(forTest, /T12-logged/, 'a log row naming the file was read as a Tests mention')
 })

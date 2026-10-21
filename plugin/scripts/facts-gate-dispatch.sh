@@ -303,9 +303,12 @@ is_architecture() {
 # whose text names the path; a candidate is kept when the path appears after any line that opens a `## Tests` heading and
 # before the next `## Verification Log` or `## Mutation Log` heading (a cell written from the record, `../repo/<path>`, ends
 # in the same path). That is every row form record.py's parser reads in a Tests section (an escaped pipe in a cell, no
-# leading pipe, an indented row: the review of e3764d1a) and more. It deliberately reads no fences and anchors no heading
-# end, so a fence it would misread, a CRLF line end or a trailing non-breaking space can only widen it (the review of
-# 42796035): it over-gates rather than misses. Only the two log sections are cut off, because their rows name gates such as
+# leading pipe, an indented row: the review of e3764d1a) and more. A heading is judged on `unfenced`'s reading of the file,
+# record.py's fence grammar, where a fenced line is blank, so a fenced `## Verification Log` inside the Tests section does
+# not end it (the review of 82e1e203); the path itself is looked for on the file's own lines, fenced or not, line for line.
+# No heading end is anchored and `unfenced` drops a CR, so a CRLF task or a trailing non-breaking space still opens the
+# section (the review of 42796035). It
+# over-gates rather than misses. Only the two log sections end the span, because their rows name gates such as
 # plugin/bin/adr-verify in nearly every task. A candidate that cannot be read is kept: unsure is gated. Those tasks are
 # gated as themselves, their owning record resolved as for any task, and what they say about THIS file's locked tests is
 # the advice: which task, which test, and the relock. At the commit and turn-end boundaries only: a test is edited many
@@ -316,12 +319,12 @@ tests_naming() {
   while IFS= read -r -d '' task; do
     [ -r "$root/$task" ] || { printf '%s\0' "$task"; continue; }
     QH_LOCK_PATH="$2" awk '
-      { heading = tolower($0) }
-      heading ~ /^##[ \t]+(verification log|mutation log)/ { tests = 0; next }
-      heading ~ /^##[ \t]+tests/ { tests = 1; next }
+      NR == FNR { shown[FNR] = tolower($0); next }
+      shown[FNR] ~ /^##[ \t]+(verification log|mutation log)/ { tests = 0; next }
+      shown[FNR] ~ /^##[ \t]+tests/ { tests = 1; next }
       tests && index($0, ENVIRON["QH_LOCK_PATH"]) { found = 1; exit }
       END { exit found ? 0 : 1 }
-    ' "$root/$task" && printf '%s\0' "$task"
+    ' <(unfenced "$root/$task") "$root/$task" && printf '%s\0' "$task"
   done
 }
 

@@ -479,8 +479,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  const scripts = commands[n].heredocs.map(doc => doc.body)",
-      "to": "  const scripts = []",
+      "from": "  const loose = commands[n].heredocs.map(doc => doc.body)",
+      "to": "  const loose = []",
       "only": "a publish is found by argv"
     },
     {
@@ -489,8 +489,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    scripts.push(...literalOutput(upstream.argv, start))",
-      "to": "    scripts.push()",
+      "from": "    loose.push(...literalOutput(upstream.argv, start))",
+      "to": "    loose.push()",
       "only": "text piped into a shell"
     },
     {
@@ -569,8 +569,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  const { commands } = shellWords(text)\n  for (let n = 0;",
-      "to": "  const { commands } = { commands: text.split(/[;\\n]/).map(s => ({ argv: s.trim().split(/\\s+/).filter(Boolean), assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null })), complete: true }\n  for (let n = 0;",
+      "from": "  const words = shellWords(text)\n  const { commands } = words\n",
+      "to": "  const words = { commands: text.split(/[;\\n]/).map(s => ({ argv: s.trim().split(/\\s+/).filter(Boolean), assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null })), complete: true }\n  const { commands } = words\n",
       "only": "every publish form is recognised"
     },
     {
@@ -599,8 +599,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) scripts.push(...stdinScripts(commands, m, seen))",
-      "to": "    if (false) scripts.push(...stdinScripts(commands, m, seen))",
+      "from": "    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) {",
+      "to": "    if (false) {",
       "only": "every publish form is recognised"
     },
     {
@@ -679,7 +679,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    for (const built of xargsInvocations(commands, n, start)) {",
+      "from": "    for (const built of xargsInvocations(commands, n, start, tree)) {",
       "to": "    for (const built of []) {",
       "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
     },
@@ -1766,12 +1766,244 @@
       "only": "^a quoted heredoc body that only a data sink reads is not a mention$"
     },
     {
-      "label": "ADR-119 T1, the review of c48dd5b0..cfd24edc: the last command of a group of several commands is not the text the group pipes into a shell",
+      "label": "ADR-120 T2 (was ADR-119 T1, the review of c48dd5b0..cfd24edc): where the grammar did not read the text, the last command of a group of several commands is not all it writes",
       "file": "plugin/scripts/publish-command.mjs",
-      "tests": ["tests/fail-open.test.mjs"],
+      "tests": ["tests/publish-group.test.mjs"],
       "from": "    if (commands.some(c => c.groupEnd === m)) continue",
       "to": "    void 0",
-      "only": "^the text a group of several commands pipes into a shell is not proven from its last command$"
+      "only": "^a nested group keeps its own boundary$"
+    },
+    {
+      "label": "ADR-120 T2: a printer with stderr joined to stdout still writes to the pipe",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (fd === '2' && op === '>&' && target === '1') return true",
+      "to": "if (fd === '2' && op === '>&' && target === '1') return false",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a printer whose stdout goes to stderr or a file writes nothing to the pipe",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "op === '>|' ? false : null",
+      "to": "op === '>|' ? true : null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a redirection of a descriptor other than 1, or other than 2>&1, is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (fd !== '' && fd !== '1') return null",
+      "to": "void fd",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: several redirections on one printer are could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (redirections.length > 1 || redirections[0].dynamic) return null",
+      "to": "if (redirections[0].dynamic) return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a redirection target the lexer cannot read is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (redirections.length > 1 || redirections[0].dynamic) return null",
+      "to": "if (redirections.length > 1) return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: echo joins its words with a space",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "words.join(' ')}\\n`",
+      "to": "words.join('')}\\n`",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: echo ends its line with a newline",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "words.join(' ')}\\n`",
+      "to": "words.join(' ')}`",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: an echo option is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "/^-[neE]+$/.test(word) || ",
+      "to": "",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: an echo word with a backslash is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": " || word.includes('\\\\'))",
+      "to": ")",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a printf conversion other than %s is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (format[++k] !== 's') return null",
+      "to": "if (format[++k] === undefined) return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a printf escape other than \\n and \\t is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (escaped === undefined) return null",
+      "to": "void escaped",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: printf repeats its format while arguments remain",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "Math.max(1, per ? Math.ceil(args.length / per) : 1)",
+      "to": "1",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a printf format with no conversion is written once, whatever the arguments",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "Math.max(1, per ? Math.ceil(args.length / per) : 1)",
+      "to": "Math.max(1, Math.ceil(args.length / per))",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a missing printf argument is the empty string",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "(args[next++] ?? '')",
+      "to": "args[next++]",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a printf format that is an option is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": " || format.startsWith('-')",
+      "to": "",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a printer with a word the lexer cannot read is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (dynamic.length || substitutions.length) return null",
+      "to": "if (substitutions.length) return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a substitution on a printer is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (dynamic.length || substitutions.length) return null",
+      "to": "if (dynamic.length) return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a background in a group is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (list.ops[k] !== ';' || kids.length !== 1",
+      "to": "if (kids.length !== 1",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a && or || in a group is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": " || kids.length !== 1 || kids[0].kids.length !== 1) return null",
+      "to": " || kids[0].kids.length !== 1) return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a pipeline of several stages inside a group is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": " || kids[0].kids.length !== 1) return null",
+      "to": ") return null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: a subshell nested in a group is part of the same stream",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": ": stage.t === 'group' || stage.t === 'sub' ? listBytes",
+      "to": ": stage.t === 'group' ? listBytes",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a group nested in a group is part of the same stream",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": ": stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands) : null",
+      "to": ": null",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a subshell piped to a shell is read through the bytes it prints",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "(stage.t !== 'group' && stage.t !== 'sub')",
+      "to": "stage.t !== 'group'",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a group of one pipeline is that pipeline's last command, read as any upstream",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (body.kids.length !== 1 || body.kids[0].kids.length !== 1) break",
+      "to": "break",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a group piped with |& also pipes its stderr, so it is could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "commands[tail].closes.at(-1)?.joiner === '|&' ? null :",
+      "to": "false ? null :",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: the last command of an unwrapped group is not read alone as its upstream",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": " && m !== fed.tail ? [m] : []",
+      "to": " ? [m] : []",
+      "only": "^a nested group keeps its own boundary$"
+    },
+    {
+      "label": "ADR-120 T2: a group's bytes are read exactly, with no backslash-n turned into a line",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (typeof fed.bytes === 'string') exact.push(fed.bytes)",
+      "to": "if (typeof fed.bytes === 'string') loose.push(fed.bytes)",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a group behind a pass-through cat still feeds the shell its exact bytes",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "exact.push(...through.exact)",
+      "to": "void through",
+      "only": "^a group piped to a shell is read through the bytes it prints$"
+    },
+    {
+      "label": "ADR-120 T2: a group feeding xargs gives it the bytes its printers write",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "if (typeof fed.bytes === 'string') texts.push(fed.bytes)",
+      "to": "void fed",
+      "only": "^xargs reads a group's bytes, not its last command$"
     }
   ]
 }

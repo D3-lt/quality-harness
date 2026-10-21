@@ -37,6 +37,8 @@ type shellCommand struct {
 	defines    string
 	opens      []*shellOpen
 	closes     []*shellClose
+	// ADR-120 T2 (shell-words.mjs's): every redirection, in order, with the descriptor it was written on.
+	redirections []shellRedirection
 }
 
 // shellOpen is a `{ }` group, a `( )` subshell or a `NAME() { }` definition opening before a command.
@@ -56,6 +58,12 @@ type shellFrame struct {
 type redirectWrite struct {
 	op, target string
 	dynamic    bool
+}
+
+// shellRedirection is one redirection as written: the digits before the operator (empty for none), the operator and its target.
+type shellRedirection struct {
+	fd, op, target string
+	dynamic        bool
 }
 
 var fdTarget = regexp.MustCompile(`^(?:\d+|-)$`)
@@ -520,7 +528,9 @@ func shellWordsClosed(text string) ([]*shellCommand, bool, bool) {
 		if len(awaiting) > 0 {
 			unmodelled = true
 		}
+		fd := ""
 		if word != nil && allUnquotedDigits(word.chars) {
+			fd = charsString(word.chars)
 			word = nil
 		} else {
 			endWord()
@@ -540,6 +550,7 @@ func shellWordsClosed(text string) ([]*shellCommand, bool, bool) {
 		if !ok {
 			return false
 		}
+		command.redirections = append(command.redirections, shellRedirection{fd: fd, op: op, target: value, dynamic: strings.ContainsAny(value, "$`")})
 		if isHeredoc {
 			pending = append(pending, pendingDoc{owner: command, delimiter: value, quoted: quotedTarget, strip: op == "<<-"})
 		} else if op == "<<<" {

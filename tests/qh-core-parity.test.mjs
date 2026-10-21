@@ -97,7 +97,7 @@ const nodeRow = cmd => {
         argv: c.argv, assignments: c.assignments, dynamic: c.dynamic, quoted: c.quoted, code: c.code,
         heredocs: c.heredocs.map(d => ({ delimiter: d.delimiter, quoted: d.quoted, body: d.body })),
         substitutions: c.substitutions, pipeTo: c.pipeTo, ended: c.ended, redirects: c.redirects, negated: c.negated ?? null, writes: c.writes,
-        bangs: c.bangs, terminator: c.terminator, defines: c.defines, opens: c.opens, closes: c.closes,
+        bangs: c.bangs, terminator: c.terminator, defines: c.defines, opens: c.opens, closes: c.closes, redirections: c.redirections,
       })),
     },
   }

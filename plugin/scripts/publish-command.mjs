@@ -1,7 +1,7 @@
 // The classifier of what a shell command would publish: which words are a git commit or push, which are only
 // mentioned, which run elsewhere, and which commit goes into a repository the command itself made (ADR-061,
 // ADR-067, ADR-081, ADR-086, ADR-090, ADR-093). Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B1):
-// it is pure over the command text, so it takes no file, process or clock and imports only the tokenizer. Every
+// it is pure over the command text, so it takes no file, process or clock and imports only the tokenizer and its grammar. Every
 // answer it gives is held by tests/goldens/publish-*.json and tests/publish-command.test.mjs.
 //
 // The one reading of a command's text that stays (ADR-060, ADR-061): whether it
@@ -24,6 +24,7 @@
 // through a variable or a command substitution is a mention at most, and a script
 // file is git's hook's to see (ADR-066).
 import { shellWords } from './shell-words.mjs'
+import { parseShell } from './shell-grammar.mjs'
 
 /**
  * commitOnlyCommand proves a command is one commit and nothing else (ADR-081):
@@ -655,7 +656,7 @@ function gitRunsCommands(argv, at) {
 // of the 626934a batch), so those are left to the advisory arm.
 const XARGS_MODELLED = /^(?:-I.*|-i|--replace(?:=.*)?|-r|--no-run-if-empty|-t|--verbose)$/
 
-function xargsInvocations(commands, n, start) {
+function xargsInvocations(commands, n, start, tree) {
   const { argv, heredocs } = commands[n]
   const x = argv.findIndex((word, k) => k < start && programName(word) === 'xargs')
   if (x < 0) return []
@@ -671,7 +672,13 @@ function xargsInvocations(commands, n, start) {
     else if (argv[k] === '-i') replace = '{}'
   }
   const texts = heredocs.map(doc => doc.body)
-  for (const upstream of commands.filter(c => c.pipeTo === n)) {
+  // ADR-120 T2: a group of several commands feeds xargs the bytes its printers write, in order, not its last command's; one the
+  // renderer cannot read feeds nothing (its last command is not read alone either), so only what the xargs words name
+  // themselves is read: could-not-look for the rest.
+  const fed = groupFeeding(commands, n, tree)
+  if (typeof fed.bytes === 'string') texts.push(fed.bytes)
+  for (const m of feederIndexes(commands, n, fed)) {
+    const upstream = commands[m]
     const from = programIndex(upstream.argv)
     if (typeof from !== 'number' || upstream.dynamic.includes(from) || programName(upstream.argv[from] ?? '') !== 'echo') return []
     texts.push(...literalOutput(upstream.argv, from))
@@ -788,39 +795,157 @@ function literalOutput(argv, start) {
   return []
 }
 
-// The text a shell would run from its stdin: its own heredoc or here-string, and
-// what the pipeline upstream of it writes, through any `cat` or `tee`. `printf` and
-// zsh's `echo` turn `\n` into a line; reading every text that way can only find a
-// publish that is there (Codex review of 341c49c: `echo … | cat | bash`).
-function stdinScripts(commands, n, seen = new Set()) {
-  const scripts = commands[n].heredocs.map(doc => doc.body)
-  for (let m = 0; m < commands.length; m++) {
-    if (commands[m].pipeTo !== n || seen.has(m)) continue
-    seen.add(m)
-    // The last command of a group of several commands is not all the group writes: `{ printf %s '#'; echo …; } | sh`
-    // runs a comment (the review of c48dd5b0..cfd24edc), so nothing is proven from it.
-    if (commands.some(c => c.groupEnd === m)) continue
-    const upstream = commands[m]
-    scripts.push(...upstream.heredocs.map(doc => doc.body))
-    const start = programIndex(upstream.argv)
-    if (typeof start !== 'number' || upstream.dynamic.includes(start)) continue
-    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) scripts.push(...stdinScripts(commands, m, seen))
-    scripts.push(...literalOutput(upstream.argv, start))
-  }
-  return scripts.map(text => text.replace(/\\n/g, '\n'))
+// ADR-120 T2 (Decision 2): what a group or subshell of several commands writes to its stdout, read from the tree. Only `echo`
+// and `printf` contribute, each as the exact bytes it prints; the group is those bytes in order. A `&&`, `||` or `&`, a pipeline
+// of several stages, another program, a substitution, a dynamic word, an option or escape the shells disagree on, or a
+// redirection outside the two read below makes it null, which is could-not-look and never the empty string.
+
+// Whether a printer's stdout still reaches the pipe, given its redirections: true, false (it goes to stderr or a file), or null
+// when they are not the one `2>&1` or the one `>&2` / `>file` read here. Measured on /bin/sh and /bin/dash (2026-10-21).
+function stdoutStays(redirections) {
+  if (redirections.length === 0) return true
+  if (redirections.length > 1 || redirections[0].dynamic) return null
+  const { fd, op, target } = redirections[0]
+  if (fd === '2' && op === '>&' && target === '1') return true
+  if (fd !== '' && fd !== '1') return null
+  return (op === '>&' && target === '2') || op === '>' || op === '>>' || op === '>|' ? false : null
 }
 
-function publishInText(text, depth) {
-  if (depth > WALK_DEPTH) return null
-  const { commands } = shellWords(text)
-  for (let n = 0; n < commands.length; n++) {
-    const found = publishInCommand(commands, n, depth)
+// The bytes `echo` writes: its words joined by a space and a newline. An option (`-n`, `-e`, `-E`) or a backslash is where
+// the shells differ, so it is not read.
+const echoBytes = words => (words.some(word => /^-[neE]+$/.test(word) || word.includes('\\')) ? null : `${words.join(' ')}\n`)
+
+// The bytes `printf` writes for a literal format whose only conversion is `%s` and whose only escapes are `\n` and `\t`: the
+// format over its arguments, repeated while arguments remain, a missing one empty; a format with no conversion is written once.
+function printfBytes([format, ...args]) {
+  if (format === undefined || format.startsWith('-')) return null
+  const pieces = []
+  for (let k = 0; k < format.length; k++) {
+    if (format[k] === '%') {
+      if (format[++k] !== 's') return null
+      pieces.push(null)
+    } else if (format[k] === '\\') {
+      const escaped = { n: '\n', t: '\t' }[format[++k]]
+      if (escaped === undefined) return null
+      pieces.push(escaped)
+    } else pieces.push(format[k])
+  }
+  const per = pieces.filter(piece => piece === null).length
+  let out = ''
+  for (let round = 0, next = 0; round < Math.max(1, per ? Math.ceil(args.length / per) : 1); round++) {
+    for (const piece of pieces) out += piece === null ? (args[next++] ?? '') : piece
+  }
+  return out
+}
+
+function printerBytes({ argv, dynamic, substitutions, redirections }) {
+  if (dynamic.length || substitutions.length) return null
+  const stays = stdoutStays(redirections)
+  const bytes = argv[0] === 'echo' ? echoBytes(argv.slice(1)) : argv[0] === 'printf' ? printfBytes(argv.slice(1)) : null
+  return bytes === null || stays === null ? null : stays ? bytes : ''
+}
+
+// A list's bytes: each item one printer or one nested group, joined by `;` or a newline.
+function listBytes(list, commands) {
+  let out = ''
+  for (let k = 0; k < list.kids.length; k++) {
+    const { kids } = list.kids[k]
+    if (list.ops[k] !== ';' || kids.length !== 1 || kids[0].kids.length !== 1) return null
+    const stage = kids[0].kids[0]
+    const bytes = stage.t === 'cmd' ? printerBytes(commands[stage.i])
+      : stage.t === 'group' || stage.t === 'sub' ? listBytes(stage.kids[0], commands) : null
+    if (bytes === null) return null
+    out += bytes
+  }
+  return out
+}
+
+// The stage that feeds command `n` in the pipeline holding it, or null.
+function feederOf(node, n) {
+  if (node.t === 'pipe') {
+    const at = node.kids.findIndex(kid => kid.t === 'cmd' && kid.i === n)
+    if (at > 0) return node.kids[at - 1]
+  }
+  for (const kid of node.kids) {
+    const found = feederOf(kid, n)
     if (found) return found
   }
   return null
 }
 
-function publishInCommand(commands, n, depth) {
+const lastCommand = node => (node.t === 'cmd' ? node.i : lastCommand(node.kids.at(-1)))
+
+// What feeds a shell or xargs from a group or subshell: `{ m }` when the stage is one pipeline, whose last command is read as
+// any other upstream; `{ bytes, tail }` when it is a list, with its exact bytes (null: could-not-look) and the index of its last
+// command, which the flat upstream scan must not read alone. `{ tail: -1 }` for no group, and with no tree (text the grammar
+// does not read) the flat scan stands as it was.
+function groupFeeding(commands, n, tree) {
+  const stage = tree ? feederOf(tree, n) : null
+  if (!stage || (stage.t !== 'group' && stage.t !== 'sub')) return { tail: -1 }
+  let resolved = stage
+  while (resolved.t === 'group' || resolved.t === 'sub') {
+    const body = resolved.kids[0]
+    if (body.kids.length !== 1 || body.kids[0].kids.length !== 1) break
+    resolved = body.kids[0].kids[0].kids.at(-1)
+  }
+  if (resolved.t === 'cmd') return { m: resolved.i, tail: -1 }
+  if (resolved.t !== 'group' && resolved.t !== 'sub') return { tail: -1 }
+  const tail = lastCommand(stage)
+  // `|&` also pipes the group's stderr, which this does not read.
+  return { bytes: commands[tail].closes.at(-1)?.joiner === '|&' ? null : listBytes(resolved.kids[0], commands), tail }
+}
+
+// The commands whose own output feeds `n`: those piped to it, and the one a single-pipeline group resolves to.
+const feederIndexes = (commands, n, fed) => commands.flatMap((c, m) => ((c.pipeTo === n || m === fed.m) && m !== fed.tail ? [m] : []))
+
+// The text a shell would run from its stdin: its own heredoc or here-string, and
+// what the pipeline upstream of it writes, through any `cat` or `tee`. `printf` and
+// zsh's `echo` turn `\n` into a line; reading every text that way can only find a
+// publish that is there (Codex review of 341c49c: `echo … | cat | bash`). A group's exact bytes are read as they are.
+function stdinParts(commands, n, tree, seen) {
+  const loose = commands[n].heredocs.map(doc => doc.body)
+  const exact = []
+  const fed = groupFeeding(commands, n, tree)
+  if (typeof fed.bytes === 'string') exact.push(fed.bytes)
+  for (const m of feederIndexes(commands, n, fed)) {
+    if (seen.has(m)) continue
+    seen.add(m)
+    // The last command of a group of several commands is not all the group writes: `{ printf %s '#'; echo …; } | sh`
+    // runs a comment (the review of c48dd5b0..cfd24edc), so nothing is proven from it. With a tree the group's bytes are read
+    // above; this still holds where the grammar did not read the text.
+    if (commands.some(c => c.groupEnd === m)) continue
+    const upstream = commands[m]
+    loose.push(...upstream.heredocs.map(doc => doc.body))
+    const start = programIndex(upstream.argv)
+    if (typeof start !== 'number' || upstream.dynamic.includes(start)) continue
+    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) {
+      const through = stdinParts(commands, m, tree, seen)
+      loose.push(...through.loose)
+      exact.push(...through.exact)
+    }
+    loose.push(...literalOutput(upstream.argv, start))
+  }
+  return { loose, exact }
+}
+
+function stdinScripts(commands, n, tree) {
+  const { loose, exact } = stdinParts(commands, n, tree, new Set())
+  return [...loose.map(text => text.replace(/\\n/g, '\n')), ...exact]
+}
+
+function publishInText(text, depth) {
+  if (depth > WALK_DEPTH) return null
+  const words = shellWords(text)
+  const { commands } = words
+  const tree = parseShell(words)
+  for (let n = 0; n < commands.length; n++) {
+    const found = publishInCommand(commands, n, depth, tree)
+    if (found) return found
+  }
+  return null
+}
+
+function publishInCommand(commands, n, depth, tree) {
   const { argv, dynamic, substitutions } = commands[n]
   const inner = texts => {
     for (const text of texts) {
@@ -841,7 +966,7 @@ function publishInCommand(commands, n, depth) {
     if (invoked) return invoked
     const ran = inner(gitRunsCommands(argv, start))
     if (ran) return ran
-    for (const built of xargsInvocations(commands, n, start)) {
+    for (const built of xargsInvocations(commands, n, start, tree)) {
       const fromStdin = gitInvocation(built, 0, [])
       if (fromStdin) return fromStdin
     }
@@ -886,7 +1011,7 @@ function publishInCommand(commands, n, depth) {
       }
       k = shell.flag + 1
     } else if (k === start && shellRuns(argv.slice(k, shell.stdin))) {
-      const found = inner(stdinScripts(commands, n))
+      const found = inner(stdinScripts(commands, n, tree))
       if (found) return found
     }
   }

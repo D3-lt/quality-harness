@@ -1006,7 +1006,7 @@ func gitRunsCommands(argv []string, at int) []string {
 var xargsModelled = regexp.MustCompile(`^(?:-I.*|-i|--replace(?:=.*)?|-r|--no-run-if-empty|-t|--verbose)$`)
 var anySpace = regexp.MustCompile(`[\t\n\v\f\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]+`)
 
-func xargsInvocations(commands []*shellCommand, n, start int) [][]string {
+func xargsInvocations(commands []*shellCommand, n, start int, tree *shellNode) [][]string {
 	argv := commands[n].argv
 	x := -1
 	for k, word := range argv {
@@ -1046,10 +1046,15 @@ func xargsInvocations(commands []*shellCommand, n, start int) [][]string {
 	for _, doc := range commands[n].heredocs {
 		texts = append(texts, doc.body)
 	}
-	for _, upstream := range commands {
-		if upstream.pipeTo != n {
-			continue
-		}
+	// ADR-120 T2 (publish-command.mjs's): a group of several commands feeds xargs the bytes its printers write, in order, not its
+	// last command's; one the renderer cannot read feeds nothing (its last command is not read alone either), so only what the
+	// xargs words name themselves is read: could-not-look for the rest.
+	fed := groupFeeding(commands, n, tree)
+	if fed.read {
+		texts = append(texts, fed.bytes)
+	}
+	for _, m := range feederIndexes(commands, n, fed) {
+		upstream := commands[m]
 		from, text := programIndex(upstream.argv)
 		if text != nil || upstream.isDynamic(from) || programName(argAt(upstream.argv, from)) != "echo" {
 			return nil
@@ -1269,17 +1274,248 @@ func literalOutput(argv []string, start int) []string {
 	return nil
 }
 
-func stdinScripts(commands []*shellCommand, n int, seen map[int]bool) []string {
-	scripts := []string{}
-	for _, doc := range commands[n].heredocs {
-		scripts = append(scripts, doc.body)
+// ADR-120 T2 (publish-command.mjs's): what a group or subshell of several commands writes to its stdout, read from the tree.
+// Only `echo` and `printf` contribute, each as the exact bytes it prints; anything else in the group makes it unreadable, which
+// is could-not-look and never the empty string.
+
+// stdoutStays reports whether a printer's stdout still reaches the pipe, and false for the second result when its redirections
+// are not the one `2>&1` or the one `>&2` / `>file` read here.
+func stdoutStays(redirections []shellRedirection) (bool, bool) {
+	if len(redirections) == 0 {
+		return true, true
 	}
-	for m := 0; m < len(commands); m++ {
-		if commands[m].pipeTo != n || seen[m] {
+	if len(redirections) > 1 || redirections[0].dynamic {
+		return false, false
+	}
+	r := redirections[0]
+	if r.fd == "2" && r.op == ">&" && r.target == "1" {
+		return true, true
+	}
+	if r.fd != "" && r.fd != "1" {
+		return false, false
+	}
+	if (r.op == ">&" && r.target == "2") || r.op == ">" || r.op == ">>" || r.op == ">|" {
+		return false, true
+	}
+	return false, false
+}
+
+// echoBytes is the bytes `echo` writes: its words joined by a space and a newline, unless one is an option or holds a backslash.
+func echoBytes(words []string) (string, bool) {
+	for _, word := range words {
+		if echoOptions.MatchString(word) || strings.Contains(word, `\`) {
+			return "", false
+		}
+	}
+	return strings.Join(words, " ") + "\n", true
+}
+
+// printfBytes is the bytes `printf` writes for a literal format whose only conversion is `%s` and whose only escapes are `\n`
+// and `\t`: the format over its arguments, repeated while arguments remain, a missing one empty; no conversion, written once.
+func printfBytes(words []string) (string, bool) {
+	if len(words) == 0 || strings.HasPrefix(words[0], "-") {
+		return "", false
+	}
+	args := words[1:]
+	pieces := []*string{} // nil is a conversion
+	format := []rune(words[0])
+	for k := 0; k < len(format); k++ {
+		switch format[k] {
+		case '%':
+			k++
+			if k >= len(format) || format[k] != 's' {
+				return "", false
+			}
+			pieces = append(pieces, nil)
+		case '\\':
+			k++
+			escaped := ""
+			switch {
+			case k < len(format) && format[k] == 'n':
+				escaped = "\n"
+			case k < len(format) && format[k] == 't':
+				escaped = "\t"
+			default:
+				return "", false
+			}
+			pieces = append(pieces, &escaped)
+		default:
+			piece := string(format[k])
+			pieces = append(pieces, &piece)
+		}
+	}
+	per := 0
+	for _, piece := range pieces {
+		if piece == nil {
+			per++
+		}
+	}
+	rounds := 1
+	if per > 0 && len(args) > 0 {
+		rounds = (len(args) + per - 1) / per
+	}
+	var out strings.Builder
+	next := 0
+	for round := 0; round < rounds; round++ {
+		for _, piece := range pieces {
+			if piece != nil {
+				out.WriteString(*piece)
+				continue
+			}
+			if next < len(args) {
+				out.WriteString(args[next])
+			}
+			next++
+		}
+	}
+	return out.String(), true
+}
+
+func printerBytes(c *shellCommand) (string, bool) {
+	if len(c.dynamic) > 0 || len(c.substitutions) > 0 || len(c.argv) == 0 {
+		return "", false
+	}
+	stays, ok := stdoutStays(c.redirections)
+	if !ok {
+		return "", false
+	}
+	bytes := ""
+	switch c.argv[0] {
+	case "echo":
+		bytes, ok = echoBytes(c.argv[1:])
+	case "printf":
+		bytes, ok = printfBytes(c.argv[1:])
+	default:
+		ok = false
+	}
+	if !ok {
+		return "", false
+	}
+	if !stays {
+		return "", true
+	}
+	return bytes, true
+}
+
+// listBytes is a list's bytes: each item one printer or one nested group, joined by `;` or a newline.
+func listBytes(list *shellNode, commands []*shellCommand) (string, bool) {
+	var out strings.Builder
+	for k, andor := range list.Kids {
+		if list.Ops[k] != ";" || len(andor.Kids) != 1 || len(andor.Kids[0].Kids) != 1 {
+			return "", false
+		}
+		stage := andor.Kids[0].Kids[0]
+		bytes, ok := "", false
+		switch stage.T {
+		case "cmd":
+			bytes, ok = printerBytes(commands[stage.I])
+		case "group", "sub":
+			bytes, ok = listBytes(stage.Kids[0], commands)
+		}
+		if !ok {
+			return "", false
+		}
+		out.WriteString(bytes)
+	}
+	return out.String(), true
+}
+
+// feederOf is the stage that feeds command n in the pipeline holding it, or nil.
+func feederOf(node *shellNode, n int) *shellNode {
+	if node.T == "pipe" {
+		for at, kid := range node.Kids {
+			if at > 0 && kid.T == "cmd" && kid.I == n {
+				return node.Kids[at-1]
+			}
+		}
+	}
+	for _, kid := range node.Kids {
+		if found := feederOf(kid, n); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func lastCommand(node *shellNode) int {
+	for node.T != "cmd" {
+		node = node.Kids[len(node.Kids)-1]
+	}
+	return node.I
+}
+
+// groupFed is what feeds a shell or xargs from a group or subshell: m, the command a single-pipeline group resolves to (-1 for
+// none), or a list's exact bytes (read), with tail the index of its last command, which the flat upstream scan must not read
+// alone (-1 for none). A list that cannot be read has a tail and no bytes: it feeds nothing.
+type groupFed struct {
+	m, tail int
+	bytes   string
+	read    bool
+}
+
+func groupFeeding(commands []*shellCommand, n int, tree *shellNode) groupFed {
+	none := groupFed{m: -1, tail: -1}
+	if tree == nil {
+		return none
+	}
+	stage := feederOf(tree, n)
+	if stage == nil || (stage.T != "group" && stage.T != "sub") {
+		return none
+	}
+	resolved := stage
+	for resolved.T == "group" || resolved.T == "sub" {
+		body := resolved.Kids[0]
+		if len(body.Kids) != 1 || len(body.Kids[0].Kids) != 1 {
+			break
+		}
+		stages := body.Kids[0].Kids[0].Kids
+		resolved = stages[len(stages)-1]
+	}
+	if resolved.T == "cmd" {
+		none.m = resolved.I
+		return none
+	}
+	if resolved.T != "group" && resolved.T != "sub" {
+		return none
+	}
+	fed := groupFed{m: -1, tail: lastCommand(stage)}
+	// `|&` also pipes the group's stderr, which this does not read.
+	closes := commands[fed.tail].closes
+	if len(closes) > 0 && closes[len(closes)-1].joiner == "|&" {
+		return fed
+	}
+	if bytes, ok := listBytes(resolved.Kids[0], commands); ok {
+		fed.bytes, fed.read = bytes, true
+	}
+	return fed
+}
+
+// feederIndexes are the commands whose own output feeds n: those piped to it, and the one a single-pipeline group resolves to.
+func feederIndexes(commands []*shellCommand, n int, fed groupFed) []int {
+	out := []int{}
+	for m, c := range commands {
+		if (c.pipeTo == n || m == fed.m) && m != fed.tail {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func stdinParts(commands []*shellCommand, n int, tree *shellNode, seen map[int]bool) (loose, exact []string) {
+	for _, doc := range commands[n].heredocs {
+		loose = append(loose, doc.body)
+	}
+	fed := groupFeeding(commands, n, tree)
+	if fed.read {
+		exact = append(exact, fed.bytes)
+	}
+	for _, m := range feederIndexes(commands, n, fed) {
+		if seen[m] {
 			continue
 		}
 		seen[m] = true
-		// The last command of a group of several commands is not all the group writes (publish-command.mjs's).
+		// The last command of a group of several commands is not all the group writes (publish-command.mjs's): with a tree the
+		// group's bytes are read above; this still holds where the grammar did not read the text.
 		tail := false
 		for _, c := range commands {
 			if c.groupEnd == m {
@@ -1291,30 +1527,39 @@ func stdinScripts(commands []*shellCommand, n int, seen map[int]bool) []string {
 		}
 		upstream := commands[m]
 		for _, doc := range upstream.heredocs {
-			scripts = append(scripts, doc.body)
+			loose = append(loose, doc.body)
 		}
 		start, text := programIndex(upstream.argv)
 		if text != nil || upstream.isDynamic(start) {
 			continue
 		}
 		if passThrough[programName(argAt(upstream.argv, start))] {
-			scripts = append(scripts, stdinScripts(commands, m, seen)...)
+			through, throughExact := stdinParts(commands, m, tree, seen)
+			loose = append(loose, through...)
+			exact = append(exact, throughExact...)
 		}
-		scripts = append(scripts, literalOutput(upstream.argv, start)...)
+		loose = append(loose, literalOutput(upstream.argv, start)...)
 	}
-	for i, s := range scripts {
-		scripts[i] = strings.ReplaceAll(s, `\n`, "\n")
+	return loose, exact
+}
+
+func stdinScripts(commands []*shellCommand, n int, tree *shellNode) []string {
+	loose, exact := stdinParts(commands, n, tree, map[int]bool{})
+	scripts := []string{}
+	for _, s := range loose {
+		scripts = append(scripts, strings.ReplaceAll(s, `\n`, "\n"))
 	}
-	return scripts
+	return append(scripts, exact...)
 }
 
 func publishInText(text string, depth int) (string, bool) {
 	if depth > walkDepth {
 		return "", false
 	}
-	commands, _ := shellWords(text)
+	commands, complete, closed := shellWordsClosed(text)
+	tree := parseShell(commands, complete, closed)
 	for n := range commands {
-		if found, ok := publishInCommand(commands, n, depth); ok {
+		if found, ok := publishInCommand(commands, n, depth, tree); ok {
 			return found, true
 		}
 	}
@@ -1336,7 +1581,7 @@ var (
 // runeIndex converts a byte offset in s to a rune offset.
 func runeIndex(s string, byteOffset int) int { return utf8.RuneCountInString(s[:byteOffset]) }
 
-func publishInCommand(commands []*shellCommand, n, depth int) (string, bool) {
+func publishInCommand(commands []*shellCommand, n, depth int, tree *shellNode) (string, bool) {
 	c := commands[n]
 	argv, substitutions := c.argv, c.substitutions
 	inner := func(texts []string) (string, bool) {
@@ -1365,7 +1610,7 @@ func publishInCommand(commands []*shellCommand, n, depth int) (string, bool) {
 		if found, ok := inner(gitRunsCommands(argv, start)); ok {
 			return found, true
 		}
-		for _, built := range xargsInvocations(commands, n, start) {
+		for _, built := range xargsInvocations(commands, n, start, tree) {
 			if invoked, ok := gitInvocation(built, 0, nil); ok {
 				return invoked, true
 			}
@@ -1429,7 +1674,7 @@ func publishInCommand(commands []*shellCommand, n, depth int) (string, bool) {
 			}
 			k = shell.flag + 1
 		} else if k == start && shellRuns(argv[k:min(shell.stdin, len(argv))]) {
-			if found, ok := inner(stdinScripts(commands, n, map[int]bool{})); ok {
+			if found, ok := inner(stdinScripts(commands, n, tree)); ok {
 				return found, true
 			}
 		}

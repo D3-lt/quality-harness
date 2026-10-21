@@ -29,6 +29,9 @@ const CODE = /[;&|()\n]/
  * leading `!` words), and `defines` (the name a `NAME()` head record introduces). The result's `closed` is false when a
  * construct never closed, or this reader does not model it (the `function` keyword, a body that is not a group): the
  * grammar in shell-grammar.mjs reads nothing from such text.
+ * ADR-120 T2 adds `redirections` (each redirection's source descriptor, operator and target, in order: `{ fd, op, target, dynamic }`
+ * with `fd` the digits written before the operator or ''), which `writes` cannot carry: a duplication (`>&2`, `2>&1`) writes no
+ * file and is left out of `writes`, so the two lex alike there.
  */
 export function shellWords(text) {
   const src = String(text ?? '')
@@ -54,7 +57,7 @@ export function shellWords(text) {
   let i = 0
 
   function fresh() {
-    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0, writes: [], bangs: 0, terminator: '', defines: '', opens: [], closes: [] }
+    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0, writes: [], bangs: 0, terminator: '', defines: '', opens: [], closes: [], redirections: [] }
   }
   // The construct a `}` or `)` closes: the last command before it carries the close, and the operator after it is its joiner.
   // A close with nothing inside it, or of another kind than the one open, is text this reader does not model.
@@ -260,7 +263,8 @@ export function shellWords(text) {
   function redirection() {
     if (awaiting.length) unmodelled = true
     // A word of digits directly before the operator is a file descriptor.
-    if (word && word.chars.every(x => !x.q && /\d/.test(x.c))) word = null
+    let fd = ''
+    if (word && word.chars.every(x => !x.q && /\d/.test(x.c))) { fd = word.chars.map(x => x.c).join(''); word = null }
     else endWord()
     let op = src[i]
     while (i + 1 < src.length && '<>&|-'.includes(src[i + 1]) && op.length < 3) op += src[++i]
@@ -272,6 +276,9 @@ export function shellWords(text) {
     while (BLANK.has(src[i])) i++
     const target = readTarget()
     if (target === null) return false
+    // ADR-120 T2: every redirection, in order, with the descriptor it was written on (publish-command.mjs reads where a printer's
+    // stdout goes from these, since `writes` leaves a duplication out).
+    command.redirections.push({ fd, op, target: target.value, dynamic: /[$`]/.test(target.value) })
     if (heredoc) {
       pending.push({ owner: command, delimiter: target.value, quoted: target.quoted, strip: op === '<<-' })
     } else if (op === '<<<') {

@@ -449,6 +449,22 @@
       "from": "openers.push({ kind, name: defName, bangs: command.bangs })",
       "to": "openers.push({ kind, name: defName, bangs: 0 })",
       "only": "^(?:a check whose status every POSIX shell fixes is refused, whatever its grouping)$"
+    },
+    {
+      "label": "ADR-120 T2: a redirection keeps the descriptor it was written on",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "fd = word.chars.map(x => x.c).join(''); word = null",
+      "to": "fd = ''; word = null",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
+    },
+    {
+      "label": "ADR-120 T2: every redirection is recorded, in order, with its operator and target",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": ["tests/publish-group.test.mjs"],
+      "from": "command.redirections.push({ fd, op, target: target.value, dynamic: /[$`]/.test(target.value) })",
+      "to": "void fd",
+      "only": "^a redirected or conditional printer is never summed into the pipe$"
     }
   ]
 }

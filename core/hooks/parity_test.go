@@ -34,6 +34,8 @@ type parityCommand struct {
 	Defines       string          `json:"defines"`
 	Opens         []parityOpen    `json:"opens"`
 	Closes        []parityClose   `json:"closes"`
+	// ADR-120 T2: every redirection, in order.
+	Redirections []parityRedirection `json:"redirections"`
 }
 
 type parityOpen struct {
@@ -48,6 +50,13 @@ type parityClose struct {
 }
 
 type parityWrite struct {
+	Op      string `json:"op"`
+	Target  string `json:"target"`
+	Dynamic bool   `json:"dynamic"`
+}
+
+type parityRedirection struct {
+	Fd      string `json:"fd"`
 	Op      string `json:"op"`
 	Target  string `json:"target"`
 	Dynamic bool   `json:"dynamic"`
@@ -87,6 +96,9 @@ func goWords(text string) (bool, bool, []parityCommand, *shellNode) {
 		}
 		for _, w := range c.writes {
 			pc.Writes = append(pc.Writes, parityWrite{Op: w.op, Target: w.target, Dynamic: w.dynamic})
+		}
+		for _, r := range c.redirections {
+			pc.Redirections = append(pc.Redirections, parityRedirection{Fd: r.fd, Op: r.op, Target: r.target, Dynamic: r.dynamic})
 		}
 		if c.pipeTo >= 0 {
 			pipe := c.pipeTo

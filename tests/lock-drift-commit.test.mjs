@@ -82,9 +82,10 @@ test("an edit that moves another task's locked test names the task and the reloc
     assert.match(lines[0], /adr-verify --relock --replace-hashes/, 'names the relock')
 
     // Not per edit: PostToolUse stays quiet about a test file, the boundary says it.
-    const perEdit = spawnSync(bash, [dispatcher, locked, 'PostToolUse'], { encoding: 'utf8', timeout: 60_000 })
+    // The dispatcher takes a path with forward slashes, as run-shell-hook hands it one (tests/hook-work.test.mjs does the same).
+    const perEdit = spawnSync(bash, [dispatcher, locked.replaceAll('\\', '/'), 'PostToolUse'], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(`${perEdit.stdout}${perEdit.stderr}`, '')
-    const boundary = spawnSync(bash, [dispatcher, locked, ''], { encoding: 'utf8', timeout: 60_000 })
+    const boundary = spawnSync(bash, [dispatcher, locked.replaceAll('\\', '/'), ''], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(boundary.status, 0)
     assert.equal(driftLines(boundary.stderr).length, 1, boundary.stderr)
     assert.equal(driftLines(boundary.stdout).length, 0, 'findings are on stderr, where the batch reads them')

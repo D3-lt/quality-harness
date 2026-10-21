@@ -5,14 +5,17 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import os from 'node:os'
+import path from 'node:path'
 import test from 'node:test'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
 import { parseShell } from '../plugin/scripts/shell-grammar.mjs'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
 
 const SHELLS = ['/bin/bash', '/bin/sh', '/bin/dash'].filter(shell => process.platform !== 'win32' && existsSync(shell))
+// A shell is dash by what it IS, not by its path: Ubuntu's /bin/sh is dash, macOS's is bash (CI found the difference, 2026-10-21).
+const dashLike = shell => path.basename(realpathSync(shell)) === 'dash'
 const run = (shell, command) => spawnSync(shell, ['-c', command], { stdio: 'ignore', timeout: 10_000, windowsHide: true, cwd: os.tmpdir() }).status
 // `npm test` stands in as a command that fails and as one that passes: a row whose status the text fixes gives the same answer
 // with both. Returns, per shell, the exit statuses of the row.
@@ -103,8 +106,11 @@ test('a definition that shadows a command gives its later calls the body\'s stat
     'f() { f; }; f', // a call that never ends
     '(false() { :; }); false', // a definition in a subshell does not outlive it
   ]) assert.equal(constantSuccessCheck(row), false, row)
-  for (const row of ['npm test || false() { :; }; false', 'npm test && false() { :; }; false', 'false() { :; }; unset -f false; false', '(false() { :; }); false']) {
-    assert.ok(measured(row).flat(2).some(status => status !== 0), `${row} can fail`)
+  // Measured where a POSIX shell exists; Windows has none of the three, and an empty measurement proves nothing.
+  if (SHELLS.length) {
+    for (const row of ['npm test || false() { :; }; false', 'npm test && false() { :; }; false', 'false() { :; }; unset -f false; false', '(false() { :; }); false']) {
+      assert.ok(measured(row).flat(2).some(status => status !== 0), `${row} can fail`)
+    }
   }
 })
 
@@ -201,7 +207,7 @@ test('a signed exit status is read only where every shell agrees', () => {
   for (const statuses of measured('exit +1')) assert.deepEqual(statuses, [1], 'exit +1 exits 1 in every shell')
   assert.equal(constantSuccessCheck('npm test; exit +1'), false)
   // `exit -1` is 255 under bash and sh, and a refused number (2) under dash: could-not-look.
-  assert.deepEqual(measured('exit -1').map(s => s[0]), SHELLS.map(shell => (shell === '/bin/dash' ? 2 : 255)))
+  assert.deepEqual(measured('exit -1').map(s => s[0]), SHELLS.map(shell => (dashLike(shell) ? 2 : 255)))
   assert.equal(constantSuccessCheck('npm test; exit -1'), false)
 })
 
@@ -213,7 +219,7 @@ test('a negated definition head and an exit with extra operands are could-not-lo
   // DIRTY twin: the same definition without the bang is read, and exits 0.
   assert.equal(constantSuccessCheck('f() { :; }'), true)
   // `exit 256 1` is 1 under bash and sh ("too many arguments") and 0 under dash.
-  assert.deepEqual(measured('exit 256 1').map(s => s[0]), SHELLS.map(shell => (shell === '/bin/dash' ? 0 : 1)))
+  assert.deepEqual(measured('exit 256 1').map(s => s[0]), SHELLS.map(shell => (dashLike(shell) ? 0 : 1)))
   for (const row of ['exit 256 1', 'npm test; exit 256 1', 'npm test; exit 0 1']) assert.equal(constantSuccessCheck(row), false, row)
   assert.equal(constantSuccessCheck('npm test; exit 256'), true)
 })

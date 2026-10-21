@@ -32,7 +32,9 @@ function corpus(lines) {
   cpSync(path.join(dir, 'ADR-001-selftest.md'), path.join(other, 'ADR-001-selftest.md'))
   mkdirSync(path.join(dir, 'sub'))
   writeFileSync(path.join(dir, 'sub', 'keep.txt'), 'x\n')
-  const fence = ['```bash', ...lines, '```'].join('\n').replaceAll('__OTHER__', other)
+  // The fence runs in bash, where an unquoted backslash is an escape: a Windows path is written with forward slashes, as Git
+  // Bash takes it (CI on Windows, 2026-10-21: `cd C:\Users\…` became `cd C:Users…`, failed, and the fence read the mutated copy).
+  const fence = ['```bash', ...lines, '```'].join('\n').replaceAll('__OTHER__', other.replaceAll('\\', '/'))
   const task = path.join(dir, TASK)
   writeFileSync(task, `${readFileSync(task, 'utf8').replace(/```bash\n[\s\S]*?```/, fence).trimEnd()}\n\n## Mutation Log\n`)
   for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {

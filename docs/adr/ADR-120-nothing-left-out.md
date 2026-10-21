@@ -5,10 +5,10 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's approved plan of 2026-10-21 over what ADR-119 named as left out, explored read-only at ee802e5d
 **Cross-references:** docs/BACKLOG.md, docs/adr-archive/ADR-040-sessionstart-ready-uses-the-listing.md, docs/specs/2026-09-10-sessionstart-ready-uses-the-listing.md, docs/adr/ADR-066-git-refuses-an-unchecked-publish.md, docs/adr/ADR-067-the-publish-classifier-reads-the-command-as-the-shell-splits-it.md, docs/adr/ADR-096-turn-end-findings-reach-the-agent.md, docs/adr/ADR-097-remove-what-nothing-acts-on.md, docs/adr/ADR-099-sessionstart-does-not-list-ready-tasks.md, docs/adr/ADR-108-the-hooks-say-what-to-do-next.md, docs/adr/ADR-110-a-static-core-owns-the-hooks.md, docs/adr/ADR-111-the-turn-end-judges-against-a-baseline.md, docs/adr/ADR-112-the-lifecycle-is-measured-where-it-can-work.md, docs/adr/ADR-116-qh-ships-as-release-assets-fetched-and-verified.md, docs/adr/ADR-119-what-the-backlog-still-holds.md
-**Governs:** `plugin/scripts/shell-words.mjs`, `core/hooks/shellwords.go`, `plugin/scripts/check-command.mjs`, `core/hooks/checkcmd.go`, `plugin/scripts/publish-command.mjs`, `core/hooks/publishcmd.go`, `plugin/bin/spec-verify`, `plugin/scripts/work-next.mjs`, `plugin/scripts/standalone-link.mjs`, `plugin/bin/qh-root`, `plugin/scripts/publish-verdict.mjs`, `core/hooks/orientation.go`, `plugin/scripts/completion-rules.mjs`, `core/hooks/turnend.go`, `plugin/lib/record.py`, `plugin/bin/adr-lint`
+**Governs:** `plugin/scripts/shell-words.mjs`, `core/hooks/shellwords.go`, `plugin/scripts/check-command.mjs`, `core/hooks/checkcmd.go`, `plugin/scripts/publish-command.mjs`, `core/hooks/publishcmd.go`, `plugin/bin/spec-verify`, `plugin/scripts/work-next.mjs`, `plugin/scripts/standalone-link.mjs`, `plugin/bin/qh-root`, `plugin/scripts/publish-verdict.mjs`, `core/hooks/orientation.go`, `plugin/scripts/completion-rules.mjs`, `core/hooks/turnend.go`, `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`
 **Enforced-by:** None — declared by its tasks. Each task adds one campaign mutation per mechanism; naming them before they exist would be a pointer to nothing.
-**Invalidates:** ADR-096 — its Decision continues a turn on any check; under T6 the two rules that tell the agent to run the check (R1, an unchecked tree; R2, unchecked commits) continue the turn only when the check is declared, and on an inferred check reach the user alone. Every other rule (A, W, N, R4, R5) and every other origin (`none`, `refused`, `unreadable`, `unproven`) keeps ADR-096's, ADR-108's and ADR-111's delivery unchanged. ADR-097 — its deferral of removing `post-edit-check.sh` until a retirement tag exists becomes a decision against removal (T3). ADR-096's locked tests in `tests/turn-end-delivery.test.mjs` (36 locks over ADR-096 T1–T3, from `python3 scripts/test-locks.py tests/turn-end-delivery.test.mjs` on 2026-10-21) stay byte-identical unless a row's fixture asserts R1 or R2 on an inferred check, which T6 then relocks with its reason.
-**Served-path change:** a declared check whose exit status the shell grammar fixes under every POSIX shell is refused, including a skipped group, a negated group, a POSIX function definition and a shadowed builtin; a check using bash-only syntax is no longer refused as constant; a group piped to a shell or to xargs is read through the bytes it prints; a spec fact can be tagged `@retired`; a home-directory forwarder runs the session's own plugin copy; the §390 relock advice is said once per check pair; and a Stop continues a turn to run the check only when the project declared it.
+**Invalidates:** ADR-096 — its Decision continues a turn on any check; under T6 the two rules that tell the agent to run the check (R1, an unchecked tree; R2, unchecked commits) continue the turn only when the check is declared, and on an inferred check reach the user alone. Every other rule (A, W, N, R4, R5) and every other origin (`none`, `refused`, `unreadable`, `unproven`) keeps ADR-096's, ADR-108's and ADR-111's delivery unchanged. ADR-097 — its deferral of removing `post-edit-check.sh` until a retirement tag exists becomes a decision against removal (T3). ADR-119 T3 — its narrow reading of a stop word in a sign-off (any negative word in the note's own words stops it) becomes, under T7, the note's last verdict word deciding; the forms it neutralised stay neutralised. ADR-096's locked tests in `tests/turn-end-delivery.test.mjs` (36 locks over ADR-096 T1–T3, from `python3 scripts/test-locks.py tests/turn-end-delivery.test.mjs` on 2026-10-21) stay byte-identical unless a row's fixture asserts R1 or R2 on an inferred check, which T6 then relocks with its reason.
+**Served-path change:** a declared check whose exit status the shell grammar fixes under every POSIX shell is refused, including a skipped group, a negated group, a POSIX function definition and a shadowed builtin; a check using bash-only syntax is no longer refused as constant; a group piped to a shell or to xargs is read through the bytes it prints; a spec fact can be tagged `@retired`; a home-directory forwarder runs the session's own plugin copy; the §390 relock advice is said once per check pair; a Stop continues a turn to run the check only when the project declared it; adr-next evaluates a cross-record dependency in a corpus named `NNN-slug.md`; and a sign-off's last verdict word decides whether it stops.
 
 ## Context
 
@@ -56,6 +56,13 @@ What three read-only explorations and a cold Codex review found at ee802e5d:
   (`check-command.mjs:313-374`) returns `declared`, `inferred`, `none`, `refused`, `unreadable` or `unproven`;
   `completion-rules.mjs:663` and `turnend.go:198-203` drop it, so an inferred check continues the turn as a declared one does.
   The figures stay in the peer's repository (CLAUDE.md §6).
+- **adr-next misreads another corpus's records and sign-offs** (an outside report from a peer corpus on 3.8.50, 2026-10-21,
+  confirmed against source). `foreign_state` (`plugin/bin/adr-next:1027`) globs `ADR-*.md`, so in a corpus whose records are
+  `NNN-slug.md` every cross-record Depends-on reads "cannot evaluate"; adr-lint fixed the same glob (`plugin/bin/adr-lint:4388`,
+  BACKLOG §190). And `human_outcome` (`:408-449`) stops on any negative word in the note's own words, so a sign-off that ends in
+  "approved" after describing what was observed stops: `human_outcome` returns `stop` for "observed: … trip the FAIL guard …;
+  approved", "observed: reranker stopped: fused order in 0.4 s …; approved" and "observed: the run printed [build failed];
+  approved" (measured 2026-10-21 at ace624b2).
 
 ### The class, enumerated
 
@@ -112,13 +119,19 @@ the decisions this record changes (Invalidates).
    that still binds a present test is advised. `work-next` leaves retired ids out of what a spec owes: a spec whose
    recognised ids are all retired owes nothing, while a spec with no recognised id keeps today's route as uncovered. The ADR-040 spec's F-1 rows that bind deleted tests are retired. ADR-097's deferred removal of
    `post-edit-check.sh` is decided against: the hook's findings reach the agent since ADR-102, and ADR-119 T4 improved them.
-4. **T4:** both SessionStart writers export `QH_PLUGIN_ROOT`, as their own line with their own idempotence, written whether or
-   not git's hook probe passed and whether or not an older export block is present; the `RESOLVER` and `qh-root` prefer it,
-   then `CLAUDE_PLUGIN_ROOT`, each only when it holds `bin/`, then the installed or newest copy.
+4. **T4:** both SessionStart paths export `QH_PLUGIN_ROOT` through their own writer (`offerPluginRoot`, Node and Go), called
+   before `offerPublishHook` and independent of it: written whether or not git's hook probe passed and whether or not an older
+   export block is present; the `RESOLVER` and `qh-root` prefer it, then `CLAUDE_PLUGIN_ROOT`, each only when it holds
+   `bin/`, then the installed or newest copy.
 5. **T5:** the §390 move is advised once per (from, to) check pair with the tasks it covers.
 6. **T6:** R1 and R2 continue a turn only when the check is declared; on an inferred check they reach the user once, as a
    `systemMessage`, recorded as delivered to the user so the dedupe and the delivery agree. Every other rule and origin is
    unchanged.
+7. **T7:** adr-next finds a foreign record by the rule adr-lint uses (`ADR-NNN-slug.md` or `NNN-slug.md`, with adr-lint's date
+   guard), shared from `plugin/lib/record.py` rather than copied. A sign-off's LAST verdict word decides: affirmative after
+   negative passes, negative after affirmative stops. A negator before an affirmative, a questioned or taken-back verdict and a
+   cross stay stops wherever they sit, and every form ADR-119 T3 neutralised stays neutralised. Decided by the owner on
+   2026-10-21.
 
 What would make this fail: a twin listed as "must still refuse", "must still be a publish" or "must still continue" that does
 not after its task. Each is a row in that task's tests, so the fence goes red.
@@ -155,6 +168,8 @@ in T1's commit. Nothing moves.
 | The SessionStart env file | adds `export QH_PLUGIN_ROOT=<root>`, from Node and Go | T4 | the forwarders' `RESOLVER`, `qh-root` |
 | adr-lint advice | one §390 line per check pair | T5 | readers of adr-lint |
 | Stop output | R1 and R2 on an inferred check are a `systemMessage`, no `additionalContext` | T6 | the host |
+| A sign-off's outcome | the last verdict word decides | T7 | adr-next, adr-lint's done reading |
+| Foreign record lookup | `NNN-slug.md` records found, through a shared helper | T7 | adr-next `foreign_state` |
 
 ## Inter-task Contracts
 
@@ -165,7 +180,7 @@ in T1's commit. Nothing moves.
 
 ## Implementation
 
-See `tasks/README.md`: T1, then T2; T3, T4, T5 and T6 are independent. The same plan executes, under their own records:
+See `tasks/README.md`: T1, then T2; T3, T4, T5, T6 and T7 are independent. The same plan executes, under their own records:
 ADR-112 T1; ADR-116 T1–T3 and the §386 measurement; ADR-110 T2 S1–S2; and, on the bench peer's rows, ADR-110 T2 S3, ADR-112
 T2–T3 and ADR-110 T3. The bench peer answered on 2026-10-21: ADR-112's pilot is its ADR-163, Accepted and not yet built, and
 runs only after its current stage closes and its owner approves; a Go-hooks arm needs a record there and that owner's
@@ -176,9 +191,9 @@ acceptance, and its containers are linux/amd64, so it needs that asset from ADR-
 - **Positive:** seven constant checks are refused and one false refusal goes on dash; three publish misreadings close on
   one grammar; a spec fact can be retired; a forwarder runs the copy the session runs; one check change is said once; an
   adopter whose tests cannot run is not charged a continuation.
-- **Negative:** six readers change (the check and publish classifiers, spec-verify, work-next, adr-lint, the Stop rules), so
-  the release waits for an outside run, one peer at a time (CLAUDE.md §18). Mutation catalogues on the lexer and the check
-  classifier are repointed.
+- **Negative:** seven readers change (the check and publish classifiers, spec-verify, work-next, adr-lint, adr-next, the Stop
+  rules), so the release waits for an outside run, one peer at a time (CLAUDE.md §18). Mutation catalogues on the lexer and the
+  check classifier are repointed.
 - **Neutral:** the env file gains one export.
 
 ## Out of Scope

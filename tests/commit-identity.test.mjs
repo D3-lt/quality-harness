@@ -5,12 +5,13 @@
 // a hook off, and the chained form that stays not-one-commit (ADR-081).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { commitOnlyCommand, freshRepositoryCommit, leavesHookInPlace } from '../plugin/scripts/publish-command.mjs'
+import { remove } from './helpers/remove.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')
@@ -36,7 +37,7 @@ function fastPassDecision(command) {
     })
     assert.equal(run.status, 0, run.stderr)
     return run.stdout.trim().startsWith('{') ? JSON.parse(run.stdout).hookSpecificOutput?.permissionDecision ?? null : null
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 }
 
 test('a commit with a user identity reads the same at all three readers, and other -c keys do not', () => {

@@ -99,3 +99,69 @@ test('an inferred finding is recorded as delivered to the user alone, a declared
   declared.hook(stop())
   assert.deepEqual(rows(declared.repo).map(row => row.channel), ['both', 'both'])
 })
+
+// ADR-120 T11: a declared check whose program cannot be found here is no more one the agent can run than an inferred one is. It is
+// said to the user alone, once, naming the program; `"turnEnd": "continue"` keeps the continuation for it and for an inferred check.
+const declaring = (check, extra = {}) => ({
+  '.quality-harness.json': `${JSON.stringify({ check, fastCheck: check, ...extra })}\n`,
+  'check.sh': 'exit 0\n', 'src/a.js': 'export const a = 1\n',
+})
+const UNSTARTABLE = [['bash scripts/missing.sh', /missing\.sh/], ['nosuchtool test', /nosuchtool/]]
+const delivered = repo => Object.values(ledgers(repo)).flat().filter(row => row.event === 'action.emitted' && (row.rule === 'R1' || row.rule === 'R2')).map(row => row.channel)
+
+test('a declared check that cannot start continues no turn and is said to the user once', { skip }, t => {
+  for (const [check, program] of UNSTARTABLE) {
+    const { repo, hook, write } = session(t, `unstartable-${UNSTARTABLE.findIndex(entry => entry[0] === check)}`, declaring(check), { commit: true })
+    const said = hook(stop())
+    assert.equal(said.stdout?.hookSpecificOutput, undefined, `${check}: nothing continues the turn: ${JSON.stringify(said.stdout)}`)
+    assert.match(message(said), /newly reachable commit/, `${check}: R2 is said to the user`)
+    assert.match(message(said), /work no `qh-check` has passed on/, `${check}: and R1`)
+    assert.match(message(said), program, `${check}: naming the program`)
+    const again = hook(stop())
+    assert.equal(context(again), '', `${check}: a second Stop does not hand it to the agent`)
+    assert.equal(message(again), '', `${check}: nor repeat it to the user`)
+    write('src/d.js')
+    const changed = hook(stop())
+    assert.equal(context(changed), '', `${check}: a changed tree is still not handed to the agent`)
+    assert.match(message(changed), /work no `qh-check` has passed on/, `${check}: but is said to the user again`)
+    assert.deepEqual(delivered(repo).filter(channel => channel !== 'user'), [], `${check}: recorded as delivered to the user alone`)
+  }
+})
+
+test('a declared check that can start continues as before', { skip }, t => {
+  for (const check of ['node --test', 'npm test', 'sh check.sh', 'bash check.sh']) {
+    const { repo, hook } = session(t, `startable-${check.replace(/\W+/g, '-')}`, declaring(check), { commit: true })
+    const said = hook(stop())
+    assert.match(context(said), /newly reachable commit/, `${check}: R2 reaches the agent`)
+    assert.match(context(said), /work no `qh-check` has passed on/, `${check}: R1 reaches the agent`)
+    assert.equal(context(hook(stop())), '', `${check}: not handed over again on the same tree`)
+    assert.deepEqual(delivered(repo), ['both', 'both'], `${check}: recorded as delivered to both`)
+  }
+})
+
+test('turnEnd continue restores the continuation on an inferred and on an unstartable check', { skip }, t => {
+  const cases = [
+    ['inferred', { ...INFERRED, '.quality-harness.json': '{"turnEnd":"continue"}\n' }],
+    ['missing-script', declaring('bash scripts/missing.sh', { turnEnd: 'continue' })],
+    ['missing-tool', declaring('nosuchtool test', { turnEnd: 'continue' })],
+  ]
+  for (const [name, files] of cases) {
+    const { repo, hook } = session(t, `continue-${name}`, files, { commit: true })
+    const said = hook(stop())
+    assert.match(context(said), /newly reachable commit/, `${name}: R2 reaches the agent`)
+    assert.match(context(said), /work no `qh-check` has passed on/, `${name}: R1 reaches the agent`)
+    assert.equal(context(hook(stop())), '', `${name}: not handed over again on the same tree`)
+    assert.deepEqual(delivered(repo), ['both', 'both'], `${name}: recorded as delivered to both`)
+  }
+})
+
+test('turnEnd notify keeps an unstartable check user-only, and continue changes nothing for a declared one that starts', { skip }, t => {
+  const notify = session(t, 'unstartable-notify', declaring('nosuchtool test', { turnEnd: 'notify' }), { commit: true })
+  const said = notify.hook(stop())
+  assert.equal(context(said), '')
+  assert.match(message(said), /work no `qh-check` has passed on/)
+  assert.equal(message(notify.hook(stop())), '', 'and once')
+  const startable = session(t, 'startable-continue', declaring('sh check.sh', { turnEnd: 'continue' }), { commit: true })
+  assert.match(context(startable.hook(stop())), /work no `qh-check` has passed on/)
+  assert.deepEqual(delivered(startable.repo), ['both', 'both'])
+})

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -182,6 +183,7 @@ type completionFacts struct {
 	commits         commitList
 	unchangedWrites []string
 	turnEnd         string
+	unstartable     bool
 	origin          string
 	cwd             string
 	sentence        func() string
@@ -241,6 +243,8 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 		place = resolvePath(cwd)
 	}
 	f.turnEnd = turnEndSetting(place)
+	// ADR-120 T11: whether a declared check's first program can start here, probed without running the check.
+	f.unstartable = origin.origin == "declared" && !checkCanStart(origin.command, place, os.LookupEnv, runtime.GOOS)
 	var sentence *string
 	f.sentence = func() string {
 		if sentence == nil {
@@ -435,6 +439,79 @@ func couldNotLookReason(sentence, reason string) string {
 		"records what it observed. " + sentence
 }
 
+var (
+	shellOwnWords      = map[string]bool{".": true, ":": true, "[": true, "[[": true, "alias": true, "bg": true, "break": true, "cd": true, "command": true, "continue": true, "declare": true, "do": true, "done": true, "elif": true, "else": true, "esac": true, "eval": true, "exec": true, "exit": true, "export": true, "false": true, "fg": true, "fi": true, "for": true, "function": true, "getopts": true, "hash": true, "if": true, "in": true, "let": true, "local": true, "read": true, "readonly": true, "return": true, "select": true, "set": true, "shift": true, "source": true, "test": true, "then": true, "time": true, "times": true, "trap": true, "true": true, "type": true, "typeset": true, "ulimit": true, "umask": true, "unalias": true, "unset": true, "until": true, "wait": true, "while": true}
+	checkScriptRunners = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "node": true, "python": true, "python3": true, "ruby": true, "perl": true}
+	unreadWord         = regexp.MustCompile("[$`*?\\[\\]{}~\\\\]")
+)
+
+// checkCanStart is plugin/scripts/completion-rules.mjs's: whether a declared check's first program can start here, judged without
+// running it (ADR-120 T11). Only what is certain says no; anything it does not read can start, as before.
+func checkCanStart(command, directory string, lookup func(string) (string, bool), goos string) bool {
+	commands, complete := shellWords(command)
+	if !complete || len(commands) == 0 {
+		return true
+	}
+	first := commands[0]
+	if len(first.argv) == 0 || len(first.opens) > 0 || first.bangs > 0 || first.defines != "" {
+		return true
+	}
+	program, rest := first.argv[0], first.argv[1:]
+	if first.dynamicFlags[0] || unreadWord.MatchString(program) || shellOwnWords[program] {
+		return true
+	}
+	here := func(name string) string {
+		if filepath.IsAbs(name) {
+			return name
+		}
+		return filepath.Join(directory, name)
+	}
+	if strings.Contains(program, "/") {
+		_, err := os.Stat(here(program))
+		return err == nil
+	}
+	pathValue, ok := lookup("PATH")
+	if !ok {
+		return true
+	}
+	windows := goos == "windows"
+	names := []string{program}
+	if windows {
+		extensions, found := lookup("PATHEXT")
+		if !found {
+			extensions = ".COM;.EXE;.BAT;.CMD"
+		}
+		for _, extension := range strings.Split(extensions, ";") {
+			if extension != "" {
+				names = append(names, program+extension)
+			}
+		}
+	}
+	separator := ":"
+	if windows {
+		separator = ";"
+	}
+	onPath := false
+	for _, dir := range strings.Split(pathValue, separator) {
+		if dir == "" {
+			dir = "."
+		}
+		for _, name := range names {
+			if info, err := os.Stat(here(filepath.Join(dir, name))); err == nil && info.Mode().IsRegular() && (windows || info.Mode().Perm()&0o111 != 0) {
+				onPath = true
+			}
+		}
+	}
+	if !onPath {
+		return false
+	}
+	if checkScriptRunners[filepath.Base(program)] && len(rest) > 0 && !first.dynamicFlags[1] && !strings.HasPrefix(rest[0], "-") && !unreadWord.MatchString(rest[0]) {
+		_, err := os.Stat(here(rest[0]))
+		return err == nil
+	}
+	return true
+}
+
 func (h *hookRun) completionRules(ended *recorded) {
 	f := h.completionFacts(ended)
 	if f == nil {
@@ -449,8 +526,9 @@ func (h *hookRun) completionRules(ended *recorded) {
 	recipient := h.recipient()
 	// ADR-120 T6: R1 and R2 ask the agent to run the check, and a check the plugin inferred is not one the agent can be sure to
 	// run. On an inferred check they are said to the user alone, so each is judged against, and delivered to, that audience.
+	// ADR-120 T11: so is a declared check whose program cannot start here, and `"turnEnd": "continue"` keeps the old continuation.
 	ruleChannel, audience := channel, ""
-	if f.origin == "inferred" {
+	if f.turnEnd != "continue" && (f.origin == "inferred" || f.unstartable) {
 		ruleChannel, audience = "user", "user"
 	}
 	base := f.root

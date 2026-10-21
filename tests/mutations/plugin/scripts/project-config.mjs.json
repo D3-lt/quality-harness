@@ -165,6 +165,16 @@
       "from": "declaredPathspecs(root, 'ignore')",
       "to": "declaredPathspecs(root, 'prose')",
       "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
+    },
+    {
+      "label": "ADR-120 T11: turnEnd continue is read",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "if (config?.turnEnd === 'continue') return 'continue'",
+      "to": "",
+      "only": "^(?:turnEnd continue restores the continuation on an inferred and on an unstartable check)$"
     }
   ]
 }

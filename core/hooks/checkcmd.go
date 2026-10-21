@@ -689,8 +689,12 @@ func inferredCheckCaveat(cwd string) string {
 	return ""
 }
 
-// turnEndSetting is where a turn-end finding goes (ADR-096 T3): notify, or the agent.
+// turnEndSetting is where a turn-end finding goes (ADR-096 T3): notify, or the agent. ADR-120 T11: "continue" is the agent's too, and
+// also restores the pre-3.8.51 continuation on an inferred or unstartable check.
 func turnEndSetting(root string) string {
+	if strict(get(readConfig(root), "turnEnd"), "continue") {
+		return "continue"
+	}
 	if strict(get(readConfig(root), "turnEnd"), "notify") {
 		return "notify"
 	}

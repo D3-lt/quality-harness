@@ -722,7 +722,7 @@
       "tests": [
         "tests/turn-end-declared.test.mjs"
       ],
-      "from": "const audience = inferred ? { audience: 'user' } : {}",
+      "from": "const audience = userOnly ? { audience: 'user' } : {}",
       "to": "const audience = {}",
       "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
     },
@@ -745,6 +745,66 @@
       "from": "return !namedByReview(log, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)",
       "to": "return !namedByReview(log, `${commit.sha}:${commitRevision}`, channel, recipient)",
       "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
+    },
+    {
+      "label": "ADR-120 T11: the declared check's first program is probed",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "unstartable: origin.origin === 'declared' && !checkCanStart(",
+      "to": "unstartable: false && !checkCanStart(",
+      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
+    },
+    {
+      "label": "ADR-120 T11: an unstartable check is marked for the user alone",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "(facts.origin === 'inferred' || facts.unstartable === true)",
+      "to": "(facts.origin === 'inferred' || false)",
+      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
+    },
+    {
+      "label": "ADR-120 T11: a program found on no PATH directory cannot start",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "if (!onPath) return false",
+      "to": "if (!onPath) return true",
+      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
+    },
+    {
+      "label": "ADR-120 T11: a script absent for its interpreter cannot start",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "return existsSync(path.resolve(directory, rest[0]))",
+      "to": "return true",
+      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
+    },
+    {
+      "label": "ADR-120 T11: a program on PATH can start",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "return stat.isFile() && (windows || (stat.mode & 0o111) !== 0)",
+      "to": "return false",
+      "only": "^(?:a declared check that can start continues as before)$"
+    },
+    {
+      "label": "ADR-120 T11: turnEnd continue restores the continuation",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-declared.test.mjs"
+      ],
+      "from": "const userOnly = facts.turnEnd !== 'continue' && (",
+      "to": "const userOnly = (",
+      "only": "^(?:turnEnd continue restores the continuation on an inferred and on an unstartable check)$"
     }
   ]
 }

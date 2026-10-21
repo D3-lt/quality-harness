@@ -2,8 +2,9 @@
 // completion, work nobody checked, writes git could not see, and the contract a subagent is handed. Moved out of
 // lifecycle.mjs unchanged (BACKLOG section 375, stage B3). These judges queue what they decide; the dispatcher delivers it.
 import path from 'node:path'
-import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents, walk } from './event-log.mjs'
+import { shellWords } from './shell-words.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
 import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { baselineFor } from './check-ledger.mjs'
@@ -681,6 +682,8 @@ export function completionFacts(input, ended) {
   }
   return {
     log, observation, check, origin: origin.origin, root, baseline, writes, status, commits,
+    // ADR-120 T11: whether a declared check's first program can start here, probed once per Stop without running the check.
+    unstartable: origin.origin === 'declared' && !checkCanStart(origin.command, root ?? path.resolve(input.cwd ?? process.cwd())),
     // ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger, read here so the
     // judgement reaches no file. Null when no bound baseline is kept for that tree and this command.
     baselineVerdict: root !== null && baseline?.ok === true && check && check !== 'refused' ? baselineFor(root, baseline.tree, check)?.verdict ?? null : null,
@@ -690,6 +693,32 @@ export function completionFacts(input, ended) {
     nudge: changed => evidenceNudge(input.cwd, changed),
     turnEnd: turnEndSetting(root ?? path.resolve(input.cwd ?? process.cwd())),
   }
+}
+
+// ADR-120 T11: whether a declared check's first program can start here, judged without running it. Only what is certain says no: a
+// plain program word that is no shell builtin and is on no PATH directory, or a script handed straight to an interpreter that is not
+// there. Anything this does not read (a variable, a glob, a group, an unclosed quote, no PATH at all) can start, as before. It does
+// not run the project's shell setup, so a PATH an `nvm`-style setup extends reads as absent: a finding said to the user, never lost.
+const SHELL_OWN_WORDS = new Set(['.', ':', '[', '[[', 'alias', 'bg', 'break', 'cd', 'command', 'continue', 'declare', 'do', 'done', 'elif', 'else', 'esac', 'eval', 'exec', 'exit', 'export', 'false', 'fg', 'fi', 'for', 'function', 'getopts', 'hash', 'if', 'in', 'let', 'local', 'read', 'readonly', 'return', 'select', 'set', 'shift', 'source', 'test', 'then', 'time', 'times', 'trap', 'true', 'type', 'typeset', 'ulimit', 'umask', 'unalias', 'unset', 'until', 'wait', 'while'])
+const SCRIPT_RUNNERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'node', 'python', 'python3', 'ruby', 'perl'])
+const UNREAD_WORD = /[$`*?[\]{}~\\]/
+export function checkCanStart(command, directory, env = process.env, platform = process.platform) {
+  const { commands, complete } = shellWords(command)
+  const first = commands[0]
+  if (!complete || !first || first.argv.length === 0 || first.opens.length || first.bangs || first.defines) return true
+  const [program, ...rest] = first.argv
+  if (first.dynamic[0] || UNREAD_WORD.test(program) || SHELL_OWN_WORDS.has(program)) return true
+  if (program.includes('/')) return existsSync(path.resolve(directory, program))
+  if (typeof env.PATH !== 'string') return true
+  const windows = platform === 'win32'
+  const names = [program, ...(windows ? (env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean).map(extension => program + extension) : [])]
+  const runnable = file => { try { const stat = statSync(file); return stat.isFile() && (windows || (stat.mode & 0o111) !== 0) } catch { return false } }
+  const onPath = env.PATH.split(windows ? ';' : ':').some(dir => names.some(name => runnable(path.resolve(directory, dir || '.', name))))
+  if (!onPath) return false
+  if (SCRIPT_RUNNERS.has(path.basename(program)) && rest.length && !first.dynamic[1] && !rest[0].startsWith('-') && !UNREAD_WORD.test(rest[0])) {
+    return existsSync(path.resolve(directory, rest[0]))
+  }
+  return true
 }
 
 /**
@@ -710,9 +739,11 @@ export function completionJudgement(facts, input) {
   const channel = channelOf(input.hook_event_name, facts.turnEnd)
   // ADR-120 T6: R1 and R2 ask the agent to run the check, and a check the plugin inferred is not one the agent can be sure to
   // run. On an inferred check they are said to the user alone, so each is judged against, and delivered to, that audience.
-  const inferred = facts.origin === 'inferred'
-  const ruleChannel = inferred ? 'user' : channel
-  const audience = inferred ? { audience: 'user' } : {}
+  // ADR-120 T11: a declared check whose program cannot start here is no more the agent's to run, and `"turnEnd": "continue"` keeps
+  // the pre-3.8.51 continuation for it and for an inferred one.
+  const userOnly = facts.turnEnd !== 'continue' && (facts.origin === 'inferred' || facts.unstartable === true)
+  const ruleChannel = userOnly ? 'user' : channel
+  const audience = userOnly ? { audience: 'user' } : {}
   const recipient = input.agent_id ? 'subagent' : 'main'
   const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
     ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]

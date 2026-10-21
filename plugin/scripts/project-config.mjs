@@ -60,9 +60,11 @@ const specCouldNameConfig = spec => {
 
 // ADR-096 T3: where a turn-end finding goes. `"turnEnd": "notify"` keeps it on the user's screen only; any other value, or none,
 // hands it to the agent too. A file that cannot be read declares nothing and means the default (qh-check says why it cannot).
+// ADR-120 T11: `"continue"` is the agent's too, and also restores the pre-3.8.51 continuation on an inferred or unstartable check.
 export function turnEndSetting(root) {
   let config
   try { config = JSON.parse(readFileSync(path.join(root, '.quality-harness.json'), 'utf8')) } catch { return 'agent' }
+  if (config?.turnEnd === 'continue') return 'continue'
   return config?.turnEnd === 'notify' ? 'notify' : 'agent'
 }
 

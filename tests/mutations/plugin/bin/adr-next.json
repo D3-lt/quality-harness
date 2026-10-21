@@ -1750,16 +1750,32 @@
       "label": "ADR-120 T7 (verification of dcc4693a..d4f51888): a count after the closing affirmative is read as a verdict",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "MEASURED = re.compile(r\"\\s+(?:(?:\\d+\\s+)?of\\s+\\d|\" + COUNTED + r\"|(?:rate",
-      "to": "MEASURED = re.compile(r\"\\s+(?:(?:\\d+\\s+)?of\\s+\\d|(?:rate",
+      "from": "HEDGE + r\"(?:(?:\\d+\\s+)?of\\s+\\d|\" + COUNTED + r\"|(?:rate",
+      "to": "HEDGE + r\"(?:(?:\\d+\\s+)?of\\s+\\d|(?:rate",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {
       "label": "ADR-120 T7 (verification of 9ca659df..e5d6c515): a number that is not a date is read as no count",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "COUNTED = r\"(?!\" + DATE + r\")\\d\"",
+      "from": "COUNTED = r\"(?!\" + DATE + r\")\\d[\\d.,/]*(?![a-z_])\"",
       "to": "COUNTED = r\"\\d+\\s*%\"",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of e5d6c515..2e0d8726): a number joined to letters is read as a count",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "\\d[\\d.,/]*(?![a-z_])\"",
+      "to": "\\d[\\d.,/]*\"",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of e5d6c515..2e0d8726): a hedge before a count hides it",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "MEASURED = re.compile(r\"\\s+\" + HEDGE + r\"(?:",
+      "to": "MEASURED = re.compile(r\"\\s+\" + r\"(?:",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {

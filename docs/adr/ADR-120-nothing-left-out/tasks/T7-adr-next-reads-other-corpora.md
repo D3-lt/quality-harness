@@ -90,6 +90,7 @@ out=$(node --test --test-reporter=tap tests/adr-next-foreign.test.mjs tests/adr-
 - 2026-10-21 · d4f51888* · mutant killed · exit 1 · `plugin/bin/adr-next` · a count after the closing affirmative ("verdict passed 0 tests") is read as a verdict, so a failure becomes done (verification of dcc4693a..d4f51888) · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed
 - 2026-10-21 · 9ca659df* · mutant killed · exit 1 · `plugin/bin/adr-next` · a date after "approved" ("21 October 2026", "21/10/2026") is read as a count, so a real approval stops (verification of d4f51888..9ca659df) · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed
 - 2026-10-21 · e5d6c515* · mutant killed · exit 1 · `plugin/bin/adr-next` · a number after the closing affirmative that is not a date ("passed 0 jobs", "passed 3/10.", "ok 0.0%") is read as a verdict (verification of 9ca659df..e5d6c515) · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed
+- 2026-10-21 · 2e0d8726* · mutant killed · exit 1 · `plugin/bin/adr-next` · a number joined to letters ("approved 2FA rollout") is read as a count, so a real approval stops (verification of e5d6c515..2e0d8726) · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed
 
 ## Invariants
 
@@ -132,3 +133,4 @@ conflict goes back to the owner.
 - 2026-10-21 · d4f51888* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-foreign.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed · ms:26661
 - 2026-10-21 · 9ca659df* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-foreign.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed · ms:30923
 - 2026-10-21 · e5d6c515* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-foreign.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed · ms:30208
+- 2026-10-21 · 2e0d8726* · exit 0 · `out=$(node --test --test-reporter=tap tests/adr-next-foreign.test.mjs tests/adr-next.test.mjs 2>&1) \ …` · acceptance-sha256:51716be36479956dd78fe1ea1691f2fd36f8fec1cd6ee70c2e26b18b0f15abed · ms:29357

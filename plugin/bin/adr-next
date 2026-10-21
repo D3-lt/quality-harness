@@ -435,8 +435,11 @@ CLOSING_WORDS = 4
 # spelled some other way stops, the safe direction: "2026-10-21", "21/10/2026", "21.10.2026", "21 October 2026", "21st Oct".
 DATE = (r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|"
         r"\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)(?!\d|[/.-]\d)")
-COUNTED = r"(?!" + DATE + r")\d"
-MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|" + COUNTED + r"|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
+# A number joined to letters names something ("approved 2FA rollout"), and a hedge before a count does not hide it ("passed
+# only 0 tests"): the verification of e5d6c515..2e0d8726.
+COUNTED = r"(?!" + DATE + r")\d[\d.,/]*(?![a-z_])"
+HEDGE = r"(?:(?:only|just|exactly|about|around|over|under|nearly|almost|roughly)\s+)?"
+MEASURED = re.compile(r"\s+" + HEDGE + r"(?:(?:\d+\s+)?of\s+\d|" + COUNTED + r"|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
 
 
 def closes_the_note(text, match):

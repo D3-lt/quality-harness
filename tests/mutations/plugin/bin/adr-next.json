@@ -1484,8 +1484,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    if not passed:\n        return text\n    return text[:red.start()]",
-      "to": "    if False:\n        return text\n    return text[:red.start()]",
+      "from": "    if not passed or NEGATIVE.search(text, green.end(), end):\n        return text\n    return text[:red.start()]",
+      "to": "    if False or NEGATIVE.search(text, green.end(), end):\n        return text\n    return text[:red.start()]",
       "only": "^a run report whose own verdict is a failure still stops$"
     },
     {
@@ -1668,6 +1668,14 @@
       "tests": ["tests/adr-next-foreign.test.mjs"],
       "from": "        if not re.fullmatch(r\"\\s*(?:verdict)?\\s*\", before, re.I):\n            return False\n",
       "to": "",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of 85642379..f4b2b28d): a negative inside the green clause still blanks the red run",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    if not passed or NEGATIVE.search(text, green.end(), end):",
+      "to": "    if not passed:",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {

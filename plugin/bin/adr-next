@@ -328,8 +328,11 @@ def run_report_removed(text):
         return text
     end = CLAUSE_BREAK.search(text, green.end())
     end = end.start() if end else len(text)
+    # The green clause holds no negative word of its own, counters included: "green run 222: approved failed-total: 3"
+    # reports a failure inside the green clause, so the red run is not blanked and the closing clause decides (the
+    # verification of 85642379..f4b2b28d). Its detail stays free: "linux-shard ok for pkg/alpha, normal and race".
     passed = AFFIRMATIVE.search(text, green.end(), end)
-    if not passed:
+    if not passed or NEGATIVE.search(text, green.end(), end):
         return text
     return text[:red.start()] + FAIL_WORD.sub(" ", text[red.start():brk.start()]) + text[brk.start():]
 

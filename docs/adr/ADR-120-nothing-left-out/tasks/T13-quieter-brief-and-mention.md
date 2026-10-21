@@ -19,7 +19,7 @@ branch-state reports the worktree the session's payload names, a repository whos
 |------|--------|-----|
 | `tests/branch-state-cwd.test.mjs` | create | the cwd and permanent-unknown rows (0 locks: new) |
 | `tests/mention-stash.test.mjs` | create | the stash rows (0 locks: new) |
-| `plugin/scripts/branch-state.mjs` | edit | read the hook payload's `cwd` when present (`main`, :929-1027); a `no remote names a GitHub host` state is keyed once per session, not per head change (:919-924) |
+| `plugin/scripts/branch-state.mjs` | edit | read the hook payload's `cwd` when present (`main`, :929-1027) and use it for every directory the script derives, from `mrw read --grep 'process\.cwd\(\)|cwd:' plugin/scripts/branch-state.mjs`: the shell's cwd (:75), the detached refresher (:836), the review ledger (:937), and both cache lookups (:957, :981); a `no remote names a GitHub host` state is keyed once per session, not per head change (:919-924) |
 | `plugin/scripts/publish-verdict.mjs` | edit | `mentionsCommitOrPush` (:36-48): `stash push` after `git` is no push |
 | `core/hooks/publish.go` | edit | the same (:33-64) |
 | `tests/mutations/plugin/scripts/branch-state.mjs.json` | edit | one entry per mechanism |

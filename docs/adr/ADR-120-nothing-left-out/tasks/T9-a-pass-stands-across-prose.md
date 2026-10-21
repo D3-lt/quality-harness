@@ -18,15 +18,16 @@ A pass on tree X stands for a later tree Y whenever the only paths that differ a
 | File | Change | Why |
 |------|--------|-----|
 | `tests/prose-pass.test.mjs` | create | the rows below (0 locks: new) |
-| `plugin/scripts/check-ledger.mjs` | edit | `checkEventsFor` (:422-425) and `checkStanding` (:512-522) accept a pass whose `after.codeTree` equals the current one under the same prose list; the prose list travels with the observation |
+| `plugin/scripts/check-ledger.mjs` | edit | `checkEventsFor` (:422-425) and `checkStanding` (:512-522) accept a pass whose `codeTree` equals the `codeTree` of the specific tree asked about (the working tree, the staged index, a historical commit), never the current observation's; a newer non-pass on that code tree still wins; the prose list is carried and authenticated through import and ledger binding (:272-276, :320-323) |
 | `plugin/scripts/tree-facts.mjs` | edit | the session's observation computes `codeTree` (the `without` option, :115-118, :157-160) when `prose` is declared |
 | `core/hooks/ledger.go` | edit | the prose branch `passedAlready` lacks (:174-186), and the same standing rule |
 | `plugin/scripts/publish-verdict.mjs` | edit | the advisory sentence naming `prose` for a prose-only unchecked diff, once per tree |
+| `plugin/scripts/completion-rules.mjs`, `plugin/scripts/statusline.mjs`, `plugin/scripts/session-notes.mjs`, `core/hooks/turnend.go`, `core/hooks/sessionend.go`, `core/hooks/notes.go` | edit or retained | every other reader of a pass (`completion-rules.mjs:420,607,735,755`, `statusline.mjs:117`, `session-notes.mjs:183`, and the Go session-end and notes readers): each uses the same standing rule or is named retained, from `mrw read --grep 'checkStanding|checkEventsFor|CheckStanding' plugin/scripts/ core/hooks/` |
 | `tests/mutations/plugin/scripts/check-ledger.mjs.json` | edit | one entry per mechanism |
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run: with `"prose": ["docs/**", "**/*.md"]`, a pass on X then an edit to `docs/a.md` leaves the publish verdict allowing a commit and R1 silent, in Node and Go; an edit to `src/a.mjs` refuses and speaks; a prose list that changed since the pass does not carry it; with no `prose` declared, a markdown-only diff is refused as today and the advisory names `prose` once; an unobservable write after the pass still vetoes it.
+1. [S1] Write the failing tests and record the red run: with `"prose": ["docs/**", "**/*.md"]`, a pass on X then an edit to `docs/a.md` leaves the publish verdict allowing a commit and R1 silent, in Node and Go; an edit to `src/a.mjs` refuses and speaks; a prose list that changed since the pass does not carry it; with no `prose` declared, a markdown-only diff is refused as today and the advisory names `prose` once; an unobservable write after the pass still vetoes it; a pass on X, then committing unchecked code Y, then restoring X's code plus a prose edit: R2 still names commit Y, because Y's own code tree has no pass; a staged index whose code differs from the passing tree is still refused.
 2. [S2] Carry the declared prose list and `codeTree` in the session observation, and let `checkStanding` read a pass on the same `codeTree` under the same list.
 3. [S3] Port the standing rule and `passedAlready`'s prose branch to Go.
 4. [S4] Add the advisory sentence and its once-per-tree key.

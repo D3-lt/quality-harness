@@ -18,7 +18,7 @@ A declared check whose program cannot be found on this machine's PATH (or whose 
 | File | Change | Why |
 |------|--------|-----|
 | `tests/turn-end-declared.test.mjs` | edit | new tests beside T6's (0 locks on the new ones; T6's are locked by its own task and stay byte-identical) |
-| `plugin/scripts/completion-rules.mjs` | edit | R1 and R2 read whether the declared check's first program resolves (`command -v`-equivalent over PATH, or the named script file exists); one that does not routes to the user, as T6 does for an inferred check |
+| `plugin/scripts/completion-rules.mjs` | edit | R1 and R2 read whether the declared check's first program resolves (`command -v`-equivalent over PATH, or the named script file exists); one that does not routes to the user, as T6 does for an inferred check. The class, from `mrw read --grep 'unstarted|could not start|validationVerdict|checkEventName' plugin/scripts/ core/hooks/`: `check-record.mjs:18-25` and `check-ledger.mjs:165-183` classify a run's outcome after it ran and are retained; `completion-rules.mjs:208-243` and `:544-546` say a run that did not start and are retained; only the turn end's decision to continue changes |
 | `core/hooks/turnend.go` | edit | the same |
 | `tests/mutations/plugin/scripts/completion-rules.mjs.json` | edit | one entry per mechanism |
 

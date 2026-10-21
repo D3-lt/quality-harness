@@ -166,8 +166,11 @@ the decisions this record changes (Invalidates).
 10. **T10:** `adr-verify --background` runs a task's fence detached, bounded by `fenceTimeout`, and writes its row when it
     ends, so a long Acceptance is run once by the tool rather than by hand and again by the tool.
 11. **T11:** a declared check whose program cannot be found here continues no turn; its finding reaches the user once.
-12. **T12:** a commit or push into another repository named by a relative literal path, or after `cd <path>;`, is judged
-    by that repository, as an absolute one is today.
+12. **T12:** a commit (not a push) into another repository named by a relative path is advised as foreign, as an absolute
+    one is today: `git -C <rel> commit` and `cd <rel> && git commit`, never after `;` (a failed `cd` leaves the commit in the
+    session's repository). The relative operand is a leading run of `../` followed by plain names (no `.` or `..` after
+    them); the repository is found by asking git with the operand as written, from the payload `cwd`, so symlinks are
+    followed as git follows them; a `cd` operand not starting with `.` while `CDPATH` is set stays unproven.
 13. **T13:** branch-state reads the payload's `cwd`; a repository with no GitHub remote is said once per session, not on
     each head change; the mention arm reads `git stash push` as no push (BACKLOG §383's stated fix).
 14. **T14:** `adr-verify --mutant` reports a fence that names an existing directory outside the copy as inconclusive ("this

@@ -11,21 +11,22 @@
 
 ## Goal
 
-`git -C ../b commit`, `cd ../b && git commit` and `cd ../b; git commit` are judged by repository b's state, as their absolute forms already are, instead of the session's repository.
+`git -C ../b commit` and `cd ../b && git commit` are advised as foreign, as their absolute forms already are, when git, asked with the operand as written from the payload `cwd`, places it in another repository. `;` after a `cd` stays unproven, because a failed `cd` commits in the session's repository. A push is unchanged.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
 | `tests/foreign-relative.test.mjs` | create | the rows below (0 locks: new) |
-| `plugin/scripts/publish-command.mjs` | edit | `foreignCommitPath` (:172-204) resolves a relative literal path (no `$`, glob or `~`) against the command's cwd, and accepts `;` after the `cd` |
-| `core/hooks/publishcmd.go` | edit | the same (:267) |
+| `plugin/scripts/publish-command.mjs` | edit | `foreignCommitPath` (:172-204) accepts a relative operand: a leading run of `../` then plain names, with no `.` or `..` after them and no `$`, glob or `~`; `;` after `cd` stays unproven (:181-185, held by `tests/foreign-commit.test.mjs:306-338`) |
+| `plugin/scripts/publish-verdict.mjs` | edit | the foreign probe (:403-417) asks `git -C <payload cwd>/<operand as written> rev-parse --git-common-dir`, so git's own path semantics decide; a `cd` operand not starting with `.` while `CDPATH` is set is unproven |
+| `core/hooks/publishcmd.go`, `core/hooks/publish.go` | edit | the same (:267, :323-325; :322) |
 | `tests/mutations/plugin/scripts/publish-command.mjs.json` | edit | one entry per mechanism |
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run, with two real repositories a and b in a temporary directory and the session in a: each relative form is advised as foreign; a relative path that resolves into a itself is judged as a; `cd $X && git commit` and `cd ~/b && git commit` stay not proven; `cd ../b && make && git commit` stays not proven.
-2. [S2] Resolve the relative literal and accept `;`, in Node and Go.
+1. [S1] Write the failing tests and record the red run, with real repositories a and b in a temporary directory and the session in a: `git -C ../b commit` and `cd ../b && git commit` are foreign advice; refusal twins that stay unproven or judged as a: `cd ../b; git commit`, `git -C ../b/link/.. commit` (where `b/link` points into a), `git -C ../a commit` (resolves home), `cd b && git commit` with `CDPATH` set, `cd $X && git commit`, `cd ~/b && git commit`, `cd ../b && make && git commit`, and `git -C ../b push` (a push is unchanged). Class: `mrw read --grep 'foreignCommitPath|ForeignCommitPath|commonDirectory' plugin/scripts/ core/hooks/` names every recogniser and probe; each is changed or named retained in the task's log.
+2. [S2] Accept the relative operand and probe it with git as written, in Node and Go.
 3. [S3] Record a killed mutant per mechanism, with catalogue entries. [proof: mutation]
 
 ## Acceptance

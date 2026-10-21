@@ -430,9 +430,12 @@ def closing_affirmations(text):
 CLOSING_BREAK = re.compile(r"[;:—–]|(?<!\d)[.,]|[.,](?!\d)|\s-\s")
 CLOSING_WORDS = 4
 # An affirmative followed by a noun that counts ("pass rate zero", "pass count 0", "passed 3 of 10") reports a tally, which is no verdict;
-# so does one followed by a count: a percentage, a ratio that is no date ("3/10", not "21/10/2026"), or a number and the thing it
-# counts ("0 tests"). A date in any spelling ("2026-10-21", "21 October 2026") is no count (the verification of d4f51888..9ca659df).
-COUNTED = r"\d+\s*%|\d+\s*/\s*\d+(?![\d/.-])|\d+\s+(?:tests?|cases?|checks?|runs?|assertions?|specs?|files?|errors?|failures?|steps?|mutants?)(?![a-z])"
+# so does one followed by any number that is not a date ("passed 0 jobs", "passed 3/10.", "ok 0.0%"). A list of what counts left
+# forms out and read them as approvals (the verification of 9ca659df..e5d6c515), so the exception is the date instead, and a date
+# spelled some other way stops, the safe direction: "2026-10-21", "21/10/2026", "21.10.2026", "21 October 2026", "21st Oct".
+DATE = (r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|"
+        r"\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)(?!\d|[/.-]\d)")
+COUNTED = r"(?!" + DATE + r")\d"
 MEASURED = re.compile(r"\s+(?:(?:\d+\s+)?of\s+\d|" + COUNTED + r"|(?:rate|count|ratio|percent(?:age)?|total)(?![a-z]))", re.I)
 
 

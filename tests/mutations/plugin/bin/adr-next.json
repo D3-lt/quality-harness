@@ -1755,6 +1755,14 @@
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {
+      "label": "ADR-120 T7 (verification of 9ca659df..e5d6c515): a number that is not a date is read as no count",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "COUNTED = r\"(?!\" + DATE + r\")\\d\"",
+      "to": "COUNTED = r\"\\d+\\s*%\"",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
       "label": "ADR-120 T7 (verification of d4f51888..9ca659df): a dotted date breaks the closing clause",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],

@@ -10,6 +10,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { remove } from './helpers/remove.mjs'
+import { testBash } from './helpers/bash.mjs'
 
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'plugin')
 const posixOnly = process.platform === 'win32' && 'the staged dispatcher runs a bash stub with POSIX permission bits'
@@ -67,7 +68,7 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   }
   const gated = file => {
     writeFileSync(log, '')
-    const run = spawnSync('bash', [path.join(scripts, 'facts-gate-dispatch.sh'), path.join(project, file)],
+    const run = spawnSync(testBash(), [path.join(scripts, 'facts-gate-dispatch.sh'), path.join(project, file)],
       { cwd: project, encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, STUB_LOG: log } })
     assert.notEqual(run.error?.code, 'ETIMEDOUT', 'the dispatcher did not finish')
     return existsSync(log) ? readFileSync(log, 'utf8') : ''

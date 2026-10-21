@@ -33,6 +33,10 @@ esac
 QH_LEASES=$(mktemp -d "${TMPDIR:-/tmp}/qh-leases.XXXXXX")
 export QUALITY_HARNESS_LEASE_DIR="$QH_LEASES"
 unset QUALITY_HARNESS_WAIT
+# ADR-120 T4: a session's own SessionStart exports QH_PLUGIN_ROOT, and every resolver prefers it, so a suite run from such a
+# session tested that session's plugin rather than the shapes the resolver tests build (measured 2026-10-21: six resolver
+# and qh-root tests failed only there). The tests that are about it set it themselves (tests/plugin-root.test.mjs).
+unset QH_PLUGIN_ROOT
 # ADR-080: the artifact pass runs in each hook's own process here, so no detached pass outlives
 # the test that started it. Windows will not delete a directory a live process is still using,
 # and a fixture's cleanup failed six times on it. tests/artifact-pass-behind.test.mjs chooses

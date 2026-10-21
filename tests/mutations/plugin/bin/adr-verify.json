@@ -1838,6 +1838,166 @@
       "from": "(\"--mutant-plan\", mutant_plan is not None), (\"--mutant\"",
       "to": "(\"--mutant\", mutant is not None), (\"--mutant\"",
       "only": "^several tasks with a mode that is about one task are refused, and the refusal names the flag$"
+    },
+    {
+      "label": "ADR-120 T10: the call waits for the child, so it returns after the fence ended",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "        lease.write_text(json.dumps({\"id\": run_id, \"pid\": proc.pid}), encoding=\"utf-8\")",
+      "to": "        lease.write_text(json.dumps({\"id\": run_id, \"pid\": proc.pid}), encoding=\"utf-8\"); proc.wait()",
+      "only": "^(?:a background fence run writes the row a foreground run would)$"
+    },
+    {
+      "label": "ADR-120 T10: the detached child never writes the row",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "        code = record_run(task, text, cmd, datetime.date.today().isoformat(), r, elapsed, git_sha(cwd), steps,",
+      "to": "        code = 0; (lambda *a, **k: 0)(task, text, cmd, datetime.date.today().isoformat(), r, elapsed, git_sha(cwd), steps,",
+      "only": "^(?:a background fence run writes the row a foreground run would)$"
+    },
+    {
+      "label": "ADR-120 T10: a tree that moved during the run is never noticed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "        if note is None and tree_fingerprint(cwd) != before:",
+      "to": "        if note is None and tree_fingerprint(cwd) != before and False:",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: a moved tree keeps the fence's exit 0, so the row reads passed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "r.returncode or 1, r.stdout, r.stderr)",
+      "to": "r.returncode, r.stdout, r.stderr)",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: an untracked scratch file counts as a moved tree",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "    diff = ask(\"diff\", \"HEAD\", \"--binary\", \"--no-ext-diff\")",
+      "to": "    diff = ask(\"status\", \"--porcelain\", \"-uall\")",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: a fence past its timeout leaves no row",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "            r = subprocess.CompletedProcess(argv, 124, decode_stream(expired.stdout), decode_stream(expired.stderr))",
+      "to": "            raise",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: a timed-out fence is given exit 0",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "subprocess.CompletedProcess(argv, 124,",
+      "to": "subprocess.CompletedProcess(argv, 0,",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: a live background run is taken for a stale lease",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "            if alive is False:",
+      "to": "            if True:",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: the lease is not created exclusively",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "os.O_CREAT | os.O_EXCL | os.O_WRONLY",
+      "to": "os.O_CREAT | os.O_WRONLY",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: the refusal does not name the running id",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "({held.get('id', 'unknown')})",
+      "to": "(unknown)",
+      "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: a finished run leaves its lease behind",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "        release_background(lease, run_id)",
+      "to": "        pass",
+      "only": "^(?:a finished background run leaves no lease behind)$"
+    },
+    {
+      "label": "ADR-120 T10: the modes a background run cannot be combined with are not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "    if background or background_run is not None:",
+      "to": "    if False:",
+      "only": "^(?:a background run refuses the modes that write another log or run no fence)$"
+    },
+    {
+      "label": "ADR-120 T10: several tasks are accepted with --background",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "        if background:\n            fail(\"several tasks",
+      "to": "        if False:\n            fail(\"several tasks",
+      "only": "^(?:several tasks cannot be combined with --background)$"
+    },
+    {
+      "label": "ADR-120 T10: the row is appended to the task text read at the start",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background.test.mjs"],
+      "from": "text = task.read_text(errors=\"replace\", encoding=\"utf-8\")\n        code = record_run(task, text,",
+      "to": "code = record_run(task, text,",
+      "only": "^(?:a background row does not write away an edit made to the task while the fence ran)$"
+    },
+    {
+      "label": "ADR-120 T14: a fence that leaves the copy is not looked for",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/mutant-escape.test.mjs"],
+      "from": "    outside = fence_outside_dirs(cmd) if isolated else []",
+      "to": "    outside = []",
+      "only": "^(?:a fence that leaves the copy makes a survivor inconclusive)$"
+    },
+    {
+      "label": "ADR-120 T14: an in-place run is judged for leaving the copy too",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/mutant-escape.test.mjs"],
+      "from": "    outside = fence_outside_dirs(cmd) if isolated else []",
+      "to": "    outside = fence_outside_dirs(cmd)",
+      "only": "^(?:a fence that leaves the copy makes a survivor inconclusive)$"
+    },
+    {
+      "label": "ADR-120 T14: a path that names no directory counts as leaving the copy",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/mutant-escape.test.mjs"],
+      "from": "        if named and named not in found and isdir(named):",
+      "to": "        if named and named not in found:",
+      "only": "^(?:a fence that leaves the copy makes a survivor inconclusive)$"
+    },
+    {
+      "label": "ADR-120 T14: a missing module in the worktree is a failure of the fence",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/mutant-escape.test.mjs"],
+      "from": "            if isolated and missing_dependency(clean_out):",
+      "to": "            if False:",
+      "only": "^(?:a missing dependency in the worktree is could-not-run, an assertion failure is not)$"
+    },
+    {
+      "label": "ADR-120 T14: a missing module in place is could-not-run too",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/mutant-escape.test.mjs"],
+      "from": "            if isolated and missing_dependency(clean_out):",
+      "to": "            if missing_dependency(clean_out):",
+      "only": "^(?:a missing dependency in the worktree is could-not-run, an assertion failure is not)$"
+    },
+    {
+      "label": "ADR-120 T14: the missing-module signature is not the one node prints",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/mutant-escape.test.mjs"],
+      "from": "MISSING_MODULE = r\"Cannot find module\"",
+      "to": "MISSING_MODULE = r\"Cannot find modul3\"",
+      "only": "^(?:a missing dependency in the worktree is could-not-run, an assertion failure is not)$"
     }
   ]
 }

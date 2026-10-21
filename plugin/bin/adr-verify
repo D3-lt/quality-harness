@@ -9,6 +9,7 @@ Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --mutant-plan <plan-file> --why <text> [--covers <mechanism>] [--in-place]
         adr-verify <task.md> [--steps S1,S3]
         adr-verify <task.md> --relock [--replace-hashes] [--cwd DIR]
+        adr-verify <task.md> --background [--steps S1,S3] [--cwd DIR]
         adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the runnable fence under ## Acceptance (```bash, ```sh or ```shell —
@@ -40,6 +41,15 @@ command still matches; a first-line-only entry can never prove a multi-line fenc
 
 A zero exit whose run scored NO tests is recorded and returned as exit 1: a
 filter matching nothing is not a passing gate.
+
+--background runs the fence ONCE, detached, and returns at once naming the run. The
+child it starts runs the same fence under the same timeout (`fenceTimeout`) and writes
+the Verification Log row, and its ADR-117 receipt, through the writer a foreground run
+uses, when the fence ends: a fence that takes an hour is never run by hand and again by
+the tool. A fence that exits 0 on a tree whose HEAD or tracked content moved while it ran
+is written UNPROVEN, as a failure; one past its timeout is killed and written as TIMED OUT
+(exit 124). A second --background on the same task while one runs is refused with the
+running id. Progress and the end line go to a log named on the first line.
 
 --mutant is the other half of the gate, and the half that was missing.
 
@@ -110,6 +120,11 @@ first line says which. A fence that reaches the checkout through an environment
 variable or a symlink is not detected. The worktree carries tracked and untracked
 files but no ignored one (a dependency directory, a build output): a fence that
 needs one makes it itself, or runs with --in-place.
+
+A survivor in a worktree whose fence names, by absolute path, a directory that exists outside the checkout
+(`cd /elsewhere && …`) is inconclusive, exit 4, saying "this fence never sees the mutated copy": it worked
+somewhere the mutant was not. --in-place is the remedy. A clean fence that fails in the worktree printing
+`Cannot find module` is could-not-run, exit 4, not a failure: the dependency directory is an ignored file.
 
 Several tasks in one call (ADR-107, the mrw way: one plan, many sites, a verdict per
 item) run each task's Acceptance fence in the order given and record each task's own
@@ -328,6 +343,10 @@ def scored_nothing(output):
 # run the same function, not because two copies were kept in step by hand.
 
 
+# What node prints when a module is not there. A worktree holds no ignored directory, so a clean fence that needs one
+# prints it (ADR-120 T14); a mutant that breaks an import prints it too (BUILD_BROKE).
+MISSING_MODULE = r"Cannot find module"
+
 # A non-zero exit is only evidence when it came from a FAILING ASSERTION. A run
 # that did not build, or that scored nothing, exits non-zero too and is
 # indistinguishable from a kill by exit code alone — which is precisely how a
@@ -346,7 +365,7 @@ BUILD_BROKE = [
     r"^IndentationError:",
     r"error: could not compile",            # cargo
     r"^error\[E\d+\]",                     # rustc
-    r"Cannot find module",                  # node
+    MISSING_MODULE,                         # node
     r"^\s*Fatal error: Uncaught Error",     # php
 ]
 
@@ -982,6 +1001,35 @@ def fence_names_checkout(cmd, spellings, platform=None):
                     return spelling
                 at = text.find(form, at + 1)
     return None
+
+
+# ADR-120 T14: a fence that does its work somewhere other than the copy the mutant was applied to can only survive.
+# Where a path begins and ends is `fence_names_checkout`'s: the start, whitespace or a quote or shell metacharacter
+# before it, and the same or a separator after it. A `$` or a glob character ends the path, which is not read further.
+ABSOLUTE_PATH = re.compile(
+    r"(?<![^\s" + re.escape(PATH_BEFORE) + r"])((?:[A-Za-z]:)?[/\\][^\s" + re.escape(PATH_BEFORE + "$*?[]{}") + r"]*)")
+
+
+def fence_outside_dirs(cmd, isdir=os.path.isdir):
+    """The existing directories the fence text names by absolute path, each once, in the order it names them.
+
+    Asked of an isolated run only, where the fence runs in a worktree of the checkout. A path inside the checkout never
+    gets here: `fence_names_checkout` has already moved that run in place. So each directory found is outside the copy
+    the mutant was applied to, and a fence that works in one does not see the mutant. A name that is not a directory — a
+    file, or nothing — leaves the fence where it was. A path reached through a variable or a symlink is not seen, and
+    nothing here claims it was (ADR-076).
+    """
+    found = []
+    for match in ABSOLUTE_PATH.finditer(cmd):
+        named = match.group(1).rstrip("/\\")
+        if named and named not in found and isdir(named):
+            found.append(named)
+    return found
+
+
+def missing_dependency(output):
+    """Whether a failed run's output says a module was not there: what a worktree without its ignored directories prints."""
+    return re.search(MISSING_MODULE, plain(output), re.M) is not None
 
 
 def dispose_worktree(placement):
@@ -1822,6 +1870,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             finally:
                 release_signals(before, pending, unwind=placement.get("id") is not None)
     isolated = placement.get("id") is not None
+    outside = fence_outside_dirs(cmd) if isolated else []
     if isolated:
         print(f"[adr-verify] isolated in {Path(placement['id']).name}: both fences and the mutant "
               f"run in a worktree of this checkout, at {run_cwd}; the checkout is not touched.",
@@ -1974,6 +2023,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             # No mutant ran on this path, so recording here cannot contaminate one.
             record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps, cwd=cwd)
 
+            if isolated and missing_dependency(clean_out):
+                # Exit 4, could-not-run: the fence did not fail on an assertion, it lacked something the worktree
+                # does not carry. The hint above says how to give it that.
+                print("[adr-verify] COULD NOT RUN: the output names a module that is not there. That is the "
+                      "worktree, not a verdict about the code.")
+                sys.exit(4)
             sys.exit(1)
 
         # The baseline itself may have materialized outputs. Re-establish the
@@ -2033,7 +2088,14 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                  f"The file has been restored.")
         out, code = r.stdout + r.stderr, r.returncode
 
-        if code == 0:
+        if code == 0 and outside:
+            verdict, detail = (
+                "inconclusive",
+                f"this fence never sees the mutated copy: it names {', '.join(outside)}, an existing directory "
+                f"outside the worktree it ran in, so its pass says nothing about the mutant. Run it with "
+                f"--in-place if it must work there",
+            )
+        elif code == 0:
             verdict, detail = (
                 "survived",
                 "the fence passed with the mechanism broken; it may not materialize, compile, "
@@ -2972,6 +3034,151 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
 
 
 
+# ADR-120 T10: a fence that runs for an hour is run once, by the tool, in the background.
+BACKGROUND_RUN = "--background-run"   # the detached child's own flag; a person never types it
+
+
+def background_files(task):
+    """`(lease, log)` for a task's background run, OUTSIDE the repository like `mutant_journal`.
+
+    Keyed by the task file's path: the lease says one run per task is in flight, the log is where
+    the detached child's output goes, since it has no terminal to print to.
+    """
+    key = hashlib.sha256(str(Path(task).resolve()).encode("utf-8")).hexdigest()[:16]
+    base = Path(os.environ.get("CLAUDE_PLUGIN_DATA") or tempfile.gettempdir())
+    return base / f"adr-verify-background-{key}.json", base / f"adr-verify-background-{key}.log"
+
+
+def claim_background(lease, run_id):
+    """Take the task's lease, or refuse naming the run that holds it.
+
+    Created exclusively, so two calls at once cannot both win. A lease whose owner is PROVEN dead is
+    stale and taken over; one whose owner cannot be told is kept (ADR-005: an unknown is not a dead
+    one), and the refusal names the file so a person can remove it.
+    """
+    lease.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(2):
+        try:
+            fd = os.open(str(lease), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            try:
+                held = json.loads(lease.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                held = None
+            held = held if isinstance(held, dict) else {}
+            _, alive, _ = journal_owner_state({"owner": {"pid": held.get("pid")}})
+            if alive is False:
+                lease.unlink(missing_ok=True)
+                continue
+            fail(f"a background run ({held.get('id', 'unknown')}) is already running for this task, "
+                 f"so a second one is not started. Its row is written when it ends; if it is dead, "
+                 f"remove {lease}.")
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump({"id": run_id, "pid": os.getpid()}, out)
+        return
+    fail(f"could not take the background lease {lease}: it kept reappearing.")
+
+
+def release_background(lease, run_id):
+    """Remove the lease if it is still this run's."""
+    try:
+        held = json.loads(lease.read_text(encoding="utf-8"))
+        if isinstance(held, dict) and held.get("id") == run_id:
+            lease.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
+
+
+def tree_fingerprint(cwd):
+    """What a run's tree was: HEAD and the tracked content, or None where git cannot say.
+
+    A change to either while a fence ran means the fence did not run on one tree. Untracked files
+    are not part of it: a fence that writes a scratch file has not moved the code it tested.
+    """
+    def ask(*args):
+        try:
+            r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, timeout=120,
+                               env=git_read_env(), **NO_WINDOW)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return r.stdout if r.returncode == 0 else None
+    head = ask("rev-parse", "-q", "--verify", "HEAD")
+    diff = ask("diff", "HEAD", "--binary", "--no-ext-diff")
+    if head is None and diff is None:
+        return None
+    return (head, hashlib.sha256(diff or b"").hexdigest())
+
+
+def start_background(task, cwd, steps):
+    """Take the lease, start the detached child that runs the fence, and exit 0 naming the run."""
+    lease, log = background_files(task)
+    run_id = os.urandom(4).hex()
+    claim_background(lease, run_id)
+    argv = [sys.executable, os.path.abspath(__file__), str(Path(task).resolve()), BACKGROUND_RUN, run_id,
+            "--cwd", str(cwd)]
+    if steps:
+        argv += ["--steps", steps]
+    # Detached, with its output in the log and no stdin: a child holding this process's pipes would
+    # keep the caller waiting for the very run this call exists to return from.
+    popen = {"stdin": subprocess.DEVNULL, "stderr": subprocess.STDOUT, "close_fds": True}
+    if os.name == "nt":
+        popen["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    else:
+        popen["start_new_session"] = True
+    try:
+        with open(log, "wb") as out:
+            proc = subprocess.Popen(argv, stdout=out, **popen)
+        lease.write_text(json.dumps({"id": run_id, "pid": proc.pid}), encoding="utf-8")
+    except OSError as exc:
+        lease.unlink(missing_ok=True)
+        print(f"[adr-verify] could not run: the background run did not start — {os_reason(exc)}", file=sys.stderr)
+        sys.exit(4)
+    print(f"[adr-verify] BACKGROUND run {run_id} started (pid {proc.pid}) for {Path(task).name}: the fence "
+          f"runs once, detached, bounded by {fence_timeout()}s, and its row is written into the task's "
+          f"## Verification Log when it ends. Its end line is in {log}. A second --background on this "
+          f"task is refused until then.")
+    sys.exit(0)
+
+
+def run_background(task, text, cmd, cwd, steps, run_id):
+    """The detached child: run the fence, then write the row a foreground run would write."""
+    lease, _ = background_files(task)
+    code = 1
+    try:
+        before = tree_fingerprint(cwd)
+        started = time.monotonic()
+        limit = fence_timeout()
+        argv = [bash_or_exit(), "-c", cmd]
+        note = None
+        try:
+            r = run_bounded(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
+                            errors="replace", timeout=limit)
+        except subprocess.TimeoutExpired as expired:
+            # Written, unlike a foreground timeout: nobody is waiting here to be told it was UNRUN, so
+            # the row is how the run is told, and it is a failure that says what happened.
+            tree = ("its process tree was killed" if getattr(expired, "tree_killed", False)
+                    else "its process tree was NOT confirmed killed")
+            note = (f"[adr-verify] TIMED OUT: the fence did not finish within {limit}s ({tree}). "
+                    f"Not a pass, and not a verdict about the code.")
+            r = subprocess.CompletedProcess(argv, 124, decode_stream(expired.stdout), decode_stream(expired.stderr))
+        elapsed = round((time.monotonic() - started) * 1000)
+        if note is None and tree_fingerprint(cwd) != before:
+            note = ("[adr-verify] UNPROVEN: HEAD or a tracked file changed while the fence ran, so it did not run "
+                    "on one tree. Recorded as a failure, never as passed; run it again on a quiet tree.")
+            r = subprocess.CompletedProcess(argv, r.returncode or 1, r.stdout, r.stderr)
+        if note:
+            r = subprocess.CompletedProcess(argv, r.returncode, r.stdout, (r.stderr or "") + "\n" + note)
+        # Re-read: the task file may have changed in the minutes or hours this run took, and appending
+        # to the text read at the start would write them away.
+        text = task.read_text(errors="replace", encoding="utf-8")
+        code = record_run(task, text, cmd, datetime.date.today().isoformat(), r, elapsed, git_sha(cwd), steps,
+                          cwd=cwd)
+    finally:
+        release_background(lease, run_id)
+    print(f"[adr-verify] BACKGROUND run {run_id} ended: exit {code}, the row is in {task.name}.", flush=True)
+    sys.exit(code)
+
+
 def record_relock(task, text, cmd, cwd, today, replace_hashes):
     """Append a current lock snapshot. Does not run the Acceptance fence (ADR-052)."""
     # The record's repository, whatever --cwd is: the readers resolve the Tests table from there (BACKLOG §388, the owner
@@ -3164,6 +3371,8 @@ def main():
     as_json = False
     in_place = False
     saw_timeout = False
+    background = False
+    background_run = None
     i = 0
     while i < len(args):
         if args[i] == "--cwd":
@@ -3237,6 +3446,11 @@ def main():
             as_json = True
         elif args[i] == "--in-place":
             in_place = True
+        elif args[i] == "--background":
+            background = True
+        elif args[i] == BACKGROUND_RUN:
+            i += 1
+            background_run = value(i, BACKGROUND_RUN)
         elif args[i] == "--restore":
             restore = True
         elif args[i] == "--relock":
@@ -3255,6 +3469,18 @@ def main():
         i += 1
     if replace_hashes and not relock:
         fail("--replace-hashes is valid only with --relock")
+    if background and background_run is not None:
+        fail(f"--background starts a run and {BACKGROUND_RUN} is the run it starts; give one")
+    if background or background_run is not None:
+        # Spelled as a mapping, not as the tuples the several-task check below uses: a mutant there is found by the text
+        # of its own tuple, and a second copy of it would be a second place for that text to match.
+        asked = {"--mutant": mutant, "--mutant-plan": mutant_plan, "--human": human, "--human-mutant": human_mutant,
+                 "--relock": relock, "--restore": restore, "--sweep": sweep, "--in-place": in_place,
+                 "--covers": covers, "--also-restore": also_restore}
+        for flag, given in asked.items():
+            if given not in (None, False, []):
+                fail(f"--background cannot be combined with {flag}: it runs the Acceptance fence once and "
+                     f"writes one Verification Log row, and {flag} does neither of those.")
     plan = None
     if mutant_plan is not None:
         if mutant is not None or frm is not None or to is not None:
@@ -3280,6 +3506,9 @@ def main():
     if len(tasks) > 1:
         # --mutant-plan first, by its own variable: by this point a readable plan has been copied into `mutant`, and the
         # refusal named --mutant for a call that never gave it.
+        if background:
+            fail("several tasks cannot be combined with --background: it starts one run for one task, and the "
+                 "call would not say which. Name the task alone, or drop --background.")
         for flag, given in (("--mutant-plan", mutant_plan is not None), ("--mutant", mutant is not None),
                             ("--human", human is not None), ("--human-mutant", human_mutant is not None),
                             ("--relock", relock), ("--restore", restore), ("--sweep", sweep is not None)):
@@ -3496,6 +3725,10 @@ def main():
             fail(f"--steps names {', '.join(unknown)}, which {task.name} does not "
                  f"declare. Its Ordered Steps declare {listed}. A run may only claim "
                  f"a step the task already names.")
+    if background:
+        start_background(task, cwd, steps)
+    if background_run is not None:
+        run_background(task, text, cmd, cwd, steps, background_run)
 
     if mutant is not None:
         placement = {}

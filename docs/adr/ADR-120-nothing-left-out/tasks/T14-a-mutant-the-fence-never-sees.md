@@ -56,6 +56,12 @@ out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \
 | 4 — it is used | every session or run of the gate in question |
 
 ## Mutation Log
+- 2026-10-21 · f0504cf3* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a fence that leaves the copy is not looked for · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae
+- 2026-10-21 · f0504cf3* · mutant killed · exit 1 · `plugin/bin/adr-verify` · an in-place run is judged for leaving the copy too · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae
+- 2026-10-21 · f0504cf3* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a path that names no directory counts as leaving the copy · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae
+- 2026-10-21 · f0504cf3* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a missing module in the worktree is a failure of the fence · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae
+- 2026-10-21 · f0504cf3* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a missing module in place is could-not-run too · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae
+- 2026-10-21 · f0504cf3* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the missing-module signature is not the one node prints · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae
 
 ## Invariants
 
@@ -75,3 +81,14 @@ Stop if a survivor's fence names only a symlink or an environment variable: thos
 - Following `$VAR` or symlinked paths in a fence (permanent: boundary: ADR-076 records them undetectable from the text)
 
 ## Verification Log
+- 2026-10-21 · f0504cf3* · exit 1 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:1979 · steps:S1 · test-lock-sha256:161cfa37022165b1213ca8287f941795dfeb98f085682427c3087e66c4253346 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbXV0YW50LWVzY2FwZS50ZXN0Lm1qcwlhIGZlbmNlIHRoYXQgbGVhdmVzIHRoZSBjb3B5IG1ha2VzIGEgc3Vydml2b3IgaW5jb25jbHVzaXZlCTY5YWI3ZTkxN2FiYWI4MWM2YjBiZjRiMGMxY2QyZWMyNzM3MWZiODA0MjMwYmQzY2Y0OGY3MzA0MzFhYzNmMWUKYm9keQl0ZXN0cy9tdXRhbnQtZXNjYXBlLnRlc3QubWpzCWEgbWlzc2luZyBkZXBlbmRlbmN5IGluIHRoZSB3b3JrdHJlZSBpcyBjb3VsZC1ub3QtcnVuLCBhbiBhc3NlcnRpb24gZmFpbHVyZSBpcyBub3QJMTc2YmUxOTEyYjk4MWUxZmE2Y2RjMjAwYzU3YzcwYzIyNzFiZTA2YTAwOTI5MDdiMDNhZTM5YTk1MmIwZDdmMg
+  ```
+  ```
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:6484
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:6984
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:5382
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:4785
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:6655
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:4724
+- 2026-10-21 · f0504cf3* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutant-escape.test.mjs 2>&1) \ …` · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae · ms:6699 · steps:S1,S2
+- 2026-10-21 · human-observed · observed by the coordinator: the adr-execute skill's paragraph on this task's behaviour matches adr-verify; approved · acceptance-sha256:917dfe1a53438007b6e56f721888d3cf2275f45d0993b35f7ab52caac7532eae

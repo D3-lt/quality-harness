@@ -43,6 +43,16 @@ seam, while the file is your project's standing answer. ⚠ A value that is not 
 seconds is REFUSED and said on stderr rather than honoured — a typo must never silently disable the
 bound, because that restores the hang it exists to catch.
 
+**A fence that takes an hour: run it once, in the background.** `adr-verify <task.md> --background` starts the
+fence detached and returns at once, naming the run and a log file. The run is bounded by `fenceTimeout` and writes
+its Verification Log row, and its receipt, when it ends, so evidence that took an hour is never run by hand and
+then again by the tool. The session is told by the log, not by the call: arm a `Monitor` on the log file for the
+line `BACKGROUND run <id> ended: exit N`, which comes after the row is written. Read the row before relying on it.
+A fence that exits 0 on a tree whose HEAD or tracked files moved while it ran is written `UNPROVEN`, as a failure;
+a fence past its timeout is written `TIMED OUT`, exit 124; a second `--background` on the same task is refused
+with the running id. Do not edit tracked files while it runs: that is what moves the tree. It combines with
+`--steps` and `--cwd` and with nothing else.
+
 **Naming your project's check.** The same file takes `{"check": "<command>"}`, and it answers before
 every rung that would otherwise infer one from a manifest. Declare it when the inferred command is
 wrong or cannot discriminate — a suite that needs a container, a runner whose bare invocation is red
@@ -206,6 +216,13 @@ you then read the result. Both spellings have put a red tree on `main`.
    A `--mutant` run executes both fences in a worktree of the checkout, which carries tracked and
    untracked files but **no ignored one** — no `node_modules`, virtualenv or build output. A fence
    that needs one makes it itself (`npm ci` first), or the run takes `--in-place`.
+
+    Two outcomes are not a verdict on the tests. A fence that `cd`s, or names by absolute path, an existing
+    directory outside the checkout never sees the mutated copy: a survivor there is `inconclusive` (exit 4,
+    "this fence never sees the mutated copy"), not `survived`, and `--in-place` is the remedy. A clean fence
+    that fails in the worktree printing `Cannot find module` lacks a dependency the worktree does not carry:
+    it exits 4, could-not-run, not 1 — have the fence install what it needs, or run `--in-place`. A fence that
+    fails on an assertion is still exit 1.
 
    **If the Acceptance fence CANNOT RUN TO COMPLETION**, a mutation you performed by hand has its
    own lane — a clause whose precondition is not met, not a fence that is merely slow or needs

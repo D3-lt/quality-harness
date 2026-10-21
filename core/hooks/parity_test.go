@@ -29,6 +29,22 @@ type parityCommand struct {
 	Redirects     int             `json:"redirects"`
 	Negated       any             `json:"negated"`
 	Writes        []parityWrite   `json:"writes"`
+	Bangs         int             `json:"bangs"`
+	Terminator    string          `json:"terminator"`
+	Defines       string          `json:"defines"`
+	Opens         []parityOpen    `json:"opens"`
+	Closes        []parityClose   `json:"closes"`
+}
+
+type parityOpen struct {
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
+	Bangs int    `json:"bangs"`
+}
+
+type parityClose struct {
+	Kind   string `json:"kind"`
+	Joiner string `json:"joiner"`
 }
 
 type parityWrite struct {
@@ -49,17 +65,26 @@ type parityRow struct {
 	Constant   bool    `json:"constant"`
 	Words      struct {
 		Complete bool            `json:"complete"`
+		Closed   bool            `json:"closed"`
 		Commands []parityCommand `json:"commands"`
 	} `json:"words"`
+	Tree *shellNode `json:"tree"`
 }
 
-// goWords is this lexer's answer in the shape the Node rows carry.
-func goWords(text string) (bool, []parityCommand) {
-	cmds, complete := shellWords(text)
+// goWords is this lexer's answer in the shape the Node rows carry, and the tree read from it.
+func goWords(text string) (bool, bool, []parityCommand, *shellNode) {
+	cmds, complete, closed := shellWordsClosed(text)
 	out := []parityCommand{}
 	for _, c := range cmds {
 		pc := parityCommand{Argv: c.argv, Assignments: c.assignments, Dynamic: c.dynamic, Quoted: c.quoted, Code: c.code,
-			Substitutions: c.substitutions, Ended: c.ended, Redirects: c.redirects, Negated: c.negated}
+			Substitutions: c.substitutions, Ended: c.ended, Redirects: c.redirects, Negated: c.negated,
+			Bangs: c.bangs, Terminator: c.terminator, Defines: c.defines}
+		for _, o := range c.opens {
+			pc.Opens = append(pc.Opens, parityOpen{Kind: o.kind, Name: o.name, Bangs: o.bangs})
+		}
+		for _, cl := range c.closes {
+			pc.Closes = append(pc.Closes, parityClose{Kind: cl.kind, Joiner: cl.joiner})
+		}
 		for _, w := range c.writes {
 			pc.Writes = append(pc.Writes, parityWrite{Op: w.op, Target: w.target, Dynamic: w.dynamic})
 		}
@@ -72,7 +97,7 @@ func goWords(text string) (bool, []parityCommand) {
 		}
 		out = append(out, pc)
 	}
-	return complete, out
+	return complete, closed, out, parseShell(cmds, complete, closed)
 }
 
 // canonicalJSON compares two values as JSON, so an empty list and a missing one are the same answer.
@@ -128,9 +153,12 @@ func TestClassifierParity(t *testing.T) {
 		t.Errorf("%q: %s: node %v, go %v", cmd, what, node, goValue)
 	}
 	for _, r := range rows {
-		complete, commands := goWords(r.Cmd)
-		if complete != r.Words.Complete || canonicalJSON(commands) != canonicalJSON(r.Words.Commands) {
-			say(r.Cmd, "shellWords", canonicalJSON(r.Words), canonicalJSON(map[string]any{"complete": complete, "commands": commands}))
+		complete, closed, commands, tree := goWords(r.Cmd)
+		if complete != r.Words.Complete || closed != r.Words.Closed || canonicalJSON(commands) != canonicalJSON(r.Words.Commands) {
+			say(r.Cmd, "shellWords", canonicalJSON(r.Words), canonicalJSON(map[string]any{"complete": complete, "closed": closed, "commands": commands}))
+		}
+		if canonicalJSON(tree) != canonicalJSON(r.Tree) {
+			say(r.Cmd, "parseShell", canonicalJSON(r.Tree), canonicalJSON(tree))
 		}
 		p, ok := publishCommandIn(r.Cmd)
 		if (r.Publish != nil) != ok || (ok && *r.Publish != p) {

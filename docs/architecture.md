@@ -43,6 +43,7 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/scripts/publish-verdict.mjs` | domain | whether a commit or push is on a checked tree (rule P) | ADR-061, ADR-066 |
 | `plugin/scripts/publish-command.mjs` | domain | which shell commands publish | ADR-067, ADR-090 |
 | `plugin/scripts/shell-words.mjs` | domain | how shell text splits into words | ADR-067 |
+| `plugin/scripts/shell-grammar.mjs` | domain | how the words of a check read as lists, pipelines, groups and definitions (Go twin: `core/hooks/shellgrammar.go`) | ADR-120 |
 | `plugin/scripts/ledger-guard.mjs` | domain | which writes into the state directory are refused | ADR-117 |
 | `plugin/scripts/reviewer-guard.mjs` | domain | what a read-only role may not do | ADR-060 |
 | `plugin/scripts/publish-hook.mjs` | adapter | git's own side of the publish refusal | ADR-066, ADR-068 |

@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { nearestExistingDirectory } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
+import { parseShell } from './shell-grammar.mjs'
 import { SHELL_NAMES, programName } from './publish-command.mjs'
 import { checkInCode } from './corpus-text.mjs'
 import { gitRepositoryLookup } from './tree-facts.mjs'
@@ -165,13 +166,30 @@ export function constantSuccessCheck(command) {
 // `trap`, `source`), a subshell, a redirection that can fail on its own (Codex review
 // of the 626934a batch: `set -e; test -f F; echo done`, `(exit 0); test -f F` and
 // `true < F` were each read as constant and depend on the tree).
+//
+// ADR-120 T1: the list is read as a tree (shell-grammar.mjs), so a group, a subshell and a POSIX function definition are
+// evaluated as the shell runs them, and text the grammar does not read (`function f { … }`, which dash rejects, or anything
+// unclosed) is 'either'. Each node answers which statuses it can fall through with and which it can exit the shell with.
 const LIST_CONTROL = new Set(['set', 'shopt', 'trap', 'exec', 'source', '.', 'eval', 'return', 'alias', 'unalias', 'builtin', 'enable'])
 
 // A pass-through sink after a pipe: its status, not the check's, is the pipeline's without `pipefail`, and it does
 // not depend on what came through (BACKLOG §381, item 1; the owner, 2026-10-15). `tee` to literal files, a bare
 // `cat`, and `head`/`tail` with options only; one that reads a file of its own depends on the tree.
 const PIPED = new Set(['|', '|&'])
-const NEGATED = { zero: 'nonzero', nonzero: 'zero', either: 'either' }
+// A set of statuses as bits: ZERO, NONZERO, both. `fall` is what the node can leave with when it ends, `exit` what it can
+// exit the whole shell with; a node that cannot end (`exit 1`) has an empty `fall`.
+const ZERO = 1
+const NONZERO = 2
+const EITHER = 3
+const BIT = { zero: ZERO, nonzero: NONZERO, either: EITHER }
+const WORD = ['either', 'zero', 'nonzero', 'either']
+const INVERSE = [0, NONZERO, ZERO, EITHER]
+const UNREAD = { fall: EITHER, exit: 0 }
+// A function the text cannot place (defined on one path, removed, found after a special builtin) or one that calls itself.
+const MAYBE = { fall: EITHER, exit: EITHER }
+// A function may not shadow these: a POSIX shell finds a special builtin before a function (`:() { false; }; :` is 2 under
+// dash, 1 under bash, and `exit() { :; }; exit 3` is 2, 3 and 0).
+const SPECIAL_BUILTINS = new Set([':', '.', 'break', 'continue', 'eval', 'exec', 'exit', 'export', 'readonly', 'return', 'set', 'shift', 'times', 'trap', 'unset'])
 function passThroughSink(c) {
   if (c.substitutions.length || c.dynamic.length) return false
   const [program, ...args] = c.argv
@@ -183,50 +201,116 @@ function passThroughSink(c) {
 }
 
 function listStatus(text, depth) {
-  const { commands, complete } = shellWords(text)
+  const words = shellWords(text)
+  const { commands, complete } = words
   if (!complete || commands.length === 0 || depth > 3) return 'either'
   // A redirection can fail on its own, unless the command's status is thrown away by the pipe after it.
-  if (commands.some(c => (c.redirects > 0 && !PIPED.has(c.ended)) || c.ended === '(' || c.ended === ')' || LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'
-  const merge = (a, b) => (a === b ? a : 'either')
-  let status = 'zero'
-  for (let i = 0; i < commands.length; i++) {
-    const joiner = i === 0 ? ';' : commands[i - 1].ended
-    // A pipeline is one unit, joined to the list only as a whole: `true || npm test | false` skips all of it (sh, bash
-    // and dash, BACKLOG §381). Without pipefail (`set` is refused above) its status is its last stage's.
-    // A group of several commands piped onward is one stage of it, wherever it stands: its own `;`, `&&` and `||` decide
-    // nothing after the pipe (the review of c48dd5b0..cfd24edc: `{ true || false; } | npm test` is the tests' status; the
-    // verification of 7e7c59ee..892ba222: `{ false && true; } | { true || false; } | npm test` is too).
-    let end = commands[i].groupEnd ?? i
-    while (PIPED.has(commands[end].ended) && end + 1 < commands.length) end = commands[end + 1].groupEnd ?? end + 1
-    let own = commands[end].ended === '&' || (end > i && passThroughSink(commands[end])) ? { status: 'zero' } : commandStatus(commands[end], depth)
-    // A leading `!` inverts the pipeline's status (sh, bash, dash, BACKLOG §381), except in the background. A bare `exit`
-    // leaves before the inversion and keeps its own reading; one ending a pipeline only sets the status it inverts.
-    if (commands[i].negated === 'unknown') own = { status: 'either' }
-    else if (commands[i].negated && commands[end].ended !== '&' && !(own.exits && end === i)) own = { status: NEGATED[own.status] }
-    // `exit` before the end stops the list on the paths that reach it; the others go
-    // on, so only a path every run takes is known. As the LAST command it is simply
-    // the list's status, combined like any other (`test -f F || exit 0` is 0). Inside a
-    // pipeline it runs in a subshell and stops nothing (sh, bash, dash; zsh runs no check).
-    if (own.exits && end === i && end < commands.length - 1) {
-      if (joiner === '&&' ? status === 'zero' : joiner === '||' ? status === 'nonzero' : true) return own.status
-      return 'either'
-    }
-    if (joiner === '&&') status = status === 'zero' ? own.status : status === 'nonzero' ? 'nonzero' : merge(own.status, 'nonzero')
-    else if (joiner === '||') status = status === 'nonzero' ? own.status : status === 'zero' ? 'zero' : merge(own.status, 'zero')
-    else status = own.status
-    i = end
-  }
-  return status
+  if (commands.some(c => (c.redirects > 0 && !PIPED.has(c.ended)) || LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'
+  const tree = parseShell(words)
+  if (!tree) return 'either'
+  const run = evaluate(tree, { commands, depth, env: new Map(), active: new Set() }, false)
+  return WORD[run.fall | run.exit]
 }
 
+function evaluate(n, ctx, conditional) {
+  switch (n.t) {
+    case 'cmd': return commandRun(ctx.commands[n.i], ctx, conditional)
+    case 'pipe': return pipelineRun(n, ctx, conditional)
+    case 'andor': return andOrRun(n, ctx, conditional)
+    case 'list': return listRun(n, ctx, conditional)
+    case 'group': return evaluate(n.kids[0], ctx, conditional)
+    // A subshell leaves with its body's status whatever it exits with, and what it defines goes with it.
+    case 'sub': {
+      const body = evaluate(n.kids[0], { ...ctx, env: new Map(ctx.env) }, conditional)
+      return { fall: (body.fall | body.exit) || EITHER, exit: 0 }
+    }
+    // A definition runs nothing and exits 0; its body is read where it is called. Defined on one path only, it is unknown.
+    case 'def':
+      ctx.env.set(n.name, conditional || SPECIAL_BUILTINS.has(n.name) ? null : n.kids[0])
+      return { fall: ZERO, exit: 0 }
+    default: throw new Error(`unknown node ${n.t}`)
+  }
+}
+
+function commandRun(c, ctx, conditional) {
+  if (unreadable(c)) return UNREAD
+  // A function shadows the command of its name, by the word as written: `/usr/bin/true` is the program.
+  if (ctx.env.has(c.argv[0])) {
+    const body = ctx.env.get(c.argv[0])
+    if (body === null || ctx.active.has(c.argv[0])) return MAYBE
+    ctx.active.add(c.argv[0])
+    try { return evaluate(body, ctx, conditional) } finally { ctx.active.delete(c.argv[0]) }
+  }
+  // `unset -f NAME` removes a definition: nothing defined so far can be trusted after it.
+  if (programName(c.argv[0]) === 'unset') for (const name of ctx.env.keys()) ctx.env.set(name, null)
+  const own = commandStatus(c, ctx.depth)
+  return own.exits ? { fall: 0, exit: BIT[own.status] } : { fall: BIT[own.status], exit: 0 }
+}
+
+// A pipeline is its last stage's status (without pipefail: `set` is refused above), run in a subshell when it has several
+// stages; a pass-through sink there is 0 whatever came through. `!` inverts it, a doubled one is unknown.
+function pipelineRun(n, ctx, conditional) {
+  let run
+  if (n.kids.length === 1) run = evaluate(n.kids[0], ctx, conditional)
+  else {
+    const last = n.kids.at(-1)
+    const tail = evaluate(last, { ...ctx, env: new Map(ctx.env) }, true)
+    run = { fall: tail.exit === 0 && endsInSink(last, ctx) ? ZERO : (tail.fall | tail.exit) || EITHER, exit: 0 }
+  }
+  if (n.bang === 1) return { fall: INVERSE[run.fall], exit: run.exit }
+  if (n.bang > 1) return { fall: run.fall ? EITHER : 0, exit: run.exit }
+  return run
+}
+
+// A sink as the last thing a stage runs: itself, or the only command of a group.
+function endsInSink(n, ctx) {
+  if (n.t === 'cmd') return passThroughSink(ctx.commands[n.i])
+  if (n.t !== 'group') return false
+  const last = n.kids[0].kids.at(-1)
+  const only = last.kids.length === 1 && last.kids[0].bang === 0 && last.kids[0].kids.length === 1
+  return only && endsInSink(last.kids[0].kids[0], ctx)
+}
+
+// `&&` and `||` short-circuit: the right-hand side runs only on the left's status that lets it, and what it defines is
+// certain only when the left always lets it.
+function andOrRun(n, ctx, conditional) {
+  let run = evaluate(n.kids[0], ctx, conditional)
+  for (let k = 1; k < n.kids.length; k++) {
+    const gate = n.ops[k - 1] === '&&' ? ZERO : NONZERO
+    if (!(run.fall & gate)) continue
+    const next = evaluate(n.kids[k], ctx, conditional || run.fall !== gate || run.exit !== 0)
+    run = { fall: (run.fall & ~gate & EITHER) | next.fall, exit: run.exit | next.exit }
+  }
+  return run
+}
+
+// `;` and a newline run the next item if the last one fell through; `&` sends the item to the background, which exits 0
+// and neither exits the shell nor defines anything for it.
+function listRun(n, ctx, conditional) {
+  let run = { fall: ZERO, exit: 0 }
+  for (let k = 0; k < n.kids.length && run.fall; k++) {
+    const background = n.ops[k] === '&'
+    const item = evaluate(n.kids[k], background ? { ...ctx, env: new Map(ctx.env) } : ctx, conditional || run.exit !== 0)
+    run = background ? { fall: ZERO, exit: run.exit } : { fall: item.fall, exit: run.exit | item.exit }
+  }
+  return run
+}
+
+// Text whose status cannot be read: a substitution, no command word, or a command word built at run time. A word that is
+// exactly `[` is the test builtin, not a glob.
+const unreadable = c => c.substitutions.length > 0 || c.argv.length === 0 || (c.dynamic.includes(0) && c.argv[0] !== '[')
+
 function commandStatus(c, depth) {
-  // A word that is exactly `[` is the test builtin, not a glob.
-  if (c.substitutions.length || c.argv.length === 0 || (c.dynamic.includes(0) && c.argv[0] !== '[')) return { status: 'either' }
+  if (unreadable(c)) return { status: 'either' }
   const [program, ...args] = c.argv
   const name = programName(program)
   if (name === 'exit') {
     if (args.length === 0 || !/^\d+$/.test(args[0])) return { status: 'either', exits: true }
-    return { status: Number(args[0]) === 0 ? 'zero' : 'nonzero', exits: true }
+    // The shell keeps a status modulo 256 (`exit 256` exits 0); past INT_MAX dash refuses the number and bash wraps it, so
+    // the shells disagree and nothing is fixed (measured 2026-10-21 under /bin/bash, /bin/sh and /bin/dash).
+    const code = BigInt(args[0])
+    if (code > 2147483647n) return { status: 'either', exits: true }
+    return { status: code % 256n === 0n ? 'zero' : 'nonzero', exits: true }
   }
   if (name in KNOWN_STATUS) return { status: KNOWN_STATUS[name] }
   if ((name === 'test' || name === '[') && !c.dynamic.some(k => k > 0)) {

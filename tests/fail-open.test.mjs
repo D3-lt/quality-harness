@@ -670,18 +670,27 @@ test('a negated group of one pipeline is that pipeline negated', () => {
 // accepted as real checks.
 test('the operator after a group joins the group', () => {
   const constant = ['! { true; } &', '{ false; } &', '{ true; } || npm test', '! { true; } || true',
-    // The verification of a44173e1: a function body's `}` ends a definition, which exits 0 and runs nothing, and a body
-    // that ends in `&` keeps it (each exits 0 under bash 3.2 and /bin/sh, measured).
-    'function f { npm test; } && true', '{ npm test & } && true',
-    // The last verification of 8a85130c, a regression against 3.8.33: `()` or a newline between the name and the body
-    // still makes a definition (each exits 0 under bash 3.2 and /bin/sh, measured).
-    'function f() { npm test; } && true', 'function f ( ) { npm test; } && true', 'function f\n{ npm test; } && true',
-    // ...and a body that is not a brace group ends the definition, so a later group is a group again (each exits 0).
-    'function f() if true\nthen :\nfi\n{ true; } || npm test', 'function f() (( 1 ))\n{ true; } || npm test', 'function f() [[ x ]]\n{ true; } || npm test']
+    // The verification of a44173e1: a body that ends in `&` keeps it (exits 0 under bash 3.2 and /bin/sh, measured). The
+    // `function` keyword rows this list held moved to the test below (ADR-120 T1): dash exits 2 on them.
+    '{ npm test & } && true']
   // DIRTY twins: a group the tests decide is still a check, whatever joins it.
   const real = ['{ npm test; } && true', '{ false; } || npm test', '! { npm test; } || false']
   for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+})
+
+// ADR-120 T1 (relocked from the test above, whose list held these rows as constant): the `function` keyword is bash and zsh
+// syntax. Under dash, which /bin/sh is on Debian and Ubuntu, each of these exits 2 or runs `function` as a command (measured
+// 2026-10-21: `function f { npm test; } && true` is 0, 0, 2 under /bin/bash, /bin/sh and /bin/dash), so no status is fixed
+// and the check is could-not-look, accepted.
+test('a definition written with the function keyword is could-not-look, because dash rejects it', () => {
+  const bashOnly = ['function f { npm test; } && true', 'function f() { npm test; } && true', 'function f ( ) { npm test; } && true',
+    'function f\n{ npm test; } && true', 'function f() if true\nthen :\nfi\n{ true; } || npm test', 'function f() (( 1 ))\n{ true; } || npm test',
+    'function f() [[ x ]]\n{ true; } || npm test']
+  for (const command of bashOnly) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+  // DIRTY twin: the POSIX spelling of the same definition is read, and refused where its status is fixed (0 under all three).
+  assert.equal(lifecycle.constantSuccessCheck('f() { npm test; } && true'), true)
+  assert.equal(lifecycle.constantSuccessCheck('f() { npm test; }; f'), false)
 })
 
 // ADR-119 T1 (BACKLOG §381): a pipe after a group's `}` was dropped like the other operators were before 0b9b528a, so the

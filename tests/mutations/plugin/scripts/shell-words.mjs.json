@@ -67,8 +67,8 @@
         "tests/shell-words.test.mjs"
       ],
       "only": "an incomplete lex says so and keeps what it read",
-      "from": "  return { commands, complete }",
-      "to": "  return { commands, complete: true }"
+      "from": "  return { commands, complete, closed:",
+      "to": "  return { commands, complete: true, closed:"
     },
     {
       "label": "shell-words: a quoted operator marks the word as code (ADR-067 T1)",
@@ -217,8 +217,8 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
-      "from": "    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }",
-      "to": "    if (false) { naming = true; return }"
+      "from": "    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; unmodelled = true; return }",
+      "to": "    if (false) { naming = true; unmodelled = true; return }"
     },
     {
       "label": "shell-words: a pipeline's leading ! is kept as negated",
@@ -226,149 +226,229 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "raw === '!') { command.negated = command.negated ? 'unknown' : true; return }",
-      "to": "raw === '!') { return }",
+      "from": "raw === '!') { command.negated = command.negated ? 'unknown' : true; command.bangs += 1; return }",
+      "to": "raw === '!') { command.negated = command.negated ? 'unknown' : true; return }",
       "only": "^(?:a negated pipeline has the inverse status)$"
     },
     {
       "label": "shell-words: a group keeps the ! in front of it",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "groups.push({ negated: command.negated, start: commands.length, definition: defining })",
       "to": "groups.push({ negated: false, start: commands.length, definition: defining })",
-      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: only a group of one pipeline is folded",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "const single = body.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') && !body[0]?.negated",
       "to": "const single = !body[0]?.negated",
-      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: a negated pipeline inside a negated group is unknown",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": " && !body[0]?.negated\n",
       "to": "\n",
-      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: every command of a several-command negated group is unknown",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "for (const c of single ? body.slice(0, 1) : body)",
       "to": "for (const c of body.slice(0, 1))",
-      "only": "^(?:a negated group of one pipeline is that pipeline negated)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: the operator after a group joins it",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "    if (empty && closedGroup && commands.length && commands.at(-1).ended !== '&' && ['&', '&&', '||', '|', '|&'].includes(operator)) {",
       "to": "    if (false) {",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: a closing brace is remembered for the operator after it",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "      closedGroup = !group?.definition\n",
       "to": "      closedGroup = false\n",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: a function body's brace ends a definition, not a group",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "      closedGroup = !group?.definition\n",
       "to": "      closedGroup = true\n",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: a function name marks the next group a definition",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "if (naming) { naming = false; defining = true; return }",
       "to": "if (naming) { naming = false; defining = false; return }",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: a body that ends in & keeps it",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": " && commands.at(-1).ended !== '&' && ['&', '&&', '||', '|', '|&']",
       "to": " && ['&', '&&', '||', '|', '|&']",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: a definition survives the () and newline before its body",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "    if (!empty || !['(', ')', '\\n'].includes(operator)) defining = false",
       "to": "    if (true) defining = false",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: any command that runs ends a definition",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "    if (!empty || !['(', ')', '\\n'].includes(operator)) defining = false",
       "to": "    if (!['(', ')', '\\n'].includes(operator)) defining = false",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "shell-words: an arithmetic command ends a definition",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
-      "from": "      defining = false\n      i = end\n",
+      "from": "      if (defName) unmodelled = true\n      i = end\n",
       "to": "      i = end\n",
-      "only": "^(?:the operator after a group joins the group)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "ADR-119 T1: a pipe after a group joins the group, so a sink after it is the pipeline's last stage",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "['&', '&&', '||', '|', '|&'].includes(operator)) {",
       "to": "['&', '&&', '||', '|&'].includes(operator)) {",
-      "only": "^(?:a pipe or a pipe-and-stderr after a group joins the pipeline, so a sink after it cannot fail)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
     },
     {
       "label": "ADR-119 T1, the review of c48dd5b0..cfd24edc: a group of several commands piped onward marks its head with where it ends",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/fail-open.test.mjs"
+        "tests/shell-grammar.test.mjs"
       ],
       "from": "      if (pipeNext && listStart >= 0) commands[listStart].groupEnd = commands.length - 1",
       "to": "      void 0",
-      "only": "^(?:a group of several commands piped onward is one stage, so its own list decides nothing after the pipe|the text a group of several commands pipes into a shell is not proven from its last command)$"
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: a close is recorded on the last command before it",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "    commands.at(-1).closes.push(closer)",
+      "to": "    void closer",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: the operator after a close is its joiner",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "    for (const e of awaiting) e.joiner = operator",
+      "to": "    for (const e of awaiting) e.joiner = ''",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: a construct with nothing inside it is not modelled",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "(want === 'subshell') || commands.length <= top.start)",
+      "to": "(want === 'subshell'))",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: a word after a close is not modelled",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "    if (awaiting.length && !(leading && !w.quoted && raw === '}')) unmodelled = true",
+      "to": "    if (false) unmodelled = true",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: a definition head is a name followed by an empty ()",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "/^[ \\t]*\\)/.test(src.slice(i + 1))",
+      "to": "true",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: a command that runs ends the head's claim on the next group",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": ".includes(operator)) defName = ''",
+      "to": ".includes(operator)) void 0",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: the text closed every construct it opened",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "!unmodelled && stack.length === 0 &&",
+      "to": "!unmodelled &&",
+      "only": "^(?:the lexer's new boundary fields leave every existing field unchanged)$"
+    },
+    {
+      "label": "ADR-120 T1: a group keeps the ! in front of it",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "openers.push({ kind, name: defName, bangs: command.bangs })",
+      "to": "openers.push({ kind, name: defName, bangs: 0 })",
+      "only": "^(?:a check whose status every POSIX shell fixes is refused, whatever its grouping)$"
     }
   ]
 }

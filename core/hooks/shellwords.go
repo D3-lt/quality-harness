@@ -30,6 +30,27 @@ type shellCommand struct {
 	writes        []redirectWrite
 	negated       any // nil, true, or "unknown"
 	groupEnd      int // -1 for none: on a group's first command, its last, when the group holds several commands piped onward
+	// ADR-120 T1 (shell-words.mjs's): the command's own leading `!` words, the operator that ended it before a close handed it
+	// on, the name a `NAME()` head record introduces, and the constructs opened before it and closed after it.
+	bangs      int
+	terminator string
+	defines    string
+	opens      []*shellOpen
+	closes     []*shellClose
+}
+
+// shellOpen is a `{ }` group, a `( )` subshell or a `NAME() { }` definition opening before a command.
+type shellOpen struct {
+	kind, name string
+	bangs      int
+}
+
+// shellClose is one of them closing after a command, and the operator that follows the close.
+type shellClose struct{ kind, joiner string }
+
+type shellFrame struct {
+	kind  string
+	start int
 }
 
 type redirectWrite struct {
@@ -68,6 +89,7 @@ var (
 	codeSpanPattern = regexp.MustCompile(`[;&|()\n]`)
 	rangedBrace     = regexp.MustCompile(`\{[^{}]*\.\.[^{}]*\}`)
 	assignmentName  = regexp.MustCompile(`^[A-Za-z_]\w*$`)
+	defParen        = regexp.MustCompile(`^[ \t]*\)`)
 )
 
 func isOperatorRune(c rune) bool {
@@ -84,6 +106,13 @@ func freshCommand() *shellCommand { return &shellCommand{pipeTo: -1, groupEnd: -
 
 // shellWords returns the simple commands in order, and whether every quote, substitution and heredoc closed.
 func shellWords(text string) ([]*shellCommand, bool) {
+	commands, complete, _ := shellWordsClosed(text)
+	return commands, complete
+}
+
+// shellWordsClosed is shellWords and whether the text also closed every construct it opened and held nothing this reader does
+// not model (the `function` keyword, a body that is not a group), which is what shellgrammar.go needs to read it.
+func shellWordsClosed(text string) ([]*shellCommand, bool, bool) {
 	src := []rune(text)
 	at := func(k int) rune {
 		if k < 0 || k >= len(src) {
@@ -103,6 +132,34 @@ func shellWords(text string) ([]*shellCommand, bool) {
 	listStart := -1
 	defining := false
 	i := 0
+	stack := []shellFrame{}
+	openers := []*shellOpen{}
+	awaiting := []*shellClose{}
+	defName := ""
+	expectDefParen := false
+	unmodelled := false
+
+	// The construct a `}` or `)` closes: the last command before it carries the close, and the operator after it is its joiner.
+	closeConstruct := func(subshell bool) {
+		for _, e := range awaiting {
+			e.joiner = ""
+		}
+		awaiting = nil
+		if len(stack) == 0 {
+			unmodelled = true
+			return
+		}
+		top := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if (top.kind == "subshell") != subshell || len(commands) <= top.start {
+			unmodelled = true
+			return
+		}
+		closer := &shellClose{kind: top.kind}
+		last := commands[len(commands)-1]
+		last.closes = append(last.closes, closer)
+		awaiting = append(awaiting, closer)
+	}
 
 	startWord := func() {
 		if word == nil {
@@ -119,6 +176,10 @@ func shellWords(text string) ([]*shellCommand, bool) {
 		word = nil
 		leading := len(command.argv) == 0
 		raw := charsString(w.chars)
+		// A word after a close that is not another `}` cannot be told from a redirected or continued construct.
+		if len(awaiting) > 0 && !(leading && !w.quoted && raw == "}") {
+			unmodelled = true
+		}
 		if naming {
 			naming = false
 			defining = true
@@ -126,6 +187,7 @@ func shellWords(text string) ([]*shellCommand, bool) {
 		}
 		if leading && !w.quoted && raw == "function" && len(command.assignments) == 0 {
 			naming = true
+			unmodelled = true
 			return
 		}
 		if leading && isAssignment(w.chars) {
@@ -133,6 +195,7 @@ func shellWords(text string) ([]*shellCommand, bool) {
 			return
 		}
 		if leading && !w.quoted && raw == "!" {
+			command.bangs++
 			if command.negated != nil {
 				command.negated = "unknown"
 			} else {
@@ -141,12 +204,21 @@ func shellWords(text string) ([]*shellCommand, bool) {
 			return
 		}
 		if leading && !w.quoted && raw == "{" {
+			kind := "group"
+			if defName != "" {
+				kind = "definition"
+			}
+			stack = append(stack, shellFrame{kind: kind, start: len(commands)})
+			openers = append(openers, &shellOpen{kind: kind, name: defName, bangs: command.bangs})
+			defName = ""
+			command.bangs = 0
 			groups = append(groups, group{negated: command.negated, start: len(commands), definition: defining})
 			command.negated = nil
 			defining = false
 			return
 		}
 		if leading && !w.quoted && raw == "}" {
+			closeConstruct(false)
 			var g *group
 			if len(groups) > 0 {
 				last := groups[len(groups)-1]
@@ -212,6 +284,10 @@ func shellWords(text string) ([]*shellCommand, bool) {
 
 	endCommand := func(operator string) {
 		endWord()
+		for _, e := range awaiting {
+			e.joiner = operator
+		}
+		awaiting = nil
 		naming = false
 		empty := len(command.argv) == 0 && len(command.assignments) == 0 && len(command.heredocs) == 0 && len(command.substitutions) == 0
 		// A pipe after a group joins it too and pipes into the next command (shell-words.mjs's, ADR-119 T1).
@@ -227,12 +303,18 @@ func shellWords(text string) ([]*shellCommand, bool) {
 		if !empty || !(operator == "(" || operator == ")" || operator == "\n") {
 			defining = false
 		}
+		if !empty || !(operator == "(" || operator == ")" || operator == "\n") {
+			defName = ""
+		}
 		// A command of redirections alone opens its files, so it is kept for what it writes (shell-words.mjs's).
 		if !empty || len(command.writes) > 0 {
 			if pipeNext {
 				commands[len(commands)-1].pipeTo = len(commands)
 			}
 			command.ended = operator
+			command.terminator = operator
+			command.opens = openers
+			openers = nil
 			commands = append(commands, finishCommand(command))
 			pipeNext = operator == "|" || operator == "|&"
 		} else if !(operator == "|" || operator == "|&" || operator == "(" || operator == "\n") {
@@ -435,6 +517,9 @@ func shellWords(text string) ([]*shellCommand, bool) {
 	}
 
 	redirection := func() bool {
+		if len(awaiting) > 0 {
+			unmodelled = true
+		}
 		if word != nil && allUnquotedDigits(word.chars) {
 			word = nil
 		} else {
@@ -576,6 +661,9 @@ loop:
 			}
 			command.substitutions = append(command.substitutions, substitutionsIn(src[i+2:end-1], true)...)
 			defining = false
+			if defName != "" {
+				unmodelled = true
+			}
 			i = end
 			continue
 		case (c == '<' || c == '>') && at(i+1) == '(':
@@ -608,7 +696,37 @@ loop:
 				i++
 				op += string(src[i])
 			}
+			// `NAME(` followed by `)` heads a POSIX definition, and a `(` that starts a command opens a subshell; any other `(`
+			// is not modelled (shell-words.mjs's).
+			head := ""
+			if c == '(' {
+				endWord()
+				if len(command.argv) == 1 && len(command.assignments) == 0 && !command.quoted[0] && command.redirects == 0 &&
+					assignmentName.MatchString(command.argv[0]) && defParen.MatchString(string(src[i+1:])) {
+					head = command.argv[0]
+					command.defines = head
+				} else if len(command.argv) == 0 && len(command.assignments) == 0 && command.redirects == 0 && len(command.writes) == 0 {
+					if defName != "" {
+						unmodelled = true
+					}
+					stack = append(stack, shellFrame{kind: "subshell", start: len(commands)})
+					openers = append(openers, &shellOpen{kind: "subshell", bangs: command.bangs})
+				} else {
+					unmodelled = true
+				}
+			}
 			endCommand(op)
+			if head != "" {
+				defName = head
+				expectDefParen = true
+			}
+			if c == ')' {
+				if expectDefParen {
+					expectDefParen = false
+				} else {
+					closeConstruct(true)
+				}
+			}
 			if c == '\n' && len(pending) > 0 {
 				i++
 				readHeredocs()
@@ -628,7 +746,7 @@ loop:
 			readHeredocs()
 		}
 	}
-	return commands, complete
+	return commands, complete, complete && !unmodelled && len(stack) == 0 && len(openers) == 0
 }
 
 func charsString(chars []shellChar) string {

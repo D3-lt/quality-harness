@@ -23,6 +23,12 @@ const CODE = /[;&|()\n]/
  * quote, a substitution or a heredoc never closes — the commands completed before
  * it are still returned. A group of several commands piped onward marks its first
  * command with `groupEnd`, the index of the group's last command.
+ * ADR-120 T1 adds the boundaries of the constructs a command sits in, none of which changes an earlier field: `opens` and
+ * `closes` (where a `{ }` group, a `( )` subshell or a POSIX `NAME() { }` definition begins and ends, and the operator that
+ * follows each close), `terminator` (the operator that ended the command, before a close hands it on), `bangs` (its own
+ * leading `!` words), and `defines` (the name a `NAME()` head record introduces). The result's `closed` is false when a
+ * construct never closed, or this reader does not model it (the `function` keyword, a body that is not a group): the
+ * grammar in shell-grammar.mjs reads nothing from such text.
  */
 export function shellWords(text) {
   const src = String(text ?? '')
@@ -37,10 +43,29 @@ export function shellWords(text) {
   let closedGroup = false
   let listStart = -1
   let defining = false
+  // ADR-120 T1: the open constructs, the opens waiting for their first command, the closes waiting for the operator after
+  // them, the name a `NAME()` head introduced for the `{` that follows, and whether any text was met that is not modelled.
+  const stack = []
+  let openers = []
+  let awaiting = []
+  let defName = ''
+  let expectDefParen = false
+  let unmodelled = false
   let i = 0
 
   function fresh() {
-    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0, writes: [] }
+    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0, writes: [], bangs: 0, terminator: '', defines: '', opens: [], closes: [] }
+  }
+  // The construct a `}` or `)` closes: the last command before it carries the close, and the operator after it is its joiner.
+  // A close with nothing inside it, or of another kind than the one open, is text this reader does not model.
+  function closeConstruct(want) {
+    for (const e of awaiting) e.joiner = ''
+    awaiting = []
+    const top = stack.pop()
+    if (!top || (top.kind === 'subshell') !== (want === 'subshell') || commands.length <= top.start) { unmodelled = true; return }
+    const closer = { kind: top.kind, joiner: null }
+    commands.at(-1).closes.push(closer)
+    awaiting.push(closer)
   }
   const startWord = () => { word ??= { chars: [], dynamic: false, quoted: false, code: false } }
   const push = (c, q) => { startWord(); word.chars.push({ c, q }) }
@@ -51,10 +76,12 @@ export function shellWords(text) {
     word = null
     const leading = command.argv.length === 0
     const raw = w.chars.map(x => x.c).join('')
+    // A word after a close that is not another `}` cannot be told from a redirected or continued construct: not modelled.
+    if (awaiting.length && !(leading && !w.quoted && raw === '}')) unmodelled = true
     // `function NAME` opens a definition, as `NAME()` does: neither word is a command,
     // and the body's commands are read as commands (ADR-090 T2).
     if (naming) { naming = false; defining = true; return }
-    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }
+    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; unmodelled = true; return }
     if (leading && isAssignment(w.chars)) {
       command.assignments.push(raw)
       return
@@ -63,9 +90,17 @@ export function shellWords(text) {
     // A second `!` is `unknown`: bash 3.2 and /bin/sh reject it, and bash 5 may toggle it. A `!` before a `{ …; }` group
     // negates the whole group: one holding a single pipeline is that pipeline negated, and one of several commands is not
     // folded here, so it is `unknown` (BACKLOG §381).
-    if (leading && !w.quoted && raw === '!') { command.negated = command.negated ? 'unknown' : true; return }
-    if (leading && !w.quoted && raw === '{') { groups.push({ negated: command.negated, start: commands.length, definition: defining }); delete command.negated; defining = false; return }
+    if (leading && !w.quoted && raw === '!') { command.negated = command.negated ? 'unknown' : true; command.bangs += 1; return }
+    if (leading && !w.quoted && raw === '{') {
+      const kind = defName ? 'definition' : 'group'
+      stack.push({ kind, start: commands.length })
+      openers.push({ kind, name: defName, bangs: command.bangs })
+      defName = ''
+      command.bangs = 0
+      groups.push({ negated: command.negated, start: commands.length, definition: defining }); delete command.negated; defining = false; return
+    }
     if (leading && !w.quoted && raw === '}') {
+      closeConstruct('group')
       const group = groups.pop()
       const body = group?.negated ? commands.slice(group.start) : []
       const single = body.slice(0, -1).every(c => c.ended === '|' || c.ended === '|&') && !body[0]?.negated
@@ -91,6 +126,8 @@ export function shellWords(text) {
 
   function endCommand(operator) {
     endWord()
+    for (const e of awaiting) e.joiner = operator
+    awaiting = []
     naming = false
     // A command of redirections alone still runs its substitutions: `<$(git push)`
     // pushes before the open fails (Codex review of 341c49c).
@@ -110,11 +147,15 @@ export function shellWords(text) {
     // `function NAME ()` and a newline before the body still open the definition: those empty commands keep it. Any
     // command ends it, since a body need not be a group (`function f() if …; fi`, the review of 7c85a1c5).
     if (!empty || !['(', ')', '\n'].includes(operator)) defining = false
+    if (!empty || !['(', ')', '\n'].includes(operator)) defName = ''
     // A command of redirections alone opens its files, so it is kept for what it writes: `> log` empties a session log, and
     // the ledger guard reads its writes like any other (the verification review of a855f7f7). It joins nothing above.
     if (!empty || command.writes.length) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
       command.ended = operator
+      command.terminator = operator
+      command.opens = openers
+      openers = []
       commands.push(finish(command))
       pipeNext = operator === '|' || operator === '|&'
     } else if (!['|', '|&', '(', '\n'].includes(operator)) pipeNext = false
@@ -217,6 +258,7 @@ export function shellWords(text) {
   // A redirection at `src[i]`. Its target is not an argument; a heredoc's delimiter
   // is remembered for the next line.
   function redirection() {
+    if (awaiting.length) unmodelled = true
     // A word of digits directly before the operator is a file descriptor.
     if (word && word.chars.every(x => !x.q && /\d/.test(x.c))) word = null
     else endWord()
@@ -335,6 +377,7 @@ export function shellWords(text) {
       // ...but a `$(…)` inside it runs (Codex review of 341c49c).
       command.substitutions.push(...substitutionsIn(src.slice(i + 2, end - 1)))
       defining = false
+      if (defName) unmodelled = true
       i = end
       continue
     }
@@ -360,7 +403,27 @@ export function shellWords(text) {
       let op = c
       if ((c === '&' || c === '|' || c === ';') && src[i + 1] === c) op += src[++i]
       else if (c === '|' && src[i + 1] === '&') op += src[++i]
+      // `NAME(` followed by `)` heads a POSIX definition, and a `(` that starts a command opens a subshell; any other `(` is
+      // not modelled. The head stays a record of its own (as before), marked by `defines`.
+      let head = ''
+      if (c === '(') {
+        endWord()
+        if (command.argv.length === 1 && command.assignments.length === 0 && !command.quoted[0] && command.redirects === 0
+          && /^[A-Za-z_]\w*$/.test(command.argv[0]) && /^[ \t]*\)/.test(src.slice(i + 1))) {
+          head = command.argv[0]
+          command.defines = head
+        } else if (command.argv.length === 0 && command.assignments.length === 0 && command.redirects === 0 && command.writes.length === 0) {
+          if (defName) unmodelled = true
+          stack.push({ kind: 'subshell', start: commands.length })
+          openers.push({ kind: 'subshell', name: '', bangs: command.bangs })
+        } else unmodelled = true
+      }
       endCommand(op)
+      if (head) { defName = head; expectDefParen = true }
+      if (c === ')') {
+        if (expectDefParen) expectDefParen = false
+        else closeConstruct('subshell')
+      }
       if (c === '\n' && pending.length) { i++; readHeredocs(); i-- }
       continue
     }
@@ -371,7 +434,7 @@ export function shellWords(text) {
     endCommand('')
     if (pending.length) { complete = false; readHeredocs() }
   }
-  return { commands, complete }
+  return { commands, complete, closed: complete && !unmodelled && stack.length === 0 && openers.length === 0 }
 }
 
 // The command substitutions an expression runs. Inside `${…}`, `$((…))` and `((…))`

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
 import { commitOnlyCommand, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit } from '../plugin/scripts/publish-command.mjs'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
+import { parseShell } from '../plugin/scripts/shell-grammar.mjs'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
 import { fixtureRepo, ledgers, normaliser, runHook, sandbox } from './hook-golden.mjs'
 import { required } from './helpers/require.mjs'
@@ -88,12 +89,15 @@ const nodeRow = cmd => {
     publish: publishCommandIn(cmd), mentions: mentionsCommitOrPush(cmd), commitOnly: commitOnlyCommand(cmd),
     fresh: freshRepositoryCommit(cmd), stages: stagesBeforeCommit(cmd), leaves: leavesHookInPlace(cmd),
     foreign: foreignCommitPath(cmd), constant: constantSuccessCheck(cmd),
+    tree: parseShell(parsed),
     words: {
       complete: parsed.complete,
+      closed: parsed.closed,
       commands: parsed.commands.map(c => ({
         argv: c.argv, assignments: c.assignments, dynamic: c.dynamic, quoted: c.quoted, code: c.code,
         heredocs: c.heredocs.map(d => ({ delimiter: d.delimiter, quoted: d.quoted, body: d.body })),
         substitutions: c.substitutions, pipeTo: c.pipeTo, ended: c.ended, redirects: c.redirects, negated: c.negated ?? null, writes: c.writes,
+        bangs: c.bangs, terminator: c.terminator, defines: c.defines, opens: c.opens, closes: c.closes,
       })),
     },
   }
@@ -114,6 +118,30 @@ test('the Go classifier answers every literal of the classifier\'s own tests as 
   const said = `${run.stdout}\n${run.stderr}`
   assert.equal(run.status, 0, `the Go classifier disagrees with the Node one (or did not run):\n${said.split('\n').slice(-60).join('\n')}`)
   // A test that skipped would exit 0 too: the count it compared is what says it ran, over every row written.
+  assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
+})
+
+// ADR-120 T1: the lexer's boundary fields and the grammar's tree, row by row, over the shapes the grammar reads and the ones it
+// must refuse (the first test above compares them too, for every literal of the classifier's tests).
+test('the Go core reads the same fields and tree as the Node classifier', { skip: noGo }, t => {
+  const rows = [
+    'true || { true; false; }', '! { true; false; }', '! { npm test; false; }', 'f() { false; } && true', '{ false & } || false',
+    'true || true | { cat; false; }', 'false() { :; }; false', 'true && { true; false; }', '! { true; npm test; }', '{ npm test; } && true',
+    '{ npm test; } || false', 'true() { false; }; true', 'function f() { false; } && true', 'function f { false; } || false',
+    'function f { :; }; npm test', '{ npm test;', '(true; false) || x', '! (npm test) && true', '( { true; } ; false ) | cat',
+    '{ { true; } }', 'f() ( true )', '{ true; } > log', '{ ; }', 'echo (', 'case x in a) true;; esac', 'f()\n{ false; }; f', '! ! { true; }',
+    'a | b && c & d', '{ a & b; } | { c; }', 'f() { f; }; f', 'x || f() { :; }; f', '(a; (b; c)) && d',
+  ].map(nodeRow)
+  assert.ok(rows.some(row => row.tree !== null) && rows.some(row => row.tree === null), 'the rows hold trees and refusals')
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-parity-'))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const corpus = path.join(scratch, 'corpus.json')
+  writeFileSync(corpus, JSON.stringify(rows))
+  const run = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestClassifierParity$', './hooks/'], {
+    cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true, env: { ...process.env, QH_PARITY_CORPUS: corpus },
+  })
+  const said = `${run.stdout}\n${run.stderr}`
+  assert.equal(run.status, 0, `the Go core disagrees with the Node classifier (or did not run):\n${said.split('\n').slice(-60).join('\n')}`)
   assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
 })
 

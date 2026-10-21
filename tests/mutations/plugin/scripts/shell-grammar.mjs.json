@@ -1,0 +1,74 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-119 T1, the review of c48dd5b0..cfd24edc: a group of several commands piped onward is one stage of the pipeline",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "bang: el.o.bangs, sep: after(close) }",
+      "to": "bang: el.o.bangs, sep: 'end' }",
+      "only": "^(?:a group of several commands piped onward is one stage, so its own list decides nothing after the pipe)$"
+    },
+    {
+      "label": "ADR-119 T1, the verification of 7e7c59ee..892ba222: every group of several commands in a pipeline is one stage, not only the first",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "      if (next.bang) throw FAIL\n      kids.push(next.node)",
+      "to": "      if (next.bang) throw FAIL\n      kids.splice(0, kids.length, next.node)",
+      "only": "^(?:every group of several commands in a pipeline is one stage, not only the first)$"
+    },
+    {
+      "label": "check-command: the list resumes after the whole pipeline",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    while (sep === '|' || sep === '|&') {",
+      "to": "    while (false) {",
+      "only": "^(?:a pipeline is joined to the list as one unit)$"
+    },
+    {
+      "label": "ADR-120 T1: an and-or list joins its pipelines",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "    while (sep === '&&' || sep === '||') {",
+      "to": "    while (false) {",
+      "only": "^(?:a check whose status every POSIX shell fixes is refused, whatever its grouping)$"
+    },
+    {
+      "label": "ADR-120 T1: a definition head needs the definition that names it",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "if (c.closes.length || !o || o.kind !== 'definition' || o.name !== c.defines) return null",
+      "to": "if (false) return null",
+      "only": "^(?:bash-only syntax and unclosed text are could-not-look, never constant)$"
+    },
+    {
+      "label": "ADR-120 T1: a ! after a pipe is not read",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "      if (next.bang) throw FAIL",
+      "to": "      if (false) throw FAIL",
+      "only": "^(?:bash-only syntax and unclosed text are could-not-look, never constant)$"
+    },
+    {
+      "label": "ADR-120 T1: a definition is not a stage of a pipeline",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "if (kids.some(k => k.t === 'def') && (kids.length > 1 || bang)) throw FAIL",
+      "to": "if (false) throw FAIL",
+      "only": "^(?:bash-only syntax and unclosed text are could-not-look, never constant)$"
+    }
+  ]
+}

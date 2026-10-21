@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -195,10 +196,9 @@ var listControl = map[string]bool{"set": true, "shopt": true, "trap": true, "exe
 var shellNames = map[string]bool{"bash": true, "dash": true, "zsh": true, "ksh": true, "tcsh": true, "csh": true, "sh": true, "pwsh": true, "powershell": true}
 
 var (
-	exeSuffix  = regexp.MustCompile(`(?i)\.exe$`)
-	allDigits  = regexp.MustCompile(`^\d+$`)
-	pathSplit  = regexp.MustCompile(`[\\/]`)
-	negatedMap = map[string]string{"zero": "nonzero", "nonzero": "zero", "either": "either"}
+	exeSuffix = regexp.MustCompile(`(?i)\.exe$`)
+	allDigits = regexp.MustCompile(`^\d+$`)
+	pathSplit = regexp.MustCompile(`[\\/]`)
 )
 
 // programName is a command word's program: its last path component, without `.exe` or a leading `@`.
@@ -247,8 +247,50 @@ type cmdStatus struct {
 	exits  bool
 }
 
+// Statuses as bits (check-command.mjs's): ZERO, NONZERO, both. fall is what a node can leave with when it ends, exit what it can
+// exit the whole shell with; a node that cannot end (`exit 1`) has an empty fall.
+const (
+	zeroBit    = 1
+	nonzeroBit = 2
+	eitherBits = 3
+)
+
+var (
+	statusBit = map[string]int{"zero": zeroBit, "nonzero": nonzeroBit, "either": eitherBits}
+	bitWord   = [4]string{"either", "zero", "nonzero", "either"}
+	bitInvert = [4]int{0, nonzeroBit, zeroBit, eitherBits}
+	// A POSIX shell finds a special builtin before a function, so a function of that name is not trusted.
+	specialBuiltins = map[string]bool{":": true, ".": true, "break": true, "continue": true, "eval": true, "exec": true, "exit": true,
+		"export": true, "readonly": true, "return": true, "set": true, "shift": true, "times": true, "trap": true, "unset": true}
+)
+
+type statusRun struct{ fall, exit int }
+
+var (
+	statusUnread = statusRun{eitherBits, 0}
+	statusMaybe  = statusRun{eitherBits, eitherBits}
+)
+
+// evalCtx is what a walk of the tree carries: the records, the sh -c depth, the functions defined so far (nil is one the text
+// cannot place) and the ones being called.
+type evalCtx struct {
+	commands []*shellCommand
+	depth    int
+	env      map[string]*shellNode
+	active   map[string]bool
+}
+
+func (x evalCtx) fork() evalCtx {
+	env := make(map[string]*shellNode, len(x.env))
+	for k, v := range x.env {
+		env[k] = v
+	}
+	x.env = env
+	return x
+}
+
 func listStatus(text string, depth int) string {
-	commands, complete := shellWords(text)
+	commands, complete, closed := shellWordsClosed(text)
 	if !complete || len(commands) == 0 || depth > 3 {
 		return "either"
 	}
@@ -257,83 +299,159 @@ func listStatus(text string, depth int) string {
 		if len(c.argv) > 0 {
 			first = c.argv[0]
 		}
-		if (c.redirects > 0 && !isPiped(c.ended)) || c.ended == "(" || c.ended == ")" || listControl[programName(first)] {
+		if (c.redirects > 0 && !isPiped(c.ended)) || listControl[programName(first)] {
 			return "either"
 		}
 	}
-	merge := func(a, b string) string {
-		if a == b {
-			return a
-		}
+	tree := parseShell(commands, complete, closed)
+	if tree == nil {
 		return "either"
 	}
-	status := "zero"
-	for i := 0; i < len(commands); i++ {
-		joiner := ";"
-		if i > 0 {
-			joiner = commands[i-1].ended
+	r := evaluate(tree, evalCtx{commands: commands, depth: depth, env: map[string]*shellNode{}, active: map[string]bool{}}, false)
+	return bitWord[r.fall|r.exit]
+}
+
+func evaluate(n *shellNode, x evalCtx, conditional bool) statusRun {
+	switch n.T {
+	case "cmd":
+		return commandRun(x.commands[n.I], x, conditional)
+	case "pipe":
+		return pipelineRun(n, x, conditional)
+	case "andor":
+		return andOrRun(n, x, conditional)
+	case "list":
+		return listRun(n, x, conditional)
+	case "group":
+		return evaluate(n.Kids[0], x, conditional)
+	case "sub":
+		body := evaluate(n.Kids[0], x.fork(), conditional)
+		fall := body.fall | body.exit
+		if fall == 0 {
+			fall = eitherBits
 		}
-		end := i
-		// A group of several commands piped onward is one stage, wherever it stands (check-command.mjs's).
-		if commands[i].groupEnd > i {
-			end = commands[i].groupEnd
-		}
-		for isPiped(commands[end].ended) && end+1 < len(commands) {
-			end++
-			if commands[end].groupEnd > end {
-				end = commands[end].groupEnd
-			}
-		}
-		var own cmdStatus
-		if commands[end].ended == "&" || (end > i && passThroughSink(commands[end])) {
-			own = cmdStatus{status: "zero"}
+		return statusRun{fall, 0}
+	case "def":
+		if conditional || specialBuiltins[n.Name] {
+			x.env[n.Name] = nil
 		} else {
-			own = commandStatus(commands[end], depth)
+			x.env[n.Name] = n.Kids[0]
 		}
-		if strict(commands[i].negated, "unknown") {
-			own = cmdStatus{status: "either"}
-		} else if commands[i].negated != nil && commands[end].ended != "&" && !(own.exits && end == i) {
-			own = cmdStatus{status: negatedMap[own.status]}
-		}
-		if own.exits && end == i && end < len(commands)-1 {
-			reaches := true
-			if joiner == "&&" {
-				reaches = status == "zero"
-			} else if joiner == "||" {
-				reaches = status == "nonzero"
-			}
-			if reaches {
-				return own.status
-			}
-			return "either"
-		}
-		switch joiner {
-		case "&&":
-			if status == "zero" {
-				status = own.status
-			} else if status == "nonzero" {
-				status = "nonzero"
-			} else {
-				status = merge(own.status, "nonzero")
-			}
-		case "||":
-			if status == "nonzero" {
-				status = own.status
-			} else if status == "zero" {
-				status = "zero"
-			} else {
-				status = merge(own.status, "zero")
-			}
-		default:
-			status = own.status
-		}
-		i = end
+		return statusRun{zeroBit, 0}
 	}
-	return status
+	return statusMaybe
+}
+
+func commandRun(c *shellCommand, x evalCtx, conditional bool) statusRun {
+	if unreadable(c) {
+		return statusUnread
+	}
+	if body, defined := x.env[c.argv[0]]; defined {
+		if body == nil || x.active[c.argv[0]] {
+			return statusMaybe
+		}
+		x.active[c.argv[0]] = true
+		defer delete(x.active, c.argv[0])
+		return evaluate(body, x, conditional)
+	}
+	if programName(c.argv[0]) == "unset" {
+		for name := range x.env {
+			x.env[name] = nil
+		}
+	}
+	own := commandStatus(c, x.depth)
+	if own.exits {
+		return statusRun{0, statusBit[own.status]}
+	}
+	return statusRun{statusBit[own.status], 0}
+}
+
+func pipelineRun(n *shellNode, x evalCtx, conditional bool) statusRun {
+	var r statusRun
+	if len(n.Kids) == 1 {
+		r = evaluate(n.Kids[0], x, conditional)
+	} else {
+		last := n.Kids[len(n.Kids)-1]
+		tail := evaluate(last, x.fork(), true)
+		fall := tail.fall | tail.exit
+		if fall == 0 {
+			fall = eitherBits
+		}
+		if tail.exit == 0 && endsInSink(last, x) {
+			fall = zeroBit
+		}
+		r = statusRun{fall, 0}
+	}
+	if n.Bang == 1 {
+		return statusRun{bitInvert[r.fall], r.exit}
+	}
+	if n.Bang > 1 {
+		fall := 0
+		if r.fall != 0 {
+			fall = eitherBits
+		}
+		return statusRun{fall, r.exit}
+	}
+	return r
+}
+
+// endsInSink is a pass-through sink as the last thing a stage runs: itself, or the only command of a group.
+func endsInSink(n *shellNode, x evalCtx) bool {
+	if n.T == "cmd" {
+		return passThroughSink(x.commands[n.I])
+	}
+	if n.T != "group" {
+		return false
+	}
+	items := n.Kids[0].Kids
+	last := items[len(items)-1]
+	if len(last.Kids) != 1 || last.Kids[0].Bang != 0 || len(last.Kids[0].Kids) != 1 {
+		return false
+	}
+	return endsInSink(last.Kids[0].Kids[0], x)
+}
+
+func andOrRun(n *shellNode, x evalCtx, conditional bool) statusRun {
+	r := evaluate(n.Kids[0], x, conditional)
+	for k := 1; k < len(n.Kids); k++ {
+		gate := zeroBit
+		if n.Ops[k-1] != "&&" {
+			gate = nonzeroBit
+		}
+		if r.fall&gate == 0 {
+			continue
+		}
+		next := evaluate(n.Kids[k], x, conditional || r.fall != gate || r.exit != 0)
+		r = statusRun{(r.fall &^ gate & eitherBits) | next.fall, r.exit | next.exit}
+	}
+	return r
+}
+
+func listRun(n *shellNode, x evalCtx, conditional bool) statusRun {
+	r := statusRun{zeroBit, 0}
+	for k := 0; k < len(n.Kids) && r.fall != 0; k++ {
+		background := n.Ops[k] == "&"
+		ctx := x
+		if background {
+			ctx = x.fork()
+		}
+		item := evaluate(n.Kids[k], ctx, conditional || r.exit != 0)
+		if background {
+			r = statusRun{zeroBit, r.exit}
+		} else {
+			r = statusRun{item.fall, r.exit | item.exit}
+		}
+	}
+	return r
+}
+
+// unreadable is text whose status cannot be read: a substitution, no command word, or one built at run time. A word that is
+// exactly `[` is the test builtin, not a glob.
+func unreadable(c *shellCommand) bool {
+	return len(c.substitutions) > 0 || len(c.argv) == 0 || (c.isDynamic(0) && c.argv[0] != "[")
 }
 
 func commandStatus(c *shellCommand, depth int) cmdStatus {
-	if len(c.substitutions) > 0 || len(c.argv) == 0 || (c.isDynamic(0) && c.argv[0] != "[") {
+	if unreadable(c) {
 		return cmdStatus{status: "either"}
 	}
 	name := programName(c.argv[0])
@@ -342,7 +460,14 @@ func commandStatus(c *shellCommand, depth int) cmdStatus {
 		if len(args) == 0 || !allDigits.MatchString(args[0]) {
 			return cmdStatus{status: "either", exits: true}
 		}
-		if strings.TrimLeft(args[0], "0") == "" {
+		// The shell keeps a status modulo 256 (`exit 256` exits 0); past INT_MAX dash refuses the number and bash wraps it,
+		// so the shells disagree and nothing is fixed (measured 2026-10-21 under /bin/bash, /bin/sh and /bin/dash).
+		digits := strings.TrimLeft(args[0], "0")
+		code, err := strconv.ParseInt("0"+digits, 10, 64)
+		if err != nil || code > 2147483647 {
+			return cmdStatus{status: "either", exits: true}
+		}
+		if code%256 == 0 {
 			return cmdStatus{status: "zero", exits: true}
 		}
 		return cmdStatus{status: "nonzero", exits: true}

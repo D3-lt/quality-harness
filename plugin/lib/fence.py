@@ -829,5 +829,18 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
             except Exception:
                 job_closed = False
     if outcome is not None:
+        # Before the group is settled: settle_group ends what the fence left, so "ended" alone cannot say
+        # that the fence handed back a shell with work still running (`sleep 30 >/dev/null 2>&1 & exit 0`).
+        # A caller that records a pass needs both. Unknown (None) on Windows, where the job answers.
+        left = None
+        if platform != "nt":
+            try:
+                os.killpg(proc.pid, 0)
+                left = True
+            except ProcessLookupError:
+                left = False
+            except OSError:
+                left = True
+        outcome["left"] = left
         outcome["ended"] = settle_group(proc.pid, platform, job_closed=job_closed) if job is not None or platform != "nt" else False
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)

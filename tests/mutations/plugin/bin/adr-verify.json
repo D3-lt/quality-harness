@@ -1859,16 +1859,16 @@
       "label": "ADR-120 T10: a tree that moved during the run is never noticed",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/adr-verify-background.test.mjs"],
-      "from": "        if note is None and tree_fingerprint(cwd) != before:",
-      "to": "        if note is None and tree_fingerprint(cwd) != before and False:",
+      "from": "        if note is None and (before is None or after is None or after != before):",
+      "to": "        if note is None and (before is None or after is None or after != before) and False:",
       "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
     },
     {
       "label": "ADR-120 T10: a moved tree keeps the fence's exit 0, so the row reads passed",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/adr-verify-background.test.mjs"],
-      "from": "r.returncode or 1, r.stdout, r.stderr)",
-      "to": "r.returncode, r.stdout, r.stderr)",
+      "from": "r.returncode or 1, r.stdout, r.stderr)\n        elif note is None",
+      "to": "r.returncode, r.stdout, r.stderr)\n        elif note is None",
       "only": "^(?:a background run whose tree moved, timed out or overlaps is never recorded as passed)$"
     },
     {
@@ -1998,6 +1998,30 @@
       "from": "MISSING_MODULE = r\"Cannot find module\"",
       "to": "MISSING_MODULE = r\"Cannot find modul3\"",
       "only": "^(?:a missing dependency in the worktree is could-not-run, an assertion failure is not)$"
+    },
+    {
+      "label": "ADR-120 T10: a failed git read still hashes an empty diff, so two failures compare equal",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background-unobserved.test.mjs"],
+      "from": "    if head is None or diff is None:",
+      "to": "    if head is None and diff is None:",
+      "only": "^(?:a background run whose tree git could not read is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: the fence's process group is never settled, so a descendant outlives a passed row",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background-unobserved.test.mjs"],
+      "from": "errors=\"replace\", timeout=limit, outcome=left)",
+      "to": "errors=\"replace\", timeout=limit); left = {\"ended\": True, \"left\": False}",
+      "only": "^(?:a background fence that leaves work running is never recorded as passed)$"
+    },
+    {
+      "label": "ADR-120 T10: work left running by the fence is not noticed",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-background-unobserved.test.mjs"],
+      "from": "        elif note is None and (left.get(\"left\") or not left.get(\"ended\")):",
+      "to": "        elif note is None and (False or not left.get(\"ended\")):",
+      "only": "^(?:a background fence that leaves work running is never recorded as passed)$"
     }
   ]
 }

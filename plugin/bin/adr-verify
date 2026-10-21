@@ -3104,9 +3104,11 @@ def tree_fingerprint(cwd):
         return r.stdout if r.returncode == 0 else None
     head = ask("rev-parse", "-q", "--verify", "HEAD")
     diff = ask("diff", "HEAD", "--binary", "--no-ext-diff")
-    if head is None and diff is None:
+    # Either read failing leaves the tree unobserved: a hash of an empty diff would compare equal to the
+    # next failure's, and a run would be recorded as passed on a tree nobody saw.
+    if head is None or diff is None:
         return None
-    return (head, hashlib.sha256(diff or b"").hexdigest())
+    return (head, hashlib.sha256(diff).hexdigest())
 
 
 def start_background(task, cwd, steps):
@@ -3150,9 +3152,10 @@ def run_background(task, text, cmd, cwd, steps, run_id):
         limit = fence_timeout()
         argv = [bash_or_exit(), "-c", cmd]
         note = None
+        left = {}
         try:
             r = run_bounded(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                            errors="replace", timeout=limit)
+                            errors="replace", timeout=limit, outcome=left)
         except subprocess.TimeoutExpired as expired:
             # Written, unlike a foreground timeout: nobody is waiting here to be told it was UNRUN, so
             # the row is how the run is told, and it is a failure that says what happened.
@@ -3162,9 +3165,16 @@ def run_background(task, text, cmd, cwd, steps, run_id):
                     f"Not a pass, and not a verdict about the code.")
             r = subprocess.CompletedProcess(argv, 124, decode_stream(expired.stdout), decode_stream(expired.stderr))
         elapsed = round((time.monotonic() - started) * 1000)
-        if note is None and tree_fingerprint(cwd) != before:
-            note = ("[adr-verify] UNPROVEN: HEAD or a tracked file changed while the fence ran, so it did not run "
-                    "on one tree. Recorded as a failure, never as passed; run it again on a quiet tree.")
+        after = tree_fingerprint(cwd)
+        if note is None and (before is None or after is None or after != before):
+            note = ("[adr-verify] UNPROVEN: HEAD or a tracked file changed while the fence ran, or git could not "
+                    "read the tree at either end, so it did not run on one observed tree. Recorded as a failure, "
+                    "never as passed; run it again on a quiet tree.")
+            r = subprocess.CompletedProcess(argv, r.returncode or 1, r.stdout, r.stderr)
+        elif note is None and (left.get("left") or not left.get("ended")):
+            note = ("[adr-verify] UNPROVEN: the fence returned with work it started still running, or its "
+                    "process group was not seen to end, so it did not finish what it began. Recorded as a "
+                    "failure, never as passed; background nothing from a fence.")
             r = subprocess.CompletedProcess(argv, r.returncode or 1, r.stdout, r.stderr)
         if note:
             r = subprocess.CompletedProcess(argv, r.returncode, r.stdout, (r.stderr or "") + "\n" + note)

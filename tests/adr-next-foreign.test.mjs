@@ -198,6 +198,10 @@ test('a count after the closing affirmative is a tally, not a verdict', () => {
     'the run failed; approved by the owner after a rerun',
     'observed: red run 111: TestAlpha failed; second run 222: approved',
     'observed: red run 111: TestAlpha failed, deployment remains blocked; green run 222: verified',
+    'observed: red run 111: TestAlpha failed; rerun 222: approved',
+    'observed: red run 111: TestAlpha failed; second run 222 (unit tests; Safari): approved',
+    'observed: red run 111: TestAlpha failed; second run 222 (then retried): approved',
+    'the run failed, approved',
   ]) assert.equal(verdict(note), 'stop', note)
   for (const note of [
     'the run failed; approved 2026-10-21',
@@ -209,5 +213,8 @@ test('a count after the closing affirmative is a tally, not a verdict', () => {
     'the run failed; approved by the owner',
     'the run failed; confirmed',
     'observed: red run 111: TestAlpha failed; second run 222: approved; approved',
+    'observed: red run 111: TestAlpha failed; rerun 222: ok; approved',
+    'observed: red run 111: TestAlpha failed; second run 222 (unit tests; Safari): ok; approved',
+    'the run failed. Verdict: approved',
   ]) assert.equal(verdict(note), 'pass', note)
 })

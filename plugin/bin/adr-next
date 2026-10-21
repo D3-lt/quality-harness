@@ -427,11 +427,14 @@ def closes_with_approval(text):
     body = re.sub(r"[;,.:—–\s]+$", "", text)
     breaks = list(CLOSING_BREAK.finditer(body))
     start = breaks[-1].end() if breaks else 0
-    # A numbered run's own word ("second run 222: approved") reports that run, not the note (ADR-119 T3): it closes the
-    # note only once a clause break separates it from the run.
-    run = list(RUN_REPORT.finditer(text, 0, start))
-    if run and not CLAUSE_BREAK.search(text, run[-1].end(), start):
-        return False
+    # After a ";" or "." the approval stands alone. After a ":", "," or dash it closes the note only when nothing but the label
+    # "verdict" stands before that mark: "rerun 222: approved", "second run 222 (unit tests; Safari): approved" and "the run
+    # failed, approved" report or qualify, they do not close (the verifications of 0194fc9a..35d79248). This also holds
+    # ADR-119 T3's rule that a numbered run's own word is not the note's verdict.
+    if breaks and breaks[-1].group().strip() in (":", ",", "—", "–", "-"):
+        before = body[breaks[-2].end() if len(breaks) > 1 else 0:breaks[-1].start()]
+        if not re.fullmatch(r"\s*(?:verdict)?\s*", before, re.I):
+            return False
     return CLOSING_APPROVAL.fullmatch(body[start:].strip()) is not None
 
 

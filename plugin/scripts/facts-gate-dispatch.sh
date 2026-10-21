@@ -119,8 +119,10 @@ bom_free() {
 # unclosed fence runs to the end, as it does there. An HTML comment block and a
 # `<pre>` block are blanked too: a task title inside either still routed the doc as a
 # task (a Windows chaos round on 2.111.0-rc, §297's siblings).
+# `unfenced FILE fences` blanks code fences only, as record.py's section walker reads them; plain `unfenced FILE` also
+# blanks HTML comments and <pre> blocks, for the routing above that must not read an example as the file's own title.
 unfenced() {
-  bom_free "$1" | awk '
+  bom_free "$1" | awk -v fences_only="${2:+1}" '
     {
       line = $0
       sub(/\r$/, "", line)
@@ -130,10 +132,12 @@ unfenced() {
         rest = substr(line, RSTART + RLENGTH)
       }
       if (fence == "") {
-        if (comment) { if (index(line, "-->")) comment = 0; print ""; next }
-        if (pre) { if (tolower(line) ~ /<\/pre[ \t]*>/) pre = 0; print ""; next }
-        if (line ~ /^[ \t]*<!--/) { if (!index(line, "-->")) comment = 1; print ""; next }
-        if (tolower(line) ~ /^[ \t]*<pre([ \t>]|$)/) { if (tolower(line) !~ /<\/pre[ \t]*>/) pre = 1; print ""; next }
+        if (!fences_only) {
+          if (comment) { if (index(line, "-->")) comment = 0; print ""; next }
+          if (pre) { if (tolower(line) ~ /<\/pre[ \t]*>/) pre = 0; print ""; next }
+          if (line ~ /^[ \t]*<!--/) { if (!index(line, "-->")) comment = 1; print ""; next }
+          if (tolower(line) ~ /^[ \t]*<pre([ \t>]|$)/) { if (tolower(line) !~ /<\/pre[ \t]*>/) pre = 1; print ""; next }
+        }
         if (lead != "" && !(substr(lead, 1, 1) == "`" && index(rest, "`"))) { fence = lead; print ""; next }
         print line
         next
@@ -324,7 +328,7 @@ tests_naming() {
       shown[FNR] ~ /^##[ \t]+tests/ { tests = 1; next }
       tests && index($0, ENVIRON["QH_LOCK_PATH"]) { found = 1; exit }
       END { exit found ? 0 : 1 }
-    ' <(unfenced "$root/$task") "$root/$task" && printf '%s\0' "$task"
+    ' <(unfenced "$root/$task" fences) "$root/$task" && printf '%s\0' "$task"
   done
 }
 

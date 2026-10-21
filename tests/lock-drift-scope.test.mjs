@@ -57,6 +57,9 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   const fencedLog = heading => `# Task ADR-001: fenced\n\n## Tests\n\n\`\`\`text\n${heading}\n\`\`\`\n\n| Test name | File | Verifies | Covers | Steps |\n|-----------|------|----------|--------|-------|\n${row}`
   writeFileSync(path.join(tasks, 'T10-fenced-vlog.md'), fencedLog('## Verification Log'))
   writeFileSync(path.join(tasks, 'T11-fenced-mlog.md'), fencedLog('## Mutation Log'))
+  // A Tests heading inside an HTML comment or a <pre> block is still a section to record.py (the review of e3421b69).
+  writeFileSync(path.join(tasks, 'T13-comment.md'), `# Task ADR-001-T13: comment\n\n<!--\n${header}${row}-->\n`)
+  writeFileSync(path.join(tasks, 'T14-pre.md'), `# Task ADR-001-T14: pre\n\n<pre>\n${header}${row}</pre>\n`)
   writeFileSync(path.join(tasks, 'T12-logged.md'), `# Task ADR-001-T12: logged\n\n${header}| \`other\` | \`src/other.test.js\` | it | — | S1 |\n\n## Verification Log\n- 2026-10-21 · abc1234 · exit 0 · \`node --test src/a.test.js\` · acceptance-sha256:00\n`)
   for (const args of [['init', '-q'], ['add', '.']]) {
     const run = spawnSync('git', args, { cwd: project, encoding: 'utf8', timeout: 30_000, windowsHide: true })
@@ -72,7 +75,7 @@ test('the lock-drift scan gates a task whose Tests table names the file, and not
   assert.doesNotMatch(gated('src/a.js'), /T1-affected/, 'a task that only lists the file as affected was gated')
   const forTest = gated('src/a.test.js')
   assert.match(forTest, /T2-tests\.md/, 'the task whose Tests table names the file was not gated')
-  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented', 'T6-long-fence', 'T7-tilde', 'T8-crlf', 'T9-nbsp', 'T10-fenced-vlog', 'T11-fenced-mlog']) {
+  for (const task of ['T3-escaped', 'T4-bare', 'T5-indented', 'T6-long-fence', 'T7-tilde', 'T8-crlf', 'T9-nbsp', 'T10-fenced-vlog', 'T11-fenced-mlog', 'T13-comment', 'T14-pre']) {
     assert.match(forTest, new RegExp(`${task}\\.md`), `${task} was not gated`)
   }
   assert.doesNotMatch(forTest, /T1-affected/, 'the affected-files task was gated for the test file too')

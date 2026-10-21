@@ -235,7 +235,9 @@ test('a note that states only an absent failure is done, and a failure beside it
   for (const note of ['no failures', 'no failure', 'no tests failed', 'no failed checks.']) {
     assert.equal(verdict(note), 'pass', note)
   }
-  for (const note of ['failures', 'no failures but blocked', 'no failures; deployment failed', 'the claim that no failures happened is false']) {
+  for (const note of ['failures', 'no failures but blocked', 'no failures; deployment failed', 'the claim that no failures happened is false',
+    // The verification of 7b80a64f: a run report quoted as program output is not blanked here, so its red run still speaks.
+    "the tool printed 'observed: red run 111: deployment failed; green run 222: did not pass'"]) {
     assert.equal(verdict(note), 'stop', note)
   }
 })

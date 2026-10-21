@@ -484,9 +484,10 @@ def human_outcome(note):
     # failed-total: 3" closes on a tally, not on "approved" (the verification of 66c1d726..85642379).
     if NEGATIVE.search(outside):
         return "pass" if closes_with_approval(own) else "stop"
-    # A negative only program output holds is read with the same absences and counters blanked: a note saying only "no
-    # failures" names no failure, and states no verdict (b76ac9e0 made `failures` a negative word; this read missed it).
-    if NEGATIVE.search(not_the_verdict(note)):
+    # A negative only program output holds is read with its absent failures blanked: a note saying only "no failures" names
+    # no failure, and states no verdict (b76ac9e0 made `failures` a negative word; this read missed it). Only absences: a
+    # run report quoted as program output keeps its red run (the verification of 7b80a64f).
+    if NEGATIVE.search(neutralise(ABSENT_FAILURE.sub(r"\1 ", note))):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):
         return "pass"

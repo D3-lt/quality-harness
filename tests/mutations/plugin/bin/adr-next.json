@@ -4,8 +4,16 @@
       "label": "a note stating only an absent failure: the program-output scan blanks absences too",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "    if NEGATIVE.search(not_the_verdict(note)):",
+      "from": "    if NEGATIVE.search(neutralise(ABSENT_FAILURE.sub(r\"\\1 \", note))):",
       "to": "    if NEGATIVE.search(neutralise(note)):",
+      "only": "^(?:a note that states only an absent failure is done, and a failure beside it still stops)$"
+    },
+    {
+      "label": "the verification of 7b80a64f: the program-output scan blanks absences only, never a quoted run report",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    if NEGATIVE.search(neutralise(ABSENT_FAILURE.sub(r\"\\1 \", note))):",
+      "to": "    if NEGATIVE.search(not_the_verdict(note)):",
       "only": "^(?:a note that states only an absent failure is done, and a failure beside it still stops)$"
     },
     {

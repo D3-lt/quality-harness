@@ -123,3 +123,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-119](ADR-119-what-the-backlog-still-holds.md) | What the backlog still holds after the 2026-10-20 re-check | Accepted |
 | [ADR-120](ADR-120-nothing-left-out.md) | Nothing left out: the shell grammar, a retired spec fact, the session's own plugin, a Stop that can act | Accepted |
 | [ADR-121](ADR-121-a-watcher-that-steers-on-evidence.md) | A watcher that steers on evidence, learns which nudges work, and remembers the lessons | Accepted |
+| [ADR-122](ADR-122-said-once-per-context.md) | Each hook item is said once per context | Proposed |

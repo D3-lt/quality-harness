@@ -11,19 +11,19 @@
 
 ## Goal
 
-A finding acted on and followed by a pass becomes an anchored lesson in the project's memoryd space; SessionStart recalls the lessons for the paths a session is likely to touch; mrw's `--json` receipt feeds `file.written` for every path an mrw write touched.
+A finding acted on and followed by a pass becomes an anchored lesson in the project's memoryd space; SessionStart lists the lessons for the area a session works in; mrw's `--json` receipt feeds `file.written` for every path an mrw write touched. The memoryd contract, from memory-runtime's answers of 2026-10-21 (checked there at 6740b1f): plain MCP JSON-RPC over the unix socket `host.json` names (mode 0600, same user); principal the human the session works for, `agent: quality-harness-watcher`; `insert` of kind `procedure` or `correction` with labels `source=quality-harness`, `project`, `rule` and a coarse `area` (`insert` attests identical text, so a retry writes nothing twice); an `anchor` of type `file-snippet` keyed on a stable verbatim span, never a line number; the watcher records `record_verdict` (verifier `quality-harness`, the commit) at each commit, so a drifted lesson reads stale and is never hidden; SessionStart uses `list` by exact labels (no embedding, milliseconds), never `recall` (an embed per query, about a second on a CPU TEI); an outcome on a recalled lesson goes to the `recall-feedback` space as one `fact` with labels `feedback`, `verdict` and `memory_id`. Findings and check results are never written as memories.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
-| `tests/lessons.test.mjs` | create | T5's mechanism |
-| `core/hooks/lessons.go` | create | T5's mechanism |
-| `plugin/scripts/hook-record.mjs` | edit | T5's mechanism |
+| `tests/lessons.test.mjs` | create | the rows below, against an MCP test double that speaks the socket protocol (0 locks: new) |
+| `core/hooks/lessons.go` | create | the detector (`host.json` → socket → MCP initialize within 300 ms; ENOENT, ECONNREFUSED or a socket mid-restart are absent), the lesson writer, the anchor verdicts, the SessionStart `list` |
+| `plugin/scripts/hook-record.mjs` | edit | an mrw write's `--json` receipt records one `file.written` per path it names |
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run, against a memoryd test double and mrw receipts captured from the real binary: an acted-and-passed finding writes one lesson with the rule, the paths and an anchor; a second identical one is attested, not duplicated; SessionStart names the lessons for touched paths; an mrw receipt naming two paths records two `file.written` rows; with memoryd absent, nothing is written and that is said once.
+1. [S1] Write the failing tests and record the red run, against an MCP double over a unix socket and mrw receipts captured from the real binary: an acted-and-passed finding inserts one lesson with `source=quality-harness`, the rule, the area and a `file-snippet` anchor; a retry is attested, not duplicated; a commit that changes the anchored span records `drifted`, and one that keeps it `verified`; SessionStart `list`s the lessons for the session's area and names them; a recalled lesson followed by a pass writes one `recall-feedback` fact; an mrw receipt naming two paths records two `file.written` rows; with no `host.json`, a refused socket or a socket missing mid-restart, nothing is written, nothing fails, and the absence is said once.
 2. [S2] Implement the writer, the recall at SessionStart and the receipt reader.
 3. [S3] What the memoryd double does not model is named in Risks. [proof: human: read in review]
 4. [S4] Record a killed mutant per mechanism. [proof: mutation]

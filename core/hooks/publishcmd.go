@@ -1543,63 +1543,279 @@ func printerBytes(c *shellCommand, defined map[string]bool) (string, bool) {
 // they are not read.
 var silentStatus = map[string]int{":": 0, "true": 0, "false": 1}
 
+// stageOut is what one stage, an and-or list or a list gave: the bytes it wrote to stdout and its status. failed says whether a
+// non-zero status of this stage is a failure errexit acts on (a command's, a subshell's, but not a group's, which ends non-zero
+// when a command in it failed under an operator: `{ false && true; }` does not exit); exited is a group that ended the shell, a
+// subshell ends only itself.
 type stageOut struct {
 	bytes  string
 	status int
+	failed bool
+	exited bool
+}
+
+// setLetters and setNames are the options of `set` this reads (publish-command.mjs's SET_LETTERS and SET_NAMES); any other is not
+// known, and a set carrying one is not read.
+const setLetters = "abCefmuvx"
+
+var setNames = map[string]bool{"errexit": true, "pipefail": true, "nounset": true, "noclobber": true, "xtrace": true, "verbose": true,
+	"allexport": true, "noglob": true}
+
+// errexitEvents are the errexit states each `-e`, `+e`, `-o errexit` and `+o errexit` of a `set` leaves, left to right, or false.
+func errexitEvents(args []string) ([]bool, bool) {
+	events := []bool{}
+	for i := 0; i < len(args); i++ {
+		word := args[i]
+		if word == "--" || word == "" || (word[0] != '-' && word[0] != '+') {
+			break
+		}
+		if len(word) == 1 {
+			return nil, false
+		}
+		on := word[0] == '-'
+		for at := 1; at < len(word); at++ {
+			letter := word[at]
+			switch {
+			case letter == 'o':
+				i++
+				if at != len(word)-1 || i >= len(args) || !setNames[args[i]] {
+					return nil, false
+				}
+				if args[i] == "errexit" {
+					events = append(events, on)
+				}
+			case !strings.ContainsRune(setLetters, rune(letter)):
+				return nil, false
+			case letter == 'e':
+				events = append(events, on)
+			}
+		}
+	}
+	return events, true
+}
+
+// errexit states: what an earlier statement leaves, or what a group runs under.
+const (
+	errexitOff = iota
+	errexitOn
+	errexitUnknown
+)
+
+// mayChangeUnseen are the commands that may change errexit where this does not read what they run (publish-command.mjs's
+// MAY_SET_UNSEEN).
+var mayChangeUnseen = map[string]bool{"eval": true, ".": true, "source": true, "command": true, "builtin": true}
+
+// collectSets appends the errexit states the commands of this node leave in its own shell, in order: a `set` this does not read, one
+// of mayChangeUnseen, a call to a function defined earlier and a command word the shell expands leave it unknown.
+func collectSets(node *shellNode, commands []*shellCommand, defined map[string]bool, events *[]int) {
+	switch node.T {
+	case "cmd":
+		c := commands[node.I]
+		if len(c.argv) == 0 {
+			return
+		}
+		if c.argv[0] == "set" {
+			found, ok := []bool(nil), false
+			if len(c.dynamic) == 0 && len(c.substitutions) == 0 && len(c.redirections) == 0 {
+				found, ok = errexitEvents(c.argv[1:])
+			}
+			if !ok {
+				*events = append(*events, errexitUnknown)
+				return
+			}
+			for _, on := range found {
+				if on {
+					*events = append(*events, errexitOn)
+				} else {
+					*events = append(*events, errexitOff)
+				}
+			}
+			return
+		}
+		dynamicName := false
+		for _, at := range c.dynamic {
+			dynamicName = dynamicName || at == 0
+		}
+		if mayChangeUnseen[c.argv[0]] || defined[c.argv[0]] || dynamicName {
+			*events = append(*events, errexitUnknown)
+		}
+		return
+	case "def", "sub":
+		return
+	case "pipe":
+		if len(node.Kids) == 1 {
+			collectSets(node.Kids[0], commands, defined, events)
+		}
+		return
+	}
+	for k, kid := range node.Kids {
+		inner := []int{}
+		collectSets(kid, commands, defined, &inner)
+		if len(inner) == 0 {
+			continue
+		}
+		runs := true
+		switch node.T {
+		case "list":
+			runs = node.Ops[k] == ";"
+		case "andor":
+			runs = len(node.Kids) == 1
+		}
+		if runs {
+			*events = append(*events, inner...)
+		} else {
+			*events = append(*events, errexitUnknown)
+		}
+	}
+}
+
+// errexitAt is whether an earlier statement ended the shell before target runs, and whether errexit is in effect where it runs (the
+// Codex review of 7a9107e8..dcc4693a; publish-command.mjs's errexitAt carries the measurements). A group that is a pipeline stage
+// runs in a subshell that inherits `set -e` from the shell around it; a set in an earlier pipeline stage, a subshell or a pipeline of
+// several stages leaves this shell alone; the state is off inside a pipeline the shell ignores errexit for (left of `&&` or `||`,
+// negated). Under errexit known on, an earlier statement whose status is known non-zero where errexit acts ends the shell.
+func errexitAt(tree, target *shellNode, commands []*shellCommand, defined map[string]bool) (ended bool, on int) {
+	state := errexitOff
+	ignored := false
+	node := tree
+	for node != target && node.T != "cmd" && node.T != "def" {
+		var next *shellNode
+		if node.T == "pipe" {
+			if node.Bang != 0 {
+				ignored = true
+			}
+			for _, kid := range node.Kids {
+				if containsNode(kid, target) {
+					next = kid
+					break
+				}
+			}
+		} else {
+			for k, kid := range node.Kids {
+				if containsNode(kid, target) {
+					if node.T == "andor" && k < len(node.Kids)-1 {
+						ignored = true
+					}
+					next = kid
+					break
+				}
+				inner := []int{}
+				collectSets(kid, commands, defined, &inner)
+				runs := node.T == "list" && node.Ops[k] == ";"
+				if len(inner) > 0 {
+					if runs {
+						for _, event := range inner {
+							state = event
+						}
+					} else {
+						state = errexitUnknown
+					}
+				} else if runs && state == errexitOn && !ignored && !ended {
+					if result, ok := andorResult(kid, commands, defined, true); ok && result.exited {
+						ended = true
+					}
+				}
+			}
+		}
+		if next == nil {
+			break
+		}
+		node = next
+	}
+	if ignored {
+		return ended, errexitOff
+	}
+	return ended, state
+}
+
+// listUnderErrexit is what a group writes under errexit on; with it unknown, what it writes either way, or false when the two differ.
+func listUnderErrexit(list *shellNode, commands []*shellCommand, defined map[string]bool, on int) (stageOut, bool) {
+	if on != errexitUnknown {
+		return listResult(list, commands, defined, on == errexitOn)
+	}
+	yes, okYes := listResult(list, commands, defined, true)
+	no, okNo := listResult(list, commands, defined, false)
+	if okYes && okNo && yes.bytes == no.bytes {
+		return yes, true
+	}
+	return stageOut{}, false
 }
 
 // stageResult is the bytes and status of one stage, or false.
-func stageResult(stage *shellNode, commands []*shellCommand, defined map[string]bool) (stageOut, bool) {
+func stageResult(stage *shellNode, commands []*shellCommand, defined map[string]bool, errexit bool) (stageOut, bool) {
 	switch stage.T {
 	case "group", "sub":
-		return listResult(stage.Kids[0], commands, defined)
+		result, ok := listResult(stage.Kids[0], commands, defined, errexit)
+		if !ok {
+			return stageOut{}, false
+		}
+		if stage.T == "group" {
+			result.failed = false
+		} else {
+			result.failed, result.exited = true, false
+		}
+		return result, true
 	case "cmd":
 	default:
 		return stageOut{}, false
 	}
 	c := commands[stage.I]
 	if bytes, ok := printerBytes(c, defined); ok {
-		return stageOut{bytes: bytes}, true
+		return stageOut{bytes: bytes, failed: true}, true
 	}
 	if len(c.argv) != 1 || len(c.dynamic) > 0 || len(c.substitutions) > 0 || len(c.redirections) > 0 || defined[c.argv[0]] {
 		return stageOut{}, false
 	}
 	status, ok := silentStatus[c.argv[0]]
-	return stageOut{status: status}, ok
+	return stageOut{status: status, failed: true}, ok
 }
 
 // andorResult runs an and-or list left to right: `&&` runs the next pipeline after status 0 and `||` after any other, and a skipped
-// one leaves the status as it was. Every pipeline must be read, run or not.
-func andorResult(andor *shellNode, commands []*shellCommand, defined map[string]bool) (stageOut, bool) {
+// one leaves the status as it was. Every pipeline must be read, run or not. Under errexit the shell exits when the last pipeline of
+// the list ran and failed; a failure of any other is ignored, and so is every command inside it.
+func andorResult(andor *shellNode, commands []*shellCommand, defined map[string]bool, errexit bool) (stageOut, bool) {
 	out := stageOut{}
+	ranLast := false
+	last := len(andor.Kids) - 1
 	for k, pipe := range andor.Kids {
 		if pipe.Bang != 0 || len(pipe.Kids) != 1 {
 			return stageOut{}, false
 		}
-		result, ok := stageResult(pipe.Kids[0], commands, defined)
+		result, ok := stageResult(pipe.Kids[0], commands, defined, errexit && k == last)
 		if !ok {
 			return stageOut{}, false
 		}
 		if k == 0 || (andor.Ops[k-1] == "&&") == (out.status == 0) {
 			out.bytes += result.bytes
 			out.status = result.status
+			out.failed = result.failed
+			ranLast = k == last
+			if result.exited {
+				out.exited = true
+				return out, true
+			}
 		}
 	}
+	out.exited = errexit && ranLast && out.failed && out.status != 0
 	return out, true
 }
 
-func listResult(list *shellNode, commands []*shellCommand, defined map[string]bool) (stageOut, bool) {
+func listResult(list *shellNode, commands []*shellCommand, defined map[string]bool, errexit bool) (stageOut, bool) {
 	out := stageOut{}
 	for k, andor := range list.Kids {
 		if list.Ops[k] != ";" {
 			return stageOut{}, false
 		}
-		result, ok := andorResult(andor, commands, defined)
+		result, ok := andorResult(andor, commands, defined, errexit)
 		if !ok {
 			return stageOut{}, false
 		}
 		out.bytes += result.bytes
 		out.status = result.status
+		if result.exited {
+			out.exited = true
+			return out, true
+		}
 	}
 	return out, true
 }
@@ -1650,8 +1866,12 @@ func groupFeeding(commands []*shellCommand, n int, tree *shellNode) groupFed {
 	// `|&` also pipes the group's stderr, which this does not read.
 	defined := definitionsBefore(tree, stage)
 	closes := commands[tail].closes
+	ended, on := errexitAt(tree, stage, commands, defined)
+	if ended {
+		return groupFed{m: -1, tail: tail, bytes: "", read: true}
+	}
 	if len(closes) == 0 || closes[len(closes)-1].joiner != "|&" {
-		if rendered, ok := listResult(stage.Kids[0], commands, defined); ok {
+		if rendered, ok := listUnderErrexit(stage.Kids[0], commands, defined, on); ok {
 			return groupFed{m: -1, tail: tail, bytes: rendered.bytes, read: true}
 		}
 	}

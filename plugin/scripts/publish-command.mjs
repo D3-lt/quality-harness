@@ -934,47 +934,163 @@ function printerBytes({ argv, dynamic, substitutions, redirections }, defined) {
 // not read.
 const SILENT_STATUS = new Map([[':', 0], ['true', 0], ['false', 1]])
 
-// `{ bytes, status }` of one stage, or null.
-function stageResult(stage, commands, defined) {
-  if (stage.t === 'group' || stage.t === 'sub') return listResult(stage.kids[0], commands, defined)
+// Whether errexit is in effect where `target` runs (the Codex review of 7a9107e8..dcc4693a): a group that is a pipeline stage runs in a
+// subshell that inherits `set -e` from the shell around it, and exits at the first command that fails. Measured on /bin/sh and
+// /bin/dash with a stub for git, under `env -i` (2026-10-21): `set -e; { false; echo 'git push'; } | sh` runs no push; with `set +e`
+// before the group, `false || true`, or the failure after the print, it pushes. A set in an earlier pipeline stage, in a subshell or
+// in a pipeline of several stages leaves this shell alone (`set -e | cat; …` pushes). The state is false inside a pipeline the shell
+// ignores errexit for (left of `&&` or `||`, or negated).
+//
+// Two more answers (the same review, round 2). The state is UNKNOWN (null) after an earlier statement that may change it unseen: a
+// `set` this does not read (it expands, redirects, has an option this does not know, or sits where it may not run: an and-or list, a
+// background), `eval`, `.`, `source`, `command`, `builtin`, a call to a function defined earlier, a command word the shell expands.
+// And under errexit known on, an earlier statement in a shell the group inherits whose status is known non-zero where errexit acts
+// ends the shell before the group runs: `set -e; false; { echo 'git push'; } | sh` and `set -e; { false; }; …` run no push, while
+// `false || true`, `false && true`, `false &` and `false | cat` do not end it. An earlier status this does not know ends nothing.
+const SET_LETTERS = 'abCefmuvx'
+const SET_NAMES = new Set(['errexit', 'pipefail', 'nounset', 'noclobber', 'xtrace', 'verbose', 'allexport', 'noglob'])
+const MAY_SET_UNSEEN = new Set(['eval', '.', 'source', 'command', 'builtin'])
+
+// The errexit state each `-e`, `+e`, `-o errexit` and `+o errexit` of a `set` leaves, left to right, or null.
+function errexitEvents(args) {
+  const events = []
+  for (let i = 0; i < args.length; i++) {
+    const word = args[i]
+    if (word === '--' || !/^[-+]/.test(word)) break
+    if (word.length === 1) return null
+    const on = word[0] === '-'
+    for (let at = 1; at < word.length; at++) {
+      const letter = word[at]
+      if (letter === 'o') {
+        const name = args[++i]
+        if (at !== word.length - 1 || !SET_NAMES.has(name)) return null
+        if (name === 'errexit') events.push(on)
+      } else if (!SET_LETTERS.includes(letter)) return null
+      else if (letter === 'e') events.push(on)
+    }
+  }
+  return events
+}
+
+// Appends the errexit states the commands of this node leave in its own shell, in order: true for on, false for off, null for unknown.
+function collectSets(node, commands, defined, events) {
+  if (node.t === 'cmd') {
+    const { argv, dynamic, substitutions, redirections } = commands[node.i]
+    if (argv[0] === 'set') {
+      const found = dynamic.length || substitutions.length || redirections.length ? null : errexitEvents(argv.slice(1))
+      events.push(...(found ?? [null]))
+    } else if (MAY_SET_UNSEEN.has(argv[0]) || defined.has(argv[0]) || dynamic.includes(0)) events.push(null)
+    return
+  }
+  if (node.t === 'def' || node.t === 'sub') return
+  if (node.t === 'pipe') {
+    if (node.kids.length === 1) collectSets(node.kids[0], commands, defined, events)
+    return
+  }
+  const conditional = (inner, runs) => { if (inner.length) events.push(...(runs ? inner : [null])) }
+  for (let k = 0; k < node.kids.length; k++) {
+    const inner = []
+    collectSets(node.kids[k], commands, defined, inner)
+    conditional(inner, node.t === 'list' ? node.ops[k] === ';' : node.t !== 'andor' || node.kids.length === 1)
+  }
+}
+
+// `{ ended, on }`: whether an earlier statement ended the shell before `target` runs, and whether errexit is in effect where it runs
+// (true, false, or null for unknown).
+function errexitAt(tree, target, commands, defined) {
+  let state = false
+  let ignored = false
+  let ended = false
+  const walk = node => {
+    if (node === target || node.t === 'cmd' || node.t === 'def') return
+    if (node.t === 'pipe') {
+      if (node.bang) ignored = true
+      const stage = node.kids.find(kid => containsNode(kid, target))
+      if (stage) walk(stage)
+      return
+    }
+    for (let k = 0; k < node.kids.length; k++) {
+      const kid = node.kids[k]
+      if (containsNode(kid, target)) {
+        if (node.t === 'andor' && k < node.kids.length - 1) ignored = true
+        return walk(kid)
+      }
+      const inner = []
+      collectSets(kid, commands, defined, inner)
+      if (inner.length) {
+        for (const event of node.t === 'list' && node.ops[k] === ';' ? inner : [null]) state = event
+      } else if (node.t === 'list' && node.ops[k] === ';' && state === true && !ignored && !ended) {
+        ended = andorResult(kid, commands, defined, true)?.exited === true
+      }
+    }
+  }
+  walk(tree)
+  return { ended, on: ignored ? false : state }
+}
+
+// What a group writes under errexit `on`; with it unknown (null), what it writes either way, or null when the two differ.
+function listUnderErrexit(list, commands, defined, on) {
+  if (on !== null) return listResult(list, commands, defined, on)
+  const yes = listResult(list, commands, defined, true)
+  const no = listResult(list, commands, defined, false)
+  return yes !== null && no !== null && yes.bytes === no.bytes ? yes : null
+}
+
+// `{ bytes, status, failed, exited }` of one stage, or null. `failed` is whether a non-zero status of this stage is a failure errexit
+// acts on: a command's, a subshell's, but not a group's, which ends non-zero when a command in it failed under an operator (`{ false
+// && true; }` does not exit). `exited` is a group that ended the shell, a subshell ends only itself.
+function stageResult(stage, commands, defined, errexit) {
+  if (stage.t === 'group' || stage.t === 'sub') {
+    const result = listResult(stage.kids[0], commands, defined, errexit)
+    if (result === null) return null
+    return stage.t === 'group' ? { ...result, failed: false } : { ...result, failed: true, exited: false }
+  }
   if (stage.t !== 'cmd') return null
   const command = commands[stage.i]
   const bytes = printerBytes(command, defined)
-  if (bytes !== null) return { bytes, status: 0 }
+  if (bytes !== null) return { bytes, status: 0, failed: true, exited: false }
   const { argv, dynamic, substitutions, redirections } = command
   if (argv.length !== 1 || dynamic.length || substitutions.length || redirections.length || defined.has(argv[0]) || !SILENT_STATUS.has(argv[0])) return null
-  return { bytes: '', status: SILENT_STATUS.get(argv[0]) }
+  return { bytes: '', status: SILENT_STATUS.get(argv[0]), failed: true, exited: false }
 }
 
 // An and-or list, left to right: `&&` runs the next pipeline after status 0 and `||` after any other, and a skipped one leaves the
-// status as it was. Every pipeline must be read, run or not.
-function andorResult(andor, commands, defined) {
+// status as it was. Every pipeline must be read, run or not. Under errexit the shell exits when the last pipeline of the list ran and
+// failed; a failure of any other is ignored, and so is every command inside it.
+function andorResult(andor, commands, defined, errexit) {
   let bytes = ''
   let status = 0
+  let failed = false
+  let ranLast = false
   for (let k = 0; k < andor.kids.length; k++) {
     const pipe = andor.kids[k]
     if (pipe.bang || pipe.kids.length !== 1) return null
-    const result = stageResult(pipe.kids[0], commands, defined)
+    const last = k === andor.kids.length - 1
+    const result = stageResult(pipe.kids[0], commands, defined, errexit && last)
     if (result === null) return null
     if (k === 0 || (andor.ops[k - 1] === '&&' ? status === 0 : status !== 0)) {
       bytes += result.bytes
       status = result.status
+      failed = result.failed
+      ranLast = last
+      if (result.exited) return { bytes, status, exited: true }
     }
   }
-  return { bytes, status }
+  return { bytes, status, exited: errexit && ranLast && failed && status !== 0 }
 }
 
-function listResult(list, commands, defined) {
+function listResult(list, commands, defined, errexit) {
   let bytes = ''
   let status = 0
   for (let k = 0; k < list.kids.length; k++) {
     if (list.ops[k] !== ';') return null
-    const result = andorResult(list.kids[k], commands, defined)
+    const result = andorResult(list.kids[k], commands, defined, errexit)
     if (result === null) return null
     bytes += result.bytes
     status = result.status
+    if (result.exited) return { bytes, status, exited: true }
   }
-  return { bytes, status }
+  return { bytes, status, exited: false }
 }
 
 // The stage that feeds command `n` in the pipeline holding it, or null.
@@ -1003,7 +1119,8 @@ function groupFeeding(commands, n, tree) {
   const tail = lastCommand(stage)
   // `|&` also pipes the group's stderr, which this does not read.
   const defined = definitionsBefore(tree, stage)
-  const rendered = commands[tail].closes.at(-1)?.joiner === '|&' ? null : listResult(stage.kids[0], commands, defined)
+  const { ended, on } = errexitAt(tree, stage, commands, defined)
+  const rendered = ended ? { bytes: '' } : commands[tail].closes.at(-1)?.joiner === '|&' ? null : listUnderErrexit(stage.kids[0], commands, defined, on)
   if (rendered !== null) return { bytes: rendered.bytes, tail }
   // A function defined earlier may stand for any command in the group, so the flat reading of its last pipeline proves nothing.
   if (defined.size) return { tail }

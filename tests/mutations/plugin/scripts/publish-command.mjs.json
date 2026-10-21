@@ -1997,8 +1997,8 @@
       "label": "ADR-120 T2 (review of c749638e..7a9107e8): a skipped pipeline leaves the status as it was",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-shell-answers.test.mjs"],
-      "from": "      status = result.status\n    }\n  }\n  return { bytes, status }",
-      "to": "    }\n    status = result.status\n  }\n  return { bytes, status }",
+      "from": "      bytes += result.bytes\n      status = result.status\n",
+      "to": "      bytes += result.bytes\n    }\n    {\n      status = result.status\n",
       "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
     },
     {
@@ -2021,16 +2021,16 @@
       "label": "ADR-120 T2 (review of c749638e..7a9107e8): a printer has status 0",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-shell-answers.test.mjs"],
-      "from": "if (bytes !== null) return { bytes, status: 0 }",
-      "to": "if (bytes !== null) return { bytes, status: 1 }",
+      "from": "if (bytes !== null) return { bytes, status: 0, failed: true, exited: false }",
+      "to": "if (bytes !== null) return { bytes, status: 1, failed: true, exited: false }",
       "only": "^a group is evaluated left to right over the statuses it knows, and a branch the shell skips writes nothing$"
     },
     {
       "label": "ADR-120 T2 (review of c749638e..7a9107e8): a nested group's last status reaches the operator after it",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-shell-answers.test.mjs"],
-      "from": "    status = result.status\n  }\n  return { bytes, status }",
-      "to": "    status = 0\n  }\n  return { bytes, status }",
+      "from": "    status = result.status\n    if (result.exited) return { bytes, status, exited: true }\n  }\n  return { bytes, status, exited: false }",
+      "to": "    status = 0\n    if (result.exited) return { bytes, status, exited: true }\n  }\n  return { bytes, status, exited: false }",
       "only": "^a nested group or subshell carries its last status to the operator after it$"
     },
     {
@@ -2053,16 +2053,16 @@
       "label": "ADR-120 T2: a subshell nested in a group is part of the same stream",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": "if (stage.t === 'group' || stage.t === 'sub') return listResult(stage.kids[0], commands, defined)",
-      "to": "if (stage.t === 'group') return listResult(stage.kids[0], commands, defined)",
+      "from": "  if (stage.t === 'group' || stage.t === 'sub') {\n    const result = listResult(",
+      "to": "  if (stage.t === 'group') {\n    const result = listResult(",
       "only": "^a group piped to a shell is read through the bytes it prints$"
     },
     {
       "label": "ADR-120 T2: a group nested in a group is part of the same stream",
       "file": "plugin/scripts/publish-command.mjs",
       "tests": ["tests/publish-group.test.mjs"],
-      "from": "if (stage.t === 'group' || stage.t === 'sub') return listResult(stage.kids[0], commands, defined)",
-      "to": "if (false) return listResult(stage.kids[0], commands, defined)",
+      "from": "  if (stage.t === 'group' || stage.t === 'sub') {\n    const result = listResult(",
+      "to": "  if (false) {\n    const result = listResult(",
       "only": "^a group piped to a shell is read through the bytes it prints$"
     },
     {
@@ -2216,6 +2216,142 @@
       "from": "ch === '\\\\') word",
       "to": "ch === '\\\\x') word",
       "only": "^xargs splits its input by its quoting rules, and input it cannot split is unproven$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): a group under errexit ends at the first failure errexit acts on",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "return { bytes, status, exited: errexit && ranLast && failed && status !== 0 }",
+      "to": "return { bytes, status, exited: false }",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): errexit is not acted on in every pipeline but the last of an and-or list",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "stageResult(pipe.kids[0], commands, defined, errexit && last)",
+      "to": "stageResult(pipe.kids[0], commands, defined, errexit)",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): a group that ends non-zero under an operator does not end the shell",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "stage.t === 'group' ? { ...result, failed: false } :",
+      "to": "stage.t === 'group' ? { ...result, failed: true } :",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): a later set +e undoes an earlier set -e",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "? inner : [null]) state = event",
+      "to": "? inner : [null]) state = state || event",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): errexit is ignored in a pipeline left of && or ||",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "if (node.t === 'andor' && k < node.kids.length - 1) ignored = true",
+      "to": "void ignored",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): a set in an earlier pipeline stage is another shell's",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "if (node.kids.length === 1) collectSets(node.kids[0], commands, defined, events)",
+      "to": "collectSets(node.kids[0], commands, defined, events)",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): a set in a subshell is the subshell's",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "if (node.t === 'def' || node.t === 'sub') return\n  if (node.t === 'pipe')",
+      "to": "if (node.t === 'def') return\n  if (node.t === 'pipe')",
+      "only": "^a group under errexit ends at the first failure errexit acts on, and writes nothing after it$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a): a set the reader cannot read leaves the group could-not-look",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "events.push(...(found ?? [null]))",
+      "to": "events.push(...(found ?? []))",
+      "only": "^an earlier statement that may change errexit unseen leaves the group could-not-look when errexit decides what it writes$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): eval, source, command and builtin may change errexit unseen",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "} else if (MAY_SET_UNSEEN.has(argv[0]) || ",
+      "to": "} else if (",
+      "only": "^an earlier statement that may change errexit unseen leaves the group could-not-look when errexit decides what it writes$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): a call to a function defined earlier may change errexit unseen",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "|| defined.has(argv[0]) || dynamic.includes(0)",
+      "to": "|| dynamic.includes(0)",
+      "only": "^an earlier statement that may change errexit unseen leaves the group could-not-look when errexit decides what it writes$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): a command word the shell expands may change errexit unseen",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "|| dynamic.includes(0)) events.push(null)",
+      "to": ") events.push(null)",
+      "only": "^an earlier statement that may change errexit unseen leaves the group could-not-look when errexit decides what it writes$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): with errexit unknown, a group is read when it writes the same either way",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "return yes !== null && no !== null && yes.bytes === no.bytes ? yes : null",
+      "to": "return yes !== null && no !== null ? no : null",
+      "only": "^an earlier statement that may change errexit unseen leaves the group could-not-look when errexit decides what it writes$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): an earlier statement ends the shell only under errexit known on",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "state === true && !ignored && !ended",
+      "to": "state !== false && !ignored && !ended",
+      "only": "^an earlier statement whose status ends the shell leaves the group nothing to write$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): an earlier statement in an ignored context does not end the shell",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "state === true && !ignored && !ended",
+      "to": "state === true && !ended",
+      "only": "^an earlier statement whose status ends the shell leaves the group nothing to write$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): a backgrounded earlier statement does not end the shell",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "} else if (node.t === 'list' && node.ops[k] === ';' && state === true",
+      "to": "} else if (node.t === 'list' && state === true",
+      "only": "^an earlier statement whose status ends the shell leaves the group nothing to write$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): a group an earlier statement ended the shell before renders nothing",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "const rendered = ended ? { bytes: '' } :",
+      "to": "const rendered = false ? { bytes: '' } :",
+      "only": "^an earlier statement whose status ends the shell leaves the group nothing to write$"
+    },
+    {
+      "label": "ADR-120 T2 (review of 7a9107e8..dcc4693a, round 2): an earlier status this does not know ends nothing",
+      "file": "plugin/scripts/publish-command.mjs",
+      "tests": ["tests/publish-errexit.test.mjs"],
+      "from": "ended = andorResult(kid, commands, defined, true)?.exited === true",
+      "to": "ended = true",
+      "only": "^an earlier statement whose status ends the shell leaves the group nothing to write$"
     }
   ]
 }

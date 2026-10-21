@@ -111,3 +111,23 @@ test('a verdict word inside quotes is not the closing verdict', () => {
   assert.equal(verdict('the run failed "he wrote; approved" later'), 'stop')
   assert.equal(verdict('the run failed; approved'), 'pass')
 })
+
+// ADR-120 T7, the Codex review of ee802e5d..8d021b2a (2026-10-21): an affirmative overrides an earlier negative only as the
+// note's CLOSING verdict, the opening of its final clause, and a short one.
+test("an affirmative that is not the note's closing verdict does not override a failure", () => {
+  for (const note of [
+    'observed: step 2 failed; pass rate 0/10, unresolved',
+    'the run failed; approved by the owner after a long careful read',
+    'the run failed; approved, then it failed again',
+    'observed: red run 111: TestAlpha failed, deployment remains blocked; green run 222: ok',
+    'observed: red run 111: TestAlpha failed; second run 222: ok',
+  ]) assert.equal(verdict(note), 'stop', note)
+  for (const note of [
+    'observed: an empty selection made the run trip the FAIL guard, which now exits 1; approved',
+    'observed: reranker stopped: fused order in 0.4 s; approved',
+    'the run failed; approved',
+    'the run failed; approved by the owner',
+    'the run failed; signed off',
+    'the run failed; approved.',
+  ]) assert.equal(verdict(note), 'pass', note)
+})

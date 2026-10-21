@@ -1000,8 +1000,8 @@
       "label": "§381 work-next: a spec fact row needs no leading pipe",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/work-next-pipeless-rows.test.mjs"],
-      "from": "line.match(/^\\|?\\s*(F-\\d+)\\s*\\|/)",
-      "to": "line.match(/^\\|\\s*(F-\\d+)\\s*\\|/)",
+      "from": "for (const { cells, width } of gfmTableRows(lines)) {",
+      "to": "for (const { cells, width } of gfmTableRows(lines.filter(line => line.trim().startsWith('|')))) {",
       "only": "^a spec fact row with no leading pipe is bound: an uncovered one routes the spec to adr-write, as its piped twin does$"
     },
     {
@@ -1024,8 +1024,8 @@
       "label": "ADR-120 T3 work-next: a retired fact row is not an owed id",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/spec-retired.test.mjs"],
-      "from": "cell.trim() === '@retired') ? retired : live).add(fact[1])",
-      "to": "cell.trim() === '@retired') ? live : live).add(fact[1])"
+      "from": "cells[tag] === '@retired' ? retired : live).add(cells[0])",
+      "to": "cells[tag] === '@retired' ? live : live).add(cells[0])"
     },
     {
       "label": "ADR-120 T3 work-next: a retired scenario is not an owed id",
@@ -1047,6 +1047,27 @@
       "tests": ["tests/spec-retired.test.mjs"],
       "from": "if (live.size + retired.size === 0 ||",
       "to": "if ("
+    },
+    {
+      "label": "ADR-120 T3 review: any cell of a fact's row retires it, not only its Tag",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "cells.length === width && cells[tag] === '@retired'",
+      "to": "cells.includes('@retired')"
+    },
+    {
+      "label": "ADR-120 T3 review: a row with more cells than its header still retires",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "cells.length === width && cells[tag]",
+      "to": "cells[tag]"
+    },
+    {
+      "label": "ADR-120 T3 review: a fact row outside any table is not an owed id",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/spec-retired.test.mjs"],
+      "from": "if (fact) live.add(cells[0])\n      else tag",
+      "to": "if (fact) void 0\n      else tag"
     }
   ]
 }

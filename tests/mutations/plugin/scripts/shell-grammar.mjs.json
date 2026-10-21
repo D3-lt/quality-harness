@@ -46,7 +46,7 @@
       "tests": [
         "tests/shell-grammar.test.mjs"
       ],
-      "from": "if (c.closes.length || !o || o.kind !== 'definition' || o.name !== c.defines) return null",
+      "from": "if (c.closes.length || c.bangs || !o || o.kind !== 'definition' || o.name !== c.defines) return null",
       "to": "if (false) return null",
       "only": "^(?:bash-only syntax and unclosed text are could-not-look, never constant)$"
     },
@@ -69,6 +69,16 @@
       "from": "if (kids.some(k => k.t === 'def') && (kids.length > 1 || bang)) throw FAIL",
       "to": "if (false) throw FAIL",
       "only": "^(?:bash-only syntax and unclosed text are could-not-look, never constant)$"
+    },
+    {
+      "label": "ADR-120 T1 review: a negation before a definition head is read as no negation",
+      "file": "plugin/scripts/shell-grammar.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "c.closes.length || c.bangs || !o",
+      "to": "c.closes.length || !o",
+      "only": "^(?:a negated definition head and an exit with extra operands are could-not-look)$"
     }
   ]
 }

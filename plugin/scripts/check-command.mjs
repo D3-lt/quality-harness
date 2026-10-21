@@ -264,7 +264,8 @@ function pipelineRun(n, ctx, conditional) {
 
 // A sink as the last thing a stage runs: itself, or the only command of a group.
 function endsInSink(n, ctx) {
-  if (n.t === 'cmd') return passThroughSink(ctx.commands[n.i])
+  // A function of the sink's name, as written, is the function: its status is the evaluated one, not 0.
+  if (n.t === 'cmd') return !ctx.env.has(ctx.commands[n.i].argv[0]) && passThroughSink(ctx.commands[n.i])
   if (n.t !== 'group') return false
   const last = n.kids[0].kids.at(-1)
   const only = last.kids.length === 1 && last.kids[0].bang === 0 && last.kids[0].kids.length === 1
@@ -305,10 +306,12 @@ function commandStatus(c, depth) {
   const [program, ...args] = c.argv
   const name = programName(program)
   if (name === 'exit') {
-    if (args.length === 0 || !/^\d+$/.test(args[0])) return { status: 'either', exits: true }
+    // One operand, unsigned or `+N`: bash and sh refuse a second ("too many arguments", 1) where dash takes the first, and
+    // `-N` is 255 under bash and sh but a refused number (2) under dash (measured 2026-10-21).
+    if (args.length !== 1 || !/^\+?\d+$/.test(args[0])) return { status: 'either', exits: true }
     // The shell keeps a status modulo 256 (`exit 256` exits 0); past INT_MAX dash refuses the number and bash wraps it, so
     // the shells disagree and nothing is fixed (measured 2026-10-21 under /bin/bash, /bin/sh and /bin/dash).
-    const code = BigInt(args[0])
+    const code = BigInt(args[0].replace(/^\+/, ''))
     if (code > 2147483647n) return { status: 'either', exits: true }
     return { status: code % 256n === 0n ? 'zero' : 'nonzero', exits: true }
   }

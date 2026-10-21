@@ -397,7 +397,13 @@ func pipelineRun(n *shellNode, x evalCtx, conditional bool) statusRun {
 // endsInSink is a pass-through sink as the last thing a stage runs: itself, or the only command of a group.
 func endsInSink(n *shellNode, x evalCtx) bool {
 	if n.T == "cmd" {
-		return passThroughSink(x.commands[n.I])
+		// A function of the sink's name, as written, is the function: its status is the evaluated one, not 0.
+		c := x.commands[n.I]
+		shadowed := false
+		if len(c.argv) > 0 {
+			_, shadowed = x.env[c.argv[0]]
+		}
+		return !shadowed && passThroughSink(c)
 	}
 	if n.T != "group" {
 		return false
@@ -457,12 +463,14 @@ func commandStatus(c *shellCommand, depth int) cmdStatus {
 	name := programName(c.argv[0])
 	args := c.argv[1:]
 	if name == "exit" {
-		if len(args) == 0 || !allDigits.MatchString(args[0]) {
+		// One operand, unsigned or `+N`: bash and sh refuse a second ("too many arguments", 1) where dash takes the first, and
+		// `-N` is 255 under bash and sh but a refused number (2) under dash (measured 2026-10-21).
+		if len(args) != 1 || !allDigits.MatchString(strings.TrimPrefix(args[0], "+")) {
 			return cmdStatus{status: "either", exits: true}
 		}
 		// The shell keeps a status modulo 256 (`exit 256` exits 0); past INT_MAX dash refuses the number and bash wraps it,
 		// so the shells disagree and nothing is fixed (measured 2026-10-21 under /bin/bash, /bin/sh and /bin/dash).
-		digits := strings.TrimLeft(args[0], "0")
+		digits := strings.TrimLeft(strings.TrimPrefix(args[0], "+"), "0")
 		code, err := strconv.ParseInt("0"+digits, 10, 64)
 		if err != nil || code > 2147483647 {
 			return cmdStatus{status: "either", exits: true}

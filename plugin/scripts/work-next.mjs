@@ -428,9 +428,19 @@ export function specStatus(text) {
 function specBoundIds(text) {
   const live = new Set()
   const retired = new Set()
-  for (const line of text.split('\n')) {
-    const fact = line.match(/^\|?\s*(F-\d+)\s*\|/)
-    if (fact) (line.split(/(?<!\\)\|/).some(cell => cell.trim() === '@retired') ? retired : live).add(fact[1])
+  const lines = text.split('\n')
+  // A fact is retired by its Tag cell alone, the column its table's header names Tag, read through the one table reader the
+  // README rows use; `@retired` in any other cell (an assertion that quotes the word) retires nothing. A row outside a
+  // table, or with more or fewer cells than its header, cannot say which cell is its Tag, so it stays live.
+  let tag = -1
+  for (const { cells, width } of gfmTableRows(lines)) {
+    const fact = /^F-\d+$/.test(cells[0])
+    if (width === null) {
+      if (fact) live.add(cells[0])
+      else tag = cells.findIndex(cell => /^tag$/i.test(cell))
+    } else if (fact) (cells.length === width && cells[tag] === '@retired' ? retired : live).add(cells[0])
+  }
+  for (const line of lines) {
     const scen = line.match(/^### (UC\d+-S\d+)\b/)
     if (scen) (/\[@retired\]\s*(?:→|->)/.test(line) ? retired : live).add(scen[1])
   }

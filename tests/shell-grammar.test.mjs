@@ -177,3 +177,43 @@ test('an exit status wraps modulo 256, and one past INT_MAX is could-not-look', 
   // DIRTY twin: an exit the text fixes at a nonzero status is no constant success.
   assert.equal(constantSuccessCheck('npm test; exit 1'), false)
 })
+
+// ADR-120 T1, the Codex review of ee802e5d..8d021b2a (2026-10-21). Each row below was measured under /bin/bash, /bin/sh and
+// /bin/dash before the fix; the answers are in the assertions.
+test('a function named like a pass-through sink is the function, not the sink', () => {
+  // `cat` is shadowed by a body that fails: `! false | cat` is 0 in every shell, `false | cat` is 1.
+  const constant = 'cat() { false; }; ! false | cat'
+  const real = 'cat() { false; }; false | cat'
+  for (const statuses of measured(constant)) assert.deepEqual(statuses, [0], `${constant} exits 0 in every shell`)
+  for (const statuses of measured(real)) assert.deepEqual(statuses, [1], `${real} exits 1 in every shell`)
+  assert.equal(constantSuccessCheck(constant), true, constant)
+  assert.equal(constantSuccessCheck(real), false, real)
+  // DIRTY twin: the unshadowed sink still passes whatever came through, so `false | cat` is 0.
+  assert.equal(constantSuccessCheck('false | cat'), true)
+  assert.equal(constantSuccessCheck('! false | cat'), false)
+})
+
+test('a signed exit status is read only where every shell agrees', () => {
+  for (const row of ['npm test; exit +256', 'npm test; exit +0']) {
+    for (const statuses of measured(row)) assert.deepEqual(statuses, [0, 0], `${row} exits 0 in every shell`)
+    assert.equal(constantSuccessCheck(row), true, row)
+  }
+  for (const statuses of measured('exit +1')) assert.deepEqual(statuses, [1], 'exit +1 exits 1 in every shell')
+  assert.equal(constantSuccessCheck('npm test; exit +1'), false)
+  // `exit -1` is 255 under bash and sh, and a refused number (2) under dash: could-not-look.
+  assert.deepEqual(measured('exit -1').map(s => s[0]), SHELLS.map(shell => (shell === '/bin/dash' ? 2 : 255)))
+  assert.equal(constantSuccessCheck('npm test; exit -1'), false)
+})
+
+test('a negated definition head and an exit with extra operands are could-not-look', () => {
+  // `! f() { :; }` is 1 in every shell: the definition head's bang is not dropped.
+  for (const statuses of measured('! f() { :; }')) assert.deepEqual(statuses, [1], '! f() { :; } exits 1')
+  assert.equal(constantSuccessCheck('! f() { :; }'), false)
+  assert.equal(parsed('! f() { :; }'), null)
+  // DIRTY twin: the same definition without the bang is read, and exits 0.
+  assert.equal(constantSuccessCheck('f() { :; }'), true)
+  // `exit 256 1` is 1 under bash and sh ("too many arguments") and 0 under dash.
+  assert.deepEqual(measured('exit 256 1').map(s => s[0]), SHELLS.map(shell => (shell === '/bin/dash' ? 0 : 1)))
+  for (const row of ['exit 256 1', 'npm test; exit 256 1', 'npm test; exit 0 1']) assert.equal(constantSuccessCheck(row), false, row)
+  assert.equal(constantSuccessCheck('npm test; exit 256'), true)
+})

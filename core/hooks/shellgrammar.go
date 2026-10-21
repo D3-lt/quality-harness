@@ -45,7 +45,7 @@ func flattenEvents(commands []*shellCommand) []grammarEvent {
 			events = append(events, grammarEvent{kind: "open", open: o})
 		}
 		if c.defines != "" {
-			if len(c.closes) > 0 || i+1 >= len(commands) || len(commands[i+1].opens) == 0 {
+			if len(c.closes) > 0 || c.bangs > 0 || i+1 >= len(commands) || len(commands[i+1].opens) == 0 {
 				return nil
 			}
 			o := commands[i+1].opens[0]

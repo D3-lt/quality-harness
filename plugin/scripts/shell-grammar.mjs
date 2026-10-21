@@ -28,7 +28,8 @@ function flatten(commands) {
     for (const o of c.opens) events.push({ e: 'open', o })
     if (c.defines) {
       const o = commands[i + 1]?.opens[0]
-      if (c.closes.length || !o || o.kind !== 'definition' || o.name !== c.defines) return null
+      // A `!` before the head (`! f() { :; }`) negates the definition's status, which the tree cannot carry: not read.
+      if (c.closes.length || c.bangs || !o || o.kind !== 'definition' || o.name !== c.defines) return null
       continue
     }
     events.push({ e: 'cmd', i })

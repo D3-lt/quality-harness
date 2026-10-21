@@ -953,7 +953,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    negatives = list(NEGATIVE.finditer(outside))\n    if negatives:\n        affirmations = closing_affirmations(outside)\n        return \"pass\" if affirmations and affirmations[-1].end() > negatives[-1].end() else \"stop\"\n",
+      "from": "    negatives = list(NEGATIVE.finditer(outside))\n    if negatives:\n        affirmations = closing_affirmations(outside)\n        return \"pass\" if affirmations and closes_the_note(outside, affirmations[-1]) else \"stop\"\n",
       "to": "",
       "only": "inside quoted program output"
     },
@@ -1524,8 +1524,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    outside = not_the_verdict(outside)\n    # The LAST verdict word decides",
-      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n    # The LAST verdict word decides",
+      "from": "    outside = not_the_verdict(outside)\n    # The CLOSING verdict decides",
+      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n    # The CLOSING verdict decides",
       "only": "^an affirmed red-then-green run report is evidence, not a stop$"
     },
     {
@@ -1642,7 +1642,7 @@
       "label": "ADR-120 T7: a negative word anywhere stops, whatever the note closes with",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "        return \"pass\" if affirmations and affirmations[-1].end() > negatives[-1].end() else \"stop\"",
+      "from": "        return \"pass\" if affirmations and closes_the_note(outside, affirmations[-1]) else \"stop\"",
       "to": "        return \"stop\"",
       "only": "^a sign-off's last verdict word decides$"
     },
@@ -1661,6 +1661,36 @@
       "from": "            and CLAUSE_OPENER.search(text[:m.start()])]",
       "to": "            and True]",
       "only": "^SWE-bench's fail-to-pass list is a name, and a note saying something failed to pass still stops$"
+    },
+    {
+      "label": "ADR-120 T7 review: an affirmative that opens an earlier clause overrides a failure",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    return (not CLOSING_BREAK.search(tail) and not NEGATIVE",
+      "to": "    return (not NEGATIVE",
+      "only": "^an affirmative that is not the note's closing verdict does not override a failure$"
+    },
+    {
+      "label": "ADR-120 T7 review: a long final clause is a closing verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "len(tail.split()) <= CLOSING_WORDS",
+      "to": "True",
+      "only": "^an affirmative that is not the note's closing verdict does not override a failure$"
+    },
+    {
+      "label": "ADR-120 T7 review: a negative word after the affirmative leaves it the closing verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next.test.mjs"],
+      "from": "not NEGATIVE.search(text, match.start())",
+      "to": "True"
+    },
+    {
+      "label": "ADR-120 T7 review: a numbered run's pass word is the note's closing verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs", "tests/human-stop-red-green.test.mjs"],
+      "from": "    if run and not CLAUSE_BREAK.search(text, run[-1].end(), match.start()):",
+      "to": "    if False:"
     }
   ]
 }

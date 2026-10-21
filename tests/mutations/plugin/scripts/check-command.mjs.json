@@ -522,6 +522,36 @@
       "from": "code % 256n === 0n",
       "to": "code === 0n",
       "only": "^(?:an exit status wraps modulo 256, and one past INT_MAX is could-not-look)$"
+    },
+    {
+      "label": "ADR-120 T1 review: a function named like a pass-through sink is still the sink",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "!ctx.env.has(ctx.commands[n.i].argv[0]) && passThroughSink",
+      "to": "passThroughSink",
+      "only": "^(?:a function named like a pass-through sink is the function, not the sink)$"
+    },
+    {
+      "label": "ADR-120 T1 review: a signed exit status is not read",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "!/^\\+?\\d+$/.test(args[0])",
+      "to": "!/^\\d+$/.test(args[0])",
+      "only": "^(?:a signed exit status is read only where every shell agrees)$"
+    },
+    {
+      "label": "ADR-120 T1 review: an exit with a second operand is read as its first",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
+      "from": "args.length !== 1 ||",
+      "to": "args.length === 0 ||",
+      "only": "^(?:a negated definition head and an exit with extra operands are could-not-look)$"
     }
   ]
 }

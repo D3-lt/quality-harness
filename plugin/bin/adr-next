@@ -302,6 +302,7 @@ def neutralise(text):
 # stays a false stop, the owner's choice of 2026-10-08.
 RED_RUN = re.compile(r"(?<![a-z])red\s+run(?![a-z])", re.I)
 GREEN_RUN = re.compile(r"(?<![a-z])green\s+run(?![a-z])", re.I)
+RUN_REPORT = re.compile(r"(?<![a-z])run\s+#?\d+", re.I)
 CLAUSE_BREAK = re.compile(r"[;—–]|\.(?=\s|$)|(?<![a-z])(?:but|then|however)(?![a-z])", re.I)
 # "no tests failed", "no failed tests": an absent failure, but only of a CLOSED list of nouns (BACKLOG §361,
 # left open in §354), and only as a WHOLE CLAUSE: the start of the note or a punctuation mark before it, the
@@ -421,6 +422,28 @@ def closing_affirmations(text):
             and CLAUSE_OPENER.search(text[:m.start()])]
 
 
+# The note's closing verdict (ADR-120 T7, Codex review 2026-10-21): an affirmative after a failure counts only when it opens
+# the note's FINAL clause (the text after its last ; . , : — or spaced dash), that clause holds no negative word and is at
+# most four words: "approved", "approved by the owner", "signed off". "step 2 failed; pass rate 0/10, unresolved" is a failure
+# report whose last clause merely starts with "pass".
+CLOSING_BREAK = re.compile(r"[;,.:—–]|\s-\s")
+CLOSING_WORDS = 4
+
+
+def closes_the_note(text, match):
+    """Whether the affirmative `match` in `text` is the note's whole final clause, and a short one."""
+    # A numbered run's own pass word ("green run 222: ok", "second run 222: ok") reports that run; it is not the note's
+    # verdict (ADR-119 T3).
+    run = list(RUN_REPORT.finditer(text, 0, match.start()))
+    if run and not CLAUSE_BREAK.search(text, run[-1].end(), match.start()):
+        return False
+    # Quotes hide only their break characters: a negative word inside one still counts, as human_outcome reads it.
+    masked = QUOTED.sub(lambda q: " " * len(q.group()), text)
+    tail = re.sub(r"[;,.:—–\s]+$", "", masked[match.start():])
+    return (not CLOSING_BREAK.search(tail) and not NEGATIVE.search(text, match.start())
+            and len(tail.split()) <= CLOSING_WORDS)
+
+
 def human_outcome(note):
     """"stop", "pass", or None when the note states neither.
 
@@ -456,13 +479,13 @@ def human_outcome(note):
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
     outside = not_the_verdict(outside)
-    # The LAST verdict word decides (ADR-120 T7): a note that describes a failure it observed and then
-    # approves is done; one that approves and then reports a failure is not. A negative word counts
-    # wherever it sits; an affirmative only as closing_affirmations says.
+    # The CLOSING verdict decides (ADR-120 T7): a note that describes a failure it observed and then approves is done; one
+    # that approves and then reports a failure is not. A negative word counts wherever it sits; an affirmative only as
+    # closes_the_note says.
     negatives = list(NEGATIVE.finditer(outside))
     if negatives:
         affirmations = closing_affirmations(outside)
-        return "pass" if affirmations and affirmations[-1].end() > negatives[-1].end() else "stop"
+        return "pass" if affirmations and closes_the_note(outside, affirmations[-1]) else "stop"
     if NEGATIVE.search(neutralise(note)):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):

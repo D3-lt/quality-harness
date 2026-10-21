@@ -139,3 +139,30 @@ test('work-next owes nothing for a retired id', () => {
   writeFileSync(specFile, '# Spec: a\n\n> **Date:** 2026-09-09 · **Status:** Ready-for-ADR\n\nNo facts here.\n')
   assert.deepEqual(owes(wholly), SPEC)
 })
+
+// The Codex review of ee802e5d..8d021b2a (2026-10-21): `@retired` in another cell of a fact's row retired it.
+test('only the Tag column retires a fact, wherever the table puts it', () => {
+  // The word in the Assertion cell, the Tag live: owed. Its twin, the word in the Tag cell: not owed.
+  assert.deepEqual(owes(workNextRepo('word-elsewhere', '| F-9 | @retired | `tests/x.test.mjs::x` | @spec |')), SPEC)
+  assert.deepEqual(owes(workNextRepo('word-in-tag', '| F-9 | @retired | `tests/x.test.mjs::x` | @retired |')), [])
+  // A table that puts Tag second: the header names the column, so the Tag cell retires and the last cell does not.
+  const reordered = (name, tag, last) => {
+    const root = workNextRepo(name, '')
+    writeFileSync(path.join(root, 'docs', 'specs', '2026-09-09-a.md'), [
+      '# Spec: a', '', '> **Date:** 2026-09-09 · **Status:** Ready-for-ADR', '', '## Facts', '',
+      '| ID | Tag | Assertion | Test |', '|----|-----|-----------|------|', `| F-9 | ${tag} | gone | ${last} |`, '',
+    ].join('\n'))
+    return root
+  }
+  assert.deepEqual(owes(reordered('tag-second', '@retired', '@spec')), [])
+  assert.deepEqual(owes(reordered('tag-second-live', '@spec', '@retired')), SPEC)
+  // A row with more cells than its header cannot say which is its Tag, and a row outside any table has no Tag column: both stay live.
+  assert.deepEqual(owes(workNextRepo('extra-cell', '| F-9 | gone | `tests/x.test.mjs::y` | @retired | extra |')), SPEC)
+  const bare = workNextRepo('no-table', '')
+  writeFileSync(path.join(bare, 'docs', 'specs', '2026-09-09-a.md'), [
+    '# Spec: a', '', '> **Date:** 2026-09-09 · **Status:** Ready-for-ADR', '', '## Facts', '',
+    '| ID | Assertion | Test | Tag |', '|----|-----------|------|-----|', '| F-1 | one | `tests/x.test.mjs::x` | @spec |', '',
+    'F-9 | gone | `tests/x.test.mjs::y` | @retired', '',
+  ].join('\n'))
+  assert.deepEqual(owes(bare), SPEC)
+})

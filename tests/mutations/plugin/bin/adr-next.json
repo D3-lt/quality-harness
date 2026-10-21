@@ -1663,6 +1663,14 @@
       "only": "^a sign-off's last verdict word decides$"
     },
     {
+      "label": "ADR-120 T7 (verification of 0723a888..0194fc9a): a numbered run's word closes the note",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "    if run and not CLAUSE_BREAK.search(text, run[-1].end(), start):\n        return False\n",
+      "to": "",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
       "label": "ADR-120 T8: classify reads done before a terminal Status",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-terminal.test.mjs"],

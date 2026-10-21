@@ -196,6 +196,8 @@ test('a count after the closing affirmative is a tally, not a verdict', () => {
     'the run failed; approved 2FA rollout',
     'the run failed; approved only rate limiting',
     'the run failed; approved by the owner after a rerun',
+    'observed: red run 111: TestAlpha failed; second run 222: approved',
+    'observed: red run 111: TestAlpha failed, deployment remains blocked; green run 222: verified',
   ]) assert.equal(verdict(note), 'stop', note)
   for (const note of [
     'the run failed; approved 2026-10-21',
@@ -206,5 +208,6 @@ test('a count after the closing affirmative is a tally, not a verdict', () => {
     'the run failed; signed off by zy on 2026-10-21',
     'the run failed; approved by the owner',
     'the run failed; confirmed',
+    'observed: red run 111: TestAlpha failed; second run 222: approved; approved',
   ]) assert.equal(verdict(note), 'pass', note)
 })

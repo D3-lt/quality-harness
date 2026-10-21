@@ -474,11 +474,14 @@ def human_outcome(note):
     if "❌" in outside:
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
+    own = outside
     outside = not_the_verdict(outside)
     # The CLOSING verdict decides (ADR-120 T7): a note that describes a failure it observed and then closes on an approval
-    # is done; one that approves and then reports a failure, or closes on anything but an approval, is not.
+    # is done; one that approves and then reports a failure, or closes on anything but an approval, is not. The closing
+    # clause is read in the note's own words, before what is neutralised for finding failures is taken out: "approved
+    # failed-total: 3" closes on a tally, not on "approved" (the verification of 66c1d726..85642379).
     if NEGATIVE.search(outside):
-        return "pass" if closes_with_approval(outside) else "stop"
+        return "pass" if closes_with_approval(own) else "stop"
     if NEGATIVE.search(neutralise(note)):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):

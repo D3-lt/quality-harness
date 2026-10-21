@@ -365,8 +365,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if NEGATIVE.search(outside):\n        return \"pass\" if closes_with_approval(outside) else \"stop\"",
-      "to": "    if False:\n        return \"pass\" if closes_with_approval(outside) else \"stop\"",
+      "from": "    if NEGATIVE.search(outside):\n        return \"pass\" if closes_with_approval(own) else \"stop\"",
+      "to": "    if False:\n        return \"pass\" if closes_with_approval(own) else \"stop\"",
       "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready)$"
     },
     {
@@ -953,7 +953,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if NEGATIVE.search(outside):\n        return \"pass\" if closes_with_approval(outside) else \"stop\"\n",
+      "from": "    if NEGATIVE.search(outside):\n        return \"pass\" if closes_with_approval(own) else \"stop\"\n",
       "to": "",
       "only": "inside quoted program output"
     },
@@ -1642,7 +1642,7 @@
       "label": "ADR-120 T7: a negative word anywhere stops, whatever the note closes with",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "        return \"pass\" if closes_with_approval(outside) else \"stop\"",
+      "from": "        return \"pass\" if closes_with_approval(own) else \"stop\"",
       "to": "        return \"stop\"",
       "only": "^a sign-off's last verdict word decides$"
     },
@@ -1668,6 +1668,14 @@
       "tests": ["tests/adr-next-foreign.test.mjs"],
       "from": "        if not re.fullmatch(r\"\\s*(?:verdict)?\\s*\", before, re.I):\n            return False\n",
       "to": "",
+      "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "ADR-120 T7 (verification of 66c1d726..85642379): the closing clause is read after counters are neutralised",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-foreign.test.mjs"],
+      "from": "closes_with_approval(own) else",
+      "to": "closes_with_approval(outside) else",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
     },
     {

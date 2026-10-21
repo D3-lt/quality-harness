@@ -348,21 +348,22 @@ tests_naming() {
 }
 
 lock_drift() {
-  local in_repo in_repo_rel task said line record pass=${QUALITY_HARNESS_ADR_LEDGER-}
+  local in_repo in_repo_rel task said line record cleared pass=${QUALITY_HARNESS_ADR_LEDGER-}
   [ "$boundary" = "PostToolUse" ] && return 0
   repo_path_of "$1" || return 0
   while IFS= read -r -d '' task; do
     # The nested gate keeps no adr-lint ledger: its output is filtered to THIS file, so a lint it cached would be silence for
     # the next changed file the same task locks (the Codex review of 0b129010..bca51180). It reads the pass's ledger, and
     # each line said is kept beside it with the record it was said for, so a lock line is said once per record in a pass
-    # (the reviews of 8676b9ac and 6a3fa2e9). An unknown record keys nothing a record's lint matches: said twice, never lost.
-    record=""
-    if [ -n "$pass" ]; then { : > "$pass.key"; } 2>/dev/null || :; fi
+    # (the reviews of 8676b9ac and 6a3fa2e9). A record is read only from a handoff cleared just before the call, and a line
+    # whose record is unknown keeps nothing and is compared with nothing: said, never lost (the review of 276484fb).
+    record="" cleared=0
+    if [ -n "$pass" ] && { : > "$pass.key"; } 2>/dev/null; then cleared=1; fi
     said=$(QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS="$pass" "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
-    if [ -n "$pass" ]; then IFS= read -r record < "$pass.key" 2>/dev/null || record=""; fi
+    if [ "$cleared" = 1 ]; then IFS= read -r record < "$pass.key" 2>/dev/null || record=""; fi
     while IFS= read -r line; do
       line=${line#"${line%%[![:space:]]*}"}
-      if [ -n "$pass" ]; then
+      if [ -n "$record" ]; then
         grep -Fqx -- "$record"$'\t'"$line" "$pass.drift" 2>/dev/null && continue
         { printf '%s\t%s\n' "$record" "$line" >> "$pass.drift"; } 2>/dev/null || :
       fi

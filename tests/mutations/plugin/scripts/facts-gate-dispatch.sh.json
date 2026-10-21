@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the review of 276484fb: a line whose record the scan could not learn keeps and drops nothing",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/lock-drift-commit.test.mjs"],
+      "from": "      if [ -n \"$record\" ]; then",
+      "to": "      if [ -n \"$pass\" ]; then",
+      "only": "^(?:a lock line whose record the scan could not learn is said, and keeps nothing that could stand for another)$"
+    },
+    {
       "label": "the review of 6a3fa2e9: a lock line said for one record does not stand for another record's",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/lock-drift-commit.test.mjs"],

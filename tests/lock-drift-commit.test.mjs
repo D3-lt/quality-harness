@@ -169,3 +169,21 @@ test("two records whose tasks lock one test each say their moved lock, and neith
     }
   } finally { remove(dir) }
 })
+
+// The review of 276484fb: when the scan cannot learn which record a line was said for, it keeps nothing and drops nothing,
+// so two records' identical lines are both said. A directory where the handoff file goes makes every handoff fail.
+test('a lock line whose record the scan could not learn is said, and keeps nothing that could stand for another', () => {
+  const dir = fixture({ twin: true })
+  const ledgerDirectory = realpathSync.native(mkdtempSync(join(os.tmpdir(), 'qh-lockdrift-ledger-')))
+  try {
+    const locked = join(dir, 'tests', 'lock-subject.test.mjs')
+    const free = join(dir, 'tests', 'unlocked.test.mjs')
+    writeFileSync(locked, HEAD + "test('locked dirty', () => {\n  assert.equal(1, 2)\n})\n")
+    // Clean twin: with the handoff working, the shared ledger gives each record its line.
+    assert.equal(driftLines(runArtifactGates([locked, free], dir, 100_000, { ledgerDirectory })).length, 2)
+    remove(ledgerDirectory)
+    mkdirSync(join(ledgerDirectory, 'adr.key'), { recursive: true })
+    const said = runArtifactGates([locked, free], dir, 100_000, { ledgerDirectory })
+    assert.equal(driftLines(said).length, 2, `an unknown record suppresses nothing:\n${said}`)
+  } finally { remove(dir); remove(ledgerDirectory) }
+})

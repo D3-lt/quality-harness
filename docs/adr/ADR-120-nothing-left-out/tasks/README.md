@@ -25,12 +25,13 @@ README must be regenerated.
 | 13 | T13 | none |
 | 14 | T14 | none |
 | 15 | T15 | none |
+| 16 | T16 | none |
 
 ## Waves
 
 | Wave | Tasks | Why together |
 |------|-------|--------------|
-| 1 | T1, T3 to T15 | no task consumes another's contract |
+| 1 | T1, T3 to T16 | no task consumes another's contract |
 | 2 | T2 | consumes `parseShell(records)` and the lexer's boundary fields (T1) |
 
 ## Task Index
@@ -52,6 +53,7 @@ README must be regenerated.
 | [T13](T13-quieter-brief-and-mention.md) | branch-state reads the session's worktree and says a permanent unknown once; `git stash push` is no push | pending | none — no spec | `node --test --test-reporter=tap tests/branch-state-cwd.test.mjs tests/mention-stash.test.mjs`, named tests, then the Go core |
 | [T14](T14-a-mutant-the-fence-never-sees.md) | A mutant the fence never sees is inconclusive; a missing dependency is could-not-run | pending | none — no spec | `node --test --test-reporter=tap tests/mutant-escape.test.mjs`, named tests |
 | [T15](T15-lock-drift-generated-specs-templates.md) | Lock drift named at commit; generated specs skipped; the template and skill lines | done | none — no spec | `node --test --test-reporter=tap tests/lock-drift-commit.test.mjs tests/spec-ignore.test.mjs`, named tests |
+| [T16](T16-a-failed-check-keeps-its-output.md) | A failed check keeps the tail of its output | pending | none — no spec | `node --test --test-reporter=tap tests/check-output.test.mjs`, named tests |
 
 ## Contract Coupling
 

@@ -179,6 +179,11 @@ the decisions this record changes (Invalidates).
 15. **T15:** a commit that moves another task's locked test body names that task and the relock at the turn end; the spec
     gate skips a path git marks `linguist-generated` or the project lists in `"ignore"`; the task template's Risks asks what
     a test double does not model; the adr-retire skill states the `Archived: [..](..)` receipt grammar.
+16. **T16:** a failed, timed-out or unproven `qh-check` run keeps the tail of its output (the last 400 lines, at most
+    256 KB) in `<state dir>/outputs/<run id>.log`, named by the ledger row's new `output` field, so a flake can be diagnosed
+    after the fact; a passing run keeps none; the files are pruned to the newest 50; the state directory is never tracked, so
+    nothing leaves the machine (CLAUDE.md §6). From memory-runtime's report of 2026-10-21: three tests failed under load in
+    its check and only the summary lines survived.
 
 What would make this fail: a twin listed as "must still refuse", "must still be a publish" or "must still continue" that does
 not after its task. Each is a row in that task's tests, so the fence goes red.
@@ -222,6 +227,7 @@ in T1's commit. Nothing moves.
 | A pass's reach | stands across a prose-only change for every reader | T9 | publish verdict, turn end, git hook, Go core |
 | `adr-verify --background` | new flag: a detached, bounded fence run that records its row | T10 | adr-verify, adr-execute skill |
 | `.quality-harness.json` `ignore` | new key: globs the spec gate skips | T15 | facts-gate-dispatch.sh |
+| `checks.jsonl` / `fast-checks.jsonl` row | new `output` field naming a kept output tail | T16 | the reader of a failed run |
 
 ## Inter-task Contracts
 
@@ -232,7 +238,7 @@ in T1's commit. Nothing moves.
 
 ## Implementation
 
-See `tasks/README.md`: T1, then T2; T3 to T15 are independent. The same plan executes, under their own records:
+See `tasks/README.md`: T1, then T2; T3 to T16 are independent. The same plan executes, under their own records:
 ADR-112 T1; ADR-116 T1–T3 and the §386 measurement; ADR-110 T2 S1–S2; and, on the bench peer's rows, ADR-110 T2 S3, ADR-112
 T2–T3 and ADR-110 T3. The bench peer answered on 2026-10-21: ADR-112's pilot is its ADR-163, Accepted and not yet built, and
 runs only after its current stage closes and its owner approves; a Go-hooks arm needs a record there and that owner's

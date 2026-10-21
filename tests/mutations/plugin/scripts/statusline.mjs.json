@@ -215,6 +215,14 @@
       "from": "const jobs = (ci.failed?.length ?? 0) - unread",
       "to": "const jobs = (ci.failed?.length ?? 0)",
       "only": "^a workflow whose jobs were not read is counted apart from jobs$"
+    },
+    {
+      "label": "ADR-120 T9: the status line asks the tree without its code tree",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "carryFor(log, null, observation.codeTree, observation.prose)",
+      "to": "null",
+      "only": "^(?:the status line reads a pass carried to a prose-only tree, and not to one with other code)$"
     }
   ]
 }

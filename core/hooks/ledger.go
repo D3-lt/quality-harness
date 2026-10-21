@@ -170,14 +170,27 @@ func outsideRoot(root, file string) bool {
 
 type passedAlreadyResult struct{ id any }
 
-// passedAlready answers whether the ledger already proves this tree (ADR-081), for a caller with no prose declaration.
-func passedAlready(root string, command string) *passedAlreadyResult {
-	now := observe(root)
+// passedAlready answers whether the ledger already proves this tree (ADR-081). With `prose` (the project's declared paths) a pass
+// whose code tree is this tree's, under the same list, proves it too (ADR-094 T3).
+func passedAlready(root string, command string, prose []string) *passedAlreadyResult {
+	var now *Obj
+	if len(prose) > 0 {
+		now = observeWith(root, prose, false)
+	} else {
+		now = observe(root)
+	}
 	if !isTrue(now.Get("ok")) {
 		return nil
 	}
+	code, hasCode := now.Get("codeTree").(string)
 	pass := ledgerPass(root, "checks.jsonl", "checksSeen", func(r *Obj) bool {
-		return strict(get(r, "command"), command) && strict(dig(r, "after", "tree"), now.Get("tree"))
+		if !strict(get(r, "command"), command) {
+			return false
+		}
+		if strict(dig(r, "after", "tree"), now.Get("tree")) {
+			return true
+		}
+		return len(prose) > 0 && hasCode && strict(dig(r, "after", "codeTree"), code) && sameProse(get(r, "prose"), prose)
 	}, root)
 	if pass == nil {
 		return nil
@@ -279,12 +292,17 @@ func importCheckRecords(cwd string, session any) importResult {
 		if seen[id] {
 			continue
 		}
-		appendEvent(cwd, session, O(
+		event := O(
 			"event", checkEventName(record), "record", id, "seq", float64(sequence),
 			"startedAt", orNull(dig(record, "before", "at")),
 			"before", orNull(get(record, "before")), "after", orNull(get(record, "after")), "exit", orNull(get(record, "exit")),
 			"signal", orNull(get(record, "signal")), "command", orNull(get(record, "command")), "origin", orNull(get(record, "origin")),
-		))
+		)
+		// ADR-120 T9: the list a pass's code tree was taken under travels with the event, or the pass carries nowhere.
+		if declared, ok := get(record, "prose").([]any); ok {
+			event.Set("prose", declared)
+		}
+		appendEvent(cwd, session, event)
 		seen[id] = true
 		imported++
 	}
@@ -337,7 +355,7 @@ func ledgerBoundLog(cwd string, log Log) boundLog {
 		}
 		id, ok := get(entry, "record").(string)
 		record, have := records[id]
-		if ok && have && checkEventName(record) == event && strict(dig(record, "after", "tree"), dig(entry, "after", "tree")) {
+		if ok && have && checkEventName(record) == event && strict(dig(record, "after", "tree"), dig(entry, "after", "tree")) && carriedAsRecorded(entry, record) {
 			kept = append(kept, entry)
 		}
 	}
@@ -455,14 +473,16 @@ func isCheckEvent(e any) bool {
 	return ok && strings.HasPrefix(event, "check.")
 }
 
-func checkEventsFor(entries []any, tree any) []any {
+func checkEventsFor(entries []any, tree any, c *carry) []any {
 	t, ok := tree.(string)
 	if !ok || t == "" {
 		return nil
 	}
 	out := []any{}
 	for _, e := range entries {
-		if isCheckEvent(e) && strict(dig(e, "after", "tree"), t) {
+		// ADR-120 T9: with a carry, the events of any tree with the same code tree under the same list belong to this tree too.
+		if isCheckEvent(e) && (strict(dig(e, "after", "tree"), t) ||
+			(c != nil && strict(dig(e, "after", "codeTree"), c.codeTree) && sameProse(get(e, "prose"), c.prose))) {
 			out = append(out, e)
 		}
 	}
@@ -496,8 +516,8 @@ func baselineFor(root string, tree any, command string) string {
 	return found
 }
 
-func latestCheckFor(log Log, tree any) any {
-	latest := latestOf(checkEventsFor(log.E, tree), false)
+func latestCheckFor(log Log, tree any, c *carry) any {
+	latest := latestOf(checkEventsFor(log.E, tree, c), false)
 	if strict(get(latest, "event"), "check.passed") && logIncomplete(log) {
 		return logIncompleteEvent
 	}
@@ -581,11 +601,11 @@ func latestOf(events []any, sayUnresolved bool) any {
 }
 
 // checkStanding: passed, unresolved, unknown (a torn log), none, could-not-look or not-passed.
-func checkStanding(log Log, tree any) string {
+func checkStanding(log Log, tree any, c *carry) string {
 	if logIncomplete(log) {
 		return "unknown"
 	}
-	descriptive := latestOf(checkEventsFor(log.E, tree), true)
+	descriptive := latestOf(checkEventsFor(log.E, tree, c), true)
 	if descriptive == nil {
 		return "none"
 	}
@@ -600,7 +620,7 @@ func checkStanding(log Log, tree any) string {
 	return "not-passed"
 }
 
-func checkRevision(log Log, tree any) int { return len(checkEventsFor(log.E, tree)) }
+func checkRevision(log Log, tree any) int { return len(checkEventsFor(log.E, tree, nil)) }
 
 // channelOf is who a finding is for (ADR-096).
 func channelOf(event, turnEnd string) string {

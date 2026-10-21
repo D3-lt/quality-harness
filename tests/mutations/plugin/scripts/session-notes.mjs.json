@@ -216,7 +216,7 @@
       "tests": [
         "tests/standing-facts.test.mjs"
       ],
-      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
+      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared, prose: proseSpecs(repository).specs })) return ''",
       "to": "if (false) return ''",
       "only": "^the previous-session notice is silent when a pass is recorded for the current tree$"
     },
@@ -226,8 +226,8 @@
       "tests": [
         "tests/standing-facts.test.mjs"
       ],
-      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
-      "to": "if (repository && declared && (passedAlready({ root: repository, git: true, command: declared }) || statusPaths(repository).length === 0)) return ''",
+      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared, prose: proseSpecs(repository).specs })) return ''",
+      "to": "if (repository && declared && (passedAlready({ root: repository, git: true, command: declared, prose: proseSpecs(repository).specs }) || statusPaths(repository).length === 0)) return ''",
       "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
     },
     {
@@ -239,6 +239,14 @@
       "from": "text: parts.join(' ')",
       "to": "text: [...parts, 'ADR task in flight: T1 is ready —'].join(' ')",
       "only": "^(?:SessionStart and the compact note name no ready task and start no adr-next where work-next finds one)$"
+    },
+    {
+      "label": "ADR-120 T9: the previous-session notice does not know the project's prose",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "command: declared, prose: proseSpecs(repository).specs })",
+      "to": "command: declared })",
+      "only": "^(?:the previous session's notice is silent on a tree a pass stands for, and speaks on one it does not)$"
     }
   ]
 }

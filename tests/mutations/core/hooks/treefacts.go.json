@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T9: the Go index's code tree is the working tree's",
+      "file": "core/hooks/treefacts.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "strings.TrimSpace(indexTree.stdout), without)",
+      "to": "strings.TrimSpace(tree.stdout), without)",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    }
+  ]
+}

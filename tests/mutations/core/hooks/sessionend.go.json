@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T9: the Go compaction note asks the working tree without its code tree",
+      "file": "core/hooks/sessionend.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "treeCarry := carryFor(log, root, get(observation, \"codeTree\"), get(observation, \"prose\"))",
+      "to": "var treeCarry *carry",
+      "only": "^(?:the compaction note says a pass that stands for the tree passed on the changed paths, in Node and Go)$"
+    }
+  ]
+}

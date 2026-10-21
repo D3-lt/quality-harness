@@ -153,6 +153,15 @@ func (f *publishFactsRun) inferredCaveat() string {
 	return *f.caveat
 }
 
+// carryOf is a tree's carry for a pass (ADR-120 T9): nil unless the observation carries the list its code tree was taken under.
+func (f *publishFactsRun) carryOf(log Log, codeTree any) *carry {
+	root := f.lookup().root
+	if root == "" {
+		root = f.cwd
+	}
+	return carryFor(log, root, codeTree, get(f.observation, "prose"))
+}
+
 func (f *publishFactsRun) fastPass(tree any) *fastPass {
 	t := jsString(tree)
 	if p, ok := f.fastPasses[t]; ok {
@@ -206,8 +215,8 @@ func publishJudgement(f *publishFactsRun, invoked string, proven, commitOnly, st
 		}
 	}
 	tree, index := get(now, "tree"), get(now, "index")
-	treeStanding := checkStanding(log, tree)
-	indexStanding := checkStanding(log, index)
+	treeStanding := checkStanding(log, tree, f.carryOf(log, get(now, "codeTree")))
+	indexStanding := checkStanding(log, index, f.carryOf(log, get(now, "indexCodeTree")))
 	treeUnchecked := treeStanding != "passed" && (!isTrue(get(baseline, "ok")) || !strict(tree, get(baseline, "tree")))
 	indexUnchecked := indexStanding != "passed" && (!isTrue(get(baseline, "ok")) || !strict(index, get(baseline, "index")))
 	revision := checkRevision(log, tree)
@@ -249,6 +258,9 @@ func publishJudgement(f *publishFactsRun, invoked string, proven, commitOnly, st
 	if treeUnchecked {
 		fastSeen = f.fastPass(tree)
 	}
+	hinted := treeUnchecked && proven && fastSeen == nil && !logIncomplete(log) && !unordered && !couldNotLook &&
+		origin.origin != "unproven" && origin.origin != "unreadable" && origin.origin != "refused" &&
+		isUndefined(get(now, "prose")) && !proseHintTold(log, tree) && proseOnlySincePass(f.lookup().root, origin.command)
 	opening := ""
 	switch {
 	case logIncomplete(log):
@@ -288,7 +300,12 @@ func publishJudgement(f *publishFactsRun, invoked string, proven, commitOnly, st
 		text += fmt.Sprintf(" %d check event(s) in this session's log name no `qh-check` record and were not counted.", bound.dropped)
 	}
 	text += f.inferredCaveat() + publishSettingNote(setting)
-	return &verdict{deny: deny, key: key, detail: detail(), text: text}
+	final := detail()
+	if hinted {
+		text += proseSettingHint
+		final.Set("proseHint", true)
+	}
+	return &verdict{deny: deny, key: key, detail: final, text: text}
 }
 
 // commonDirectory is the git directory a path's repository keeps, as git resolves it, after realpath, or "".

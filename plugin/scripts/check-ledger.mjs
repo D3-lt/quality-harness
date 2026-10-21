@@ -274,6 +274,8 @@ export function importCheckRecords(cwd, session) {
       startedAt: record.before?.at ?? null,
       before: record.before ?? null, after: record.after ?? null, exit: record.exit ?? null,
       signal: record.signal ?? null, command: record.command ?? null, origin: record.origin ?? null,
+      // ADR-120 T9: the list a pass's code tree was taken under travels with the event, or the pass carries nowhere.
+      ...(Array.isArray(record.prose) ? { prose: record.prose } : {}),
     })
     seen.add(record.id)
     imported += 1
@@ -320,7 +322,10 @@ export function ledgerBoundLog(cwd, log) {
   const bound = entry => {
     if (typeof entry?.event !== 'string' || !entry.event.startsWith('check.') || entry.event === 'check.source-unreadable') return true
     const record = typeof entry.record === 'string' ? records.get(entry.record) : undefined
-    return record !== undefined && checkEventName(record) === entry.event && record.after?.tree === entry.after?.tree
+    if (record === undefined || checkEventName(record) !== entry.event || record.after?.tree !== entry.after?.tree) return false
+    // ADR-120 T9: the code tree and the list a pass is carried by are the record's, or the event is not bound.
+    return (entry.after?.codeTree === undefined || entry.after.codeTree === record.after?.codeTree)
+      && (entry.prose === undefined || sameList(entry.prose, record.prose))
   }
   const kept = log.filter(bound)
   kept.complete = log.complete
@@ -419,9 +424,31 @@ function ledgerRecordCount(cwd, file) {
 // "Checked" for a tree: its latest check event is check.passed. A check event
 // belongs to the tree of its `after` observation, and the evidence revision of a
 // tree is how many check events it has, so a later check re-opens a finding.
-function checkEventsFor(log, tree) {
+//
+// ADR-120 T9: with a `carry` ({ codeTree, prose }, that tree's code tree under the project's declared list), the events of
+// any tree with the same code tree under the same list belong to it too, whatever their grade: a pass stands for a tree that
+// differs only under the list, and a newer failure on that code still beats it.
+function checkEventsFor(log, tree, carry = null) {
   if (typeof tree !== 'string' || !tree) return []
-  return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && entry.after?.tree === tree)
+  const carried = entry => typeof carry?.codeTree === 'string' && entry.after?.codeTree === carry.codeTree && sameList(entry.prose, carry.prose)
+  return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && (entry.after?.tree === tree || carried(entry)))
+}
+
+const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((spec, at) => spec === b[at])
+
+/**
+ * ADR-120 T9. What a pass may be carried by for one tree: its code tree and the declared list it was taken under, or null.
+ * Null when the tree has no code tree (the project declares nothing, or git could not say), and null while a write git cannot
+ * see is outstanding: the code tree speaks for what git lists, so it cannot speak for that write (ADR-005).
+ */
+export function carryFor(log, root, codeTree, prose) {
+  return unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null
+}
+
+// The carry without the write check, for a judge that is handed its writes (tests/pure-judges.test.mjs keeps it from reading files).
+export function carryWith(codeTree, prose) {
+  if (typeof codeTree !== 'string' || !codeTree || !Array.isArray(prose) || prose.length === 0) return null
+  return { codeTree, prose }
 }
 
 /**
@@ -440,20 +467,20 @@ function checkEventsFor(log, tree) {
  * carry no timestamps behaves exactly as before rather than worse.
  * Found by a different-lineage review of this branch, 2026-09-18.
  */
-export function latestCheckFor(log, tree) {
+export function latestCheckFor(log, tree, carry = null) {
   // ⚠ THE ONE PLACE A PASS BECOMES A VERDICT, SO THE ONE PLACE A TORN LOG IS
   // REFUSED. `ledgerEvidence` guarded this for itself and two other readers did
   // not, which is how `verified` and `QH ✓ checked` were produced from a log with
   // a line missing. A pass that survived may be older than a failure that did not
   // (ADR-005), so an incomplete log cannot certify — for ANY caller.
-  const latest = latestRecordedCheck(log, tree)
+  const latest = latestRecordedCheck(log, tree, carry)
   return latest?.event === 'check.passed' && logIncomplete(log) ? LOG_INCOMPLETE : latest
 }
 
 const LOG_INCOMPLETE = Object.freeze({ event: 'check.unproven', why: 'the log could not be read whole' })
 
-function latestRecordedCheck(log, tree) {
-  return latestOf(checkEventsFor(log, tree))
+function latestRecordedCheck(log, tree, carry) {
+  return latestOf(checkEventsFor(log, tree, carry))
 }
 
 // The newest of some check events by when they RAN. One ordering, for the
@@ -509,9 +536,9 @@ export function latestOf(events, { unresolved = 'not-a-pass' } = {}) {
 // 'passed' certifies. 'unresolved' is an order that could not be established:
 // it must not be said as "no check has passed", and it must not clear the tree.
 // 'unknown' is a log that was not read whole.
-export function checkStanding(log, tree) {
+export function checkStanding(log, tree, carry = null) {
   if (logIncomplete(log)) return 'unknown'
-  const descriptive = latestOf(checkEventsFor(log, tree), { unresolved: 'say-so' })
+  const descriptive = latestOf(checkEventsFor(log, tree, carry), { unresolved: 'say-so' })
   if (!descriptive) return 'none'
   if (descriptive.event === 'check.unresolved') return 'unresolved'
   if (descriptive.event === 'check.passed') return 'passed'

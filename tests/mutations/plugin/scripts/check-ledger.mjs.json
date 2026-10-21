@@ -322,7 +322,7 @@
       "tests": [
         "tests/publish-ledger-binding.test.mjs"
       ],
-      "from": " && record.after?.tree === entry.after?.tree",
+      "from": " || record.after?.tree !== entry.after?.tree",
       "to": "",
       "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
     },
@@ -332,8 +332,8 @@
       "tests": [
         "tests/publish-ledger-binding.test.mjs"
       ],
-      "from": "    return record !== undefined && checkEventName(record)",
-      "to": "    return false && checkEventName(record)",
+      "from": "    if (record === undefined || checkEventName(record)",
+      "to": "    if (true || checkEventName(record)",
       "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
     },
     {
@@ -522,6 +522,54 @@
       "from": "  if (channel === 'agent' && recipient === 'main' && entry.recipient === 'subagent') return false\n",
       "to": "",
       "only": "^a\\ finding\\ handed\\ to\\ a\\ subagent\\ is\\ still\\ the\\ main\\ agent's\\ to\\ hear$"
+    },
+    {
+      "label": "ADR-120 T9: a pass carries to a tree under another list than the one it was taken under",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "entry.after?.codeTree === carry.codeTree && sameList(entry.prose, carry.prose)",
+      "to": "entry.after?.codeTree === carry.codeTree",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: a pass carries to a tree whose code differs",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "entry.after?.codeTree === carry.codeTree && ",
+      "to": "",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: a write git cannot see no longer ends the carry-over",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null",
+      "to": "carryWith(codeTree, prose)",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: the import drops the list a pass was taken under",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "...(Array.isArray(record.prose) ? { prose: record.prose } : {}),",
+      "to": "",
+      "only": "^(?:a pass stands across a prose-only change for every reader|a check event names its code tree and list only as the ledger record holds them)$"
+    },
+    {
+      "label": "ADR-120 T9: an event may name a list the ledger record does not hold",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "\n      && (entry.prose === undefined || sameList(entry.prose, record.prose))",
+      "to": "",
+      "only": "^(?:a check event names its code tree and list only as the ledger record holds them)$"
+    },
+    {
+      "label": "ADR-120 T9: an event may name a code tree the ledger record does not hold",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "(entry.after?.codeTree === undefined || entry.after.codeTree === record.after?.codeTree)",
+      "to": "true",
+      "only": "^(?:a check event names its code tree and list only as the ledger record holds them)$"
     }
   ]
 }

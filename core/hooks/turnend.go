@@ -237,6 +237,14 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 		}
 		c.fastPassed = fastPassed[c.tree]
 	}
+	// ADR-120 T9: a commit is asked about with its own code tree, so a pass reaches it only through the code it holds.
+	if list, ok := proseList(get(observation, "prose")); ok && len(list) > 0 && root != "" {
+		for _, c := range f.commits.list {
+			if checkStanding(log, c.tree, nil) != "passed" {
+				c.codeTree = codeTreeOf(root, c.tree, list)
+			}
+		}
+	}
 	f.unchangedWrites = writesThatChangedNothing(log, ended, root)
 	place := root
 	if place == "" {
@@ -256,6 +264,11 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 	return f
 }
 
+// carryOf is a tree's carry for a pass (ADR-120 T9): nil unless the observation carries the list its code tree was taken under.
+func (f *completionFacts) carryOf(codeTree any) *carry {
+	return carryFor(f.log, f.root, codeTree, get(f.observation, "prose"))
+}
+
 func ledgerEvidence(f *completionFacts) string {
 	observation := f.observation
 	if !isTrue(get(observation, "ok")) {
@@ -271,12 +284,12 @@ func ledgerEvidence(f *completionFacts) string {
 		return "no-check"
 	}
 	tree := get(observation, "tree")
-	treeUnchecked := checkStanding(f.log, tree) != "passed" && (!isTrue(get(f.baseline, "ok")) || !strict(tree, get(f.baseline, "tree")))
+	treeUnchecked := checkStanding(f.log, tree, f.carryOf(get(observation, "codeTree"))) != "passed" && (!isTrue(get(f.baseline, "ok")) || !strict(tree, get(f.baseline, "tree")))
 	if treeUnchecked || len(f.writes) > 0 {
 		return "unverified"
 	}
 	for _, c := range f.commits.list {
-		if checkStanding(f.log, c.tree) != "passed" {
+		if checkStanding(f.log, c.tree, f.carryOf(c.codeTree)) != "passed" {
 			return "unverified"
 		}
 	}
@@ -557,7 +570,8 @@ func (h *hookRun) completionRules(ended *recorded) {
 	revision := revisionFor(log, observation)
 	observed := isTrue(get(observation, "ok"))
 	tree := get(observation, "tree")
-	treeUnchecked := observed && checkStanding(log, tree) != "passed" && (!isTrue(get(f.baseline, "ok")) || !strict(tree, get(f.baseline, "tree")))
+	treeCarry := f.carryOf(get(observation, "codeTree"))
+	treeUnchecked := observed && checkStanding(log, tree, treeCarry) != "passed" && (!isTrue(get(f.baseline, "ok")) || !strict(tree, get(f.baseline, "tree")))
 	if !quiet && ((treeUnchecked && !namedByPublish(log, tree, revision)) || len(f.writes) > 0) {
 		treeKey := "unobserved"
 		if observed {
@@ -574,7 +588,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 			var latest any
 			checkEvent := ""
 			if observed {
-				latest = latestCheckFor(log, tree)
+				latest = latestCheckFor(log, tree, treeCarry)
 				checkEvent = strOr(get(latest, "event"))
 			}
 			// ADR-111 T3: the baseline speaks only for a red run of the same command whose tree held still through it and is this tree.
@@ -587,15 +601,15 @@ func (h *hookRun) completionRules(ended *recorded) {
 			after, afterIsString := dig(latest, "after", "tree").(string)
 			h.queue(action{rule: "R1", key: key, audience: audience, text: uncheckedWorkReason(f.sentence(), f.status.list, len(f.writes), speaksFor, reasonFlags{
 				logTorn: logIncomplete(log), tornWords: tornRecord(log, ""),
-				orderUnknown: observed && checkStanding(log, tree) == "unresolved",
-				couldNotLook: observed && checkStanding(log, tree) == "could-not-look", checkEvent: checkEvent,
+				orderUnknown: observed && checkStanding(log, tree, treeCarry) == "unresolved",
+				couldNotLook: observed && checkStanding(log, tree, treeCarry) == "could-not-look", checkEvent: checkEvent,
 				baselineVerdict: baselineVerdict, treeMoved: beforeIsString && afterIsString && before != after,
 			})})
 		}
 	}
 	unchecked := []*commit{}
 	for _, c := range f.commits.list {
-		if c.fastPassed || checkStanding(log, c.tree) == "passed" || (observed && strict(c.tree, tree)) {
+		if c.fastPassed || checkStanding(log, c.tree, f.carryOf(c.codeTree)) == "passed" || (observed && strict(c.tree, tree)) {
 			continue
 		}
 		commitRevision := checkRevision(log, c.tree)
@@ -615,7 +629,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 			k := fmt.Sprintf("%s:%d", c.sha, checkRevision(log, c.tree))
 			keys = append(keys, k)
 			keyStrings = append(keyStrings, k)
-			standing := checkStanding(log, c.tree)
+			standing := checkStanding(log, c.tree, f.carryOf(c.codeTree))
 			orderUnknown = orderUnknown || standing == "unresolved"
 			couldNotLook = couldNotLook || standing == "could-not-look"
 		}
@@ -656,7 +670,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 			h.queue(action{rule: "W", key: key, text: "quality-harness: this turn wrote " + strings.Join(f.unchangedWrites, ", ") + " and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."})
 		}
 	}
-	if observed && checkStanding(log, tree) == "passed" {
+	if observed && checkStanding(log, tree, treeCarry) == "passed" {
 		if nudge := evidenceNudge(f.cwd, changed); nudge != "" && !emittedFor(log, "N", tree, channel, recipient) {
 			h.queue(action{rule: "N", key: tree, text: nudge})
 		}

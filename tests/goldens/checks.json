@@ -314,7 +314,12 @@
           "ok": true,
           "tree": "<sha>",
           "index": "<sha>",
-          "head": "<sha>"
+          "head": "<sha>",
+          "codeTree": "<sha>",
+          "indexCodeTree": "<sha>",
+          "prose": [
+            "README.md"
+          ]
         }
       },
       {
@@ -347,7 +352,10 @@
         "exit": 1,
         "signal": null,
         "command": "sh check.sh",
-        "origin": "declared"
+        "origin": "declared",
+        "prose": [
+          "README.md"
+        ]
       },
       {
         "at": "<time>",
@@ -356,7 +364,12 @@
           "ok": true,
           "tree": "<sha>",
           "index": "<sha>",
-          "head": "<sha>"
+          "head": "<sha>",
+          "codeTree": "<sha>",
+          "indexCodeTree": "<sha>",
+          "prose": [
+            "README.md"
+          ]
         }
       },
       {
@@ -410,7 +423,10 @@
         "exit": 0,
         "signal": null,
         "command": "sh check.sh",
-        "origin": "declared"
+        "origin": "declared",
+        "prose": [
+          "README.md"
+        ]
       },
       {
         "at": "<time>",
@@ -437,7 +453,10 @@
         "exit": 0,
         "signal": null,
         "command": "sh check.sh",
-        "origin": "declared"
+        "origin": "declared",
+        "prose": [
+          "README.md"
+        ]
       },
       {
         "at": "<time>",
@@ -446,7 +465,12 @@
           "ok": true,
           "tree": "<sha>",
           "index": "<sha>",
-          "head": "<sha>"
+          "head": "<sha>",
+          "codeTree": "<sha>",
+          "indexCodeTree": "<sha>",
+          "prose": [
+            "README.md"
+          ]
         }
       },
       {

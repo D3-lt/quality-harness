@@ -534,7 +534,7 @@ func previousSessionNotice(cwd string) string {
 	if repository != "" {
 		declared = checkCommandOrigin(repository, nil).command
 	}
-	if repository != "" && declared != "" && passedAlready(repository, declared) != nil {
+	if repository != "" && declared != "" && passedAlready(repository, declared, proseSpecs(repository)) != nil {
 		return ""
 	}
 	reason := "unknown reason"

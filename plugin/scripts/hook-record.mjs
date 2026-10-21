@@ -4,7 +4,7 @@ import { importCheckRecords, lateBaselineAllowed, recordFileWritten, recordUnnam
 import { SHELL_TOOLS, containsCommitOrPush, mentionsCommitOrPush } from './publish-verdict.mjs'
 import { appendEvent, readEvents, stateDir } from './event-log.mjs'
 import { randomUUID } from 'node:crypto'
-import { observe } from './tree-facts.mjs'
+import { observeCarrying } from './tree-facts.mjs'
 import { statSync } from 'node:fs'
 import path from 'node:path'
 
@@ -110,7 +110,7 @@ export function recordHookEvent(input) {
     }
   }
   if (!name) return null
-  const entry = { event: name, ...extra, observation: observe(input.cwd) }
+  const entry = { event: name, ...extra, observation: observeCarrying(input.cwd) }
   // ⚠ A SESSION THIS PLUGIN BEGAN WATCHING LATE HAS NO `session.started`, and every
   // "is this tree unchecked" test then read a missing baseline as "everything is
   // unchecked" — so a Stop on a PRISTINE tree said "work no `qh-check` has passed

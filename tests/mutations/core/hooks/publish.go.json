@@ -15,6 +15,30 @@
       "only": "^the Go classifier answers every literal of the classifier's own tests as the Node one does$",
       "from": "\t\tif next == text {",
       "to": "\t\tif true {"
+    },
+    {
+      "label": "ADR-120 T9: the Go publish verdict asks the index with the working tree's code tree",
+      "file": "core/hooks/publish.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "f.carryOf(log, get(now, \"indexCodeTree\"))",
+      "to": "f.carryOf(log, get(now, \"codeTree\"))",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: the Go refusal names the prose setting again on the same tree",
+      "file": "core/hooks/publish.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "!proseHintTold(log, tree) && ",
+      "to": "",
+      "only": "^(?:a prose-only unchecked diff with no prose declared names the setting once)$"
+    },
+    {
+      "label": "ADR-120 T9: the Go refusal names the prose setting over a diff with code in it",
+      "file": "core/hooks/publish.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": " && proseOnlySincePass(f.lookup().root, origin.command)",
+      "to": "",
+      "only": "^(?:a prose-only unchecked diff with no prose declared names the setting once)$"
     }
   ]
 }

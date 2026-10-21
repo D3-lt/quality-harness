@@ -695,6 +695,38 @@
       "only": "^git stash push is no push, and a real push is still mentioned$",
       "from": "git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t\\r\\n]+|",
       "to": "git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t\\r\\n]+X|"
+    },
+    {
+      "label": "ADR-120 T9: the index is asked with the working tree's code tree",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "checkStanding(log, now.index, carryOf(now.indexCodeTree))",
+      "to": "checkStanding(log, now.index, carryOf(now.codeTree))",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: the publish verdict asks the working tree without its code tree",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "checkStanding(log, now.tree, carryOf(now.codeTree))",
+      "to": "checkStanding(log, now.tree)",
+      "only": "^(?:a pass stands across a prose-only change for every reader)$"
+    },
+    {
+      "label": "ADR-120 T9: the prose setting is named again on the same tree",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "\n    && !log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.detail?.proseHint === true && entry.detail?.tree === now.tree)",
+      "to": "",
+      "only": "^(?:a prose-only unchecked diff with no prose declared names the setting once)$"
+    },
+    {
+      "label": "ADR-120 T9: the prose setting is named over a diff with code in it",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "\n    && facts.proseOnly?.() === true",
+      "to": "",
+      "only": "^(?:a prose-only unchecked diff with no prose declared names the setting once)$"
     }
   ]
 }

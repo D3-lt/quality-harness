@@ -10,6 +10,7 @@ import { nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryRoot, locationKey } from './tree-facts.mjs'
 import { checkCommandOrigin, projectCheckCommand } from './check-command.mjs'
 import { passedAlready } from './check-ledger.mjs'
+import { proseSpecs } from './project-config.mjs'
 import { SAID_MARKER_MAX_AGE_MS, saidMarkerDirectory, sweepStaleMarkers } from './housekeeping.mjs'
 
 // Said once per path per session. New context at every Edit would repeat the
@@ -180,7 +181,7 @@ export function previousSessionNotice(cwd, platform = process.platform) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
   const repository = directory ? gitRepositoryRoot(directory) : null
   const declared = repository ? checkCommandOrigin(repository).command : null
-  if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''
+  if (repository && declared && passedAlready({ root: repository, git: true, command: declared, prose: proseSpecs(repository).specs })) return ''
   // ⚠ AN `unverified` ROW IS NOT ALWAYS A ROW ABOUT EDITS. A session whose tree
   // could not be observed, or that was watched only from partway through, is
   // persisted `unverified` with NO files — and `|| 'edits'` above then told the

@@ -1,0 +1,28 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T9: the Go turn end asks a commit with the working tree's code tree",
+      "file": "core/hooks/turnend.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "checkStanding(log, c.tree, f.carryOf(c.codeTree)) == \"passed\"",
+      "to": "checkStanding(log, c.tree, treeCarry) == \"passed\"",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: the Go turn end asks the working tree without its code tree",
+      "file": "core/hooks/turnend.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "treeCarry := f.carryOf(get(observation, \"codeTree\"))",
+      "to": "var treeCarry *carry",
+      "only": "^(?:a pass stands across a prose-only change for every reader)$"
+    },
+    {
+      "label": "ADR-120 T9: the Go turn end gives a commit the working tree's code tree",
+      "file": "core/hooks/turnend.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "c.codeTree = codeTreeOf(root, c.tree, list)",
+      "to": "c.codeTree = strOr(get(observation, \"codeTree\"))",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    }
+  ]
+}

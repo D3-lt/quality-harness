@@ -398,7 +398,7 @@
       "tests": [
         "tests/inferred-pass.test.mjs"
       ],
-      "from": "    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,",
+      "from": "    checkOrigin: latestCheckFor(log, observation?.tree, treeCarry)?.origin ?? null,",
       "to": "    checkOrigin: null,",
       "only": "^(?:a pass of an INFERRED check says so in the note a session is handed)$"
     },
@@ -418,7 +418,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      text: uncheckedCommitsReason(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
+      "from": "      text: uncheckedCommitsReason(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => commitStanding(commit) === 'unresolved'), couldNotLook: unchecked.some(commit => commitStanding(commit) === 'could-not-look') }),",
       "to": "      text: uncheckedCommitsReason(facts.sentence(), unchecked),",
       "only": "^(?:over a torn log a newly reachable commit is \"not known to be checked\", never \"unchecked\")$"
     },
@@ -498,8 +498,8 @@
       "tests": [
         "tests/outside-root-writes.test.mjs"
       ],
-      "from": "  const writes = unobservableWrites(log, root)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
-      "to": "  const writes = unobservableWrites(log)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
+      "from": "  const writes = unobservableWrites(log, root)\n  const treeCarry = observation?.ok === true ? carryFor(log, root, observation.codeTree, observation.prose) : null\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
+      "to": "  const writes = unobservableWrites(log)\n  const treeCarry = observation?.ok === true ? carryFor(log, root, observation.codeTree, observation.prose) : null\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
       "only": "^an absolute write outside the repository is not counted as unseen$"
     },
     {
@@ -805,6 +805,38 @@
       "from": "const userOnly = facts.turnEnd !== 'continue' && (",
       "to": "const userOnly = (",
       "only": "^(?:turnEnd continue restores the continuation on an inferred and on an unstartable check)$"
+    },
+    {
+      "label": "ADR-120 T9: a commit is asked with the working tree's code tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "const commitStanding = commit => checkStanding(log, commit.tree, carryOf(commit.codeTree))",
+      "to": "const commitStanding = commit => checkStanding(log, commit.tree, treeCarry)",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: a commit is given the working tree's code tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "commit.codeTree = codeTreeOf(root, commit.tree, observation.prose) ?? undefined",
+      "to": "commit.codeTree = observation.codeTree",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+    },
+    {
+      "label": "ADR-120 T9: the turn end asks the working tree without its code tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "const treeCarry = carryOf(observation?.codeTree)",
+      "to": "const treeCarry = null",
+      "only": "^(?:a pass stands across a prose-only change for every reader)$"
+    },
+    {
+      "label": "ADR-120 T9: the compaction note asks the working tree without its code tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "const treeCarry = observation?.ok === true ? carryFor(log, root, observation.codeTree, observation.prose) : null",
+      "to": "const treeCarry = null",
+      "only": "^(?:the compaction note says a pass that stands for the tree passed on the changed paths, in Node and Go)$"
     }
   ]
 }

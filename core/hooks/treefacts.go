@@ -146,23 +146,30 @@ func (f observeFailure) Error() string { return f.message }
 
 // observe takes the working tree, the index and HEAD as content hashes, over a copy of the index with objects written to a
 // temporary directory, the repository's own objects as alternate.
-func observe(cwd string) *Obj {
-	budgetMs := observeBudgetMs()
-	started := time.Now()
+func observe(cwd string) *Obj { return observeWith(cwd, nil, false) }
+
+// observeCarrying is the observation a hook records (ADR-120 T9): observe, and where the project declares `prose`, also the code
+// tree of the working tree and of the index and the list they were taken under.
+func observeCarrying(cwd string) *Obj {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
 	directory := nearestExistingDirectory(resolvePath(cwd))
-	if directory == "" {
-		return O("ok", false, "reason", "the working directory does not exist")
-	}
-	scratch := ""
-	defer func() {
-		if scratch != "" {
-			os.RemoveAll(scratch)
+	if directory != "" {
+		if root := gitRepositoryRoot(directory); root != "" {
+			if specs := proseSpecs(root); len(specs) > 0 {
+				return observeWith(cwd, specs, true)
+			}
 		}
-	}()
-	gitRun := func(args []string, env map[string]string, allowed ...int) (runResult, error) {
+	}
+	return observe(cwd)
+}
+
+type gitRunner func(args []string, env map[string]string, allowed ...int) (runResult, error)
+
+// boundedGit runs git in `directory` within what is left of one observation's budget.
+func boundedGit(directory string, started time.Time, budgetMs int) gitRunner {
+	return func(args []string, env map[string]string, allowed ...int) (runResult, error) {
 		if len(allowed) == 0 {
 			allowed = []int{0}
 		}
@@ -184,6 +191,55 @@ func observe(cwd string) *Obj {
 		}
 		return r, observeFailure{fmt.Sprintf("git %s exited %d", args[0], r.status)}
 	}
+}
+
+func topSpecs(without []string) []string {
+	out := make([]string, len(without))
+	for i, spec := range without {
+		out[i] = ":(top)" + spec
+	}
+	return out
+}
+
+// treeWithout is the tree `treeSha` holds with the `without` pathspecs removed, written through a scratch index whose objects go
+// to the scratch directory the caller made.
+func treeWithout(gitRun gitRunner, env map[string]string, scratch, name, treeSha string, without []string) (string, error) {
+	own := map[string]string{}
+	for k, v := range env {
+		own[k] = v
+	}
+	own["GIT_INDEX_FILE"] = filepath.Join(scratch, name)
+	if _, err := gitRun([]string{"read-tree", treeSha}, own); err != nil {
+		return "", err
+	}
+	if _, err := gitRun(append([]string{"rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"}, topSpecs(without)...), own); err != nil {
+		return "", err
+	}
+	out, err := gitRun([]string{"write-tree"}, own)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out.stdout), nil
+}
+
+// observeWith is observe with the `without` paths removed for a code tree; `carry` adds the index's and the list.
+func observeWith(cwd string, without []string, carry bool) *Obj {
+	budgetMs := observeBudgetMs()
+	started := time.Now()
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	directory := nearestExistingDirectory(resolvePath(cwd))
+	if directory == "" {
+		return O("ok", false, "reason", "the working directory does not exist")
+	}
+	scratch := ""
+	defer func() {
+		if scratch != "" {
+			os.RemoveAll(scratch)
+		}
+	}()
+	gitRun := boundedGit(directory, started, budgetMs)
 	identity := func(args ...string) (string, error) {
 		var failure error
 		r := remembered(directory, args, func() runResult {
@@ -258,7 +314,29 @@ func observe(cwd string) *Obj {
 	if head.status == 0 {
 		headValue = strings.TrimSpace(head.stdout)
 	}
-	return O("ok", true, "tree", strings.TrimSpace(tree.stdout), "index", strings.TrimSpace(indexTree.stdout), "head", headValue)
+	result := O("ok", true, "tree", strings.TrimSpace(tree.stdout), "index", strings.TrimSpace(indexTree.stdout), "head", headValue)
+	if len(without) > 0 {
+		if _, err := gitRun(append([]string{"rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"}, topSpecs(without)...), env); err != nil {
+			return fail(err)
+		}
+		codeTree, err := gitRun([]string{"write-tree"}, env)
+		if err != nil {
+			return fail(err)
+		}
+		result.Set("codeTree", strings.TrimSpace(codeTree.stdout))
+		if carry {
+			indexCode, err := treeWithout(gitRun, env, scratch, "index-code", strings.TrimSpace(indexTree.stdout), without)
+			if err != nil {
+				return fail(err)
+			}
+			list := make([]any, len(without))
+			for i, spec := range without {
+				list[i] = spec
+			}
+			result.Set("indexCodeTree", indexCode).Set("prose", list)
+		}
+	}
+	return result
 }
 
 func copyFile(from, to string) error {
@@ -430,6 +508,7 @@ func hasDotDot(p string) bool {
 type commit struct {
 	sha, tree, subject string
 	fastPassed         bool
+	codeTree           string
 }
 
 type commitList struct {

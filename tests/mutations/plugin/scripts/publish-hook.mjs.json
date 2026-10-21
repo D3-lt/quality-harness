@@ -96,8 +96,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "observation: observe(cwd, observeBudgetMs(env)), invoked,",
-      "to": "observation: observe(cwd), invoked,",
+      "from": "observation: observeCarrying(cwd, observeBudgetMs(env)), invoked,",
+      "to": "observation: observeCarrying(cwd), invoked,",
       "only": "could not be observed"
     },
     {
@@ -129,6 +129,14 @@
       "from": "  if (!verdict?.deny && verdict?.warned) return",
       "to": "  if (false) return",
       "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
+    },
+    {
+      "label": "ADR-120 T9: git's hook judges an observation without the code tree",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "observation: observeCarrying(cwd, observeBudgetMs(env))",
+      "to": "observation: (({ codeTree, indexCodeTree, prose, ...plain }) => plain)(observeCarrying(cwd, observeBudgetMs(env)))",
+      "only": "^(?:a pass stands across a prose-only change for every reader)$"
     }
   ]
 }

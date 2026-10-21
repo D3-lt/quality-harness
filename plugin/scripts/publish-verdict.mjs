@@ -10,9 +10,14 @@ import { appendFileSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { gitLines, gitRepositoryLookup, sameObservation, sessionBaseline } from './tree-facts.mjs'
 import { checkCommandOrigin, inferredCheckCaveat, publishSetting, publishSettingNote } from './check-command.mjs'
-import { checkRevision, checkStanding, lateBaselineAllowed, latestFastPass, ledgerBoundLog, logIncomplete, tornRecord } from './check-ledger.mjs'
+import { carryFor, checkRevision, checkStanding, lateBaselineAllowed, latestFastPass, ledgerBoundLog, logIncomplete, tornRecord } from './check-ledger.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
+import { proseOnlySincePass } from './prose-hint.mjs'
+
+// ADR-120 T9: said once per tree, on a refusal whose unchecked work is text documents alone and whose project declares no `prose`.
+const PROSE_SETTING_HINT = ' The work since the last full pass is to text documents alone: if this project\'s check reads none of them, a "prose": [...] list '
+  + 'in .quality-harness.json lets a later change to them alone stand on a pass (the project owner\'s declaration, ADR-120).'
 
 // The roles that say "never edits". Read from the agent type the hook payload
 // carries inside a subagent, with or without the plugin namespace. A test holds
@@ -228,6 +233,9 @@ export function publishFacts({ cwd, session, observation }) {
     ledger: once(() => ledgerBoundLog(cwd, readEvents(cwd, session))),
     caveat: once(() => inferredCheckCaveat(cwd)),
     lateBaselineAllowed: (log, now) => lateBaselineAllowed(log, cwd, now),
+    // ADR-120 T9: the facts that need git or a file, so the judgement stays a function of what it is handed.
+    carry: (log, codeTree, prose) => carryFor(log, found().root ?? cwd, codeTree, prose),
+    proseOnly: once(() => proseOnlySincePass(found().root, checkCommandOrigin(cwd, found()).command)),
     fastPass: tree => {
       if (!fastPasses.has(tree)) fastPasses.set(tree, latestFastPass(cwd, tree, found().root ?? cwd))
       return fastPasses.get(tree)
@@ -271,8 +279,11 @@ export function publishJudgement(facts, { invoked, commitOnly = false, stagesFir
   // that start, so a linked worktree's empty log is not handed one (ADR-068).
   const baseline = sessionBaseline(log)?.observation
     ?? (log.some(entry => entry.event === 'session.started') && facts.lateBaselineAllowed(log, now) ? now : undefined)
-  const treeStanding = checkStanding(log, now.tree)
-  const indexStanding = checkStanding(log, now.index)
+  // ADR-120 T9: a pass stands for the tree asked about when only the declared prose differs from the tree it was taken on:
+  // each of the tree and the index is asked with its own code tree, never the other's.
+  const carryOf = codeTree => (facts.carry ? facts.carry(log, codeTree, now.prose) : null)
+  const treeStanding = checkStanding(log, now.tree, carryOf(now.codeTree))
+  const indexStanding = checkStanding(log, now.index, carryOf(now.indexCodeTree))
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
   const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
   const revision = checkRevision(log, now.tree)
@@ -333,8 +344,12 @@ export function publishJudgement(facts, { invoked, commitOnly = false, stagesFir
   // A fast pass this command cannot use (it is not proven to be one commit, or it pushes) is still a
   // pass: the sentence below said "no `qh-check` has passed" over it, which was untrue (2026-10-08).
   const fastSeen = treeUnchecked ? facts.fastPass(now.tree) : null
+  const hinted = treeUnchecked && invoked !== null && !fastSeen && !logIncomplete(log) && !unordered && !couldNotLook
+    && !['unproven', 'unreadable', 'refused'].includes(origin.origin) && now.prose === undefined
+    && !log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.detail?.proseHint === true && entry.detail?.tree === now.tree)
+    && facts.proseOnly?.() === true
   return {
-    deny, key, detail: { tree: now.tree, revision },
+    deny, key, detail: { tree: now.tree, revision, ...(hinted ? { proseHint: true } : {}) },
     // A record that could not be read whole is could-not-look, which git's hook says at the event
     // rather than passing in silence (ADR-088; a Codex review of its diff).
     unknown: !deny && logIncomplete(log),
@@ -372,7 +387,7 @@ export function publishJudgement(facts, { invoked, commitOnly = false, stagesFir
         ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
         : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
       + (dropped > 0 ? ` ${dropped} check event(s) in this session's log name no \`qh-check\` record and were not counted.` : '')
-      + `${facts.caveat()}${publishSettingNote(setting)}`,
+      + `${facts.caveat()}${publishSettingNote(setting)}${hinted ? PROSE_SETTING_HINT : ''}`,
   }
 }
 

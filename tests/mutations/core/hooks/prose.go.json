@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T9: the Go carry survives a write git cannot see",
+      "file": "core/hooks/prose.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "if len(unobservableWrites(log, root)) > 0 {",
+      "to": "if false {",
+      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over|the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar)$"
+    },
+    {
+      "label": "ADR-120 T9: the Go grammar accepts a spec that could name the project's config",
+      "file": "core/hooks/prose.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "(proseExtension.MatchString(spec) && strings.HasSuffix(lower, \".json\"))",
+      "to": "false",
+      "only": "^(?:the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar)$"
+    }
+  ]
+}

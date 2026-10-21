@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-120 T9: a Go hook records an observation without the code tree",
+      "file": "core/hooks/lifecycle.go",
+      "tests": ["tests/prose-pass.test.mjs"],
+      "from": "observeCarrying(cwd))",
+      "to": "observe(cwd))",
+      "only": "^(?:a pass stands across a prose-only change for every reader)$"
+    }
+  ]
+}

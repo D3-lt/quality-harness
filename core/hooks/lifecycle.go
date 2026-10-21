@@ -466,7 +466,7 @@ func recordHookEvent(input *Obj) *recorded {
 	for _, k := range extra.keys {
 		entry.Set(k, extra.vals[k])
 	}
-	entry.Set("observation", observe(cwd))
+	entry.Set("observation", observeCarrying(cwd))
 	late := false
 	if name != "session.started" {
 		log := readEvents(cwd, session)

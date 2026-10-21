@@ -27,7 +27,8 @@ func observedFacts(log Log, root string, observation any) facts {
 	}
 	check := latestOf(checkEvents, true)
 	tree := get(observation, "tree")
-	treeUnchecked := isTrue(get(observation, "ok")) && checkStanding(log, tree) != "passed" &&
+	treeCarry := carryFor(log, root, get(observation, "codeTree"), get(observation, "prose"))
+	treeUnchecked := isTrue(get(observation, "ok")) && checkStanding(log, tree, treeCarry) != "passed" &&
 		(!isTrue(get(baseline, "ok")) || !strict(tree, get(baseline, "tree")))
 	var why any
 	switch {
@@ -46,16 +47,16 @@ func observedFacts(log Log, root string, observation any) facts {
 	}
 	var treeOrder any
 	if isTrue(get(observation, "ok")) {
-		treeOrder = checkStanding(log, tree)
+		treeOrder = checkStanding(log, tree, treeCarry)
 	}
-	latest := latestCheckFor(log, tree)
+	latest := latestCheckFor(log, tree, treeCarry)
 	var lastCheck *Obj
 	if check != nil && !logIncomplete(log) {
 		lastCheck = O("command", orNull(get(check, "command")), "verdict", strings.TrimPrefix(strOr(get(check, "event")), "check."))
 	}
 	return facts{
 		files: files, other: len(writes), pending: treeUnchecked || len(writes) > 0,
-		checked: checkStanding(log, tree) == "passed", treeOrder: treeOrder,
+		checked: checkStanding(log, tree, treeCarry) == "passed", treeOrder: treeOrder,
 		checkOrigin: orNull(get(latest, "origin")), checkCommand: orNull(get(latest, "command")),
 		observed: why == nil, whole: !logIncomplete(log), why: why,
 		late: isTrue(get(sessionBaseline(log.E), "late")), lastCheck: lastCheck,

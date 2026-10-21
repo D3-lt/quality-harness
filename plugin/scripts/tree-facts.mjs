@@ -7,6 +7,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readlinkSy
 import path from 'node:path'
 import { canonical, GIT_LISTING_BUFFER, nearestExistingDirectory } from './event-log.mjs'
 import { spawnSync } from 'node:child_process'
+import { proseSpecs } from './project-config.mjs'
 
 // The OS temp roots, symlink-resolved once per call. `/tmp` is a symlink to
 // `/private/tmp` on macOS and os.tmpdir() points into /var/folders, so the
@@ -112,14 +113,9 @@ export function observeBudgetMs(env = process.env) {
   return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS
 }
 
-// `without` (ADR-094 T3, only qh-check passes it) also returns `codeTree`: the tree with those paths removed from
-// the temporary index, anchored at the top. Hooks never ask, so they pay no git call for it.
-export function observe(cwd, budgetMs = observeBudgetMs(), { without = [] } = {}) {
-  const started = Date.now()
-  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
-  if (!directory) return { ok: false, reason: 'the working directory does not exist' }
-  let scratch = null
-  const git = (args, env = null, allowed = [0]) => {
+// One observation's git calls share one budget: each is bounded by what the others left.
+function boundedGit(directory, started, budgetMs) {
+  return (args, env = null, allowed = [0]) => {
     const remaining = budgetMs - (Date.now() - started)
     if (remaining <= 0) throw new Error(`git took more than ${budgetMs} ms`)
     const run = spawnSync('git', ['-C', directory, ...args], {
@@ -131,6 +127,62 @@ export function observe(cwd, budgetMs = observeBudgetMs(), { without = [] } = {}
     if (!allowed.includes(run.status)) throw new Error(`git ${args[0]} exited ${run.status}`)
     return { status: run.status, stdout: run.stdout, out: run.stdout.trim() }
   }
+}
+
+// The tree `treeSha` holds with the `without` pathspecs removed, anchored at the top, written in a scratch index whose objects
+// go to the scratch directory the caller made (ADR-120 T9).
+function treeWithout(git, env, scratch, name, treeSha, without) {
+  const own = { ...env, GIT_INDEX_FILE: path.join(scratch, name) }
+  git(['read-tree', treeSha], own)
+  git(['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...without.map(spec => `:(top)${spec}`)], own)
+  return git(['write-tree'], own).out
+}
+
+/**
+ * ADR-120 T9. The tree a commit (or any tree git holds) has once the declared `prose` paths are removed, or null when git
+ * could not say: a pass is carried to a tree only on this tree's own code, so a tree whose code tree is unknown is carried to
+ * by nothing (ADR-005). The repository's objects are not written to.
+ */
+export function codeTreeOf(cwd, treeSha, without, budgetMs = observeBudgetMs()) {
+  if (typeof treeSha !== 'string' || !treeSha || !Array.isArray(without) || !without.length) return null
+  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
+  if (!directory) return null
+  let scratch = null
+  try {
+    const git = boundedGit(directory, Date.now(), budgetMs)
+    const objects = path.resolve(directory, git(['rev-parse', '--git-path', 'objects']).out)
+    scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-code-tree-'))
+    mkdirSync(path.join(scratch, 'objects'))
+    const env = { GIT_OBJECT_DIRECTORY: path.join(scratch, 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: objects }
+    return treeWithout(git, env, scratch, 'index', treeSha, without)
+  } catch { return null } finally {
+    if (scratch) {
+      try { rmSync(scratch, { recursive: true, force: true }) } catch { /* a leftover temp copy is not a finding */ }
+    }
+  }
+}
+
+/**
+ * ADR-120 T9. The observation a hook records: `observe`, and where the project declares `prose`, also the code tree of the
+ * working tree and of the index and the list they were taken under, so every reader of a pass can ask about the tree in front
+ * of it. A declaration that is refused declares nothing here either (project-config.mjs says why).
+ */
+export function observeCarrying(cwd, budgetMs = observeBudgetMs()) {
+  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const specs = root ? proseSpecs(root).specs : []
+  return specs.length ? observe(cwd, budgetMs, { without: specs, carry: true }) : observe(cwd, budgetMs)
+}
+
+// `without` (ADR-094 T3, qh-check and `observeCarrying` pass it) also returns `codeTree`: the tree with those paths removed
+// from the temporary index, anchored at the top. `carry` (ADR-120 T9, only `observeCarrying`) adds the same for the index,
+// and the list. Hooks without a declaration pay no git call for either.
+export function observe(cwd, budgetMs = observeBudgetMs(), { without = [], carry = false } = {}) {
+  const started = Date.now()
+  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
+  if (!directory) return { ok: false, reason: 'the working directory does not exist' }
+  let scratch = null
+  const git = boundedGit(directory, started, budgetMs)
   const identity = args => remembered(directory, args, () => git(args))
   try {
     const root = identity(['rev-parse', '--show-toplevel']).out
@@ -154,11 +206,17 @@ export function observe(cwd, budgetMs = observeBudgetMs(), { without = [] } = {}
     git(['add', '-A', ...harnessPathspecs(root)], env)
     const tree = git(['write-tree'], env).out
     let codeTree
+    let indexCodeTree
     if (without.length) {
       git(['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...without.map(spec => `:(top)${spec}`)], env)
       codeTree = git(['write-tree'], env).out
+      if (carry) indexCodeTree = treeWithout(git, env, scratch, 'index-code', indexTree, without)
     }
-    return { ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null, ...(codeTree === undefined ? {} : { codeTree }) }
+    return {
+      ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null,
+      ...(codeTree === undefined ? {} : { codeTree }),
+      ...(indexCodeTree === undefined ? {} : { indexCodeTree, prose: [...without] }),
+    }
   } catch (failure) {
     return { ok: false, reason: failure.message }
   } finally {

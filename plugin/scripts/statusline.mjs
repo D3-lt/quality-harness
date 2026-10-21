@@ -38,7 +38,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { readEvents, sessionLogFile } from './lifecycle.mjs'
-import { latestCheckFor, logIncomplete } from './check-ledger.mjs'
+import { carryFor, latestCheckFor, logIncomplete } from './check-ledger.mjs'
 import { projectCheckCommand } from './check-command.mjs'
 import { sessionBaseline } from './tree-facts.mjs'
 import { snapshotKey, usableCache } from './branch-state.mjs'
@@ -114,7 +114,7 @@ function observedReading(log, observed, check) {
   // the last-APPENDED event, so a stale re-imported pass still read `checked`
   // here after the advisories had stopped believing it. Two copies of one rule is
   // exactly what CLAUDE.md §5 is about, and the comment is what made it invisible.
-  const latest = observation?.ok === true ? latestCheckFor(log, observation.tree) : null
+  const latest = observation?.ok === true ? latestCheckFor(log, observation.tree, carryFor(log, null, observation.codeTree, observation.prose)) : null
   const checked = latest?.event === 'check.passed'
   // ⚠ A WRITE THE LAST OBSERVATION DOES NOT COVER OUTRANKS A PASS ON THAT TREE.
   // `checked` came first, so a pass on T followed by a write git cannot see — or

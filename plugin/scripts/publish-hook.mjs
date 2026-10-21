@@ -20,7 +20,7 @@ import path from 'node:path'
 
 import { appendEvent, readEvents } from './event-log.mjs'
 import { importCheckRecords } from './check-ledger.mjs'
-import { observe, observeBudgetMs } from './tree-facts.mjs'
+import { observeBudgetMs, observeCarrying } from './tree-facts.mjs'
 import { publishVerdict } from './publish-verdict.mjs'
 import { isMainModule } from './main-module.mjs'
 
@@ -85,7 +85,7 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // review, P2). One import per caller: a second one in the verdict hid the first.
   importCheckRecords(cwd, session)
   // `prepare-commit-msg` is one commit by construction; `pre-push` never is (ADR-081).
-  const verdict = publishVerdict({ cwd, session, observation: observe(cwd, observeBudgetMs(env)), invoked, commitOnly: event === 'prepare-commit-msg' })
+  const verdict = publishVerdict({ cwd, session, observation: observeCarrying(cwd, observeBudgetMs(env)), invoked, commitOnly: event === 'prepare-commit-msg' })
   // An unreadable tree is said at the event too; a refusal is only ever code 1.
   if (verdict?.unobserved) return { code: 0, message: verdict.text }
   // A commit let through on a fast check is told so at the event, and so is a verdict that could

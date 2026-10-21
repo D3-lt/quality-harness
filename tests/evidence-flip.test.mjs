@@ -296,6 +296,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     namedByReview: 'the same question for R2, with the same direction: a lost line makes a commit be named again',
     namedByPublish: 'the same question for rule P, with the same direction: a lost line makes the tree be named again',
     sessionCommits: 'lists the commits since the session baseline, and with no baseline lists none; completionRules says R4 (could not look) whenever logIncomplete, so a torn log is never read as "no new commits"',
+    carryFor: 'asks unobservableWrites, so a log not read whole leaves every write outstanding and the carry is refused; it certifies nothing itself, only lets checkStanding look at a second tree (ADR-120 T9)',
   }
   const naming = []
   const taking = []

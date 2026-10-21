@@ -56,3 +56,11 @@ export function onlyTextChangedSince(root, head) {
   }
   return paths.length > 0 && paths.every(file => TEXT_DOCUMENT.test(file))
 }
+
+// ADR-120 T9. Whether the work since the last full pass of `command` is text documents alone, so a refusal may name the `prose`
+// setting. Judged like the hint above: from that pass's HEAD, and a change it cannot place says nothing.
+export function proseOnlySincePass(root, command) {
+  if (!root || !command) return false
+  const head = previousPassHead(root, command)
+  return head !== null && onlyTextChangedSince(root, head)
+}

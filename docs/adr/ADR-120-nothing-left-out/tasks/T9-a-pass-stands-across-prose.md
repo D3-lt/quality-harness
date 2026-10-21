@@ -63,6 +63,20 @@ out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \
 | 4 — it is used | every session or run of the gate in question |
 
 ## Mutation Log
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · a pass carried to a tree under another declared list than the one it was taken under · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · a write git cannot see no longer ends the carry-over · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · the import drops the list a pass was taken under · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · an event may name a code tree the ledger record does not hold · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/publish-verdict.mjs` · the staged index is asked with the working tree's code tree · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · a commit is asked with the working tree's code tree instead of its own · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/publish-verdict.mjs` · the prose setting is named again on a tree it was already named for · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/statusline.mjs` · the status line asks the tree without its code tree · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `plugin/scripts/session-notes.mjs` · the previous-session notice does not know the project's declared prose · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/ledger.go` · the Go core carries a pass to a tree under another declared list · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/publish.go` · the Go publish verdict asks the staged index with the working tree's code tree · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/turnend.go` · the Go turn end asks a commit with the working tree's code tree instead of its own · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/publish.go` · the Go refusal names the prose setting again on a tree it was already named for · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
+- 2026-10-21 · aa26c0bd* · mutant killed · exit 1 · `core/hooks/notes.go` · the Go previous-session notice does not know the project's declared prose · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775
 
 ## Invariants
 
@@ -82,3 +96,20 @@ Stop if a reader outside these four judges a tree by its pass: it joins the clas
 - Inferring inputs from a language's dependency graph (permanent: boundary: the owner chose the declared form on 2026-10-21; an inferred input set is a classifier that needs its own record)
 
 ## Verification Log
+- 2026-10-21 · aa26c0bd* · exit 1 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:1841 · test-lock-sha256:0a4b0b63e584716c27f5bb24858a26886ac4af377121c6f66e8dbdc6d63174d2 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcHJvc2UtcGFzcy50ZXN0Lm1qcwlhIGNvZGUgY2hhbmdlLCBhIGNoYW5nZWQgcHJvc2UgbGlzdCBvciBhbiB1bnNlZW4gd3JpdGUgZW5kcyB0aGUgY2Fycnktb3Zlcgk4OWZiZjE1MDM5YzBkZDQ5N2I0ZmU2NmZlM2UwNjNlY2JjM2NjYjVlZTZhYTA4N2U3YjJlNTFjMjgwZjU3ZWQ5CmJvZHkJdGVzdHMvcHJvc2UtcGFzcy50ZXN0Lm1qcwlhIHBhc3Mgc3RhbmRzIGFjcm9zcyBhIHByb3NlLW9ubHkgY2hhbmdlIGZvciBldmVyeSByZWFkZXIJZWU0YmIwNGNjNDI1YWQ3MjU1OTkzYTdiZmJjZGU4MTZjOTlmYjc1MTMxNjBhZDQ3MjIxNTU5MzNhYTU2YzAwZQpib2R5CXRlc3RzL3Byb3NlLXBhc3MudGVzdC5tanMJYSBwcm9zZS1vbmx5IHVuY2hlY2tlZCBkaWZmIHdpdGggbm8gcHJvc2UgZGVjbGFyZWQgbmFtZXMgdGhlIHNldHRpbmcgb25jZQliZTNkNmU0ZDU1YWRmZWRjZWNkMWYwZGFiNjU0YjIyMzg1ZGI5OWUxMTRiMzc2MzFmMTEzYTkzYTJiZjlmM2Rl
+  ```
+  ```
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:33556
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:30220
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:36097
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:42067
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:44157
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:27706
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:49990
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:109582
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:75443
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:59181
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:56232
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:42687
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:86419
+- 2026-10-21 · aa26c0bd* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-pass.test.mjs 2>&1) \ …` · acceptance-sha256:c914889c2ea0b956b73f0cef75c820b4764da8300e05739be818f60fe1360775 · ms:71912

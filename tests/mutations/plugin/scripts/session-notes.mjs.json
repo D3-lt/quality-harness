@@ -184,31 +184,31 @@
       "label": "ADR-094 T2: a standing paragraph is keyed without its text",
       "file": "plugin/scripts/session-notes.mjs",
       "tests": [
-        "tests/standing-facts.test.mjs"
+        "tests/standing-mark.test.mjs"
       ],
       "from": "update(`here#${root}#${text}`)",
       "to": "update(`here#${root}`)",
-      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+      "only": "^the three-day mark is kept per repository and text, and expires$"
     },
     {
       "label": "ADR-094 T2: a standing paragraph is keyed without its repository",
       "file": "plugin/scripts/session-notes.mjs",
       "tests": [
-        "tests/standing-facts.test.mjs"
+        "tests/standing-mark.test.mjs"
       ],
       "from": "update(`here#${root}#${text}`)",
       "to": "update(`here#${text}`)",
-      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+      "only": "^the three-day mark is kept per repository and text, and expires$"
     },
     {
       "label": "ADR-094 T2: a standing paragraph never expires",
       "file": "plugin/scripts/session-notes.mjs",
       "tests": [
-        "tests/standing-facts.test.mjs"
+        "tests/standing-mark.test.mjs"
       ],
       "from": "age >= 0 && age < STANDING_FACT_MAX_AGE_MS",
       "to": "age >= 0 && age < Infinity",
-      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+      "only": "^the three-day mark is kept per repository and text, and expires$"
     },
     {
       "label": "ADR-094 T2: a recorded pass no longer silences the previous-session notice",

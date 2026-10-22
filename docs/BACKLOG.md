@@ -3566,6 +3566,9 @@ whose bare `rmSync` met `EPERM` on a directory a child of `spec-verify` (a `go t
 sites that already pass `maxRetries`. Widening the rule means classifying each: a child that can outlive the test (a hook,
 a gate that spawns a runner) is in the class; a directory only this process wrote is not. Open. ADR-126 (Out of Scope)
 defers it here: its T3 ends the budget class, not this one.
+Two more live members, 2026-10-22, from the first Windows check ADR-126 T6 asks for (a peer's selftest at c549eab5, a
+contended machine): `tests/branch-state.test.mjs:754` (`removeRepository`) and `tests/mutate-runner.test.mjs:1398`, each an
+`EPERM` from a bare `rmSync`; both pass alone, and both temp directories were still there after the run.
 
 ## 408. release-evidence counts any JSON under docs/corpus-reports that carries an `at` as an attestation
 
@@ -3575,3 +3578,18 @@ now verified before `release.mjs` takes it as evidence (`attest-import --verify`
 is a COMMITTED file that did not come through `attest-import`: the commit is reviewed, and nothing reads it as the importer
 would. The structural answer is for `outsideRunEvidence` to run the same checks `--verify` runs over each file it counts.
 Open.
+
+## 409. Two tests fail when the checkout itself sits under the temp directory or the home directory
+
+Found 2026-10-22 by the first Windows check ADR-126 T6 asks for: a peer cloned c549eab5 into its scratchpad, which lives
+under `%TEMP%`, inside both `os.tmpdir()` and the home directory. Both tests pass alone from a checkout outside them, and
+fail every time from there, so each depends on where the checkout is (CLAUDE.md §8).
+- `tests/gates.test.mjs:3547` "every gate that returns a verdict names the binary that reached it (BACKLOG §143)": the
+  verdict line's binary path is home-relative (`~/AppData/Local/Temp/…`), and the assertion that no verdict prints the home
+  directory reads it as a leak.
+- `tests/lifecycle.test.mjs:2186` "reported: a scratch corpus does not pull the record gates": the exemption treats a path
+  under `os.tmpdir()` as scratch only while the plugin is a real checkout outside it; with the checkout under `os.tmpdir()`,
+  the orphan counts as the project's own. Its fixture is also a fixed shared path, `os.tmpdir()/quality-scratch-corpus`,
+  which had stood on that machine since 2026-09-18.
+An adopter's plugin install sits in `~/.claude/plugins`, not under the temp directory, so the product is not affected as far
+as is known; what is open is that the two tests cannot tell this shape from a defect. Open.

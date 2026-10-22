@@ -124,5 +124,6 @@ Revert the tasks' commits; re-add `main` to the push trigger and the dispatch st
 
 ## Follow-ups
 
-- [ ] PUT `.github/rulesets/main.json` once T2's landing is on main.
-- [ ] Release 3.8.53 through the new order.
+- [x] PUT `.github/rulesets/main.json` once T2's landing is on main (2026-10-22, ruleset 25462988; T2's sign-off).
+- [x] Release 3.8.53 through the new order (2026-10-22, v3.8.53 at c549eab5: one landing, one run of 59 jobs, the outside
+  run asked after it was green, the attestation taken uncommitted on the landed sha).

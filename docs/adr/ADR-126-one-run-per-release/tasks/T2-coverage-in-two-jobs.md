@@ -83,3 +83,4 @@ Stop if the two halves cannot run independently (the Python measurement needs th
   ```
   ```
 - 2026-10-22 · 6aa7bd18* · exit 0 · `out=$(node --test --test-reporter=tap tests/coverage-split.test.mjs 2>&1) \ …` · acceptance-sha256:bf3ff65525021e9ce4837a888ae5e1ff3a8eb56e7394f9fb9ec701ddccd5484c · ms:255
+- 2026-10-22 · human-observed · observed 2026-10-22: ruleset 25462988 PUT from .github/rulesets/main.json after v3.8.53 landed; gh api read back nine required contexts including coverage floor (python), and land.mjs --dry-run reported the forge carries the committed ruleset · acceptance-sha256:bf3ff65525021e9ce4837a888ae5e1ff3a8eb56e7394f9fb9ec701ddccd5484c

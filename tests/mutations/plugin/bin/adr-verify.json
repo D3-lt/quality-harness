@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex review of e54bbad3: a cache already there for the mutated file is deleted before the fences",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-bytecode.test.mjs"],
+      "from": "        drop_cached_bytecode(run_targets)",
+      "to": "        pass",
+      "only": "^(?:a cache already there for the mutated file is not what either fence loads)$"
+    },
+    {
       "label": "BACKLOG §222: the mutant fence reads no bytecode the clean fence compiled",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/adr-verify-bytecode.test.mjs"],

@@ -17,10 +17,13 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const bin = path.join(repoRoot, 'plugin', 'bin')
 const made = []
+// Without the guard inherited: a mutation campaign gives every child both variables (scripts/mutate.mjs). A fence that
+// inherits them shows the guard whatever adr-verify does, and a seed compiled under the prefix lands outside the corpus.
+const { PYTHONDONTWRITEBYTECODE: _write, PYTHONPYCACHEPREFIX: _prefix, ...env } = process.env
 test.after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true, maxRetries: 5 }) })
 
 /** The ok fixture with `check.py` as its fence and `m.py` for the mutant to break, in git. */
-function corpus(check) {
+function corpus(check, { seed = false } = {}) {
   const temp = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-pyc-')))
   made.push(temp)
   const dir = path.join(temp, 'ok')
@@ -29,7 +32,14 @@ function corpus(check) {
   writeFileSync(task, `${readFileSync(task, 'utf8').replace(/```bash\n[\s\S]*?```/, '```bash\npython3 check.py\n```').trimEnd()}\n\n## Mutation Log\n`)
   writeFileSync(path.join(dir, 'm.py'), 'def f():\n    return 1\n')
   writeFileSync(path.join(dir, 'check.py'), check)
-  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+  // An unchecked-hash .pyc is trusted whatever the source says, so it stands in, deterministically, for a cache a
+  // same-second, same-size mutant would be served. Committed, so the isolated worktree carries it too.
+  if (seed) {
+    const compiled = spawnSync('python3', ['-c', 'import py_compile; py_compile.compile("m.py", invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH, doraise=True)'],
+      { cwd: dir, env, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(compiled.status, 0, compiled.stderr)
+  }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '-f', '.'], ['commit', '-qm', 'fixture']]) {
     const run = spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
     assert.equal(run.status, 0, run.stderr)
   }
@@ -39,9 +49,6 @@ function corpus(check) {
 function mutant(dir) {
   const argv = [path.join(bin, 'adr-verify'), 'tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'm.py',
     '--from', 'return 1', '--to', 'return 2', '--why', 'the check notices f changing']
-  // Without the guard inherited: a mutation campaign gives every child both variables
-  // (scripts/mutate.mjs), and a fence that inherits them shows the guard whatever adr-verify does.
-  const { PYTHONDONTWRITEBYTECODE: _write, PYTHONPYCACHEPREFIX: _prefix, ...env } = process.env
   const run = spawnSync(process.platform === 'win32' ? 'python3' : argv[0], process.platform === 'win32' ? argv : argv.slice(1),
     { cwd: dir, env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
   return { status: run.status, out: `${run.stdout}${run.stderr}` }
@@ -82,4 +89,21 @@ test('a fence that fails only without a bytecode cache fails clean, and is never
   assert.notEqual(run.status, 0, run.out)
   assert.doesNotMatch(run.out, /mutant killed/, run.out)
   assert.doesNotMatch(run.out, /MUTANT APPLIED/, run.out)
+})
+
+// The Codex review of e54bbad3: a cache already there for the mutated file is loaded unless it is deleted. The fence
+// compares the source's answer; served the seeded clean bytecode, the mutant fence would pass and the mutant survive.
+const COMPARES = [
+  'import sys',
+  'import m',
+  'ok = m.f() == 1',
+  'print("1 passed in 0.01s" if ok else "1 failed in 0.01s")',
+  'sys.exit(0 if ok else 1)',
+  '',
+].join('\n')
+
+test("a cache already there for the mutated file is not what either fence loads", () => {
+  const run = mutant(corpus(COMPARES, { seed: true }))
+  assert.equal(run.status, 0, run.out)
+  assert.match(run.out, /mutant killed/, run.out)
 })

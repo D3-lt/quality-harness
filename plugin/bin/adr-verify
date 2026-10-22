@@ -1760,6 +1760,39 @@ def mutant_fence_env():
     """
     return dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
 
+def drop_cached_bytecode(targets):
+    """Delete the bytecode Python could load for each mutated file, before either `--mutant` fence runs.
+
+    Not writing is not enough on its own (the Codex review of e54bbad3): a cache already there for the
+    mutated file can be loaded by either fence. An unchecked-hash .pyc is trusted whatever the source says,
+    and a timestamp one whose source kept its mtime second and size is trusted too, so the mutant reads as
+    survived; and passing bytecode can hide a same-second edit that already fails until the mutant's write
+    exposes it, a kill the mutation did not cause. Only these files' caches go: every other import, the
+    standard library's included, still loads from its cache, and is the same for both fences. Both cache
+    locations are looked in, beside the file and under PYTHONPYCACHEPREFIX, for every interpreter's tag.
+    """
+    for target in targets:
+        path = Path(target)
+        if path.suffix != ".py":
+            continue
+        directories = {path.parent / "__pycache__"}
+        try:
+            directories.add(Path(_ilu.cache_from_source(str(path))).parent)
+        except (NotImplementedError, ValueError):
+            pass
+        for directory in directories:
+            try:
+                names = os.listdir(directory)
+            except OSError:
+                continue
+            for name in names:
+                if name.startswith(f"{path.stem}.") and name.endswith(".pyc"):
+                    try:
+                        (directory / name).unlink()
+                    except OSError as error:
+                        print(f"[adr-verify] could not delete {directory / name} ({os_reason(error)}); a fence that "
+                              f"loads it can read the unmutated {path.name}, so a survivor here may be that cache")
+
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                covers=None, steps=None, in_place=False, placement=None, plan=None):
     # ADR-025: taken HERE, before this function writes anything at all. The
@@ -1972,6 +2005,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # A clean fence that leaves work running did not finish what it began: no pass, and no mutant (LEFT_RUNNING).
         clean_settled = placement if isolated else {}
         fence_env = mutant_fence_env()
+        drop_cached_bytecode(run_targets)
         try:
             clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",

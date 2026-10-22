@@ -26,7 +26,8 @@ adopter's session carries now, and the release note states it.
    split by a compaction, the same advisory on three trees, the same brief on five prompts) counts each item once per context
    in `scripts/hook-footprint.mjs`'s output.
 2. [S2] Run `scripts/hook-footprint.mjs` over a recorded session before and after, and record, by item and channel, the
-   firings and characters, and the median added cost per firing. [proof: human: the person compares the two printed tables, and the sign-off records each session's prompt, tool-call and compaction counts, the plugin versions and the medians, never content]
+   firings and characters, and the median `durationMs` per hook firing against T1's baseline (the transcript records it per
+   hook run, so the before figure exists for every recorded session). [proof: human: the person compares the two printed tables, and the sign-off records each session's prompt, tool-call and compaction counts, the plugin versions and the medians, never content]
 3. [S3] Write the release note's sentence from S2's numbers, dated and named by what they were measured on. [proof: human: the owner reads the sentence beside S2's sign-off before the release]
 
 ## Acceptance

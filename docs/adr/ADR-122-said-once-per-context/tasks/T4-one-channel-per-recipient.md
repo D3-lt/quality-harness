@@ -11,27 +11,27 @@
 
 ## Goal
 
-No firing sends the same item to the model's context twice, and the user keeps the first headline of each item.
+A skipped item sends neither its text nor its headline, and an item said in full keeps its headline: on 2.1.307 the model
+reads `additionalContext` and the user reads `systemMessage` (T1's measurement), so the user's noise falls with the model's.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
 | `tests/hook-channel.test.mjs` | create | the channel rows (0 locks: new) |
-| `plugin/scripts/lifecycle.mjs` | edit | the PreToolUse headline (:109-114) on an item's first saying only, if T1 measured that it reaches the context; Stop through `audience` (:115-125) only if T1 found a duplicate there |
+| `plugin/scripts/lifecycle.mjs` | edit | the PreToolUse and Stop headlines (:109-125) follow the item's verdict: no headline for a skipped item; Stop's `audience` unchanged |
 | `core/hooks/lifecycle.go` | edit | the same (:276-283) |
-| `plugin/scripts/check-ledger.mjs` | edit | `deliveredTo` (:587-589) names what T1 measured |
-| `CLAUDE.md` | edit | §3's sentence on `systemMessage`, only if T1 contradicts it (the owner's amendment) |
+| `plugin/scripts/check-ledger.mjs` | edit | `deliveredTo` (:587-589) records the channels as measured on 2.1.307 |
+| `core/hooks/ledger.go` | edit | the same, Go (the cold review, finding 8) |
 
 ## Ordered Steps
 
-1. [S1] Write the failing tests and record the red run: on T1's measured branch, a repeat or a skip sends no headline and a
-   first saying sends one; a PreToolUse firing never carries the same item in both channels to a recipient that reads both;
-   an ADR-096 Stop finding keeps its delivery unless T1 found it doubled.
-2. [S2] Implement the branch T1 measured, Node and Go; record the measurement's sign-off in the code comment by date and host
-   version.
-3. [S3] If T1 contradicts CLAUDE.md §3's "a `systemMessage` reaches the user only", propose the amendment to the owner. [proof: human: the owner reads the T1 sign-off and accepts or declines the sentence]
-4. [S4] Record a killed mutant per mechanism, with catalogue entries. [proof: mutation]
+1. [S1] Write the failing tests and record the red run: a skipped item sends no headline and no `additionalContext`; an item
+   said in full sends both, once; a pending item (said earlier in the same turn) sends neither; a Stop finding keeps ADR-096's
+   delivery and its `audience`; a refusal sends both on every attempt.
+2. [S2] Implement it, Node and Go; record T1's measurement in the code comment by date and host version (2026-10-22, Claude
+   Code 2.1.307: `systemMessage` reaches the user only; CLAUDE.md §3 stands, so no amendment is proposed).
+3. [S3] Record a killed mutant per mechanism, with catalogue entries. [proof: mutation]
 
 ## Acceptance
 

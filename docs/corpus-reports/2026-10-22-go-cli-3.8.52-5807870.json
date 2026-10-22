@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-22",
+  "at": "5807870473885694ad1d73bc8aa26e0ba98d89d5",
+  "plugin": "3.8.52",
+  "kind": "probe",
+  "probeSha256": "a07089753b4bdd0bf580fe366e6cc49f9c54b5e3e51e08e10d32209254efc200",
+  "readers": "c4f285b23ae61a41738bd79e1920bd3545a02c8c29dad2807daf74d98bb6d547",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 166,
+    "undecided": 0,
+    "tasks": 405,
+    "taskDirectories": 164
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 166,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "go-cli",
+  "found": ""
+}

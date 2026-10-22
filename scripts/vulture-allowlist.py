@@ -12,3 +12,7 @@ dwSize
 
 # Assigned to stop bytecode being written beside a checkout's gates; read by the interpreter.
 dont_write_bytecode
+
+# plugin/bin/spec-verify runs_nothing: shlex's own configuration attributes, read by shlex.shlex as it tokenizes.
+whitespace
+commenters

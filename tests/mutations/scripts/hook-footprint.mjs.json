@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §406: a 2.1.308 SessionStart context joins the latest SessionStart call",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "    const seen = hooksOn.get(a.toolUseID === a.hookEvent && !hooksOn.has(own) ? latestCall[a.hookEvent] : own)",
+      "to": "    const seen = hooksOn.get(own)",
+      "only": "^(?:a 2\\.1\\.308 SessionStart context is the latest SessionStart call's, and one with no call is unattributed)$"
+    },
+    {
+      "label": "BACKLOG §406: a context that joins no hook is counted unattributed, never dropped in silence",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "    if (!seen) { unattributed += 1; continue }",
+      "to": "    if (!seen) { continue }",
+      "only": "^(?:a 2\\.1\\.308 SessionStart context is the latest SessionStart call's, and one with no call is unattributed)$"
+    },
+    {
       "label": "ADR-122 T1: another plugin's hook on the same call makes its context ambiguous, never ours",
       "file": "scripts/hook-footprint.mjs",
       "tests": ["tests/hook-footprint.test.mjs"],

@@ -74,7 +74,11 @@ export function footprint(file) {
     hooksOn.set(key, seen)
   }
   const rows = new Map(), durations = {}
-  let compactions = 0, ambiguous = 0
+  let compactions = 0, ambiguous = 0, unattributed = 0
+  // Claude Code 2.1.308 hands SessionStart's merged context back with `toolUseID` set to the event's name, not the call's
+  // (measured 2026-10-22 on this repository's own transcript), so it joins no hook by id. It belongs to the latest call of
+  // that event before it; with no call before it, or any other context that joins nothing, it is `unattributed`, said apart.
+  const latestCall = {}
   const add = (event, channel, text) => {
     const items = [...String(text).matchAll(MARKER)].map(m => m[1])
     for (const item of items.length ? [...new Set(items)] : ['unmarked']) {
@@ -91,27 +95,31 @@ export function footprint(file) {
     if (r.type !== 'attachment' || !(a?.type in HOOK_SHAPES)) continue
     const event = String(a.hookEvent ?? '?').split(':')[0]
     if (typeof a.command === 'string') {
+      latestCall[a.hookEvent] = `${a.toolUseID}\u0000${a.hookEvent}`
       if (!OURS.test(a.command)) continue
       if (typeof a.durationMs === 'number') (durations[event] ??= []).push(a.durationMs)
       const out = a.type === 'hook_success' ? a.stdout : a.stderr
       if (out && !isJsonObject(out)) add(event, HOOK_SHAPES[a.type], out)
       continue
     }
-    const seen = hooksOn.get(`${a.toolUseID}\u0000${a.hookEvent}`)
-    if (!seen?.ours) continue
+    const own = `${a.toolUseID}\u0000${a.hookEvent}`
+    const seen = hooksOn.get(a.toolUseID === a.hookEvent && !hooksOn.has(own) ? latestCall[a.hookEvent] : own)
+    if (!seen) { unattributed += 1; continue }
+    if (!seen.ours) continue
     if (seen.theirs) { ambiguous += 1; continue }
     const body = texts(a.content).join('\n')
     if (body) add(event, HOOK_SHAPES[a.type], body)
   }
   const durationMs = Object.fromEntries(Object.entries(durations).map(([event, values]) =>
     [event, { firings: values.length, median: median(values) }]))
-  return { rows: [...rows.values()].sort((x, y) => y.characters - x.characters), unreadable, ambiguous, compactions,
+  return { rows: [...rows.values()].sort((x, y) => y.characters - x.characters), unreadable, ambiguous, unattributed, compactions,
     contexts: compactions + 1, durationMs }
 }
 
 function render(result) {
   const lines = [`contexts ${result.contexts} (compactions ${result.compactions}); unreadable lines ${result.unreadable}; `
-    + `ambiguous attachments ${result.ambiguous} (another plugin's hook on the same call)`]
+    + `ambiguous attachments ${result.ambiguous} (another plugin's hook on the same call); `
+    + `unattributed attachments ${result.unattributed} (joined to no hook)`]
   lines.push('event              channel            item                      firings   characters')
   for (const r of result.rows) {
     lines.push(`${r.event.padEnd(19)}${r.channel.padEnd(19)}${r.item.padEnd(26)}${String(r.firings).padStart(7)}`

@@ -65,6 +65,9 @@ function world(overrides = {}) {
     }
     if (line.startsWith('gh run list --workflow')) return ok(JSON.stringify(state.inFlight))
     if (line === 'gh workflow run selftest.yml --ref main') { state.dispatchSawPush = state.pushSeen === true; state.dispatchSawMainPush = state.mainPushSeen === true; return ok() }
+    if (line === `node scripts/release-evidence.mjs --local ${SHA}`) {
+      return { status: state.local ?? 0, stdout: `${state.local ? 'UNPROVEN' : 'READY'} — local evidence\n`, stderr: '' }
+    }
     if (line.endsWith(`scripts/release-evidence.mjs ${SHA}`)) {
       const code = state.evidence[Math.min(evidenceCalls, state.evidence.length - 1)]
       evidenceCalls += 1
@@ -256,4 +259,24 @@ test('a sample after the settle bound does not count, and a pass whose start was
   const unread = world({ origin: 'b'.repeat(40), loads: [null, 12] })
   assert.equal(unread.run(), 0, unread.said.join('\n'))
   assert.equal(unread.state.checks, 1, 'an unread start is not contended, whatever the samples after it')
+})
+
+// BACKLOG §406: 3.8.52's outside runs were filed after its sha had landed, and the release ran with them held outside the tree.
+// The questions this clone can answer are asked before anything is checked or pushed, and an uncommitted attestation is named.
+test('evidence this clone can read is asked for before anything lands, and an uncommitted attestation is named', () => {
+  const missing = world({ origin: 'b'.repeat(40), local: 2 })
+  assert.equal(missing.run(), 2, missing.said.join('\n'))
+  assert.match(missing.said.join('\n'), /UNPROVEN — local evidence[\s\S]*commit it, then run again/)
+  assert.equal(missing.state.checks, undefined, 'no check was run')
+  assert.ok(!pushed(missing.calls) && !missing.calls.includes(LANDING), 'nothing left this machine')
+  // CLEAN twin: with the evidence in hand the release goes on.
+  const ready = world({ origin: 'b'.repeat(40) })
+  assert.equal(ready.run(), 0, ready.said.join('\n'))
+  assert.ok(ready.calls.indexOf(`node scripts/release-evidence.mjs --local ${SHA}`) < ready.calls.indexOf('node plugin/scripts/qh-check.mjs --again'))
+  const held = world({ porcelain: '?? docs/corpus-reports/2026-10-22-x.json' })
+  assert.equal(held.run(), 2)
+  assert.match(held.said.join('\n'), /uncommitted attestation/)
+  const other = world({ porcelain: '?? docs/corpus-reports/2026-10-22-x.json\n M scripts/land.mjs' })
+  assert.equal(other.run(), 2)
+  assert.match(other.said.join('\n'), /not clean/)
 })

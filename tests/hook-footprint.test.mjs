@@ -151,3 +151,25 @@ test('a routed session carries each item once per context', async () => {
     assert.equal(row(result, 'UserPromptSubmit', 'stdout', 'unmarked').firings, 1, 'the brief once, not on five prompts')
   } finally { remove(dir) }
 })
+
+// Claude Code 2.1.308 (measured 2026-10-22): SessionStart's context attachment carries `toolUseID: "SessionStart"`, not the
+// call's id, so it joined nothing and every SessionStart context went uncounted. It is the latest SessionStart call's.
+test("a 2.1.308 SessionStart context is the latest SessionStart call's, and one with no call is unattributed", () => {
+  const standing = 'Verification: run it through qh-check. <qh:standing@7e94d3c2>'
+  const { dir, file } = transcript([
+    context('SessionStart', 'SessionStart', 'before any call'),
+    success('SessionStart', 'c1', OURS, '{"hookSpecificOutput":{}}'),
+    success('SessionStart', 'c1', BRIEF, 'branch-state: main @ abc, clean'),
+    context('SessionStart', 'SessionStart', standing),
+    success('SessionStart', 'c2', OURS, '{"hookSpecificOutput":{}}'),
+    success('SessionStart', 'c2', theirs, '{"hookSpecificOutput":{}}'),
+    context('SessionStart', 'SessionStart', standing),
+  ])
+  try {
+    const result = footprint(file)
+    assert.equal(row(result, 'SessionStart', 'additionalContext', 'standing')?.firings, 1, 'joined to the call before it')
+    assert.equal(result.ambiguous, 1, 'a call another plugin\'s hook shared stays ambiguous')
+    assert.equal(result.unattributed, 1, 'a context with no call before it is said, not dropped')
+    assert.equal(row(result, 'SessionStart', 'additionalContext', 'unmarked'), undefined)
+  } finally { remove(dir) }
+})

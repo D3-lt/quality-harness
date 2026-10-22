@@ -15,6 +15,7 @@
 //
 // Usage:
 //   node scripts/release-evidence.mjs [<sha>]     # defaults to HEAD
+//   node scripts/release-evidence.mjs --local <sha>   # only what this clone can answer before CI: the outside run, the review
 //
 // Exit codes are distinct on purpose, so a caller can tell the three apart:
 //   0  every job concluded success — safe to release this sha
@@ -601,6 +602,22 @@ export function tagAdvice(kind) {
 // The CLI, exported with its readers as seams so the review question is shown asked from this path (ADR-100 T1).
 // A caller that hands in its own run hands in its own forge: the forge is asked by default only of the gh the run came from.
 export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, forge = fetch === fetchRun ? mainProtection : null, log = console.log } = {}) {
+  // `--local`: the two questions git and the review ledger answer, asked before anything lands, so evidence gathered late
+  // is a refusal before the landing rather than a file the landed sha does not hold (BACKLOG §406). No run is fetched.
+  if (argv[0] === '--local') {
+    const target = classifyArgument(argv[1])
+    if (target.kind !== 'sha' || !target.value) {
+      console.error(`release-evidence: --local needs a sha\n\n${USAGE}`)
+      return EXIT.unreadable
+    }
+    const outside = outsideOf(target.value)
+    const review = reviewOf(target.value)
+    const unproven = outside.verdict === 'unproven' || review.verdict === 'unproven'
+    log(`${unproven ? 'UNPROVEN' : 'READY'} (${target.value.slice(0, 7)}) — since ${outside.tag ?? 'the last tag'}: ${outside.reason}; ${review.reason}`)
+    if (outside.verdict === 'unproven') log(tagAdvice(outside.kind))
+    if (review.verdict === 'unproven') log(tagAdvice(review.kind === 'unreviewed' || review.kind === 'blocked' ? review.kind : 'review-unlisted'))
+    return unproven ? EXIT.unproven : EXIT.success
+  }
   const argument = classifyArgument(argv[0])
   if (argument.kind === 'help') {
     log(USAGE)

@@ -3518,3 +3518,21 @@ sha passed, so the tag stands on the dispatched run (CLAUDE.md §13.3).
   observe budget; a slow runner outran it, and the hook advised "unknown" with no decision, which is the designed answer
   (BACKLOG §314, CLAUDE.md §16) and not a fail-open. The helper now sets `QUALITY_HARNESS_OBSERVE_BUDGET_MS` (CLAUDE.md §7);
   the locked test bodies are unchanged.
+
+## 406. Two leftovers of the 3.8.52 release: evidence gathered after the landing, and SessionStart context uncounted; both fixed
+
+Found 2026-10-22 while releasing 3.8.52.
+
+- **Evidence after the landing.** The outside runs were filed after the bump had started landing, so the attestations were
+  untracked while `release.mjs` and `land.mjs` require a clean tree and `release-evidence` reads them from the working tree.
+  The release ran three times with the files held outside the tree, and its last two steps were run by hand. The cause was
+  the order: `release-evidence` asked the outside-run and review questions only at step 5, after the landing and the campaign.
+  `release.mjs` now asks them first, through `release-evidence --local <sha>` (git and the review ledger only, no run
+  fetched), and stops with nothing checked or pushed until they are answered and committed. A tree whose only change is
+  an untracked attestation is named as one, with the commit to make. `land.mjs` still says only "not clean": an ordinary
+  landing carries no release evidence.
+- **`hook-footprint` dropped SessionStart's context on Claude Code 2.1.308.** Its context attachment carries
+  `toolUseID: "SessionStart"`, not the call's id (measured on this repository's own transcript), so it joined no hook and
+  was silently skipped. It now joins the latest SessionStart call before it, and an attachment that joins no hook is
+  counted as `unattributed` rather than dropped. Over this session's transcript: SessionStart additionalContext 24 firings,
+  about 13.2k characters, where it had read none; 10 unattributed.

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §406: --local is unproven when the outside run is",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/release-evidence.test.mjs"],
+      "from": "    const unproven = outside.verdict === 'unproven' || review.verdict === 'unproven'",
+      "to": "    const unproven = review.verdict === 'unproven'",
+      "only": "^(?:release-evidence --local asks the outside run and the review, and never the forge)$"
+    },
+    {
       "label": "ADR-125 T1: the newest covering review decides",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/review-blocking.test.mjs"],

@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 import {
-  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, READER_PATHS, runListArgv, selectRun, tagAdvice,
+  classifyArgument, evaluateRun, fetchRun, main, outsideRun, outsideRunEvidence, readAttestations, READER_PATHS, runListArgv, selectRun, tagAdvice,
 } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
@@ -464,4 +464,20 @@ test('a regression is never hidden by the attestation version, and a run that co
   const unchecked = outsideRun(['plugin/bin/adr-lint'], [run('u.json', '3.8.0', null), { file: 'far.json', at: 'cccc' }], at => (at === 'bbbb' ? true : null))
   assert.equal(unchecked.kind, 'uncompared')
   assert.match(unchecked.reason, /far\.json/)
+})
+
+// BACKLOG §406: `--local` asks only what this clone can answer, the outside run and the review, and fetches no run.
+test('release-evidence --local asks the outside run and the review, and never the forge', () => {
+  const said = []
+  const fetch = () => { throw new Error('--local fetched a run') }
+  const sha = 'a'.repeat(40)
+  const missing = { verdict: 'unproven', kind: 'missing', reason: '2 reader file(s) changed', tag: 'v1.0.0' }
+  const reviewed = { verdict: 'success', reason: 'covered by a recorded review' }
+  assert.equal(main(['--local', sha], { fetch, outside: () => missing, review: () => reviewed, log: line => said.push(line) }), 2)
+  assert.match(said.join('\n'), /^UNPROVEN \(aaaaaaa\)[\s\S]*Do NOT tag this sha/)
+  said.length = 0
+  const attested = { verdict: 'success', reason: 'outside run attested', tag: 'v1.0.0' }
+  assert.equal(main(['--local', sha], { fetch, outside: () => attested, review: () => reviewed, log: line => said.push(line) }), 0)
+  assert.match(said[0], /^READY \(aaaaaaa\)/)
+  assert.equal(main(['--local'], { fetch, outside: () => attested, review: () => reviewed, log: () => {} }), 2, 'a sha is required')
 })

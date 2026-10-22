@@ -63,7 +63,14 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const at = `at ${sha}`
   const porcelain = text('git', ['status', '--porcelain'])
   if (porcelain === null) { log(`release: git status failed ${at}`); return 1 }
-  if (porcelain) { log(`release: the working tree is not clean ${at}; commit or stash, then run again`); return 2 }
+  if (porcelain) {
+    // An attestation attest-import wrote and nobody committed is this release's evidence: it belongs on the sha that lands.
+    const attestations = porcelain.split('\n').every(line => /^\?\? docs\/corpus-reports\/[^/]+\.json$/.test(line))
+    log(attestations
+      ? `release: the working tree holds an uncommitted attestation ${at}; it is this release's evidence, so commit it (\`qh-check --fast --commit\`), then run again`
+      : `release: the working tree is not clean ${at}; commit or stash, then run again`)
+    return 2
+  }
   const version = parsed(text('git', ['show', `HEAD:${MANIFEST}`]) ?? '')?.version
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) { log(`release: ${MANIFEST} names no version ${at}`); return 1 }
   const tag = `v${version}`
@@ -87,6 +94,16 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     return 2
   }
 
+
+  // What release-evidence asks of this clone rather than of CI, asked before anything is checked or leaves this machine: an
+  // outside run or a review gathered after the landing arrives as a file the landed sha does not hold, and every later step
+  // then meets an unclean tree (3.8.52's two attestations were held outside the tree while main landed; BACKLOG §406).
+  const local = ran('node', ['scripts/release-evidence.mjs', '--local', sha])
+  if (local.status !== 0) {
+    for (const line of String(local.stdout ?? '').trim().split('\n')) if (line) log(line)
+    log(`release: release-evidence --local exited ${local.status} ${at}; get what it names and commit it, then run again; nothing was checked or pushed`)
+    return local.status === 1 ? 1 : 2
+  }
   // The full check, then the dead-code scan, both before anything leaves this machine. The check runs here once per release
   // and is never reused (one push per release, one full check right before it: the owner, 2026-10-13), and its pass counts
   // only if the machine was not contended across it, sampled with qh-check's own `contention`. v3.8.25 was pushed on a pass

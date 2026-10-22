@@ -1,10 +1,26 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 12952d76: a declared output the restore rewrites has its cache deleted too",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-bytecode.test.mjs"],
+      "from": "        drop_cached_bytecode(run_targets + [m[\"path\"] for m in members if m[\"role\"] == \"secondary\"], run_cwd, fence_env)",
+      "to": "        drop_cached_bytecode(run_targets, run_cwd, fence_env)",
+      "only": "^(?:a declared output the restore rewrites is not served from a cache to the clean fence)$"
+    },
+    {
+      "label": "Codex review of 12952d76: a cache directory that cannot be listed refuses the run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-bytecode.test.mjs"],
+      "from": "            except OSError as error:  # a directory that exists and cannot be listed",
+      "to": "            except FileNotFoundError:  # a directory that exists and cannot be listed",
+      "only": "^(?:a cache directory that cannot be listed refuses the run)$"
+    },
+    {
       "label": "Codex review of e54bbad3: a cache already there for the mutated file is deleted before the fences",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/adr-verify-bytecode.test.mjs"],
-      "from": "        drop_cached_bytecode(run_targets)",
+      "from": "        drop_cached_bytecode(run_targets + [m[\"path\"] for m in members if m[\"role\"] == \"secondary\"], run_cwd, fence_env)",
       "to": "        pass",
       "only": "^(?:a cache already there for the mutated file is not what either fence loads)$"
     },

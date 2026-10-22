@@ -1760,38 +1760,50 @@ def mutant_fence_env():
     """
     return dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
 
-def drop_cached_bytecode(targets):
-    """Delete the bytecode Python could load for each mutated file, before either `--mutant` fence runs.
+def drop_cached_bytecode(sources, cwd, env):
+    """Delete the bytecode Python could load for each source a `--mutant` run rewrites, before either fence runs.
 
-    Not writing is not enough on its own (the Codex review of e54bbad3): a cache already there for the
-    mutated file can be loaded by either fence. An unchecked-hash .pyc is trusted whatever the source says,
-    and a timestamp one whose source kept its mtime second and size is trusted too, so the mutant reads as
-    survived; and passing bytecode can hide a same-second edit that already fails until the mutant's write
-    exposes it, a kill the mutation did not cause. Only these files' caches go: every other import, the
-    standard library's included, still loads from its cache, and is the same for both fences. Both cache
-    locations are looked in, beside the file and under PYTHONPYCACHEPREFIX, for every interpreter's tag.
+    Not writing is not enough on its own (the Codex review of e54bbad3): a cache already there for a rewritten
+    file can be loaded by either fence. An unchecked-hash .pyc is trusted whatever the source says, and a
+    timestamp one whose source kept its mtime second and size is trusted too, so the mutant reads as survived;
+    and passing bytecode can hide a same-second edit that already fails until a rewrite exposes it, a kill the
+    mutation did not cause. The rewritten sources are the mutated files and the declared --also-restore outputs,
+    which the restore between the fences writes again (the Codex review of 12952d76). Every other import, the
+    standard library's included, still loads from its cache, the same for both fences.
+
+    Both cache locations are looked in: beside the file, and under the fence's PYTHONPYCACHEPREFIX, which a
+    relative value resolves against the fence's cwd, not this process's. Names match without case, since on a
+    case-insensitive filesystem `M.py` and `m.py` are one file; on a case-sensitive one the most that does is
+    delete another module's cache, which costs a compile. A directory that exists and cannot be listed, or a
+    cache that cannot be deleted, refuses the run before anything is mutated: either is still loadable.
     """
-    for target in targets:
-        path = Path(target)
-        if path.suffix != ".py":
+    prefix = env.get("PYTHONPYCACHEPREFIX")
+    for source in sources:
+        path = Path(cwd, source)
+        if path.suffix.casefold() != ".py":
             continue
         directories = {path.parent / "__pycache__"}
-        try:
-            directories.add(Path(_ilu.cache_from_source(str(path))).parent)
-        except (NotImplementedError, ValueError):
-            pass
+        if prefix:
+            directories.add(Path(cwd, prefix).joinpath(*Path(os.path.abspath(path.parent)).parts[1:]))
+        stem = f"{path.stem}.".casefold()
         for directory in directories:
             try:
                 names = os.listdir(directory)
-            except OSError:
+            except FileNotFoundError:
                 continue
+            except OSError as error:  # a directory that exists and cannot be listed
+                fail(f"UNPROVEN: {directory} could not be listed ({os_reason(error)}), so a cache of {path.name} "
+                     f"in it could be loaded by either fence. Nothing was mutated and no row was written.")
             for name in names:
-                if name.startswith(f"{path.stem}.") and name.endswith(".pyc"):
+                folded = name.casefold()
+                if folded.startswith(stem) and folded.endswith(".pyc"):
                     try:
                         (directory / name).unlink()
+                    except FileNotFoundError:
+                        pass
                     except OSError as error:
-                        print(f"[adr-verify] could not delete {directory / name} ({os_reason(error)}); a fence that "
-                              f"loads it can read the unmutated {path.name}, so a survivor here may be that cache")
+                        fail(f"UNPROVEN: {directory / name} could not be deleted ({os_reason(error)}), so either "
+                             f"fence could load it for {path.name}. Nothing was mutated and no row was written.")
 
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                covers=None, steps=None, in_place=False, placement=None, plan=None):
@@ -2005,7 +2017,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # A clean fence that leaves work running did not finish what it began: no pass, and no mutant (LEFT_RUNNING).
         clean_settled = placement if isolated else {}
         fence_env = mutant_fence_env()
-        drop_cached_bytecode(run_targets)
+        drop_cached_bytecode(run_targets + [m["path"] for m in members if m["role"] == "secondary"], run_cwd, fence_env)
         try:
             clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",

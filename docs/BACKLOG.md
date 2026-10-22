@@ -3527,6 +3527,12 @@ sha passed, so the tag stands on the dispatched run (CLAUDE.md §13.3).
   without the deletion the mutant survives (catalogue mutant killed). A first run of that mutant was GREEN for a reason
   in the test itself: its seed compile inherited the campaign's `PYTHONPYCACHEPREFIX` and wrote the `.pyc` outside the
   fixture.
+  **And a third round:** the Codex verification of 12952d76 found four more ways a cache could still be loaded, each a
+  false kill. A directory that cannot be listed, or a `.pyc` that cannot be deleted, now refuses the run before anything is
+  mutated, where it had warned and gone on. An `--also-restore` `.py` the restore writes again between the fences has its
+  cache deleted too. A relative `PYTHONPYCACHEPREFIX` resolves against the fence's cwd. Names match without case. Each has
+  a test; the first two have catalogue mutants, killed. The case test runs only on a case-insensitive filesystem, so it has
+  no mutant: the campaign runs on ubuntu.
 - **Windows, two `tests/publish-command.test.mjs` refusal rows read `null`.** `armedSession` inherited the product's 5s
   observe budget; a slow runner outran it, and the hook advised "unknown" with no decision, which is the designed answer
   (BACKLOG §314, CLAUDE.md §16) and not a fail-open. The helper now sets `QUALITY_HARNESS_OBSERVE_BUDGET_MS` (CLAUDE.md §7);

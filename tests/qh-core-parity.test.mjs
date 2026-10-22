@@ -20,6 +20,7 @@ import { parseShell } from '../plugin/scripts/shell-grammar.mjs'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
 import { fixtureRepo, ledgers, normaliser, runHook, sandbox } from './hook-golden.mjs'
 import { required } from './helpers/require.mjs'
+import { itemMarker, recordSaid, saidInContext } from '../plugin/scripts/said-per-context.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const coreDir = path.resolve(here, '..', 'core')
@@ -239,4 +240,47 @@ test('the artifact pass runs behind the boundary that starts it, and the next ho
   assert.doesNotMatch(JSON.stringify(node.said[1]), /Artifact validation failed/)
   assert.match(JSON.stringify(node.said[2]), /Artifact validation failed/)
   assert.deepEqual(go, node)
+})
+
+// ADR-122 T2: the Go core's SaidInContext answers every scenario as the Node module does, marker and verdict alike, each from
+// a cache directory of its own so neither reads the other's answer.
+test('the Go core judges what a context holds as the Node module does', { skip: noGo }, t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-said-parity-'))
+  t.after(() => remove(scratch))
+  const MAIN = 'repl_main_thread:outputStyle:Concise'
+  const blob = (hash, role, text) => ({ type: 'api-request-blob', hash, message: { role, content: [{ type: 'text', text }] } })
+  const request = (id, base, keep, tail, querySource = MAIN) => ({ type: 'api-request', id, base, keep, tail, querySource })
+  const text = 'quality-harness: this repository is unchecked'
+  const mark = itemMarker('mention', text)
+  const scenarios = {
+    said: [blob('h1', 'system', `${text} ${mark}`), request('r1', null, 0, ['h1'])],
+    compacted: [blob('h1', 'system', `${text} ${mark}`), request('r1', null, 0, ['h1']), blob('h2', 'user', 's'), request('r2', 'r1', 0, ['h2'])],
+    kept: [blob('h1', 'system', `${text} ${mark}`), blob('h2', 'user', 's'), request('r1', null, 0, ['h1']), request('r2', 'r1', 1, ['h2'])],
+    quoted: [blob('h1', 'user', `quoted ${mark}`), request('r1', null, 0, ['h1'])],
+    sideQuery: [blob('h1', 'system', `${text} ${mark}`), blob('h2', 'user', 'u'), request('r1', null, 0, ['h2']), request('r2', null, 0, ['h1'], 'compact')],
+    missingBlob: [blob('h1', 'user', 'u'), request('r1', null, 0, ['h1', 'hX'])],
+    missingBase: [blob('h1', 'system', `${text} ${mark}`), request('r1', 'r0', 1, ['h1'])],
+    noRequests: [blob('h1', 'system', `${text} ${mark}`)],
+    pending: [blob('h1', 'user', 'u'), request('r1', null, 0, ['h1'])],
+  }
+  const rows = []
+  for (const [name, records] of Object.entries(scenarios)) {
+    const transcript = path.join(scratch, `${name}.jsonl`)
+    writeFileSync(transcript, records.map(r => `${JSON.stringify(r)}\n`).join(''))
+    const input = { session_id: 's1', transcript_path: transcript }
+    const nodeCache = path.join(scratch, `${name}-node`)
+    if (name === 'pending') recordSaid(input, mark, { cacheDir: nodeCache })
+    const { verdict, marker } = saidInContext(input, 'mention', text, { cacheDir: nodeCache })
+    // Go reads the pending mark from the directory Node wrote it in, as a hook of either core would.
+    rows.push({ name, input, item: 'mention', text, cacheDir: name === 'pending' ? nodeCache : path.join(scratch, `${name}-go`), verdict, marker })
+  }
+  assert.deepEqual([...new Set(rows.map(r => r.verdict))].sort(), ['no-evidence', 'pending', 'said', 'unsaid'], 'every verdict is compared')
+  const corpus = path.join(scratch, 'said.json')
+  writeFileSync(corpus, JSON.stringify(rows))
+  const run = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestSaidParity$', './hooks/'], {
+    cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true, env: { ...process.env, QH_SAID_PARITY: corpus },
+  })
+  const said = `${run.stdout}\n${run.stderr}`
+  assert.equal(run.status, 0, `the Go core disagrees with the Node module (or did not run):\n${said.split('\n').slice(-40).join('\n')}`)
+  assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
 })

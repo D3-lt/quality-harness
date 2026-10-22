@@ -20,8 +20,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| [T1](T1-measure-the-channels.md) | Measure what reaches the context, and count a session's hook text | pending | none — no spec | `node --test --test-reporter=tap tests/hook-footprint.test.mjs`, named tests |
-| [T2](T2-the-said-per-context-helper.md) | One helper: the marker, the transcript scan, the fallback and the reset | pending | none — no spec | `node --test --test-reporter=tap tests/said-per-context.test.mjs tests/qh-core-parity.test.mjs`, named tests, then the Go core |
+| [T1](T1-measure-the-channels.md) | Measure what reaches the context, and count a session's hook text | done | none — no spec | `node --test --test-reporter=tap tests/hook-footprint.test.mjs`, named tests |
+| [T2](T2-the-said-per-context-helper.md) | One helper: the marker, the transcript scan, the fallback and the reset | done | none — no spec | `node --test --test-reporter=tap tests/said-per-context.test.mjs tests/qh-core-parity.test.mjs`, named tests, then the Go core |
 | [T3](T3-route-every-emitter.md) | Every emitter is said once per context, and the event log knows the generation | pending | none — no spec | `node --test --test-reporter=tap tests/said-per-context-routing.test.mjs`, named tests, then the Go core |
 | [T4](T4-one-channel-per-recipient.md) | One channel per recipient | pending | none — no spec | `node --test --test-reporter=tap tests/hook-channel.test.mjs`, named tests, then the Go core |
 | [T5](T5-the-after-measurement.md) | The after-measurement and the release note | pending | none — no spec | `node --test --test-reporter=tap tests/hook-footprint.test.mjs`, the after-fixture test |

@@ -57,6 +57,7 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/scripts/facts-gate-dispatch.sh` | adapter | which record gate runs on an edited file | ADR-046, ADR-053 |
 | `plugin/scripts/post-edit-check.sh` | adapter | the per-edit syntax and type checks | ADR-038, ADR-119 |
 | `plugin/scripts/branch-state.mjs` | adapter | what CI says about the branch, from a snapshot | ADR-065 |
+| `plugin/scripts/said-per-context.mjs` | domain | whether a hook item is already in the context it would be said into, from the last request the transcript records (Go twin: `core/hooks/saidcontext.go`) | ADR-122 |
 | `plugin/scripts/host-review.mjs` | adapter | launching a different-lineage review and recording it | ADR-062, ADR-100 |
 | `plugin/scripts/decision-corpus.mjs` | domain | how the record corpus is listed and what governs a path | ADR-039, ADR-063 |
 | `plugin/scripts/work-next.mjs` | domain | where a repository is in the lifecycle | ADR-038, ADR-043 |

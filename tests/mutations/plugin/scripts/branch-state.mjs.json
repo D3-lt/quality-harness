@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "ADR-122 T3: a brief whose only change is the dirty count is not said again",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-quiet.test.mjs"],
+      "from": "  return typeof said === 'string' && said.replace(DIRTY_COUNT, '') === text.replace(DIRTY_COUNT, '')",
+      "to": "  return typeof said === 'string' && said === text",
+      "only": "^(?:the brief is not said again when only the uncommitted count changed)$"
+    },
+    {
+      "label": "ADR-122 T3: the brief's own suppression asks whether it is unchanged",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "  if (brief && key === null && previous && briefUnchanged(previous.said, text) && !permanent) return false",
+      "to": "  if (brief && key === null && previous && previous.said === text && !permanent) return false",
+      "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
+    },
+    {
       "label": "branch-state: a detached HEAD whose commit cannot be read is not asked about",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
@@ -651,8 +667,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (brief && key === null && previous && previous.said === text && !permanent) return false",
-      "to": "  if (brief && previous && previous.said === text && !permanent) return false",
+      "from": "  if (brief && key === null && previous && briefUnchanged(previous.said, text) && !permanent) return false",
+      "to": "  if (brief && previous && briefUnchanged(previous.said, text) && !permanent) return false",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     },
     {
@@ -885,8 +901,8 @@
       "label": "stale HEAD: an age is added to what an unchanged brief is compared with",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-moved.test.mjs"],
-      "from": "if (brief && key === null && previous && previous.said === text && !permanent) return false",
-      "to": "if (brief && key === null && previous && previous.said === `${text} (read ${age}s ago)` && !permanent) return false"
+      "from": "if (brief && key === null && previous && briefUnchanged(previous.said, text) && !permanent) return false",
+      "to": "if (brief && key === null && previous && briefUnchanged(previous.said, `${text} (read ${age}s ago)`) && !permanent) return false"
     },
     {
       "label": "ADR-120 T13: the shell runs in the process directory, not the session's",
@@ -965,8 +981,8 @@
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-cwd.test.mjs"],
       "only": "^a permanent unknown is heard once by each session and survives a refresh of its snapshot$",
-      "from": "previous.said === text && !permanent) return false",
-      "to": "previous.said === text) return false"
+      "from": "briefUnchanged(previous.said, text) && !permanent) return false",
+      "to": "briefUnchanged(previous.said, text)) return false"
     },
     {
       "label": "ADR-120 T13: a new session hears the shortened unknown, not the line",

@@ -27,6 +27,7 @@ advisory is said once per context in a shorter form.
 | `plugin/scripts/publish-verdict.mjs` | edit | the mention key per context, not `<treeKey>:mention` (:447-448); the shorter text (:388); refusals untouched (:443-446) |
 | `core/hooks/publish.go` | edit | the same (:195, :236, :297) |
 | `plugin/scripts/branch-state.mjs` | edit | the brief and the SessionStart report through the helper; a standing red state keeps its one line (:908-940) |
+| `tests/branch-state-quiet.test.mjs` | create | the brief is said again only when what it reports about the branch changed, not when the dirty count alone moved (0 locks: new); `tests/branch-state.test.mjs` and `tests/branch-state-moved.test.mjs` (0 locks on the two tests) drive their unknown-CI shortcut by an ahead count instead |
 | `plugin/scripts/session-orientation.mjs` | edit | SessionStart paragraphs carry markers and are said once per context; `firstMentionHere`'s three-day gate no longer decides (Decision 8) |
 | `plugin/scripts/on-session-start.mjs` | edit | the same for its sections |
 | `core/hooks/orientation.go` | edit | the same |
@@ -86,7 +87,8 @@ out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs te
       "a standing paragraph is said once per context, not once per three days" \
       "an older guard yields to the request: a Stop after a compaction and two R4 reasons are said" \
       "a long transcript is read from its end, and a marker the last request carries is said at once" \
-      "from the end, absence is not shown: an item no read message carries is no evidence, never unsaid"; do
+      "from the end, absence is not shown: an item no read message carries is no evidence, never unsaid" \
+      "the brief is not said again when only the uncommitted count changed"; do
     test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "$n")" = 1 || exit 1
   done \
   && node --test tests/hook-goldens.test.mjs tests/publish-command.test.mjs tests/turn-end-delivery.test.mjs tests/standing-facts.test.mjs \
@@ -106,6 +108,7 @@ out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs te
 | `an older guard yields to the request: a Stop after a compaction and two R4 reasons are said` | `tests/said-per-context-routing.test.mjs` | the suppression readers ask the helper first (the cold review, finding 5) | — | S1, S3, S4 |
 | `a long transcript is read from its end, and a marker the last request carries is said at once` | `tests/said-per-context-window.test.mjs` | the window and the read back | — | S1, S4 |
 | `from the end, absence is not shown: an item no read message carries is no evidence, never unsaid` | `tests/said-per-context-window.test.mjs` | the unknown prefix; a compaction inside the window | — | S1, S4 |
+| `the brief is not said again when only the uncommitted count changed` | `tests/branch-state-quiet.test.mjs` | the brief's change test | — | S1, S4 |
 
 ## Reachability
 

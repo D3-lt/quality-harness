@@ -1064,9 +1064,13 @@ test('an unknown CI whose clause is unchanged is not said again when only HEAD m
   assert.match(first, /COULD NOT LOOK — gh: command not found/, first)
   assert.match(first, /A LOCAL GREEN GATE DOES NOT ANSWER THIS/, first)
   const stored = JSON.parse(readFileSync(cache, 'utf8'))
+  // ADR-122 T3: only the dirty count moved, and nothing the brief reports about the branch did: nothing is said.
   writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 1000, state: unknown(2) }))
+  assert.equal(briefIn(project).stdout, '', 'a dirty count that moved is not news')
+  const quiet = JSON.parse(readFileSync(cache, 'utf8'))
+  writeFileSync(cache, JSON.stringify({ ...quiet, at: Date.now() - 1000, state: { ...unknown(2), ahead: 1 } }))
   const moved = briefIn(project).stdout
-  assert.equal(moved, 'branch-state: main @ abc1234, 2 uncommitted path(s) · ⚠ CI COULD NOT LOOK, unchanged\n', moved)
+  assert.equal(moved, 'branch-state: main @ abc1234, 2 uncommitted path(s), 1 ahead of origin · ⚠ CI COULD NOT LOOK, unchanged\n', moved)
   assert.equal(briefIn(project).stdout, '', 'and an unchanged prompt says nothing')
   // DIRTY twin: a changed clause is said in full again.
   const kept = JSON.parse(readFileSync(cache, 'utf8'))

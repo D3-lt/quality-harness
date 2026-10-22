@@ -67,10 +67,11 @@ test('an unknown-CI shortcut on a due snapshot carries the age, and the moved cl
   write({ at: Date.now() - DUE, key, state: unknown(0) })
   assert.match(brief(), /COULD NOT LOOK — gh: command not found/)
   const stored = JSON.parse(readFileSync(path.join(gitDir, 'qh-branch-state.json'), 'utf8'))
-  // Unmoved: the shortcut names its age and that a refresh is running.
-  write({ ...stored, at: Date.now() - DUE, key, state: unknown(2) })
+  // Unmoved: the shortcut names its age and that a refresh is running. A dirty count alone is not news (ADR-122 T3), so the
+  // branch moves ahead.
+  write({ ...stored, at: Date.now() - DUE, key, state: { ...unknown(2), ahead: 1 } })
   const unmoved = brief()
-  assert.match(unmoved, /^branch-state: main @ abc1234, 2 uncommitted path\(s\) · ⚠ CI COULD NOT LOOK, unchanged \(read \d+s ago; refreshing\)\n$/, unmoved)
+  assert.match(unmoved, /^branch-state: main @ abc1234, 2 uncommitted path\(s\), 1 ahead of origin · ⚠ CI COULD NOT LOOK, unchanged \(read \d+s ago; refreshing\)\n$/, unmoved)
   // Moved: it also says the HEAD it printed is not the live one.
   git('commit', '--allow-empty', '-qm', 'two')
   const now = git('rev-parse', '--short=7', 'HEAD')

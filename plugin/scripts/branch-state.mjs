@@ -905,6 +905,14 @@ export function movedSince(stored, live) {
 // live sha is part of what `said` compares and the age is not: a moved HEAD is a change worth saying once, an age never is.
 const movedClause = movedTo => ` (moved since this was read: HEAD now ${movedTo}; uncommitted and ahead not re-read)`
 
+// ADR-122 T3: the brief is said again only when what it reports about the branch changed. The working tree's path count moves
+// with every edit the agent makes and already knows of; measured 2026-10-22, the brief was about 151k characters of the 368k
+// this plugin put into one session's contexts, mostly reprints whose only change was that count. A could-not-look is kept.
+const DIRTY_COUNT = /, (?:\d+ uncommitted path\(s\)|clean)(?=,| ·|$)/
+export function briefUnchanged(said, text) {
+  return typeof said === 'string' && said.replace(DIRTY_COUNT, '') === text.replace(DIRTY_COUNT, '')
+}
+
 function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null, session = null }) {
   const claim = movedTo && state.looked ? movedClause(movedTo) : ''
   const head = headOf(state)
@@ -917,7 +925,7 @@ function emitCachedBranchState(state, { brief, age, previous, store, refreshing 
   if (permanent && previous?.permanentFor === session) return false
   // Any other line printed ends the session's hearing of it: a repository that gains a remote and loses it again says it again.
   const forget = { permanentFor: permanent ? session : null }
-  if (brief && key === null && previous && previous.said === text && !permanent) return false
+  if (brief && key === null && previous && briefUnchanged(previous.said, text) && !permanent) return false
   // ADR-094 T1: the same red run, already said in full, is one line. It is never stored.
   if (key !== null && previous?.redKey === key) {
     process.stdout.write(`${redLine(state)}\n`)

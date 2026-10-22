@@ -203,7 +203,8 @@
         "rule": "R1",
         "key": "<sha>:0:1",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",
@@ -211,7 +212,8 @@
         "rule": "W",
         "key": "W:<sha>",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",
@@ -272,7 +274,8 @@
         "rule": "R1",
         "key": "<sha>:0:2",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",
@@ -280,7 +283,8 @@
         "rule": "A",
         "key": "<repo>/out:unknown-<id>:incomplete:<hash>",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       }
     ]
   }

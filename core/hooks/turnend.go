@@ -188,6 +188,7 @@ type completionFacts struct {
 	cwd             string
 	sentence        func() string
 	baselineVerdict string
+	generation      int
 }
 
 func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
@@ -214,7 +215,7 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 		root = found.root
 	}
 	f := &completionFacts{log: log, observation: observation, check: check, origin: origin.origin, root: root, cwd: cwd,
-		baseline: get(sessionBaseline(log.E), "observation"), writes: unobservableWrites(log, root)}
+		baseline: get(sessionBaseline(log.E), "observation"), writes: unobservableWrites(log, root), generation: sessionGeneration(id)}
 	// ADR-111 T3: the verdict of the check taken on the tree this session began with, from its own ledger.
 	if root != "" && isTrue(get(f.baseline, "ok")) && check != "" && check != "refused" {
 		f.baselineVerdict = baselineFor(root, get(f.baseline, "tree"), check)
@@ -545,6 +546,8 @@ func (h *hookRun) completionRules(ended *recorded) {
 	evidence := ledgerEvidence(f)
 	h.recordClaim(completionClaim(message), evidence, len(f.status.list)+len(f.writes))
 	log := f.log
+	// What was said in an earlier context of this session (before a compaction or a clear) is not said in this one.
+	said := thisContext(log, f.generation)
 	observation := f.observation
 	channel := channelOf(h.event, f.turnEnd)
 	recipient := h.recipient()
@@ -573,7 +576,7 @@ func (h *hookRun) completionRules(ended *recorded) {
 	if f.check == "" {
 		tree := get(observation, "tree")
 		moved := isTrue(get(observation, "ok")) && isTrue(get(f.baseline, "ok")) && !logIncomplete(log) && !strict(tree, get(f.baseline, "tree"))
-		if moved && !quiet && !emittedFor(log, "R5", tree, channel, recipient) {
+		if moved && !quiet && !emittedFor(said, "R5", tree, channel, recipient) {
 			h.queue(action{rule: "R5", key: tree, text: noCheckText})
 		}
 		return
@@ -583,13 +586,13 @@ func (h *hookRun) completionRules(ended *recorded) {
 	tree := get(observation, "tree")
 	treeCarry := f.carryOf(get(observation, "codeTree"))
 	treeUnchecked := observed && checkStanding(log, tree, treeCarry) != "passed" && (!isTrue(get(f.baseline, "ok")) || !strict(tree, get(f.baseline, "tree")))
-	if !quiet && ((treeUnchecked && !namedByPublish(log, tree, revision)) || len(f.writes) > 0) {
+	if !quiet && ((treeUnchecked && !namedByPublish(said, tree, revision)) || len(f.writes) > 0) {
 		treeKey := "unobserved"
 		if observed {
 			treeKey = jsString(tree)
 		}
 		key := fmt.Sprintf("%s:%d:%d", treeKey, revision, len(f.writes))
-		if !emittedFor(log, "R1", key, ruleChannel, recipient) {
+		if !emittedFor(said, "R1", key, ruleChannel, recipient) {
 			speaksFor := []*commit{}
 			for _, c := range f.commits.list {
 				if observed && strict(c.tree, tree) {
@@ -624,10 +627,10 @@ func (h *hookRun) completionRules(ended *recorded) {
 			continue
 		}
 		commitRevision := checkRevision(log, c.tree)
-		if namedByPublish(log, c.tree, commitRevision) {
+		if namedByPublish(said, c.tree, commitRevision) {
 			continue
 		}
-		if namedByReview(log, fmt.Sprintf("%s:%d", c.sha, commitRevision), ruleChannel, recipient) {
+		if namedByReview(said, fmt.Sprintf("%s:%d", c.sha, commitRevision), ruleChannel, recipient) {
 			continue
 		}
 		unchecked = append(unchecked, c)
@@ -652,37 +655,38 @@ func (h *hookRun) completionRules(ended *recorded) {
 		if place == "" {
 			place = resolvePath(f.cwd)
 		}
-		key := canonical(place)
-		if !emittedFor(log, "R4", key, channel, recipient) {
-			why := ""
-			switch {
-			case !observed:
-				why = "no reason was recorded"
-				if r := get(observation, "reason"); !nullish(r) {
-					why = jsString(r)
-				}
-			case logIncomplete(log):
-				why = tornRecord(log, "this session’s event log") + " could not be read whole — at least one record is torn or unreadable"
-			default:
-				why = f.status.why
-				if why == "" {
-					why = f.commits.why
-				}
-				if why == "" {
-					why = "a git query failed without saying why"
-				}
+		why := ""
+		switch {
+		case !observed:
+			why = "no reason was recorded"
+			if r := get(observation, "reason"); !nullish(r) {
+				why = jsString(r)
 			}
+		case logIncomplete(log):
+			why = tornRecord(log, "this session’s event log") + " could not be read whole — at least one record is torn or unreadable"
+		default:
+			why = f.status.why
+			if why == "" {
+				why = f.commits.why
+			}
+			if why == "" {
+				why = "a git query failed without saying why"
+			}
+		}
+		// Once per place and reason in this context (ADR-122 T3): a second reason at the same place is its own finding.
+		key := canonical(place) + ":" + why
+		if !emittedFor(said, "R4", key, channel, recipient) {
 			h.queue(action{rule: "R4", key: key, text: couldNotLookReason(f.sentence(), why)})
 		}
 	}
 	if len(f.unchangedWrites) > 0 {
 		key := "W:" + jsString(tree)
-		if !emittedFor(log, "W", key, channel, recipient) {
+		if !emittedFor(said, "W", key, channel, recipient) {
 			h.queue(action{rule: "W", key: key, text: "quality-harness: this turn wrote " + strings.Join(f.unchangedWrites, ", ") + " and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."})
 		}
 	}
 	if observed && checkStanding(log, tree, treeCarry) == "passed" {
-		if nudge := evidenceNudge(f.cwd, changed); nudge != "" && !emittedFor(log, "N", tree, channel, recipient) {
+		if nudge := evidenceNudge(f.cwd, changed); nudge != "" && !emittedFor(said, "N", tree, channel, recipient) {
 			h.queue(action{rule: "N", key: tree, text: nudge})
 		}
 	}

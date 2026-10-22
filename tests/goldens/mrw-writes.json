@@ -135,7 +135,8 @@
         "rule": "R1",
         "key": "<sha>:0:0",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       }
     ]
   }

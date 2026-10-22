@@ -351,6 +351,8 @@ func (h *hookRun) deliver() {
 			row.Set("channel", "user")
 		}
 		row.Set("recipient", h.recipient())
+		session, _ := h.session.(string)
+		row.Set("generation", sessionGeneration(session))
 		appendEvent(h.cwd, h.session, row)
 	}
 }

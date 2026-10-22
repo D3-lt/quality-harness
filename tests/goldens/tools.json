@@ -230,7 +230,8 @@
           "revision": 0
         },
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",

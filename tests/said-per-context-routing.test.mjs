@@ -9,6 +9,8 @@ import path from 'node:path'
 import test from 'node:test'
 import { deliver } from '../plugin/scripts/lifecycle.mjs'
 import { itemMarker } from '../plugin/scripts/said-per-context.mjs'
+import { completionJudgement } from '../plugin/scripts/completion-rules.mjs'
+import { revisionFor } from '../plugin/scripts/check-ledger.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const MAIN = 'repl_main_thread:outputStyle:Concise'
@@ -76,4 +78,41 @@ test('the mention is said once per context and a proven commit still gets its ad
   assert.equal(deliver([{ ...mention, key: 'tree-2:mention' }], s.input('PreToolUse')).output, null, 'a second tree in one context')
   const proven = { rule: 'P', key: 'tree-2', text: 'quality-harness: this commit is on a tree no check has passed on' }
   assert.match(contextOf(deliver([proven], s.input('PreToolUse'))), /no check has passed/, 'a proven commit is its own item')
+})
+
+// The turn end's facts with an unchecked tree, and the event log's rows of what was said before.
+const T = 'tree-now'
+function turnEnd(rows, generation, extra = {}) {
+  const log = Object.assign([{ event: 'session.started', observation: { ok: true, tree: 'tree-before', index: 'tree-before', head: 'h0' } }, ...rows], { complete: true })
+  const facts = {
+    log, observation: { ok: true, tree: T, index: T, head: 'h1' }, check: 'sh check.sh', root: '/repo',
+    baseline: { ok: true, tree: 'tree-before' }, writes: [], status: ['a.js'], commits: [], generation,
+    sentence: () => 'RUN-SENTENCE', locationKey: () => '/repo', nudge: () => null, ...extra,
+  }
+  return completionJudgement(facts, { hook_event_name: 'Stop', cwd: '/repo', last_assistant_message: 'Edited the file.' }).actions
+}
+const rules = actions => actions.map(action => action.rule)
+
+test('a finding said before a compaction is said again after it, and not after a resume', () => {
+  const key = `${T}:${revisionFor([], { ok: true, tree: T })}:0`
+  const said = { event: 'action.emitted', rule: 'R1', key, channel: 'both', recipient: 'main', generation: 0 }
+  assert.deepEqual(rules(turnEnd([said], 0)), [], 'a resume keeps the generation: the context still holds it')
+  assert.deepEqual(rules(turnEnd([said], 1)), ['R1'], 'after a compaction the context no longer holds it')
+  const older = { event: 'action.emitted', rule: 'R1', key, channel: 'both', recipient: 'main' }
+  assert.deepEqual(rules(turnEnd([older], 0)), [], 'a row from before generations counts as generation 0')
+  assert.deepEqual(rules(turnEnd([older], 1)), ['R1'], 'and suppresses nothing after a compaction')
+})
+
+test('an older guard yields to the request: a Stop after a compaction and two R4 reasons are said', () => {
+  const revision = revisionFor([], { ok: true, tree: T })
+  const publish = { event: 'action.emitted', rule: 'P', key: 'tree-now', detail: { tree: T, revision }, channel: 'both', recipient: 'main', generation: 0 }
+  assert.deepEqual(rules(turnEnd([publish], 0)), [], 'P named this tree in this context')
+  assert.deepEqual(rules(turnEnd([publish], 1)), ['R1'], 'a P said before the compaction does not silence the Stop after it')
+  const blind = { observation: { ok: false, reason: 'git outran the budget' } }
+  const first = turnEnd([], 0, blind).find(action => action.rule === 'R4')
+  assert.ok(first, 'a could-not-look is said')
+  const row = { event: 'action.emitted', rule: 'R4', key: first.key, channel: 'both', recipient: 'main', generation: 0 }
+  assert.equal(turnEnd([row], 0, blind).find(action => action.rule === 'R4'), undefined, 'the same reason is said once')
+  const other = turnEnd([row], 0, { observation: { ok: false, reason: 'the index is locked' } }).find(action => action.rule === 'R4')
+  assert.match(other?.text ?? '', /the index is locked/, 'another reason at the same place is said')
 })

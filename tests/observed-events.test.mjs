@@ -454,7 +454,8 @@ const SCENARIO = [
   ['8 compact SessionStart; Stop', []],
   ['9 write b.md; sh check.sh; PreToolUse commit two', ['P']],
   ["9' run it; Stop", []],
-  ['10 write c.md; compact SessionStart; Stop', ['R1']],
+  // ADR-122 T3: commit two was warned about by P before this compaction; the context that heard it is gone, so R2 names it.
+  ['10 write c.md; compact SessionStart; Stop', ['R1', 'R2']],
   ['11 edit a.md; PreToolUse bash -c commit three', ['P']],
   ["11' run it; Stop", []],
   ['12 edit a.md; PreToolUse git --git-dir commit -am four', ['P']],

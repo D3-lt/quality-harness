@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-122 T3: a row said in another generation of the session does not count in this one",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "from": "  return log.filter(entry => entry.event !== 'action.emitted' || (entry.generation ?? 0) === generation)",
+      "to": "  return log",
+      "only": "^(?:a finding said before a compaction is said again after it, and not after a resume)$"
+    },
+    {
       "label": "ADR-113 T3: a fast pass counts only for the fastCheck declared now",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [

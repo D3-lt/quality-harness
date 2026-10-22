@@ -27,7 +27,8 @@ function sessionGenerationPath(sessionId) {
   return path.join(os.tmpdir(), `quality-harness-gen-${stamp}`)
 }
 
-function sessionGeneration(sessionId) {
+export function sessionGeneration(sessionId) {
+  if (typeof sessionId !== 'string' || !sessionId) return 0
   try { return Number(readFileSync(sessionGenerationPath(sessionId), 'utf8').trim()) || 0 } catch { return 0 }
 }
 

@@ -596,6 +596,13 @@ export function reachedChannel(entry, channel, recipient = null) {
   return entry.channel === 'both' || entry.channel === channel
 }
 
+// ADR-122 T3: what was said in an earlier context of this session is not in this one. A session's generation is bumped by a
+// compaction and a clear (session-notes.mjs), each `action.emitted` row carries the generation it was said in, and the guards
+// read only this generation's rows; a row written before rows carried one counts as generation 0. A resume keeps the generation.
+export function thisContext(log, generation = 0) {
+  return log.filter(entry => entry.event !== 'action.emitted' || (entry.generation ?? 0) === generation)
+}
+
 export function emittedFor(log, rule, key, channel = null, recipient = null) {
   return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key && reachedChannel(entry, channel, recipient))
 }

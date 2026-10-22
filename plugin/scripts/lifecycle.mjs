@@ -15,7 +15,7 @@ import { turnEndSetting } from './project-config.mjs'
 import { importPassVerdicts, runArtifactPass } from './artifact-pass.mjs'
 import { readOnlyRole, reviewChangedState } from './publish-verdict.mjs'
 import { advisoryHeadline } from './ready-lines.mjs'
-import { firstMentionThisSession } from './session-notes.mjs'
+import { firstMentionThisSession, sessionGeneration } from './session-notes.mjs'
 import { recordHookEvent } from './hook-record.mjs'
 import { recordSaid, saidInContext } from './said-per-context.mjs'
 import { onSessionStart } from './on-session-start.mjs'
@@ -150,7 +150,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
     if (action.rule) {
       appendEvent(input.cwd, input.session_id, {
         event: 'action.emitted', rule: action.rule, key: action.key ?? null, ...(action.detail ? { detail: action.detail } : {}),
-        channel: action.audience === 'user' ? 'user' : reachedBy(input), recipient: recipientOf(input),
+        channel: action.audience === 'user' ? 'user' : reachedBy(input), recipient: recipientOf(input), generation: sessionGeneration(input.session_id),
       })
     }
   }

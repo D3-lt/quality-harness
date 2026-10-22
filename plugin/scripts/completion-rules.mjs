@@ -6,12 +6,13 @@ import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents, walk } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
-import { carriedPassUnseen, carryFor, carryWith, channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
+import { carriedPassUnseen, carryFor, carryWith, channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, thisContext, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { baselineFor } from './check-ledger.mjs'
 import { codeTreeOf, gitRepositoryLookup, mark, sameObservation, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
 import { turnEndSetting } from './project-config.mjs'
+import { sessionGeneration } from './session-notes.mjs'
 
 // ---- Notes that sat above these functions in lifecycle.mjs; stage B of BACKLOG section 375 moved the code and they stayed behind.
 // ⚠ THE VALIDATION PATTERN TABLE WENT WITH THE CLASSIFIERS (ADR-060 T7), and two
@@ -704,6 +705,7 @@ export function completionFacts(input, ended) {
     locationKey: () => canonical(root ?? path.resolve(input.cwd ?? process.cwd())),
     nudge: changed => evidenceNudge(input.cwd, changed),
     turnEnd: turnEndSetting(root ?? path.resolve(input.cwd ?? process.cwd())),
+    generation: sessionGeneration(input.session_id),
   }
 }
 
@@ -763,6 +765,8 @@ export function completionJudgement(facts, input) {
   const ruleChannel = userOnly ? 'user' : channel
   const audience = userOnly ? { audience: 'user' } : {}
   const recipient = input.agent_id ? 'subagent' : 'main'
+  // What was said in an earlier context of this session (before a compaction or a clear) is not said in this one.
+  const said = thisContext(log, facts.generation ?? 0)
   const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
     ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]
   const quiet = (docsOnly(changed) && evidenceLimited(input.last_assistant_message))
@@ -775,7 +779,7 @@ export function completionJudgement(facts, input) {
     // The start must have been observed, in a log read whole, for "since this session began" to be said; and a change
     // committed before the turn ended leaves no dirt but is a change (Codex review of v3.8.44..3c42f633).
     const moved = observation?.ok === true && baseline?.ok === true && !logIncomplete(log) && observation.tree !== baseline.tree
-    if (moved && !quiet && !emittedFor(log, 'R5', observation.tree, channel, recipient)) {
+    if (moved && !quiet && !emittedFor(said, 'R5', observation.tree, channel, recipient)) {
       actions.push({ rule: 'R5', key: observation.tree, text: NO_CHECK_TEXT })
     }
     return { claim, actions }
@@ -783,9 +787,9 @@ export function completionJudgement(facts, input) {
   const revision = revisionFor(log, observation)
   const treeUnchecked = observation?.ok === true && checkStanding(log, observation.tree, treeCarry) !== 'passed'
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
-  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
+  if (!quiet && ((treeUnchecked && !namedByPublish(said, observation.tree, revision)) || writes.length > 0)) {
     const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
-    if (!emittedFor(log, 'R1', key, ruleChannel, recipient)) {
+    if (!emittedFor(said, 'R1', key, ruleChannel, recipient)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
       // ADR-111 T3: the baseline speaks only for a red run of the same command whose tree held still through it and is
@@ -804,8 +808,8 @@ export function completionJudgement(facts, input) {
     if (commitStanding(commit) === 'passed') return false
     if (observation?.ok === true && commit.tree === observation.tree) return false
     const commitRevision = checkRevision(log, commit.tree)
-    if (namedByPublish(log, commit.tree, commitRevision)) return false
-    return !namedByReview(log, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)
+    if (namedByPublish(said, commit.tree, commitRevision)) return false
+    return !namedByReview(said, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)
   })
   if (unchecked.length) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
@@ -816,23 +820,22 @@ export function completionJudgement(facts, input) {
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
     || logIncomplete(log)) {
-    // Once per session and cwd, read from the log rather than from a marker file
-    // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
-    const key = facts.locationKey()
-    if (!emittedFor(log, 'R4', key, channel, recipient)) {
-      // NAME what could not be looked at. A failed enumeration has a reason of its
-      // own — the observation may have succeeded and the follow-up query failed —
-      // and "no reason was recorded" would report the wrong could-not-look.
-      const why = observation?.ok !== true
-        ? (observation?.reason ?? 'no reason was recorded')
-        : logIncomplete(log)
-          ? `${tornRecord(log, 'this session’s event log')} could not be read whole — at least one record is torn or unreadable`
-          : (status?.why || commits?.why || 'a git query failed without saying why')
+    // NAME what could not be looked at. A failed enumeration has a reason of its own — the observation may have succeeded
+    // and the follow-up query failed — and "no reason was recorded" would report the wrong could-not-look.
+    const why = observation?.ok !== true
+      ? (observation?.reason ?? 'no reason was recorded')
+      : logIncomplete(log)
+        ? `${tornRecord(log, 'this session’s event log')} could not be read whole — at least one record is torn or unreadable`
+        : (status?.why || commits?.why || 'a git query failed without saying why')
+    // Once per place and reason in this context, read from the log (ADR-060); a second reason at the same place is its own
+    // finding (ADR-122 T3), so the key holds the reason.
+    const key = `${facts.locationKey()}:${why}`
+    if (!emittedFor(said, 'R4', key, channel, recipient)) {
       actions.push({ rule: 'R4', key, text: couldNotLookReason(facts.sentence(), why) })
     }
   }
   // ADR-108 T3: writes git could see that left the observed tree as it was before them. Said once per tree to each audience.
-  if (unchangedWrites.length && !emittedFor(log, 'W', `W:${observation.tree}`, channel, recipient)) {
+  if (unchangedWrites.length && !emittedFor(said, 'W', `W:${observation.tree}`, channel, recipient)) {
     actions.push({ rule: 'W', key: `W:${observation.tree}`, text: `quality-harness: this turn wrote ${unchangedWrites.join(', ')} and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert.` })
   }
   // The check passed and a task file changed: the corpus wants that recorded,
@@ -840,7 +843,7 @@ export function completionJudgement(facts, input) {
   if (observation?.ok === true && checkStanding(log, observation.tree, treeCarry) === 'passed') {
     const nudge = facts.nudge(changed)
     // An identity like the rules' (ADR-096): said once per tree to each audience, so a turn is never continued twice for it.
-    if (nudge && !emittedFor(log, 'N', observation.tree, channel, recipient)) actions.push({ rule: 'N', key: observation.tree, text: nudge })
+    if (nudge && !emittedFor(said, 'N', observation.tree, channel, recipient)) actions.push({ rule: 'N', key: observation.tree, text: nudge })
   }
   return { claim, actions }
 }

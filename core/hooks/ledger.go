@@ -654,6 +654,22 @@ func reachedChannel(entry any, channel, recipient string) bool {
 	return strict(get(entry, "channel"), "both") || strict(get(entry, "channel"), channel)
 }
 
+// thisContext keeps the action.emitted rows of this context's generation (check-ledger.mjs thisContext, ADR-122 T3): a compaction
+// or a clear bumps the generation, a resume keeps it, and a row written before rows carried one counts as generation 0.
+func thisContext(log Log, generation int) Log {
+	kept := Log{E: []any{}, Complete: log.Complete}
+	for _, e := range log.E {
+		if strict(get(e, "event"), "action.emitted") {
+			g, _ := get(e, "generation").(float64)
+			if int(g) != generation {
+				continue
+			}
+		}
+		kept.E = append(kept.E, e)
+	}
+	return kept
+}
+
 func emittedFor(log Log, rule string, key any, channel, recipient string) bool {
 	for _, e := range log.E {
 		if strict(get(e, "event"), "action.emitted") && strict(get(e, "rule"), rule) && strict(get(e, "key"), key) && reachedChannel(e, channel, recipient) {

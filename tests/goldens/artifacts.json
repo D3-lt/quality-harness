@@ -166,7 +166,8 @@
         "rule": "R1",
         "key": "<sha>:0:0",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",
@@ -174,7 +175,8 @@
         "rule": "A",
         "key": "<repo>/docs/adr/ADR-001-bad.md:01f9f6eca4aea317f8863e14dc5a436db4f5cd75a754c9cc261841aa187944fd:complete:<hash>",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",
@@ -215,7 +217,8 @@
         "rule": "R1",
         "key": "<sha>:0:0",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       },
       {
         "at": "<time>",
@@ -223,7 +226,8 @@
         "rule": "A",
         "key": "<repo>/docs/adr/ADR-002-good.md:28c4b32f6fb496193ab0f463a03bf0c0d25c91963def2fae08349158aa7980b0:complete:<hash>",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       }
     ]
   }

@@ -158,7 +158,8 @@
         "rule": "R1",
         "key": "<sha>:0:0",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 1
       },
       {
         "at": "<time>",
@@ -166,7 +167,8 @@
         "rule": "A",
         "key": "<repo>/docs/adr/ADR-001-accepted/tasks/T1.md:771fce11659d0e9cf37e6a7b76b8ec941b236edd2a1bdb2626f1589e0d7231b7:complete:<hash>",
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 1
       }
     ]
   }

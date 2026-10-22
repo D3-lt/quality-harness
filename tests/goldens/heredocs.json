@@ -145,7 +145,8 @@
           "revision": 0
         },
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       }
     ],
     "sessions/heredocs-2.jsonl": [
@@ -215,7 +216,8 @@
           "revision": 0
         },
         "channel": "both",
-        "recipient": "main"
+        "recipient": "main",
+        "generation": 0
       }
     ]
   }

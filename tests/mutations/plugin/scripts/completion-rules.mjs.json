@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "ADR-122 T3: a second could-not-look reason at the same place is its own finding",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "from": "    const key = `${facts.locationKey()}:${why}`",
+      "to": "    const key = facts.locationKey()",
+      "only": "^(?:an older guard yields to the request: a Stop after a compaction and two R4 reasons are said)$"
+    },
+    {
+      "label": "ADR-122 T3: the turn end's guards read only this context's rows",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "from": "  const said = thisContext(log, facts.generation ?? 0)",
+      "to": "  const said = log",
+      "only": "^(?:an older guard yields to the request: a Stop after a compaction and two R4 reasons are said)$"
+    },
+    {
       "label": "ADR-113 T2: the turn end reads an unreadable declaration as a check nobody can pass",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -110,7 +126,7 @@
       "label": "ADR-111 T2: the no-check line is said once per tree",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/completion-judgement.test.mjs"],
-      "from": "    if (moved && !quiet && !emittedFor(log, 'R5', observation.tree, channel, recipient)) {",
+      "from": "    if (moved && !quiet && !emittedFor(said, 'R5', observation.tree, channel, recipient)) {",
       "to": "    if (moved && !quiet) {",
       "only": "^(?:turn end: a changed tree with no known check is said once, and an unchanged one is not)$"
     },
@@ -298,7 +314,7 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {",
+      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(said, observation.tree, revision)) || writes.length > 0)) {",
       "to": "  if (!quiet) {",
       "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified|writes the tree cannot see re-open the finding|a check that finishes in a later turn clears the finding then|a log that could not be read whole cannot supply a passing verdict|a torn checks\\.jsonl cannot leave an older pass standing as the verdict)$"
     },
@@ -318,7 +334,7 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "    if (!emittedFor(log, 'R4', key, channel, recipient)) {",
+      "from": "    if (!emittedFor(said, 'R4', key, channel, recipient)) {",
       "to": "    if (true) {",
       "only": "^(?:writes the tree cannot see re-open the finding)$"
     },
@@ -538,8 +554,8 @@
       "tests": [
         "tests/completion-judgement.test.mjs"
       ],
-      "from": "    || logIncomplete(log)) {\n    // Once per session and cwd",
-      "to": "    || false) {\n    // Once per session and cwd",
+      "from": "    || logIncomplete(log)) {\n    // NAME what could not be looked at",
+      "to": "    || false) {\n    // NAME what could not be looked at",
       "only": "^turn end: no combination of facts breaks a property an answer must have$"
     },
     {
@@ -558,7 +574,7 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "if (!emittedFor(log, 'R1', key, ruleChannel, recipient)) {",
+      "from": "if (!emittedFor(said, 'R1', key, ruleChannel, recipient)) {",
       "to": "if (true) {",
       "only": "^a\\ finding\\ delivered\\ to\\ the\\ agent\\ for\\ this\\ tree\\ is\\ not\\ delivered\\ again,\\ and\\ a\\ changed\\ tree\\ is\\ said\\ again$"
     },
@@ -568,7 +584,7 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "if (nudge && !emittedFor(log, 'N', observation.tree, channel, recipient))",
+      "from": "if (nudge && !emittedFor(said, 'N', observation.tree, channel, recipient))",
       "to": "if (nudge)",
       "only": "^the\\ task\\-evidence\\ nudge\\ has\\ an\\ identity\\ and\\ is\\ said\\ once\\ per\\ tree$"
     },
@@ -632,7 +648,7 @@
       "label": "ADR-108 T3: rule W is said once per tree",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/adr-108.test.mjs"],
-      "from": "  if (unchangedWrites.length && !emittedFor(log, 'W', `W:${observation.tree}`, channel, recipient)) {",
+      "from": "  if (unchangedWrites.length && !emittedFor(said, 'W', `W:${observation.tree}`, channel, recipient)) {",
       "to": "  if (unchangedWrites.length) {",
       "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
     },
@@ -732,8 +748,8 @@
       "tests": [
         "tests/turn-end-declared.test.mjs"
       ],
-      "from": "if (!emittedFor(log, 'R1', key, ruleChannel, recipient))",
-      "to": "if (!emittedFor(log, 'R1', key, channel, recipient))",
+      "from": "if (!emittedFor(said, 'R1', key, ruleChannel, recipient))",
+      "to": "if (!emittedFor(said, 'R1', key, channel, recipient))",
       "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
     },
     {
@@ -742,8 +758,8 @@
       "tests": [
         "tests/turn-end-declared.test.mjs"
       ],
-      "from": "return !namedByReview(log, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)",
-      "to": "return !namedByReview(log, `${commit.sha}:${commitRevision}`, channel, recipient)",
+      "from": "return !namedByReview(said, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)",
+      "to": "return !namedByReview(said, `${commit.sha}:${commitRevision}`, channel, recipient)",
       "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
     },
     {

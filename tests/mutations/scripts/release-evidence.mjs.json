@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T4: --review asks no outside-run question",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/evidence-after-landing.test.mjs"],
+      "from": "    const outside = reviewOnly ? null : outsideOf(target.value)",
+      "to": "    const outside = outsideOf(target.value)",
+      "only": "^(?:before the landing only the review question stops a release)$"
+    },
+    {
       "label": "ADR-126 T1: only the landing branch of its own sha is a full campaign",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/one-run-release.test.mjs"],
@@ -12,7 +20,7 @@
       "label": "BACKLOG §406: --local is unproven when the outside run is",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/release-evidence.test.mjs"],
-      "from": "    const unproven = outside.verdict === 'unproven' || review.verdict === 'unproven'",
+      "from": "    const unproven = outside?.verdict === 'unproven' || review.verdict === 'unproven'",
       "to": "    const unproven = review.verdict === 'unproven'",
       "only": "^(?:release-evidence --local asks the outside run and the review, and never the forge)$"
     },

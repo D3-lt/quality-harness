@@ -21,7 +21,9 @@ sha is on main it takes a tree whose only change is untracked `docs/corpus-repor
 | `tests/evidence-after-landing.test.mjs` | create | the cases (0 locks: new) |
 | `scripts/release-evidence.mjs` | edit | `--review` beside `--local` in `main` |
 | `scripts/release.mjs` | edit | the clean-tree check (:64-73) and the pre-landing question (:91-99) |
-| `tests/release.test.mjs` | edit | the world helper answers `--review` (a helper; no locked body changes) |
+| `tests/release.test.mjs` | edit | its world moves to `tests/helpers/release-world.mjs`, which answers `--review`; BACKLOG §406's own test (no lock) follows `--review` |
+| `tests/helpers/release-world.mjs` | create | the fake world every release test drives |
+| `scripts/land.mjs` | edit | a sha already on main is answered before the clean-tree check, since nothing is pushed then |
 
 ## Ordered Steps
 
@@ -57,6 +59,7 @@ out=$(node --test --test-reporter=tap tests/evidence-after-landing.test.mjs 2>&1
 | 4 — it is used | every release |
 
 ## Mutation Log
+- 2026-10-22 · d24d1772* · mutant killed · exit 1 · `scripts/release.mjs` · a landed sha takes an uncommitted attestation as evidence · acceptance-sha256:691a9e8eb55793aee516cce4d39ded45e62dbb26b2105fb0ef12e66cadaa3fe5
 
 ## Invariants
 
@@ -75,3 +78,7 @@ Stop if anything is pushed after the landing in the new order.
 - The order itself (T5).
 
 ## Verification Log
+- 2026-10-22 · d24d1772* · exit 1 · `out=$(node --test --test-reporter=tap tests/evidence-after-landing.test.mjs 2>&1) \ …` · acceptance-sha256:691a9e8eb55793aee516cce4d39ded45e62dbb26b2105fb0ef12e66cadaa3fe5 · ms:197 · test-lock-sha256:7d7e943b621cc46145c1578f85d9e6e7d18623dd2f56ab5c4ee147da6225fb59 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvZXZpZGVuY2UtYWZ0ZXItbGFuZGluZy50ZXN0Lm1qcwlhIGxhbmRlZCBzaGEncyByZWxlYXNlIHRha2VzIGFuIHVuY29tbWl0dGVkIGF0dGVzdGF0aW9uLCBhbmQgYW4gdW5sYW5kZWQgb25lIGRvZXMgbm90CTU5NjUwN2NhNDNiZTI1ZTdiMTkzNzhjNzE1NmQ0Yzg1NWQ5ZWJjNDE2OWNmMWE2MDFjYWU3ODQ5NTc5Zjc4OGYKYm9keQl0ZXN0cy9ldmlkZW5jZS1hZnRlci1sYW5kaW5nLnRlc3QubWpzCWJlZm9yZSB0aGUgbGFuZGluZyBvbmx5IHRoZSByZXZpZXcgcXVlc3Rpb24gc3RvcHMgYSByZWxlYXNlCTc2N2ZmNTYwMGZiM2RhMzU2YTUyMmQ2MzUyYmE2N2JiMDVjZWUwNzQ2ZGFiYjQwZjM0YzU2MTg2YmZhNzliNDQ
+  ```
+  ```
+- 2026-10-22 · d24d1772* · exit 0 · `out=$(node --test --test-reporter=tap tests/evidence-after-landing.test.mjs 2>&1) \ …` · acceptance-sha256:691a9e8eb55793aee516cce4d39ded45e62dbb26b2105fb0ef12e66cadaa3fe5 · ms:256

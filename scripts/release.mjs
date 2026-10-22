@@ -64,12 +64,16 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const porcelain = text('git', ['status', '--porcelain'])
   if (porcelain === null) { log(`release: git status failed ${at}`); return 1 }
   if (porcelain) {
-    // An attestation attest-import wrote and nobody committed is this release's evidence: it belongs on the sha that lands.
+    // An attestation attest-import wrote and nobody committed: on a sha already on main it is this release's evidence, and
+    // nothing is pushed after the landing for git's pre-push hook to see (ADR-126 T4); before the landing it is a change.
     const attestations = porcelain.split('\n').every(line => /^\?\? docs\/corpus-reports\/[^/]+\.json$/.test(line))
-    log(attestations
-      ? `release: the working tree holds an uncommitted attestation ${at}; it is this release's evidence, so commit it (\`qh-check --fast --commit\`), then run again`
-      : `release: the working tree is not clean ${at}; commit or stash, then run again`)
-    return 2
+    const landed = attestations && ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0
+    if (!landed) {
+      log(attestations
+        ? `release: the working tree holds an uncommitted attestation ${at} before ${sha} has landed; commit it (\`qh-check --fast --commit\`) or move it aside, then run again`
+        : `release: the working tree is not clean ${at}; commit or stash, then run again`)
+      return 2
+    }
   }
   const version = parsed(text('git', ['show', `HEAD:${MANIFEST}`]) ?? '')?.version
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) { log(`release: ${MANIFEST} names no version ${at}`); return 1 }
@@ -95,13 +99,12 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   }
 
 
-  // What release-evidence asks of this clone rather than of CI, asked before anything is checked or leaves this machine: an
-  // outside run or a review gathered after the landing arrives as a file the landed sha does not hold, and every later step
-  // then meets an unclean tree (3.8.52's two attestations were held outside the tree while main landed; BACKLOG §406).
-  const local = ran('node', ['scripts/release-evidence.mjs', '--local', sha])
+  // What release-evidence asks of this clone rather than of CI, asked before anything is checked or leaves this machine
+  // (BACKLOG §406). Only the review question since ADR-126 T4: the outside run is asked for once the landing's run is green.
+  const local = ran('node', ['scripts/release-evidence.mjs', '--review', sha])
   if (local.status !== 0) {
     for (const line of String(local.stdout ?? '').trim().split('\n')) if (line) log(line)
-    log(`release: release-evidence --local exited ${local.status} ${at}; get what it names and commit it, then run again; nothing was checked or pushed`)
+    log(`release: release-evidence --review exited ${local.status} ${at}; get what it names and commit it, then run again; nothing was checked or pushed`)
     return local.status === 1 ? 1 : 2
   }
   // The full check, then the dead-code scan, both before anything leaves this machine. The check runs here once per release

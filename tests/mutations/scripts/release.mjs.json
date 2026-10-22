@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T4: a landed sha takes an uncommitted attestation as evidence",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/evidence-after-landing.test.mjs"],
+      "from": "    const landed = attestations && ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0",
+      "to": "    const landed = false",
+      "only": "^(?:a landed sha's release takes an uncommitted attestation, and an unlanded one does not)$"
+    },
+    {
       "label": "BACKLOG §406: the evidence this clone can read is asked for before anything lands",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],

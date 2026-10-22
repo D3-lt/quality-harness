@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-122 T3: a standing paragraph said carries its marker",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "from": "lines.push(mark ? `${text}\\n${itemMarker('standing', text)}` : text)",
+      "to": "lines.push(text)",
+      "only": "^(?:a standing paragraph is said once per context, not once per three days)$"
+    },
+    {
       "label": "hook-work: emitted context avoids repeating discovery",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [

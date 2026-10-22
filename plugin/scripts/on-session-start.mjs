@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { checkCommandOrigin } from './check-command.mjs'
 
+import { itemMarker, saidInContext } from './said-per-context.mjs'
 // ADR-111 T3: the project's check on the tree this session began with, started detached so no hook waits on it (ADR-080),
 // and written to its own ledger by `qh-check --baseline`. Startup only, and only where a check is named. The tree is the one
 // recorded when the session started. QUALITY_HARNESS_BASELINE_RUNNER=off turns it off, and a path stands in for qh-check.
@@ -62,7 +63,19 @@ export function onSessionStart(input, recorded) {
     process.stderr.write(`[quality-harness] the publish hook was not offered (${failure?.message ?? failure}).\n`)
   }
   const sections = []
-  const orientation = sessionOrientation(input.cwd, { once: input.source === 'startup' || input.source === 'resume' || input.source === undefined })
+  // ADR-122 Decision 8: a standing paragraph is said once per context. Startup, clear and compact begin a context, which holds
+  // none of them, so each is said there. A resume continues one: a paragraph its last request holds is not said again, one it
+  // is shown not to hold is, and with no request evidence the three-day mark decides, as before. Startup keeps that mark fresh.
+  const keepsMark = input.source === 'startup' || input.source === 'resume' || input.source === undefined
+  const sayStanding = (text, place) => {
+    const remembered = keepsMark ? !firstMentionHere(place, text) : false
+    if (input.source !== 'resume') return true
+    const { verdict } = saidInContext(input, 'standing', text)
+    if (verdict === 'said' || verdict === 'pending') return false
+    return verdict === 'unsaid' || !remembered
+  }
+  const marked = text => `${text}\n${itemMarker('standing', text)}`
+  const orientation = sessionOrientation(input.cwd, { say: sayStanding, mark: true })
   if (orientation) sections.push(orientation)
   // Said once per repository and reason: a standing fact, not news on every start (CLAUDE.md §19).
   const offer = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'publish.offered' || entry.event === 'publish.unarmed').at(-1)
@@ -70,14 +83,14 @@ export function onSessionStart(input, recorded) {
   // arm, and every session there would carry the note (the goldens and the corpus matrix run so).
   if (offer?.event === 'publish.unarmed' && offer.reason !== 'CLAUDE_ENV_FILE is not set') {
     const note = unarmedNote(offer.reason ?? 'no reason recorded')
-    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) sections.push(note)
+    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) sections.push(marked(note))
   }
   // ADR-068 T2: after a compaction or resume, the Bash tool picks up the exports only
   // from the next user prompt (measured 2026-09-26). While no hook run follows the
   // latest offer, say which refusal is in force; it changes no verdict.
   if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))
-    && (input.source === 'compact' || firstMentionHere(path.resolve(input.cwd ?? process.cwd()), ARMING_NOTE))) {
-    sections.push(ARMING_NOTE)
+    && (input.source === 'compact' || sayStanding(ARMING_NOTE, path.resolve(input.cwd ?? process.cwd())))) {
+    sections.push(marked(ARMING_NOTE))
   }
   if (input.source === 'compact') {
     // The compaction summary is the model's; this is the gates'. Hand back what

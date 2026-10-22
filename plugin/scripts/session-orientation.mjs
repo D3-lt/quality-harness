@@ -11,6 +11,7 @@ import { checkCommandOrigin } from './check-command.mjs'
 import { checkInCode, pathInCode } from './corpus-text.mjs'
 import { alreadyMentionedThisSession, firstMentionHere, firstMentionThisSession } from './session-notes.mjs'
 import { shadowInstallNotice, staleVersionNotice } from './install-notices.mjs'
+import { itemMarker } from './said-per-context.mjs'
 
 // What a session would otherwise learn by hitting a wall. Additive only: this
 // hook can never block, and says nothing it cannot establish from the project
@@ -63,16 +64,20 @@ export function danglingCorpusLinks(root) {
   return found
 }
 
-export function sessionOrientation(cwd, { once = false } = {}) {
+// `say(text, root)`, when given, decides each standing paragraph (ADR-122 Decision 8: once per context, judged by the hook that
+// knows the context); `mark` appends the item's said-per-context marker to each one said, so a later look can find it.
+export function sessionOrientation(cwd, { once = false, say = null, mark = false } = {}) {
   const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
   if (!directory) return ''
   const found = gitRepositoryLookup(directory)
   const repositoryRoot = found.ok ? found.root : null
   const root = repositoryRoot ?? directory
   const lines = []
-  // ADR-094 T2: the standing paragraphs below go through `standing`; where the hook asks (startup and
-  // resume) each is said once per repository per three days. The could-not-look lines never do (ADR-005).
-  const standing = text => { if (!once || firstMentionHere(root, text)) lines.push(text) }
+  // ADR-094 T2: the standing paragraphs below go through `standing`; where the hook asks, each is said once per context
+  // (ADR-122 Decision 8), or once per repository per three days when only `once` is asked. The could-not-look lines never are.
+  const standing = text => {
+    if (say ? say(text, root) : (!once || firstMentionHere(root, text))) lines.push(mark ? `${text}\n${itemMarker('standing', text)}` : text)
+  }
   if (!found.ok) {
     lines.push(`could-not-look: the repository root could not be read (${found.reason}). Whether this directory is a repository, and which check it declares, is unknown.`)
   }

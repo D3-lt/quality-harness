@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "ADR-122 T3: a start begins a context, and every standing paragraph is said there",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "from": "    if (input.source !== 'resume') return true",
+      "to": "    if (input.source !== 'resume') return !remembered",
+      "only": "^(?:a standing paragraph is said once per context, not once per three days)$"
+    },
+    {
+      "label": "ADR-122 T3: a resumed context whose last request holds a paragraph is not told it again",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "from": "    if (verdict === 'said' || verdict === 'pending') return false",
+      "to": "    if (false) return false",
+      "only": "^(?:a standing paragraph is said once per context, not once per three days)$"
+    },
+    {
       "label": "ADR-111 T3: a startup SessionStart starts the baseline",
       "file": "plugin/scripts/on-session-start.mjs",
       "tests": [
@@ -107,14 +123,14 @@
       "to": "  if (awaitingArming(readEvents(input.cwd, input.session_id))"
     },
     {
-      "label": "ADR-094 T2: compaction and clear are gated like a start",
+      "label": "ADR-122 T3: a resume with no request evidence keeps the three-day mark",
       "file": "plugin/scripts/on-session-start.mjs",
       "tests": [
         "tests/standing-facts.test.mjs"
       ],
-      "from": "{ once: input.source === 'startup' || input.source === 'resume' || input.source === undefined }",
-      "to": "{ once: true }",
-      "only": "^compaction and clear say every paragraph again$"
+      "from": "    return verdict === 'unsaid' || !remembered",
+      "to": "    return true",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
     },
     {
       "label": "on-session-start: a session git could not arm is told",
@@ -122,8 +138,8 @@
       "tests": [
         "tests/unarmed-said.test.mjs"
       ],
-      "from": "    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) sections.push(note)",
-      "to": "    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) void note",
+      "from": "    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) sections.push(marked(note))",
+      "to": "    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) void note",
       "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
     },
     {
@@ -132,8 +148,8 @@
       "tests": [
         "tests/unarmed-said.test.mjs"
       ],
-      "from": "    if (firstMentionHere(path.resolve(input.cwd ?? process.cwd()), note)) sections.push(note)",
-      "to": "    if (true) sections.push(note)",
+      "from": "    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) sections.push(marked(note))",
+      "to": "    if (true) sections.push(marked(note))",
       "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
     },
     {

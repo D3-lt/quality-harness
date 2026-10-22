@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n<qh:standing@<marker>>"
         }
       },
       "stderr": ""

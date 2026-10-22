@@ -424,7 +424,9 @@ func staleVersionNotice() string {
 		"consistent so nothing else will say so. Restart Claude Code to pick up the newer one."
 }
 
-func sessionOrientation(cwd string, once bool) string {
+// sessionOrientation: say decides each standing paragraph (ADR-122 Decision 8, session-orientation.mjs), and mark appends its
+// said-per-context marker to each one said.
+func sessionOrientation(cwd string, say func(text, root string) bool, mark bool) string {
 	directory := nearestExistingDirectory(resolvePath(cwd))
 	if directory == "" {
 		return ""
@@ -440,7 +442,10 @@ func sessionOrientation(cwd string, once bool) string {
 	}
 	lines := []string{}
 	standing := func(text string) {
-		if !once || firstMentionHere(root, text) {
+		if say(text, root) {
+			if mark {
+				text += "\n" + ItemMarker("standing", text)
+			}
 			lines = append(lines, text)
 		}
 	}
@@ -670,8 +675,23 @@ func onSessionStart(h *hookRun, input *Obj) {
 	offerPluginRoot(cwd, session)
 	offerPublishHook(cwd, session)
 	sections := []string{}
-	once := strict(source, "startup") || strict(source, "resume") || isUndefined(source)
-	if orientation := sessionOrientation(cwd, once); orientation != "" {
+	// ADR-122 Decision 8: a standing paragraph is said once per context (on-session-start.mjs says why).
+	keepsMark := strict(source, "startup") || strict(source, "resume") || isUndefined(source)
+	saidInput := map[string]any{"agent_id": input.Get("agent_id"), "agent_transcript_path": input.Get("agent_transcript_path"),
+		"transcript_path": input.Get("transcript_path")}
+	sayStanding := func(text, place string) bool {
+		remembered := keepsMark && !firstMentionHere(place, text)
+		if !strict(source, "resume") {
+			return true
+		}
+		verdict, _ := SaidInContext(saidInput, "standing", text)
+		if verdict == "said" || verdict == "pending" {
+			return false
+		}
+		return verdict == "unsaid" || !remembered
+	}
+	marked := func(text string) string { return text + "\n" + ItemMarker("standing", text) }
+	if orientation := sessionOrientation(cwd, sayStanding, true); orientation != "" {
 		sections = append(sections, orientation)
 	}
 	offer := lastOffer(readEvents(cwd, session).E)
@@ -681,13 +701,13 @@ func onSessionStart(h *hookRun, input *Obj) {
 			reason = jsString(r)
 		}
 		note := unarmedNote(reason)
-		if firstMentionHere(resolvePath(cwd), note) {
-			sections = append(sections, note)
+		if sayStanding(note, resolvePath(cwd)) {
+			sections = append(sections, marked(note))
 		}
 	}
 	if (strict(source, "compact") || strict(source, "resume")) && awaitingArming(readEvents(cwd, session).E) &&
-		(strict(source, "compact") || firstMentionHere(resolvePath(cwd), armingNote)) {
-		sections = append(sections, armingNote)
+		(strict(source, "compact") || sayStanding(armingNote, resolvePath(cwd))) {
+		sections = append(sections, marked(armingNote))
 	}
 	if strict(source, "compact") {
 		note := readSessionNote(session)

@@ -12,6 +12,8 @@ import { itemMarker } from '../plugin/scripts/said-per-context.mjs'
 import { completionJudgement } from '../plugin/scripts/completion-rules.mjs'
 import { revisionFor } from '../plugin/scripts/check-ledger.mjs'
 import { remove } from './helpers/remove.mjs'
+import { fileURLToPath } from 'node:url'
+import { mkdirSync, realpathSync } from 'node:fs'
 
 const MAIN = 'repl_main_thread:outputStyle:Concise'
 const blob = (hash, role, text) => ({ type: 'api-request-blob', hash, message: { role, content: [{ type: 'text', text }] } })
@@ -115,4 +117,42 @@ test('an older guard yields to the request: a Stop after a compaction and two R4
   assert.equal(turnEnd([row], 0, blind).find(action => action.rule === 'R4'), undefined, 'the same reason is said once')
   const other = turnEnd([row], 0, { observation: { ok: false, reason: 'the index is locked' } }).find(action => action.rule === 'R4')
   assert.match(other?.text ?? '', /the index is locked/, 'another reason at the same place is said')
+})
+
+// SessionStart through the real hook, in a sandbox holding the temp directory (the markers) and the plugin data (CLAUDE.md §9).
+const lifecycleScript = fileURLToPath(new URL('../plugin/scripts/lifecycle.mjs', import.meta.url))
+function startIn(top, repo, source, transcript, id) {
+  const run = spawnSync(process.execPath, [lifecycleScript], {
+    cwd: top, encoding: 'utf8', timeout: 120_000, windowsHide: true,
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(top, 'data'), CLAUDE_ENV_FILE: '', TMPDIR: top, TMP: top, TEMP: top },
+    input: JSON.stringify({ hook_event_name: 'SessionStart', source, cwd: repo, session_id: id, ...(transcript ? { transcript_path: transcript } : {}) }),
+  })
+  assert.equal(run.status, 0, run.stderr)
+  return JSON.parse(run.stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
+}
+
+test('a standing paragraph is said once per context, not once per three days', t => {
+  const top = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-standing-ctx-')))
+  t.after(() => remove(top))
+  const repo = path.join(top, 'repo')
+  mkdirSync(repo)
+  spawnSync('git', ['init', '-q', repo], { timeout: 10_000, windowsHide: true })
+  writeFileSync(path.join(repo, '.quality-harness.json'), JSON.stringify({ check: 'node check.mjs' }))
+  const VERIFICATION = /Verification: this project's own check is/
+  const first = startIn(top, repo, 'startup', null, 's-one')
+  assert.match(first, VERIFICATION, 'a new context is told')
+  assert.match(first, /<qh:standing@[0-9a-f]{8}>/, 'with its marker')
+  assert.match(startIn(top, repo, 'startup', null, 's-two'), VERIFICATION, 'another new context within three days is told too')
+  // A resume continues a context: one whose last request holds the paragraph is not told again, one that does not is. The
+  // context that holds it is resumed in a repository no start has marked, so only the request evidence can keep it quiet.
+  const other = path.join(top, 'other')
+  mkdirSync(other)
+  spawnSync('git', ['init', '-q', other], { timeout: 10_000, windowsHide: true })
+  writeFileSync(path.join(other, '.quality-harness.json'), JSON.stringify({ check: 'node check.mjs' }))
+  const holds = path.join(top, 'holds.jsonl')
+  writeFileSync(holds, line(blob('h1', 'system', first)) + line(request('r1', null, 0, ['h1'])))
+  assert.doesNotMatch(startIn(top, other, 'resume', holds, 's-four'), VERIFICATION, 'the context holds it')
+  const lacks = path.join(top, 'lacks.jsonl')
+  writeFileSync(lacks, line(blob('h1', 'user', 'hello')) + line(request('r1', null, 0, ['h1'])))
+  assert.match(startIn(top, repo, 'resume', lacks, 's-three'), VERIFICATION, 'a context shown not to hold it is told')
 })

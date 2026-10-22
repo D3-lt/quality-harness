@@ -31,11 +31,11 @@ function start(extra) {
     assert.equal(run.status, 0, run.stderr)
   }
   mkdirSync(tmp, { recursive: true })
-  return () => {
+  return (source = 'startup') => {
     const run = spawnSync(process.execPath, [join(plugin, 'scripts', 'lifecycle.mjs')], {
       cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true,
       env: { ...baseEnv, CLAUDE_PLUGIN_ROOT: plugin, TMPDIR: tmp, TMP: tmp, TEMP: tmp, ...extra },
-      input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: id, cwd: dir }),
+      input: JSON.stringify({ hook_event_name: 'SessionStart', source, session_id: id, cwd: dir }),
     })
     assert.equal(run.status, 0, run.stderr)
     const text = run.stdout.trim()
@@ -58,8 +58,10 @@ const UNARMED = /git's own refusal of an unchecked commit or push is not armed i
 test('a session git could not arm is told why, once per repository; an armed one and a host with no env file are not', { skip: process.platform === 'win32' && 'the stand-in git is a #! script (CLAUDE.md §7)' }, () => {
   const say = start({ CLAUDE_ENV_FILE: envFile(), PATH: oldGit() })
   assert.match(say(), UNARMED)
-  // The same reason in the same repository is a standing fact: said once (CLAUDE.md §19).
-  assert.doesNotMatch(say(), /is not armed in this session/)
+  // ADR-122 Decision 8: a start is a new context, so it is told again; a resume that shows no request evidence keeps the
+  // once-per-repository mark (CLAUDE.md §19).
+  assert.match(say(), UNARMED, 'a second start is a new context')
+  assert.doesNotMatch(say('resume'), /is not armed in this session/)
   // A host that offers no env file has no Bash environment to arm: not said.
   assert.doesNotMatch(start({})(), /is not armed in this session/)
   // CLEAN twin: the real git (2.54 or later) arms it, and nothing is said.

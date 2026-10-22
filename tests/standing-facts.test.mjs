@@ -60,7 +60,8 @@ test('a standing paragraph is said once per repository for three days and again 
   const top = sandbox(t)
   const repo = repository(top, 'repo-a')
   assert.match(start(top, repo), VERIFICATION, 'the first start says it')
-  assert.doesNotMatch(start(top, repo), /Verification:/, 'the second start in the same repository does not')
+  // ADR-122 Decision 8: a start begins a context, so it is told; the three-day mark now decides a resume with no request evidence.
+  assert.match(start(top, repo), VERIFICATION, 'the second start is a new context, and is told')
   assert.doesNotMatch(start(top, repo, 'resume'), /Verification:/, 'nor does a resume')
   // A changed text is a new fact.
   writeFileSync(path.join(repo, '.quality-harness.json'), JSON.stringify({ check: 'node check.mjs --strict' }))
@@ -82,10 +83,10 @@ test('compaction and clear say every paragraph again', t => {
   const top = sandbox(t)
   const repo = repository(top, 'repo-c')
   assert.match(start(top, repo), VERIFICATION)
-  assert.doesNotMatch(start(top, repo), /Verification:/)
+  assert.match(start(top, repo), VERIFICATION, 'a second start is a new context (ADR-122 Decision 8)')
   assert.match(start(top, repo, 'compact'), VERIFICATION, 'the context lost it at compaction')
   assert.match(start(top, repo, 'clear'), VERIFICATION, 'and at clear')
-  assert.doesNotMatch(start(top, repo), /Verification:/, 'neither one refreshed the marker')
+  assert.doesNotMatch(start(top, repo, 'resume'), /Verification:/, 'neither one refreshed the mark a resume with no evidence reads')
 })
 
 test('the previous-session notice is silent when a pass is recorded for the current tree', t => {

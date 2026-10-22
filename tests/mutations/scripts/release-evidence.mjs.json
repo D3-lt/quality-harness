@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex verification of 3940f0d4: only the exact land-full expression counts",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/one-run-release.test.mjs"],
+      "from": "    return workflow.split('\\n').some(line => line.trim() === LANDING_FULL)",
+      "to": "    return workflow.split('\\n').some(line => line.includes(\"startsWith(github.ref, 'refs/heads/land/')\"))",
+      "only": "^(?:a landing run is full only where the workflow at its sha runs land pushes full)$"
+    },
+    {
       "label": "Codex review of v3.8.52..2ad118d0: a landing run is full only where its workflow says so",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/one-run-release.test.mjs"],

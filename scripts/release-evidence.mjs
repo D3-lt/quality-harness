@@ -609,10 +609,14 @@ export function tagAdvice(kind) {
  * ADR-126 T1: whether the workflow at `sha` runs a push to `land/**` as the full campaign, read from its own
  * `QUALITY_HARNESS_FULL_CAMPAIGN` line. A landing before ADR-126 ran cached; a workflow that cannot be read is not full.
  */
+const LANDING_FULL = "QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}"
+
 export function landingIsFullAt(sha, exec = execFileSync) {
   try {
     const workflow = exec('git', ['show', `${sha}:.github/workflows/selftest.yml`], { encoding: 'utf8', timeout: 30_000 })
-    return /QUALITY_HARNESS_FULL_CAMPAIGN: \$\{\{[^\n]*startsWith\(github\.ref, 'refs\/heads\/land\/'\)/.test(workflow)
+    // The exact expression, on a line of its own and not a comment: any other form is not recognised, and not full
+    // (the Codex verification of 3940f0d4: `dispatch && (push && startsWith(...))` holds for no push and matched a looser test).
+    return workflow.split('\n').some(line => line.trim() === LANDING_FULL)
   } catch {
     return false
   }

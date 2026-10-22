@@ -47,7 +47,11 @@ test('a landing run is full only where the workflow at its sha runs land pushes 
   }
   assert.equal(landingIsFullAt(SHA, answering("          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}\n")), true)
   assert.equal(landingIsFullAt(SHA, answering("          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}\n")), false, 'the workflow before ADR-126')
+  assert.equal(landingIsFullAt(SHA, answering("          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' && (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}\n")), false, 'an expression true for no push')
+  assert.equal(landingIsFullAt(SHA, answering("          # QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}\n")), false, 'a comment')
   assert.equal(landingIsFullAt(SHA, answering(null)), false, 'a workflow that cannot be read')
+  const current = readFileSync(path.join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  assert.equal(landingIsFullAt(SHA, answering(current)), true, "this repository's own workflow is recognised")
   // Through main: the same green landing run clears only when its workflow says full.
   const run = { status: 'completed', conclusion: 'success', headSha: SHA, headBranch: `land/${SHA}`, event: 'push', jobs }
   const seams = full => ({ fetch: () => run, declared: () => ['selftest (ubuntu-latest)'], full: () => full, forge: null,

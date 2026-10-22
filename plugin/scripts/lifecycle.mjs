@@ -17,6 +17,7 @@ import { readOnlyRole, reviewChangedState } from './publish-verdict.mjs'
 import { advisoryHeadline } from './ready-lines.mjs'
 import { firstMentionThisSession } from './session-notes.mjs'
 import { recordHookEvent } from './hook-record.mjs'
+import { recordSaid, saidInContext } from './said-per-context.mjs'
 import { onSessionStart } from './on-session-start.mjs'
 import { onSessionEnd } from './on-session-end.mjs'
 import { onSubagentStart } from './on-subagent-start.mjs'
@@ -76,6 +77,20 @@ export function flushOutput(startedAt, input, env = process.env, now = Date.now(
 // gate (run-shell-hook.mjs, which this file imports) can share it without a cycle.
 export { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 
+// ADR-122: an item said into the agent's context carries its marker, and is not said again while the context's last request
+// holds it, or since that request. A refusal is never asked about, and nor is a finding only the user is shown: a
+// systemMessage never reaches the model (0 of 395, measured 2026-10-22 on Claude Code 2.1.307), so no request can hold it.
+// With no request evidence the item is said, as it was before.
+function unsaid(actions, input) {
+  const toAgent = action => input?.hook_event_name === 'PreToolUse' || (stopReachesAgent(input) && action.audience !== 'user')
+  return actions.flatMap(action => {
+    if (!action.rule || !toAgent(action)) return [action]
+    const { verdict, marker } = saidInContext(input, action.rule.toLowerCase(), action.text)
+    return verdict === 'said' || verdict === 'pending' ? [] : [{ ...action, marker }]
+  })
+}
+const marked = action => action.marker ? `${action.text}\n${action.marker}` : action.text
+
 // ONE output per hook. A denial is the permission decision. Other findings from
 // the same hook stay in the reason, so a refusal does not hide them. A legacy
 // deny is passed through. Otherwise every advisory is joined. `action.emitted`
@@ -99,7 +114,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
     delivered = []
     output = legacy
   } else {
-    delivered = actions.filter(action => typeof action.text === 'string' && action.text)
+    delivered = unsaid(actions.filter(action => typeof action.text === 'string' && action.text), input)
     output = legacy ? JSON.parse(JSON.stringify(legacy)) : null
     if (delivered.length) {
       const texts = delivered.map(action => action.text)
@@ -107,8 +122,9 @@ export function deliver(actions, input, { legacy = null } = {}) {
       const joined = texts.join('\n\n')
       output ??= {}
       if (event === 'PreToolUse') {
+        const forContext = delivered.map(marked).join('\n\n')
         const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }
-        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${joined}` : joined
+        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${forContext}` : forContext
         output.hookSpecificOutput = specific
         const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`
         output.systemMessage = output.systemMessage ? `${output.systemMessage}\n${headline}` : headline
@@ -116,7 +132,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
         // ADR-096: a turn-end finding is the main agent's to act on. additionalContext reaches it and continues its turn once
         // (the next Stop carries stop_hook_active, and onTurnEnd says nothing then); the user is shown the same text as before.
         // ADR-120 T6: a finding marked for the user alone (R1 and R2 on an inferred check) is shown, and does not continue the turn.
-        const forAgent = delivered.filter(action => action.audience !== 'user').map(action => action.text).join('\n\n')
+        const forAgent = delivered.filter(action => action.audience !== 'user').map(marked).join('\n\n')
         if (forAgent) {
           const specific = output.hookSpecificOutput ?? { hookEventName: 'Stop' }
           specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${forAgent}` : forAgent
@@ -129,6 +145,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
     }
   }
   emitJson(output)
+  for (const action of delivered) if (action.marker) recordSaid(input, action.marker)
   for (const action of delivered) {
     if (action.rule) {
       appendEvent(input.cwd, input.session_id, {

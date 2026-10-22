@@ -44,8 +44,8 @@
       "label": "ADR-122 T2: the offset never passes an incomplete last line",
       "file": "plugin/scripts/said-per-context.mjs",
       "tests": ["tests/said-per-context.test.mjs"],
-      "from": "    for (const line of text.split('\\n').slice(0, -1)) {",
-      "to": "    for (const line of text.split('\\n')) {",
+      "from": "  for (const line of chunk.toString('utf8').split('\\n').slice(0, -1)) {",
+      "to": "  for (const line of chunk.toString('utf8').split('\\n')) {",
       "only": "^(?:an incomplete last line is read when it completes, and no cached blob is read twice)$"
     },
     {

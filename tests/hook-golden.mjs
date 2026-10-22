@@ -152,6 +152,8 @@ export function normaliser(box, repos = []) {
       .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>')
       .replace(/\b[0-9a-f]{40}\b/g, '<sha>')
       .replace(/\b[0-9a-f]{16}\b/g, '<hash>')
+      // ADR-122: an item's marker hashes its text before <box> and <repo> stand in for the sandbox's paths, so it differs per run.
+      .replace(/<qh:([A-Za-z0-9_.-]+)@[0-9a-f]{8}>/g, '<qh:$1@<marker>>')
       .replace(/\b(\d+(?:\.\d+)?)(ms|s)\b/g, '<n>$2')
       .replace(/"(pid|load|loadEnd|cores|ms|\w+Ms)":(?:-?[\d.]+|null)/g, '"$1":"<n>"')
       // ADR-113 T1: a parse error is each JSON parser's own words (core/hooks/checkcmd.go says so), not what the hook says.

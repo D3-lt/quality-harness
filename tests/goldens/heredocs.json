@@ -33,7 +33,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first."
+          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.\n<qh:p@<marker>>"
         },
         "systemMessage": "quality-harness advised the agent: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push —… (full text in the transcript)"
       },

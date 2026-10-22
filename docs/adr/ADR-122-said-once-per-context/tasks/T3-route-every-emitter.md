@@ -19,6 +19,9 @@ advisory is said once per context in a shorter form.
 | File | Change | Why |
 |------|--------|-----|
 | `tests/said-per-context-routing.test.mjs` | create | one row per emitter, with its twin (0 locks: new) |
+| `tests/said-per-context-window.test.mjs` | create | the helper reads a long transcript from its end and back (0 locks: new) |
+| `plugin/scripts/said-per-context.mjs` | edit | a transcript further behind than one budget is read from its end, and the budget left over reads back; measured 2026-10-22, a 495 MB session answered no evidence on every firing while the forward catch-up ran, so the mention was said on every command |
+| `core/hooks/saidcontext.go` | edit | the same, with `core/hooks/saidwindow_test.go` |
 | `plugin/scripts/check-ledger.mjs` | edit | `action.emitted` rows carry `generation`; `emittedFor` and `namedByReview` compare it (:599-610) |
 | `core/hooks/ledger.go` | edit | the same |
 | `plugin/scripts/publish-verdict.mjs` | edit | the mention key per context, not `<treeKey>:mention` (:447-448); the shorter text (:388); refusals untouched (:443-446) |
@@ -72,14 +75,16 @@ advisory is said once per context in a shorter form.
 ## Acceptance
 
 ```bash
-out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs 2>&1) \
+out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs 2>&1) \
   && for n in "every emitter is said once per context and again after a compaction" \
       "a finding said before a compaction is said again after it, and not after a resume" \
       "the mention is said once per context and a proven commit still gets its advice" \
       "a refusal is answered on every attempt" \
       "a changed state is said whatever was said before" \
       "a standing paragraph is said once per context, not once per three days" \
-      "an older guard yields to the request: a Stop after a compaction and two R4 reasons are said"; do
+      "an older guard yields to the request: a Stop after a compaction and two R4 reasons are said" \
+      "a long transcript is read from its end, and a marker the last request carries is said at once" \
+      "from the end, absence is not shown: an item no read message carries is no evidence, never unsaid"; do
     test "$(printf '%s\n' "$out" | sed -n 's/^ok [0-9][0-9]* - //p' | grep -cxF -- "$n")" = 1 || exit 1
   done \
   && node --test tests/hook-goldens.test.mjs tests/publish-command.test.mjs tests/turn-end-delivery.test.mjs tests/standing-facts.test.mjs \
@@ -97,6 +102,8 @@ out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs 2>
 | `a changed state is said whatever was said before` | `tests/said-per-context-routing.test.mjs` | Decision 6 at every emitter | — | S1, S4 |
 | `a standing paragraph is said once per context, not once per three days` | `tests/said-per-context-routing.test.mjs` | Decision 8 and its twin | — | S1, S4 |
 | `an older guard yields to the request: a Stop after a compaction and two R4 reasons are said` | `tests/said-per-context-routing.test.mjs` | the suppression readers ask the helper first (the cold review, finding 5) | — | S1, S3, S4 |
+| `a long transcript is read from its end, and a marker the last request carries is said at once` | `tests/said-per-context-window.test.mjs` | the window and the read back | — | S1, S4 |
+| `from the end, absence is not shown: an item no read message carries is no evidence, never unsaid` | `tests/said-per-context-window.test.mjs` | the unknown prefix; a compaction inside the window | — | S1, S4 |
 
 ## Reachability
 

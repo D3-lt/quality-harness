@@ -66,8 +66,8 @@
       "tests": [
         "tests/advisory-headline.test.mjs"
       ],
-      "from": "        const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }\n        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\\n\\n${joined}` : joined",
-      "to": "        const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }\n        void joined",
+      "from": "        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\\n\\n${forContext}` : forContext",
+      "to": "        void forContext",
       "only": "^(?:the headline a person sees at a publish warning names the finding)$"
     },
     {
@@ -216,8 +216,8 @@
       "tests": [
         "tests/turn-end-declared.test.mjs"
       ],
-      "from": "action.audience !== 'user'",
-      "to": "true",
+      "from": "const forAgent = delivered.filter(action => action.audience !== 'user')",
+      "to": "const forAgent = delivered.filter(action => true)",
       "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
     },
     {

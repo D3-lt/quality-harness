@@ -37,7 +37,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-check` to pass first (ADR-081). The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked."
+          "additionalContext": "quality-harness: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-check` to pass first (ADR-081). The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked.\n<qh:p@<marker>>"
         },
         "systemMessage": "quality-harness advised the agent: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-… (full text in the transcript)"
       },

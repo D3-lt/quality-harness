@@ -63,6 +63,33 @@ function blobMarkers(message) {
   return [...new Set(texts.flatMap(t => t.match(MARKER) ?? []))]
 }
 
+/** Parse the whole lines of `chunk` (the piece after the last newline is not one) into blobs and requests, in file order. */
+function parseLines(chunk, started, budgetMs) {
+  const blobs = {}, requests = {}, order = []
+  let consumed = 0, timedOut = false, unparseable = false
+  for (const line of chunk.toString('utf8').split('\n').slice(0, -1)) {
+    if (Date.now() - started > budgetMs) { timedOut = true; break }
+    consumed += Buffer.byteLength(line, 'utf8') + 1
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { unparseable = true; continue }
+    if (record?.type === 'api-request-blob' && typeof record.hash === 'string') {
+      blobs[record.hash] = blobMarkers(record.message)
+    } else if (record?.type === 'api-request' && typeof record.id === 'string') {
+      requests[record.id] = { base: record.base ?? null, keep: Number(record.keep) || 0,
+        tail: Array.isArray(record.tail) ? record.tail : [], querySource: String(record.querySource ?? '') }
+      order.push(record.id)
+    }
+  }
+  return { blobs, requests, order, consumed, timedOut, unparseable }
+}
+
+const readAt = (fd, from, length) => {
+  const chunk = Buffer.alloc(length)
+  readSync(fd, chunk, 0, length, from)
+  return chunk
+}
+
 /** Read what was appended since the cache's offset; returns the cache and the bytes read, or null for no evidence. */
 function scan(file, cacheFile, { budgetBytes, budgetMs }) {
   const started = Date.now()
@@ -74,31 +101,44 @@ function scan(file, cacheFile, { budgetBytes, budgetMs }) {
     let cache = null
     try { cache = JSON.parse(readFileSync(cacheFile, 'utf8')) } catch { cache = null }
     if (!cache || cache.identity !== identity || cache.offset > size) cache = emptyCache(identity)
-    // At most the budget is read per firing, and what was read is kept, so a long transcript is caught up over several
-    // firings; until it is, the answer is no evidence, never a verdict on a part of it.
-    const remaining = size - cache.offset
-    const length = Math.min(remaining, budgetBytes)
-    const chunk = Buffer.alloc(length)
-    readSync(fd, chunk, 0, length, cache.offset)
-    const text = chunk.toString('utf8')
-    let consumed = 0, timedOut = false, unparseable = false
-    // The last piece after the final newline is a line still being written (or empty): it is never read, and the offset
-    // stops before it, so it is read whole next time.
-    for (const line of text.split('\n').slice(0, -1)) {
-      if (Date.now() - started > budgetMs) { timedOut = true; break }
-      consumed += Buffer.byteLength(line, 'utf8') + 1
-      if (!line.trim()) continue
-      let record
-      try { record = JSON.parse(line) } catch { unparseable = true; continue }
-      if (record?.type === 'api-request-blob' && typeof record.hash === 'string') {
-        cache.blobs[record.hash] = blobMarkers(record.message)
-      } else if (record?.type === 'api-request' && typeof record.id === 'string') {
-        cache.requests[record.id] = { base: record.base ?? null, keep: Number(record.keep) || 0,
-          tail: Array.isArray(record.tail) ? record.tail : [], querySource: String(record.querySource ?? '') }
-        cache.order.push(record.id)
+    // A transcript further behind than one budget is read from its end, since what the context received last is there; a
+    // forward catch-up of a long session took dozens of firings during which nothing was suppressed (measured 2026-10-22: a
+    // 495 MB transcript at 8 MiB per firing). What lies before the window is unknown (`windowed`), so a request chain reaching
+    // back into it keeps an unknown prefix: a marker in a read message is still evidence, and absence is not shown. The window
+    // opens at the first whole line.
+    if (size - cache.offset > budgetBytes) {
+      const from = size - budgetBytes
+      const cut = readAt(fd, from, budgetBytes).indexOf(10)
+      const first = cut < 0 ? size : from + cut + 1
+      cache = { ...emptyCache(identity), offset: first, windowed: true, windowStart: first }
+    }
+    // Forward: what was appended. The piece after the last newline is a line still being written: the offset stops before it.
+    const length = size - cache.offset
+    const ahead = parseLines(readAt(fd, cache.offset, length), started, budgetMs)
+    Object.assign(cache.blobs, ahead.blobs)
+    Object.assign(cache.requests, ahead.requests)
+    cache.order.push(...ahead.order)
+    cache.offset += ahead.consumed
+    let unparseable = ahead.unparseable
+    let bytesRead = ahead.consumed
+    // Backward: the budget a firing did not spend reads on from the window's start toward the file's, so a cache that jumped
+    // becomes whole again. A piece is merged only when it was read whole, so a timeout never leaves a gap or a duplicate.
+    const spare = budgetBytes - length
+    if (cache.windowed && !ahead.timedOut && spare > 0) {
+      const from = Math.max(0, cache.windowStart - spare)
+      const chunk = readAt(fd, from, cache.windowStart - from)
+      const cut = from > 0 ? chunk.indexOf(10) + 1 : 0
+      const behind = cut > 0 || from === 0 ? parseLines(chunk.subarray(cut), started, budgetMs) : null
+      if (behind && !behind.timedOut) {
+        cache.blobs = { ...behind.blobs, ...cache.blobs }
+        cache.requests = { ...behind.requests, ...cache.requests }
+        cache.order = [...behind.order, ...cache.order]
+        cache.windowStart = from + cut
+        if (cache.windowStart === 0) { delete cache.windowed; delete cache.windowStart }
+        unparseable ||= behind.unparseable
+        bytesRead += behind.consumed
       }
     }
-    cache.offset += consumed
     if (unparseable) cache.unparseable = true
     try {
       mkdirSync(path.dirname(cacheFile), { recursive: true })
@@ -106,7 +146,7 @@ function scan(file, cacheFile, { budgetBytes, budgetMs }) {
       writeFileSync(temporary, JSON.stringify(cache))
       renameSync(temporary, cacheFile)
     } catch { /* a cache that cannot be kept costs a rescan next time, never a verdict */ }
-    return { cache, bytesRead: consumed, overBudget: timedOut || remaining > budgetBytes, unparseable: Boolean(cache.unparseable) }
+    return { cache, bytesRead, overBudget: ahead.timedOut, unparseable: Boolean(cache.unparseable) }
   } catch { return null } finally { closeSync(fd) }
 }
 
@@ -115,13 +155,17 @@ function lastRequest(cache, agent) {
   const id = [...cache.order].reverse().find(r => agent || MAIN_LOOP.test(cache.requests[r]?.querySource ?? ''))
   if (!id) return null
   const chain = []
+  let unknownBefore = false
   for (let at = id, guard = 0; at; guard += 1) {
     const r = cache.requests[at]
+    if (!r && cache.windowed && chain.length) { unknownBefore = true; break }
     if (!r || guard > cache.order.length) return null
     chain.push(r)
     at = r.base
   }
-  let messages = []
+  // A chain that reaches back before the window starts from its oldest read request's kept prefix, unknown: `null` is in no
+  // blob table, so it counts as a missing message.
+  let messages = unknownBefore ? new Array(chain[chain.length - 1].keep).fill(null) : []
   for (const r of chain.reverse()) {
     if (r.keep > messages.length) return null
     messages = messages.slice(0, r.keep).concat(r.tail)

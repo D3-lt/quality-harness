@@ -43,6 +43,8 @@ type saidCache struct {
 	Order       []string               `json:"order"`
 	Blobs       map[string][]string    `json:"blobs"`
 	Unparseable bool                   `json:"unparseable,omitempty"`
+	Windowed    bool                   `json:"windowed,omitempty"`
+	WindowStart int64                  `json:"windowStart,omitempty"`
 }
 
 type saidOptions struct {
@@ -125,66 +127,42 @@ type saidScan struct {
 	unparseable bool
 }
 
-func scanTranscript(file, cacheFile string, opt saidOptions) *saidScan {
-	started := time.Now()
-	f, err := os.Open(file)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return nil
-	}
-	size := info.Size()
-	identity := saidIdentity(file, f, info)
-	var cache saidCache
-	if raw, err := os.ReadFile(cacheFile); err != nil || json.Unmarshal(raw, &cache) != nil || cache.Identity != identity || cache.Offset > size {
-		cache = saidCache{Identity: identity}
-	}
-	if cache.Requests == nil {
-		cache.Requests = map[string]saidRequest{}
-	}
-	if cache.Blobs == nil {
-		cache.Blobs = map[string][]string{}
-	}
-	if cache.Order == nil {
-		cache.Order = []string{}
-	}
-	remaining := size - cache.Offset
-	length := remaining
-	if length > opt.budgetBytes {
-		length = opt.budgetBytes
-	}
-	chunk := make([]byte, length)
-	if _, err := f.ReadAt(chunk, cache.Offset); err != nil && int64(len(chunk)) != length {
-		return nil
-	}
+type saidLines struct {
+	blobs       map[string][]string
+	requests    map[string]saidRequest
+	order       []string
+	consumed    int64
+	timedOut    bool
+	unparseable bool
+}
+
+// parseSaidLines parses the whole lines of chunk (the piece after the last newline is not one), in file order
+// (said-per-context.mjs parseLines).
+func parseSaidLines(chunk []byte, started time.Time, opt saidOptions) saidLines {
+	out := saidLines{blobs: map[string][]string{}, requests: map[string]saidRequest{}, order: []string{}}
 	complete := bytes.LastIndexByte(chunk, '\n') + 1
-	var consumed int64
-	timedOut := false
 	scanner := bufio.NewScanner(bytes.NewReader(chunk[:complete]))
 	scanner.Buffer(make([]byte, 1024*1024), int(opt.budgetBytes)+1)
 	for scanner.Scan() {
 		if time.Since(started).Milliseconds() > opt.budgetMs {
-			timedOut = true
+			out.timedOut = true
 			break
 		}
 		line := scanner.Bytes()
-		consumed += int64(len(line)) + 1
+		out.consumed += int64(len(line)) + 1
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
 		var record map[string]any
 		if json.Unmarshal(line, &record) != nil {
-			cache.Unparseable = true
+			out.unparseable = true
 			continue
 		}
 		switch record["type"] {
 		case "api-request-blob":
 			if hash, ok := record["hash"].(string); ok {
 				message, _ := record["message"].(map[string]any)
-				cache.Blobs[hash] = blobMarkers(message)
+				out.blobs[hash] = blobMarkers(message)
 			}
 		case "api-request":
 			if id, ok := record["id"].(string); ok {
@@ -203,12 +181,115 @@ func scanTranscript(file, cacheFile string, opt saidOptions) *saidScan {
 					}
 				}
 				r.QuerySource, _ = record["querySource"].(string)
-				cache.Requests[id] = r
-				cache.Order = append(cache.Order, id)
+				out.requests[id] = r
+				out.order = append(out.order, id)
 			}
 		}
 	}
-	cache.Offset += consumed
+	return out
+}
+
+func readSaidAt(f *os.File, from, length int64) ([]byte, bool) {
+	chunk := make([]byte, length)
+	if n, err := f.ReadAt(chunk, from); err != nil && int64(n) != length {
+		return nil, false
+	}
+	return chunk, true
+}
+
+// scanTranscript reads what was appended since the cache's offset, and a transcript further behind than one budget from its
+// end, then spends the budget left over reading back toward the start (said-per-context.mjs scan, where the why is written).
+func scanTranscript(file, cacheFile string, opt saidOptions) *saidScan {
+	started := time.Now()
+	f, err := os.Open(file)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil
+	}
+	size := info.Size()
+	identity := saidIdentity(file, f, info)
+	var cache saidCache
+	if raw, err := os.ReadFile(cacheFile); err != nil || json.Unmarshal(raw, &cache) != nil || cache.Identity != identity || cache.Offset > size {
+		cache = saidCache{Identity: identity}
+	}
+	if size-cache.Offset > opt.budgetBytes {
+		from := size - opt.budgetBytes
+		head, ok := readSaidAt(f, from, opt.budgetBytes)
+		if !ok {
+			return nil
+		}
+		first := size
+		if cut := bytes.IndexByte(head, '\n'); cut >= 0 {
+			first = from + int64(cut) + 1
+		}
+		cache = saidCache{Identity: identity, Offset: first, Windowed: true, WindowStart: first}
+	}
+	if cache.Requests == nil {
+		cache.Requests = map[string]saidRequest{}
+	}
+	if cache.Blobs == nil {
+		cache.Blobs = map[string][]string{}
+	}
+	if cache.Order == nil {
+		cache.Order = []string{}
+	}
+	length := size - cache.Offset
+	chunk, ok := readSaidAt(f, cache.Offset, length)
+	if !ok {
+		return nil
+	}
+	ahead := parseSaidLines(chunk, started, opt)
+	for k, v := range ahead.blobs {
+		cache.Blobs[k] = v
+	}
+	for k, v := range ahead.requests {
+		cache.Requests[k] = v
+	}
+	cache.Order = append(cache.Order, ahead.order...)
+	cache.Offset += ahead.consumed
+	unparseable := ahead.unparseable
+	bytesRead := ahead.consumed
+	if spare := opt.budgetBytes - length; cache.Windowed && !ahead.timedOut && spare > 0 {
+		from := cache.WindowStart - spare
+		if from < 0 {
+			from = 0
+		}
+		if back, ok := readSaidAt(f, from, cache.WindowStart-from); ok {
+			cut := 0
+			if from > 0 {
+				cut = bytes.IndexByte(back, '\n') + 1
+			}
+			if cut > 0 || from == 0 {
+				behind := parseSaidLines(back[cut:], started, opt)
+				if !behind.timedOut {
+					for k, v := range behind.blobs {
+						if _, seen := cache.Blobs[k]; !seen {
+							cache.Blobs[k] = v
+						}
+					}
+					for k, v := range behind.requests {
+						if _, seen := cache.Requests[k]; !seen {
+							cache.Requests[k] = v
+						}
+					}
+					cache.Order = append(behind.order, cache.Order...)
+					cache.WindowStart = from + int64(cut)
+					if cache.WindowStart == 0 {
+						cache.Windowed = false
+					}
+					unparseable = unparseable || behind.unparseable
+					bytesRead += behind.consumed
+				}
+			}
+		}
+	}
+	if unparseable {
+		cache.Unparseable = true
+	}
 	if raw, err := json.Marshal(cache); err == nil {
 		if os.MkdirAll(filepath.Dir(cacheFile), 0o755) == nil {
 			temporary := fmt.Sprintf("%s.%d.tmp", cacheFile, os.Getpid())
@@ -217,7 +298,7 @@ func scanTranscript(file, cacheFile string, opt saidOptions) *saidScan {
 			}
 		}
 	}
-	return &saidScan{cache: &cache, bytesRead: consumed, overBudget: timedOut || remaining > opt.budgetBytes, unparseable: cache.Unparseable}
+	return &saidScan{cache: &cache, bytesRead: bytesRead, overBudget: ahead.timedOut, unparseable: cache.Unparseable}
 }
 
 func lastRequest(cache *saidCache, agent bool) (string, []string, bool) {
@@ -232,8 +313,13 @@ func lastRequest(cache *saidCache, agent bool) (string, []string, bool) {
 		return "", nil, false
 	}
 	var chain []saidRequest
+	unknownBefore := false
 	for at, guard := id, 0; at != ""; guard++ {
 		r, ok := cache.Requests[at]
+		if !ok && cache.Windowed && len(chain) > 0 {
+			unknownBefore = true
+			break
+		}
 		if !ok || guard > len(cache.Order) {
 			return "", nil, false
 		}
@@ -243,7 +329,11 @@ func lastRequest(cache *saidCache, agent bool) (string, []string, bool) {
 		}
 		at = *r.Base
 	}
+	// A chain reaching back before the window keeps an unknown prefix: "" is in no blob table, so it counts as missing.
 	messages := []string{}
+	if unknownBefore {
+		messages = make([]string, chain[len(chain)-1].Keep)
+	}
 	for i := len(chain) - 1; i >= 0; i-- {
 		r := chain[i]
 		if r.Keep > len(messages) {

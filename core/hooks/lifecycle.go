@@ -20,6 +20,7 @@ type action struct {
 	deny     bool
 	text     string
 	audience string // "user" marks a finding shown to the user alone: it does not continue a Stop (ADR-120 T6)
+	marker   string // the said-per-context marker it carries into the agent's context (ADR-122)
 }
 
 // hookRun is one hook process: its input, the actions its rules queued and the one JSON object the older rules emit.
@@ -204,6 +205,40 @@ func truncateUTF16(units []rune, n int) string {
 	return b.String()
 }
 
+// saidInput is what the said-per-context helper reads from the hook input: whose transcript holds the receiving context.
+func (h *hookRun) saidInput() map[string]any {
+	return map[string]any{"agent_id": h.input.Get("agent_id"), "agent_transcript_path": h.input.Get("agent_transcript_path"),
+		"transcript_path": h.input.Get("transcript_path")}
+}
+
+// unsaid drops an item the receiving context already holds (lifecycle.mjs `unsaid`, ADR-122). A refusal is never asked about,
+// and nor is a finding only the user is shown: a systemMessage never reaches the model, so no request can hold it.
+func (h *hookRun) unsaid(actions []action) []action {
+	in := h.saidInput()
+	kept := []action{}
+	for _, a := range actions {
+		toAgent := h.event == "PreToolUse" || (h.stopReachesAgent() && a.audience != "user")
+		if a.rule == "" || !toAgent {
+			kept = append(kept, a)
+			continue
+		}
+		verdict, marker := SaidInContext(in, strings.ToLower(a.rule), a.text)
+		if verdict == "said" || verdict == "pending" {
+			continue
+		}
+		a.marker = marker
+		kept = append(kept, a)
+	}
+	return kept
+}
+
+func (a action) marked() string {
+	if a.marker == "" {
+		return a.text
+	}
+	return a.text + "\n" + a.marker
+}
+
 // deliver composes ONE output: a denial is the permission decision, every other advisory is joined.
 func (h *hookRun) deliver() {
 	actions := h.pending
@@ -240,6 +275,7 @@ func (h *hookRun) deliver() {
 				delivered = append(delivered, a)
 			}
 		}
+		delivered = h.unsaid(delivered)
 		if legacy != nil {
 			parsed, _ := parseJSON(stringify(legacy))
 			output, _ = parsed.(*Obj)
@@ -274,13 +310,17 @@ func (h *hookRun) deliver() {
 				}
 			}
 			if h.event == "PreToolUse" {
-				appendContext("PreToolUse", joined)
+				forContext := []string{}
+				for _, a := range delivered {
+					forContext = append(forContext, a.marked())
+				}
+				appendContext("PreToolUse", strings.Join(forContext, "\n\n"))
 				systemMessage("\n", "quality-harness advised the agent: "+advisoryHeadline(texts[0])+" (full text in the transcript)")
 			} else if h.stopReachesAgent() {
 				forAgent := []string{}
 				for _, a := range delivered {
 					if a.audience != "user" {
-						forAgent = append(forAgent, a.text)
+						forAgent = append(forAgent, a.marked())
 					}
 				}
 				if len(forAgent) > 0 {
@@ -293,6 +333,11 @@ func (h *hookRun) deliver() {
 		}
 	}
 	h.output = output
+	for _, a := range delivered {
+		if a.marker != "" {
+			RecordSaid(h.saidInput(), a.marker)
+		}
+	}
 	for _, a := range delivered {
 		if a.rule == "" {
 			continue

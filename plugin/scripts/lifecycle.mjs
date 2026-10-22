@@ -89,7 +89,8 @@ function unsaid(actions, input) {
     return verdict === 'said' || verdict === 'pending' ? [] : [{ ...action, marker }]
   })
 }
-const marked = action => action.marker ? `${action.text}\n${action.marker}` : action.text
+// The marker follows the text after a space: a newline in a turn-end message is what a spliced command once put there.
+const marked = action => action.marker ? `${action.text} ${action.marker}` : action.text
 
 // ONE output per hook. A denial is the permission decision. Other findings from
 // the same hook stay in the reason, so a refusal does not hide them. A legacy

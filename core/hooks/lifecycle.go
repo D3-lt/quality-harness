@@ -236,7 +236,7 @@ func (a action) marked() string {
 	if a.marker == "" {
 		return a.text
 	}
-	return a.text + "\n" + a.marker
+	return a.text + " " + a.marker
 }
 
 // deliver composes ONE output: a denial is the permission decision, every other advisory is joined.

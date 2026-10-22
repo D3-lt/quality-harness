@@ -280,11 +280,11 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.\n<qh:p@<marker>>"
+          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first. <qh:p@<marker>>"
         },
-        "systemMessage": "quality-harness advised the agent: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push —… (full text in the transcript)"
+        "systemMessage": "quality-harness advised the agent: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. (full text in the transcript)"
       },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first."
+      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first."
     },
     {
       "name": "echo git push",
@@ -356,7 +356,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout's unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first.\n<qh:p@<marker>>"
+          "additionalContext": "quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout's unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first. <qh:p@<marker>>"
         },
         "systemMessage": "quality-harness advised the agent: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout's unchecked state does not … (full text in the transcript)"
       },

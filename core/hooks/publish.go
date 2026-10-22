@@ -294,7 +294,7 @@ func publishJudgement(f *publishFactsRun, invoked string, proven, commitOnly, st
 	if proven {
 		text += "about to run names commit or push (`" + invoked + "`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
 	} else {
-		text += "about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first."
+		text += "about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first."
 	}
 	if bound.dropped > 0 {
 		text += fmt.Sprintf(" %d check event(s) in this session's log name no `qh-check` record and were not counted.", bound.dropped)

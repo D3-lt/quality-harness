@@ -78,7 +78,7 @@ advisory is said once per context in a shorter form.
 ## Acceptance
 
 ```bash
-out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs 2>&1) \
+out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs tests/branch-state-quiet.test.mjs 2>&1) \
   && for n in "every emitter is said once per context and again after a compaction" \
       "a finding said before a compaction is said again after it, and not after a resume" \
       "the mention is said once per context and a proven commit still gets its advice" \

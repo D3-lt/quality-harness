@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n<qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -37,7 +37,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-check` to pass first (ADR-081). The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked.\n<qh:p@<marker>>"
+          "additionalContext": "quality-harness: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-check` to pass first (ADR-081). The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked. <qh:p@<marker>>"
         },
         "systemMessage": "quality-harness advised the agent: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-… (full text in the transcript)"
       },

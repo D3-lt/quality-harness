@@ -385,7 +385,8 @@ export function publishJudgement(facts, { invoked, commitOnly = false, stagesFir
                 : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + (invoked !== null
         ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
-        : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
+        // ADR-122 T3: the mention is said once per context, and its text shortened to what the agent acts on.
+        : 'about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first.')
       + (dropped > 0 ? ` ${dropped} check event(s) in this session's log name no \`qh-check\` record and were not counted.` : '')
       + `${facts.caveat()}${publishSettingNote(setting)}${hinted ? PROSE_SETTING_HINT : ''}`,
   }

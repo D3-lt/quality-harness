@@ -74,7 +74,7 @@ export function onSessionStart(input, recorded) {
     if (verdict === 'said' || verdict === 'pending') return false
     return verdict === 'unsaid' || !remembered
   }
-  const marked = text => `${text}\n${itemMarker('standing', text)}`
+  const marked = text => `${text} ${itemMarker('standing', text)}`
   const orientation = sessionOrientation(input.cwd, { say: sayStanding, mark: true })
   if (orientation) sections.push(orientation)
   // Said once per repository and reason: a standing fact, not news on every start (CLAUDE.md §19).

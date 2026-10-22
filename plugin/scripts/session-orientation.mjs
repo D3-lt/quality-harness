@@ -76,7 +76,7 @@ export function sessionOrientation(cwd, { once = false, say = null, mark = false
   // ADR-094 T2: the standing paragraphs below go through `standing`; where the hook asks, each is said once per context
   // (ADR-122 Decision 8), or once per repository per three days when only `once` is asked. The could-not-look lines never are.
   const standing = text => {
-    if (say ? say(text, root) : (!once || firstMentionHere(root, text))) lines.push(mark ? `${text}\n${itemMarker('standing', text)}` : text)
+    if (say ? say(text, root) : (!once || firstMentionHere(root, text))) lines.push(mark ? `${text} ${itemMarker('standing', text)}` : text)
   }
   if (!found.ok) {
     lines.push(`could-not-look: the repository root could not be read (${found.reason}). Whether this directory is a repository, and which check it declares, is unknown.`)

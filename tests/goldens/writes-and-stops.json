@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n<qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -40,7 +40,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n<qh:r1@<marker>>\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert.\n<qh:w@<marker>>"
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. <qh:r1@<marker>>\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert. <qh:w@<marker>>"
         },
         "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
       },
@@ -74,7 +74,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n<qh:r1@<marker>>\n\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out\n<qh:a@<marker>>"
+          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. <qh:r1@<marker>>\n\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out <qh:a@<marker>>"
         },
         "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out"
       },

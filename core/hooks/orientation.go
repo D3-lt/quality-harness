@@ -444,7 +444,7 @@ func sessionOrientation(cwd string, say func(text, root string) bool, mark bool)
 	standing := func(text string) {
 		if say(text, root) {
 			if mark {
-				text += "\n" + ItemMarker("standing", text)
+				text += " " + ItemMarker("standing", text)
 			}
 			lines = append(lines, text)
 		}
@@ -690,7 +690,7 @@ func onSessionStart(h *hookRun, input *Obj) {
 		}
 		return verdict == "unsaid" || !remembered
 	}
-	marked := func(text string) string { return text + "\n" + ItemMarker("standing", text) }
+	marked := func(text string) string { return text + " " + ItemMarker("standing", text) }
 	if orientation := sessionOrientation(cwd, sayStanding, true); orientation != "" {
 		sections = append(sections, orientation)
 	}

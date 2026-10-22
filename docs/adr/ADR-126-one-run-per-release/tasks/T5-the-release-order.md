@@ -59,6 +59,7 @@ out=$(node --test --test-reporter=tap tests/release-order.test.mjs 2>&1) \
 | 4 — it is used | `node scripts/release.mjs` |
 
 ## Mutation Log
+- 2026-10-22 · 733d4c29* · mutant killed · exit 1 · `scripts/release.mjs` · a landed sha's own run is the release run; nothing is dispatched for it · acceptance-sha256:52c684b9b63f28042854b8cad750f621e041ded8fe4c419f39e8848364f7c1d0
 
 ## Invariants
 
@@ -77,3 +78,7 @@ Stop if a locked test's truth changes beyond the dispatch and the main push run.
 - Messaging peers from a script (permanent: boundary: a script cannot reach another session; it prints the request).
 
 ## Verification Log
+- 2026-10-22 · 733d4c29* · exit 1 · `out=$(node --test --test-reporter=tap tests/release-order.test.mjs 2>&1) \ …` · acceptance-sha256:52c684b9b63f28042854b8cad750f621e041ded8fe4c419f39e8848364f7c1d0 · ms:295 · test-lock-sha256:26ad581c1259142cfba411011a2aed19a8578f0371d20609839ecf524dbd14b0 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcmVsZWFzZS1vcmRlci50ZXN0Lm1qcwllYWNoIHdhaXQgaGFzIGl0cyBvd24gZGVhZGxpbmUsIGFuZCBhIG1pc3Npbmcgb3V0c2lkZSBydW4gaXMgYXNrZWQgZm9yLCBub3Qgd2FpdGVkIG91dAkyYjcxMzdmNzkzODZmYmExMjhlNjBlYjdmMGJjZTdjYTE0NzIzNWY5OTUxNTkzNDdhNGM2M2JkMDYxMTIyZTU3CmJvZHkJdGVzdHMvcmVsZWFzZS1vcmRlci50ZXN0Lm1qcwlyZWxlYXNlIHdhaXRzIGZvciBldmVyeSBqb2Igb2YgdGhlIGxhbmRpbmcncyBydW4gYW5kIGRpc3BhdGNoZXMgbm90aGluZwk0ZjM2OWE2YzVlZWZiMDM0ODBkODhmN2Y3N2RjYWY1MjRhNzUwZTFlNmZhMjQ5NzFkYjYwMTQxMmNhMDNhNTBh
+  ```
+  ```
+- 2026-10-22 · 733d4c29* · exit 0 · `out=$(node --test --test-reporter=tap tests/release-order.test.mjs 2>&1) \ …` · acceptance-sha256:52c684b9b63f28042854b8cad750f621e041ded8fe4c419f39e8848364f7c1d0 · ms:248

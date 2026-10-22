@@ -232,8 +232,7 @@ stopped (ADR-100). Exit 0 released, 1 a step failed, 2 a step needs an action it
 wait reached its deadline. The steps stay numbered because records and source comments cite them.
 
 1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check --again` itself, and takes its pass only from a machine not contended across it: its load at the start, and once the run's own load has decayed, at or below the core count, ADR-115);
-   Codex review done through the launcher (§12); when a reader changed since the last tag, an outside run filed with
-   `attest-import` (§18). **Dead code is deleted or wired** (the owner, 2026-09-27); a deliberate keep goes through the
+   Codex review done through the launcher (§12). **Dead code is deleted or wired** (the owner, 2026-09-27); a deliberate keep goes through the
    tool's own allowlist with its reason beside it, never by ignoring the line:
    `node scripts/orphan-sweep.mjs` prints `0 orphan(s)`, and `bash scripts/dead-code-scan.sh` (which the command runs)
    prints each standard tool's version, command and count; a deliberate Python name goes into
@@ -242,14 +241,19 @@ wait reached its deadline. The steps stay numbered because records and source co
 2. Bump `version` in `plugin/.claude-plugin/plugin.json` and commit it; then run the command. When the remote's main
    lacks the sha it lands it through `scripts/land.mjs` (ADR-118): CI runs on `land/<sha>`, and main fast-forwards to
    that sha once main's required checks passed there. The forge refuses a push to main whose sha lacks those checks.
-3. It waits for the push run ON MAIN to EXIST, then dispatches the full campaign at that sha: a push measures only
-   what its cache could not reuse, and `release-evidence` refuses a sha whose newest run was a push. Dispatching
-   immediately can lose that ordering by a second (BACKLOG §159); the landing's own run is on `land/<sha>` and comes
-   first, and a dispatch older than main's push run is not reused (ADR-118).
-4. It waits for **every** job of the dispatched run, bounded; it never reads a watch's exit code.
+   When the landing changes a test or a reader, send a Windows peer the check `land.mjs` prints once `land/<sha>` is pushed
+   (ADR-126 T6): it runs while CI does.
+3. The landing's own push run on `land/<sha>` is the release run: the workflow runs every land push as the full campaign,
+   and main has no run of its own (ADR-126). Only a forge that requires no check, and so leaves no landing run, gets the
+   campaign dispatched on main.
+4. It waits for **every** job of that run, the mutation shards included, which the landing does not; each wait has its own
+   deadline, and it never reads a watch's exit code.
 5. It runs `node scripts/release-evidence.mjs <sha>` and acts only on its **SUCCESS**. Its own header defines its exit
-   codes; when a summary elsewhere disagrees, the header wins. It also asks whether anybody outside has run the
-   readers that changed since the last tag (§18) and whether a recorded review covers every plugin commit (§12).
+   codes; when a summary elsewhere disagrees, the header wins. It asks whether a recorded review covers every plugin commit
+   (§12), which the command also asks before anything lands (`--review`), and whether anybody outside has run the readers
+   that changed since the last tag (§18). That run is asked for now, once the landing's run is green: the command prints
+   the request, the attestation is filed with `attest-import`, and the command runs again. On a landed sha an uncommitted
+   attestation is the release's evidence, not an unclean tree; nothing is pushed after the landing.
 6. It never dispatches while another dispatched run on the ref is in flight: the workflow's concurrency group keys on
    the event (`.github/workflows/selftest.yml:20-22`), so a second dispatch cancels the first, while a push does not.
 7. It runs `gh release create vX.Y.Z --target <full sha> --latest` — `--latest` is not the default.
@@ -363,10 +367,10 @@ already thought of; it cannot read the whole output over a shape it has never se
 - **A refactor that moves an observable to another tool turns the tests on the old site vacuous.** Run
   every catalogue mutant on the file you refactored, not only the new ones; a GREEN there is the
   class, not an instance. A new line elsewhere in the same function does it too, and `--changed`
-  cannot see that, since it selects only entries whose own line was added. So nothing is bumped and
-  no outside run is asked for until the mutation jobs of a push run at that sha are green: the `land/<sha>` run or main's
-  push run, each reusing the cache (ADR-023). The shards are not among main's required checks, so a landing does not wait
-  for them; the release itself still rests on the dispatched full campaign (§13, step 3).
+  cannot see that, since it selects only entries whose own line was added. So no outside run is asked for until the
+  mutation jobs of the landing's run at that sha are green: every `land/<sha>` push is the full campaign (ADR-126), and the
+  bump rides in the candidate it lands. The shards are not among main's required checks, so a landing does not wait for
+  them; the release waits for every job of that run (§13, step 4).
 - **A gate run under contention is unattributable, including a pass.** Wait for load below the core
   count, then run the gate as its own job with its whole budget.
 - **Send outside-run requests one at a time, never beside a gate.** Probes sent to several peers at

@@ -53,7 +53,13 @@ export function world(overrides = {}) {
     if (line === 'git ls-remote origin refs/heads/main') return ok(`${state.origin}\trefs/heads/main\n`)
     if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return ok(state.workflow)
     if (line === LANDING || line === `git push origin --delete land/${SHA}`) return ok()
-    if (line.startsWith(`gh api repos/{owner}/{repo}/commits/${SHA}/check-runs`)) return ok(JSON.stringify(state.checkRuns))
+    // `checkRunsSeq`, when given, is a list of answers to the check-runs read, the last one repeated (ADR-126 T5's waits).
+    if (line.startsWith(`gh api repos/{owner}/{repo}/commits/${SHA}/check-runs`)) {
+      if (!state.checkRunsSeq) return ok(JSON.stringify(state.checkRuns))
+      const answer = state.checkRunsSeq[Math.min(state.checkReads ?? 0, state.checkRunsSeq.length - 1)]
+      state.checkReads = (state.checkReads ?? 0) + 1
+      return ok(JSON.stringify([answer]))
+    }
     if (line.startsWith('gh run list --commit')) {
       const answer = state.runs[Math.min(runCalls, state.runs.length - 1)]
       if (answer.some(row => row.event === 'push')) state.pushSeen = true
@@ -74,7 +80,7 @@ export function world(overrides = {}) {
     if (line.endsWith(`scripts/release-evidence.mjs ${SHA}`)) {
       const code = state.evidence[Math.min(evidenceCalls, state.evidence.length - 1)]
       evidenceCalls += 1
-      return { status: code, stdout: `${code === 0 ? 'SUCCESS' : 'UNPROVEN'} — evidence\n`, stderr: '' }
+      return { status: code, stdout: state.evidenceText ?? `${code === 0 ? 'SUCCESS' : 'UNPROVEN'} — evidence\n`, stderr: '' }
     }
     if (line.startsWith('gh release create')) { state.released = true; return ok() }
     throw new Error(`the fake has no answer for: ${line}`)

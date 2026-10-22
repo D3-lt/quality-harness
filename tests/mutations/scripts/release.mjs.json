@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T5: a landed sha's own run is the release run; nothing is dispatched for it",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-order.test.mjs"],
+      "from": "  if (!listRuns().some(releaseRun)) {",
+      "to": "  if (true) {",
+      "only": "^(?:release waits for every job of the landing's run and dispatches nothing)$"
+    },
+    {
+      "label": "ADR-126 T5: a missing outside run is asked for, with the request",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-order.test.mjs"],
+      "from": "    if (/nobody outside has run the readers/.test(String(evidence.stdout ?? ''))) {",
+      "to": "    if (false) {",
+      "only": "^(?:each wait has its own deadline, and a missing outside run is asked for, not waited out)$"
+    },
+    {
+      "label": "ADR-126 T5: each wait has its own deadline",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-order.test.mjs"],
+      "from": "  const landed = land({ exec, log, now, sleep, deadline: now() + waitMaxMinutes * 60_000, protection })",
+      "to": "  const landed = land({ exec, log, now, sleep, deadline: now() + waitMaxMinutes * 60_000 - 80 * 60_000, protection })",
+      "only": "^(?:each wait has its own deadline, and a missing outside run is asked for, not waited out)$"
+    },
+    {
       "label": "ADR-126 T4: a landed sha takes an uncommitted attestation as evidence",
       "file": "scripts/release.mjs",
       "tests": ["tests/evidence-after-landing.test.mjs"],
@@ -141,17 +165,10 @@
       "to": "['release', 'create', tag, '--target', sha.slice(0, 7), ...notes]"
     },
     {
-      "label": "ADR-100 T3: the dispatch waits for the push run",
-      "file": "scripts/release.mjs",
-      "tests": ["tests/release.test.mjs"],
-      "from": "    return runs.some(mainPush) ? runs : null",
-      "to": "    return runs"
-    },
-    {
       "label": "ADR-100 T3: an existing dispatch is not dispatched again",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "  if (!withPush.some(current)) {",
+      "from": "  if (!listRuns().some(releaseRun)) {",
       "to": "  if (true) {"
     },
     {
@@ -200,36 +217,15 @@
       "label": "ADR-118 T1: the release lands the sha rather than pushing main",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "  const landed = land({ exec, log, now, sleep, deadline, protection })",
+      "from": "  const landed = land({ exec, log, now, sleep, deadline: now() + waitMaxMinutes * 60_000, protection })",
       "to": "  const landed = ran('git', ['push', 'origin', `${sha}:refs/heads/main`], true).status"
-    },
-    {
-      "label": "ADR-118 T1: the dispatch waits for the push run on main, not the landing's",
-      "file": "scripts/release.mjs",
-      "tests": ["tests/release.test.mjs"],
-      "from": "run.event === 'push' && run.headBranch === 'main'",
-      "to": "run.event === 'push'"
-    },
-    {
-      "label": "ADR-118 T1: a dispatch older than main's push run is not reused",
-      "file": "scripts/release.mjs",
-      "tests": ["tests/release.test.mjs"],
-      "from": "run.headBranch === 'main' && Date.parse(run.createdAt) >= pushedAt",
-      "to": "run.headBranch === 'main'"
-    },
-    {
-      "label": "ADR-118 T1: a dispatch tied with main's push run is reused (Codex review of 81571b37..7782862e)",
-      "file": "scripts/release.mjs",
-      "tests": ["tests/release.test.mjs"],
-      "from": "Date.parse(run.createdAt) >= pushedAt",
-      "to": "Date.parse(run.createdAt) > pushedAt"
     },
     {
       "label": "ADR-118 T1: a dispatch not on main is not reused",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "run.event === 'workflow_dispatch' && run.headBranch === 'main' &&",
-      "to": "run.event === 'workflow_dispatch' &&"
+      "from": "run.event === 'workflow_dispatch' && run.headBranch === 'main'",
+      "to": "run.event === 'workflow_dispatch'"
     }
   ]
 }

@@ -23,12 +23,13 @@ test('release resumes from what it observes and repeats no step whose result is 
   assert.ok(!tagged(again.calls) && !pushed(again.calls))
 })
 
+// ADR-126 T5 changed this test's truth: main's own push run no longer exists, so nothing waits for it. On a forge that
+// requires no check there is no landing run either, and that is the one case the campaign is still dispatched.
 test('release dispatches the campaign only after the push run exists', () => {
-  const w = world({ origin: 'b'.repeat(40), runs: [[], [], [push('in_progress')], [push(), dispatch('in_progress')], [push(), dispatch()]] })
+  const w = world({ origin: 'b'.repeat(40), runs: [[], [dispatch('in_progress')], [dispatch()]] })
   assert.equal(w.run(), 0, w.said.join('\n'))
   assert.ok(pushed(w.calls))
-  assert.ok(dispatched(w.calls))
-  assert.equal(w.state.dispatchSawPush, true, 'the dispatch came before the push run existed')
+  assert.ok(dispatched(w.calls), 'no landing run on a forge that requires no check: the campaign is dispatched')
   // Never while another dispatch for the ref is in flight: a second dispatch cancels the first.
   const busy = world({ runs: [[push()]], inFlight: [{ status: 'in_progress', headSha: 'c'.repeat(40) }] })
   assert.equal(busy.run({ waitMaxMinutes: 2 }), 3)
@@ -39,24 +40,23 @@ test('release dispatches the campaign only after the push run exists', () => {
 // own push run is not main's: a dispatch made before main's push run exists is older than it, and release-evidence would
 // read the newer push as CACHED (BACKLOG §159). So the dispatch waits for main's push run, and a dispatch older than it, or
 // one not on main, is not reused.
+// ADR-126 T5 changed this test's truth: the landing's own run is the release run, so a landed sha dispatches nothing.
 test('release lands the sha and dispatches only after the push run on main exists', () => {
   const w = world({
     origin: 'b'.repeat(40),
     protection: { state: 'protected', text: 'forge: main requires 1 status check(s)', required: [{ context: 'windows', integration: 15368 }] },
-    runs: [[landPush()], [landPush()], [landPush(), push()], [landPush(), push(), dispatch()]],
+    runs: [[landPush()]],
   })
   assert.equal(w.run(), 0, w.said.join('\n'))
   assert.ok(w.calls.includes(LANDING) && w.calls.indexOf(LANDING) < w.calls.indexOf(MAIN_PUSH), 'landed on land/<sha> before main')
-  assert.equal(w.state.dispatchSawMainPush, true, 'the dispatch came before the push run on main existed')
-  for (const stale of [{ ...dispatch(), createdAt: '2026-10-19T23:00:00Z' }, { ...dispatch(), headBranch: `land/${SHA}` }]) {
-    const r = world({ runs: [[push(), stale], [push(), stale, { ...dispatch(), databaseId: 4 }]] })
-    assert.equal(r.run(), 0, r.said.join('\n'))
-    assert.ok(dispatched(r.calls), `not reused: ${JSON.stringify(stale)}`)
-  }
-  // A dispatch in the same second as main's push run is the newer one, as release-evidence reads a tie (selectRun).
-  const tie = world({ runs: [[push(), { ...dispatch(), createdAt: push().createdAt }]] })
-  assert.equal(tie.run(), 0, tie.said.join('\n'))
-  assert.ok(!dispatched(tie.calls), 'a dispatch tied with the push run is reused')
+  assert.ok(!dispatched(w.calls), 'the landing run is the campaign')
+  // A dispatch already on main is the release run and is not repeated; one on another branch is not a release run.
+  const reused = world({ runs: [[push(), dispatch()]] })
+  assert.equal(reused.run(), 0, reused.said.join('\n'))
+  assert.ok(!dispatched(reused.calls), 'a dispatch on main is reused')
+  const elsewhere = world({ runs: [[{ ...dispatch(), headBranch: `land/${SHA}` }], [{ ...dispatch(), headBranch: `land/${SHA}` }, { ...dispatch(), databaseId: 4 }]] })
+  assert.equal(elsewhere.run(), 0, elsewhere.said.join('\n'))
+  assert.ok(dispatched(elsewhere.calls), 'a dispatch on another branch is not reused')
 })
 
 test('release tags only a sha release-evidence clears, with its full sha and --latest', () => {
@@ -75,9 +75,10 @@ test('release tags only a sha release-evidence clears, with its full sha and --l
 })
 
 test('a wait past its deadline exits 3 and names what it waited for', () => {
-  const w = world({ origin: 'b'.repeat(40), runs: [[]] })
+  // ADR-126 T5: the wait is for the landing's run, not main's push run.
+  const w = world({ origin: 'b'.repeat(40), runs: [[{ ...landPush(), status: 'in_progress' }]] })
   assert.equal(w.run({ waitMaxMinutes: 5 }), 3)
-  assert.match(w.said.join('\n'), /push run/)
+  assert.match(w.said.join('\n'), /release run/)
   assert.ok(!dispatched(w.calls) && !tagged(w.calls))
 })
 

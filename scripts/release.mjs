@@ -43,9 +43,10 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     const answer = ran(cmd, args)
     return answer.status === 0 ? String(answer.stdout ?? '').trim() : null
   }
-  const deadline = now() + waitMaxMinutes * 60_000
-  // One poll at most a minute, and a deadline: past it the wait is said and the run exits 3.
+  // One poll at most a minute, and a deadline per wait: past it the wait is said and the run exits 3. Per wait, not per run
+  // (ADR-126 T5): one bound over the landing and the campaign together ran out on 3.8.52 with nothing wrong.
   const waitFor = (what, probe) => {
+    const deadline = now() + waitMaxMinutes * 60_000
     for (;;) {
       const found = probe()
       if (found) return found
@@ -156,24 +157,18 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
 
   // ADR-118: main takes only a sha its required checks passed at, so the sha lands through land/<sha> first. Whether main
   // already has it is land's question, asked once: a second copy here left the first one untested.
-  const landed = land({ exec, log, now, sleep, deadline, protection })
+  const landed = land({ exec, log, now, sleep, deadline: now() + waitMaxMinutes * 60_000, protection })
   if (landed !== 0) { log(`release: land exited ${landed} ${at}; nothing was dispatched`); return landed }
 
-  // The push run ON MAIN must exist before the dispatch, or the dispatch can be the older of the two (BACKLOG §159). A
-  // landing's own push run is on land/<sha>, and comes first (ADR-118).
+  // ADR-126 T5: the landing's own push to land/<sha> is the release's run, and the workflow runs it as the full campaign
+  // (T1), so nothing is dispatched for it; its every job is waited for, the mutation shards included, which land does not
+  // wait for. A forge that requires no check takes main straight (ADR-118) and leaves no landing run: only then is the
+  // campaign dispatched, on main, unless one already was.
   const listRuns = () => parsed(text('gh', runsOf(sha)) ?? '') ?? []
-  const mainPush = run => run.event === 'push' && run.headBranch === 'main'
-  const withPush = waitFor(`the push run of ${sha} on main`, () => {
-    const runs = listRuns()
-    return runs.some(mainPush) ? runs : null
-  })
-  if (!withPush) return 3
-  const pushedAt = Math.max(...withPush.filter(mainPush).map(run => Date.parse(run.createdAt)))
-  // A dispatch is reused only on main and no older than main's push run: release-evidence reads the newer of the two and
-  // takes a dispatch on a tie (selectRun), and an older dispatch would leave it reading the push as CACHED (the Codex review
-  // of the ADR-118 draft). A tie is the dispatch: the second-resolution clock gives one, and refusing it waited out the bound.
-  const current = run => run.event === 'workflow_dispatch' && run.headBranch === 'main' && Date.parse(run.createdAt) >= pushedAt
-  if (!withPush.some(current)) {
+  const landingRun = run => run.event === 'push' && run.headBranch === `land/${sha}`
+  const dispatchedRun = run => run.event === 'workflow_dispatch' && run.headBranch === 'main'
+  const releaseRun = run => landingRun(run) || dispatchedRun(run)
+  if (!listRuns().some(releaseRun)) {
     // A second dispatch cancels the first: the concurrency group keys on the event (.github/workflows/selftest.yml:20-22).
     const quiet = waitFor('the other dispatched campaign on main to finish', () => {
       const busy = parsed(text('gh', DISPATCHES) ?? '')
@@ -183,8 +178,8 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     const dispatched = ran('gh', ['workflow', 'run', 'selftest.yml', '--ref', 'main']).status
     if (dispatched !== 0) { log(`release: gh workflow run exited ${dispatched} ${at}`); return 1 }
   }
-  const done = waitFor(`every job of the dispatched campaign of ${sha}`, () => {
-    const run = listRuns().find(current)
+  const done = waitFor(`every job of the release run of ${sha}`, () => {
+    const run = listRuns().find(releaseRun)
     return run?.status === 'completed' ? run : null
   })
   if (!done) return 3
@@ -198,6 +193,14 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   for (const line of String(evidence.stdout ?? '').trim().split('\n')) if (line) log(line)
   if (evidence.status !== 0) {
     log(`release: release-evidence exited ${evidence.status} for ${sha}; ${tag} was not tagged`)
+    // ADR-126 T5: the outside run is asked for once the landing's run is green, which is now. A script cannot reach another
+    // session, so it says what to send (CLAUDE.md §18), and the release resumes when the attestation is filed.
+    if (/nobody outside has run the readers/.test(String(evidence.stdout ?? ''))) {
+      log(`release: ask an outside runner, on a corpus this repository does not own, to run at ${sha}: git fetch origin `
+        + `land/${sha} (or main), check it out, then from their repository's root \`node <checkout>/plugin/scripts/corpus-probe.mjs `
+        + `--json > new.json\` and \`node <checkout>/plugin/scripts/corpus-probe.mjs --attest <label> new.json --since `
+        + `<their report at the last tag>\`. File what they paste with \`node scripts/attest-import.mjs <message>\`, then run again.`)
+    }
     return evidence.status === 1 ? 1 : 2
   }
   const notes = notesFile ? ['--notes-file', notesFile] : ['--generate-notes']

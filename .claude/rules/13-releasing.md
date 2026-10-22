@@ -110,3 +110,14 @@ The ruleset is applied by hand, never by `land.mjs`: `gh api -X POST repos/{owne
 only reads it back: it takes the one ruleset whose name is the file's `name`, refuses none or several, and names every
 field that differs. A renamed required CI job therefore needs the file edited and PUT before a landing can pass, since
 `land` refuses a required context no job of the workflow declares.
+
+## One landing, one run (ADR-126, 2026-10-22)
+
+Measured over the week before: three full CI runs per released sha (the `land/<sha>` run, main's own push run once it
+fast-forwarded, and the dispatched campaign), and a second landing whenever the bump or an attestation came after the first.
+Main's push run caught nothing the land run had not; every failure it alone saw was non-deterministic. So the workflow no
+longer runs on a push to main, every land push runs the whole mutation catalogue, and `release-evidence` reads a push run on
+`land/<its sha>` as a full campaign. The outside run is asked for after that run is green, which is why an attestation may
+arrive after the landing; `release.mjs` takes it as evidence on a sha already on main. Each wait has its own deadline,
+since one bound over the landing (about 30 min once the coverage floor is two jobs) and the campaign together ran out on
+3.8.52 with nothing wrong.

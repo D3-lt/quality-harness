@@ -21,7 +21,9 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const adrLint = join(repoRoot, 'plugin', 'bin', 'adr-lint')
 const retireCheck = join(repoRoot, 'plugin', 'bin', 'adr-retire-check')
-const LINT_TIMEOUT_MS = 120_000
+// ADR-126 T3: three times the bound under coverage, where every gate runs instrumented (a38360be's coverage floor killed
+// one record's lint at the plain bound).
+const LINT_TIMEOUT_MS = process.env.COVERAGE_PROCESS_START || process.env.NODE_V8_COVERAGE ? 360_000 : 120_000
 
 // Through the interpreter: Windows cannot exec a `#!` script (CLAUDE.md §7).
 function lint(file) {

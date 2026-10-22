@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T3: a campaign's children get the suite's observe budget",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/suite-budgets.test.mjs"],
+      "from": "    QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000',",
+      "to": "    QUALITY_HARNESS_OBSERVE_BUDGET: '60000',",
+      "only": "^(?:every runner of the suite sets the observe budget the tests depend on)$"
+    },
+    {
       "label": "mutate: a test name that escapes a quote is read as the runtime reads it (ADR-117 T1)",
       "file": "scripts/mutate.mjs",
       "tests": [

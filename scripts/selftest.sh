@@ -49,6 +49,10 @@ export QUALITY_HARNESS_SESSION_END_RUNNER=inline
 # starts a session with a check (tests/late-baseline.test.mjs's cleanup met one, 2026-10-18). tests/baseline.test.mjs chooses
 # its runner explicitly.
 export QUALITY_HARNESS_BASELINE_RUNNER=off
+# ADR-126 T3: a test sets the budgets it depends on (CLAUDE.md §7). A hook-spawning test that inherited the product's 5 s
+# observe budget read no decision on a slow runner (three of the week's 29 failed CI jobs, 2026-10-22). Forced, not defaulted:
+# a value from the caller's shell is the product's tuning, not the suite's.
+export QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008 split the two: the tests live in the repository, the thing they

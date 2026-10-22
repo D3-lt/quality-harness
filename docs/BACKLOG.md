@@ -3564,4 +3564,5 @@ whose bare `rmSync` met `EPERM` on a directory a child of `spec-verify` (a `go t
 (its §380 class), and gate-rules names none. The wider class, enumerated with
 `mrw read --count --grep '(^|[^.\w])rmSync\([^)]*recursive' tests`: 580 matching lines in 201 files, including helpers and
 sites that already pass `maxRetries`. Widening the rule means classifying each: a child that can outlive the test (a hook,
-a gate that spawns a runner) is in the class; a directory only this process wrote is not. Open.
+a gate that spawns a runner) is in the class; a directory only this process wrote is not. Open. ADR-126 (Out of Scope)
+defers it here: its T3 ends the budget class, not this one.

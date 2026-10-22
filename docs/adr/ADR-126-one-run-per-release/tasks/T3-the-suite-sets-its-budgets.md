@@ -59,6 +59,7 @@ out=$(node --test --test-reporter=tap tests/suite-budgets.test.mjs 2>&1) \
 | 4 — it is used | `tree-facts.mjs` `observeBudget` reads it |
 
 ## Mutation Log
+- 2026-10-22 · 2fbcd574* · mutant killed · exit 1 · `scripts/mutate.mjs` · a campaign's children get the suite's observe budget · acceptance-sha256:4f7fb8c6c8715fe84af6fe9cbaf65206cf0916b9d674b8e7704861cfe0c6f1a1
 
 ## Invariants
 
@@ -77,3 +78,7 @@ Stop if a test asserts the default by reading the ambient environment.
 - `observe-racy`'s Windows cause (ADR-126 Out of Scope).
 
 ## Verification Log
+- 2026-10-22 · 2fbcd574* · exit 1 · `out=$(node --test --test-reporter=tap tests/suite-budgets.test.mjs 2>&1) \ …` · acceptance-sha256:4f7fb8c6c8715fe84af6fe9cbaf65206cf0916b9d674b8e7704861cfe0c6f1a1 · ms:212 · test-lock-sha256:9363b0be8d2939cd92069843de5c6dea0471cc99aeee2f11791108a93294da64 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc3VpdGUtYnVkZ2V0cy50ZXN0Lm1qcwlldmVyeSBydW5uZXIgb2YgdGhlIHN1aXRlIHNldHMgdGhlIG9ic2VydmUgYnVkZ2V0IHRoZSB0ZXN0cyBkZXBlbmQgb24JZjNkOTI5ZWQ2NDA4MDY5YWFiNzc1YTI2OGMzOGIwNzc4ZTMzMTY3YTM1NjNhYjU5M2U5MDQ4OTQ4OTU3ODY1MQ
+  ```
+  ```
+- 2026-10-22 · 2fbcd574* · exit 0 · `out=$(node --test --test-reporter=tap tests/suite-budgets.test.mjs 2>&1) \ …` · acceptance-sha256:4f7fb8c6c8715fe84af6fe9cbaf65206cf0916b9d674b8e7704861cfe0c6f1a1 · ms:266

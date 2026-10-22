@@ -667,6 +667,8 @@ export function childEnv(base = process.env, scratch = mkdtempSync(path.join(tmp
     ...rest,
     NODE_OPTIONS: kept.join(' '),
     QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1',
+    // ADR-126 T3: the suite's observe budget, which a test file run here directly would otherwise not get.
+    QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000',
     PYTHONDONTWRITEBYTECODE: '1',
     PYTHONPYCACHEPREFIX: path.join(scratch, 'pycache'),
     TMPDIR: scratch,

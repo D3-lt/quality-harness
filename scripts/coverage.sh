@@ -18,6 +18,8 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008: the tests are the repository's, the measured surface is the plugin's.
 ROOT="$REPO/plugin"
 MODE=${1-}
+# ADR-126 T3: the suite's own observe budget, as scripts/selftest.sh sets it (CLAUDE.md §7).
+export QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000
 
 # Floors. Measured 2026-08-25 (Wave 3): js 94.92 line / 85.43 branch / 95.59 funcs,
 # python 83%. Every gate in bin/ is now at or above 69%; the whole surface was at

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T3: the selftest sets the observe budget its tests depend on",
+      "file": "scripts/selftest.sh",
+      "tests": ["tests/suite-budgets.test.mjs"],
+      "from": "export QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000",
+      "to": "export QUALITY_HARNESS_OBSERVE_BUDGET=60000",
+      "only": "^(?:every runner of the suite sets the observe budget the tests depend on)$"
+    },
+    {
       "label": "selftest: the verdict is printed as the last line",
       "file": "scripts/selftest.sh",
       "tests": [

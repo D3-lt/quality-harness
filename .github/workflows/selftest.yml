@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+# ADR-126 T3: every job's tests set the observe budget they depend on, rather than inherit the product's 5 s (CLAUDE.md §7).
+env:
+  QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000'
+
 # A manual dispatch and the push it was meant to double-check share a ref, so a
 # single group let the dispatch cancel the run that actually gates main: on
 # 2026-08-26 fb3582c was green on all five jobs via dispatch and showed

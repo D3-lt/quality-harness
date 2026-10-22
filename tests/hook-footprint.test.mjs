@@ -95,3 +95,59 @@ test('an unparseable transcript line is counted as unreadable', () => {
     try { assert.equal(footprint(file2).unreadable, 0) } finally { remove(dir2) }
   } finally { remove(dir) }
 })
+
+// ADR-122 T5: the routed hooks over a synthetic session, counted by T1's method. One transcript holds both what the host records
+// of each hook (the attachments T1 counts) and the requests the model received (what said-per-context reads), as a real one does.
+test('a routed session carries each item once per context', async () => {
+  const { appendFileSync } = await import('node:fs')
+  const { deliver } = await import('../plugin/scripts/lifecycle.mjs')
+  const { briefUnchanged } = await import('../plugin/scripts/branch-state.mjs')
+  const { spawnSync } = await import('node:child_process')
+  const { dir, file } = transcript([])
+  const repo = path.join(dir, 'repo')
+  spawnSync('git', ['init', '-q', repo], { timeout: 10_000, windowsHide: true })
+  const append = r => appendFileSync(file, `${JSON.stringify(r)}\n`)
+  const MAIN = 'repl_main_thread:outputStyle:Concise'
+  let n = 0
+  let base = null
+  let held = 0 // messages the context's last request carries: what the next one keeps
+  const received = (hash, text) => {
+    append({ type: 'api-request-blob', hash, message: { role: 'system', content: [{ type: 'text', text }] } })
+    n += 1
+    append({ type: 'api-request', id: `q${n}`, base, keep: base ? held : 0, tail: [hash], querySource: MAIN })
+    held = (base ? held : 0) + 1
+    base = `q${n}`
+  }
+  const input = { hook_event_name: 'PreToolUse', session_id: `s-${path.basename(dir)}`, transcript_path: file, cwd: repo }
+  const mention = 'quality-harness: this repository is unchecked — and the command only mentions commit or push.'
+  const fire = (tree, call) => {
+    const out = deliver([{ rule: 'P', key: `${tree}:mention`, text: mention }], input).output
+    append(success('PreToolUse', call, OURS, out ? JSON.stringify(out) : ''))
+    if (out) {
+      append(context('PreToolUse', call, out.hookSpecificOutput.additionalContext))
+      append(headline('PreToolUse', call, out.systemMessage))
+      received(`m-${call}`, out.hookSpecificOutput.additionalContext)
+    } else received(`u-${call}`, 'tool result')
+  }
+  try {
+    for (const tree of ['a', 'b', 'c']) fire(tree, `t-${tree}1`)
+    // A compaction: the next request starts a chain of its own, and the boundary is recorded.
+    append({ type: 'system', subtype: 'compact_boundary' })
+    base = null
+    received('c1', 'summary')
+    for (const tree of ['a', 'b', 'c']) fire(tree, `t-${tree}2`)
+    // The brief on five prompts whose only change is the working tree's count.
+    let said = null
+    for (let prompt = 1; prompt <= 5; prompt += 1) {
+      const text = `branch-state: main @ abc1234, ${prompt} uncommitted path(s) · CI abc1234: every job concluded success.`
+      if (briefUnchanged(said, text)) continue
+      append(success('UserPromptSubmit', `u${prompt}`, BRIEF, text))
+      said = text
+    }
+    const result = footprint(file)
+    assert.equal(result.contexts, 2)
+    assert.equal(row(result, 'PreToolUse', 'additionalContext', 'p').firings, 2, 'the mention once in each context, not on six trees')
+    assert.equal(row(result, 'PreToolUse', 'systemMessage', 'unmarked').firings, 2, 'and its headline only with it')
+    assert.equal(row(result, 'UserPromptSubmit', 'stdout', 'unmarked').firings, 1, 'the brief once, not on five prompts')
+  } finally { remove(dir) }
+})

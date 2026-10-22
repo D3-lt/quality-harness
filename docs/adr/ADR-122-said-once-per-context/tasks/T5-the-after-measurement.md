@@ -54,6 +54,7 @@ out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \
 | 4 — it is used | the outside run (CLAUDE.md §18) |
 
 ## Mutation Log
+- 2026-10-22 · 149b136e* · mutant killed · exit 1 · `plugin/scripts/branch-state.mjs` · the brief is said again whenever the dirty count moves · acceptance-sha256:fd58a53edd8514a06ee968470be9777a65a1fb8d96498c4a5c61765977a52463
 
 ## Invariants
 
@@ -75,3 +76,7 @@ and the owner decides.
 - The release itself (CLAUDE.md §13), and the outside run (CLAUDE.md §18).
 
 ## Verification Log
+- 2026-10-22 · 149b136e* · exit 1 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:fd58a53edd8514a06ee968470be9777a65a1fb8d96498c4a5c61765977a52463 · ms:330 · test-lock-sha256:3ab5a32388eb88bbb4df286ec830ced868977e206f4b4476ac1f141383321d36 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvaG9vay1mb290cHJpbnQudGVzdC5tanMJYSByb3V0ZWQgc2Vzc2lvbiBjYXJyaWVzIGVhY2ggaXRlbSBvbmNlIHBlciBjb250ZXh0CTc1YmNjMDNmNzgyNDNmOWI0ZTExOTM1MTdkYzQ5M2MyZTUzN2M2NmRiNDA3MzEzMWQzMDM3OWQ0YzU1NmIyZmQKYm9keQl0ZXN0cy9ob29rLWZvb3RwcmludC50ZXN0Lm1qcwlhIHRvb2wgcmVzdWx0IHF1b3RpbmcgaG9vayB0ZXh0IGlzIG5vdCBob29rIG91dHB1dAllNDFjN2E4MTk0YjkwZTcxYTllZDFkMTE0ZjgwY2IzMmJiMmYwNzliZWY0Y2Y5OWI0M2RlNDQ3Y2VmYTE4MDlmCmJvZHkJdGVzdHMvaG9vay1mb290cHJpbnQudGVzdC5tanMJYW4gdW5wYXJzZWFibGUgdHJhbnNjcmlwdCBsaW5lIGlzIGNvdW50ZWQgYXMgdW5yZWFkYWJsZQkwNTZhOWJjYjkxYTc2YzYyYTc0MTY5NzM0ODU0NGYyZGExMDgwZTRmNmI3YWExODE3ZDJhYzQzYWJkYzljYjVhCmJvZHkJdGVzdHMvaG9vay1mb290cHJpbnQudGVzdC5tanMJaG9vay1mb290cHJpbnQgY291bnRzIHRoaXMgcGx1Z2luJ3MgaG9vayB0ZXh0IGJ5IGl0ZW0gYW5kIGNoYW5uZWwJZTcxYTc1YjczODJkYWUyMTMzMTc5MWJlODFjM2YwMTM5ZjM0ZTYwMDY0Mjk1N2Y0OTMyNzYyZTYzZmI4YTM0Yw
+  ```
+  ```
+- 2026-10-22 · 149b136e* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:fd58a53edd8514a06ee968470be9777a65a1fb8d96498c4a5c61765977a52463 · ms:284

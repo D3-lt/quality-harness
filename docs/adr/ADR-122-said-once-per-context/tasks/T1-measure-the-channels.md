@@ -71,6 +71,10 @@ out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \
 | 4 — it is used | T5's before-and-after run |
 
 ## Mutation Log
+- 2026-10-22 · cc085813* · mutant killed · exit 1 · `scripts/hook-footprint.mjs` · another plugin's context on the same call is counted as ours · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8
+- 2026-10-22 · cc085813* · mutant killed · exit 1 · `scripts/hook-footprint.mjs` · a prompt holding the word compact_boundary counts as a boundary · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8
+- 2026-10-22 · cc085813* · mutant killed · exit 1 · `scripts/hook-footprint.mjs` · an unparseable line is dropped silently · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8
+- 2026-10-22 · cc085813* · mutant killed · exit 1 · `scripts/hook-footprint.mjs` · a JSON stdout envelope is counted as a second channel · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8
 
 ## Invariants
 
@@ -92,3 +96,10 @@ later request) fails: the method then measures nothing, and T2's evidence and T4
 - Changing any hook (T2 to T4).
 
 ## Verification Log
+- 2026-10-22 · cc085813* · exit 1 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8 · ms:191 · test-lock-sha256:cb1f3f5f56e6e32b956b95010a514753d73cef0c616c5c7e706ca5444949f185 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvaG9vay1mb290cHJpbnQudGVzdC5tanMJYSB0b29sIHJlc3VsdCBxdW90aW5nIGhvb2sgdGV4dCBpcyBub3QgaG9vayBvdXRwdXQJZTQxYzdhODE5NGI5MGU3MWE5ZWQxZDExNGY4MGNiMzJiYjJmMDc5YmVmNGNmOTliNDNkZTQ0N2NlZmExODA5Zgpib2R5CXRlc3RzL2hvb2stZm9vdHByaW50LnRlc3QubWpzCWFuIHVucGFyc2VhYmxlIHRyYW5zY3JpcHQgbGluZSBpcyBjb3VudGVkIGFzIHVucmVhZGFibGUJMDU2YTliY2I5MWE3NmM2MmE3NDE2OTczNDg1NDRmMmRhMTA4MGU0ZjZiN2FhMTgxN2QyYWM0M2FiZGM5Y2I1YQpib2R5CXRlc3RzL2hvb2stZm9vdHByaW50LnRlc3QubWpzCWhvb2stZm9vdHByaW50IGNvdW50cyB0aGlzIHBsdWdpbidzIGhvb2sgdGV4dCBieSBpdGVtIGFuZCBjaGFubmVsCWU3MWE3NWI3MzgyZGFlMjEzMzE3OTFiZTgxYzNmMDEzOWYzNGU2MDA2NDI5NTdmNDkzMjc2MmU2M2ZiOGEzNGM
+  ```
+  ```
+- 2026-10-22 · cc085813* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8 · ms:265
+- 2026-10-22 · cc085813* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8 · ms:261
+- 2026-10-22 · cc085813* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8 · ms:290
+- 2026-10-22 · cc085813* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-footprint.test.mjs 2>&1) \ …` · acceptance-sha256:428fb4a5e7899bda2e4cf723a553ce873ec78960fdbeb07d7c8f24fe020a5cd8 · ms:256

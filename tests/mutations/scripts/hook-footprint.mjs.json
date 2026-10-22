@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-122 T1: another plugin's hook on the same call makes its context ambiguous, never ours",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "    if (seen.theirs) { ambiguous += 1; continue }",
+      "to": "    if (seen.theirs) { ambiguous += 1 }",
+      "only": "^(?:a tool result quoting hook text is not hook output)$"
+    },
+    {
+      "label": "ADR-122 T1: a boundary is a parsed system record, not the word",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "    if (r.type === 'system' && r.subtype === 'compact_boundary') { compactions += 1; continue }",
+      "to": "    if (JSON.stringify(r).includes('compact_boundary')) { compactions += 1; continue }",
+      "only": "^(?:a tool result quoting hook text is not hook output)$"
+    },
+    {
+      "label": "ADR-122 T1: an unparseable line is counted, never dropped",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "    try { records.push(JSON.parse(line)) } catch { unreadable += 1 }",
+      "to": "    try { records.push(JSON.parse(line)) } catch { /* dropped */ }",
+      "only": "^(?:an unparseable transcript line is counted as unreadable)$"
+    },
+    {
+      "label": "ADR-122 T1: a JSON stdout is the attachments' envelope, not a channel",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "      if (out && !isJsonObject(out)) add(event, HOOK_SHAPES[a.type], out)",
+      "to": "      if (out) add(event, HOOK_SHAPES[a.type], out)",
+      "only": "^(?:hook-footprint counts this plugin's hook text by item and channel)$"
+    }
+  ]
+}

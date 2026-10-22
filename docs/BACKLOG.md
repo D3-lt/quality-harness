@@ -3429,3 +3429,19 @@ Found 2026-10-22 by an outside run of 3.8.51 (an infrastructure corpus, 22 recor
 "also ready" whose only blocker is an input the owner has to supply (a secret not yet in the vault); the record has no way
 to say "blocked on owner input", so readiness is computed from its Depends-on alone. Not a reader defect as written; a
 state the task grammar lacks. ADR-120 T8's terminal statuses are the nearest prior art.
+
+## 401. adr-next withholds done for a missing first-red lock and says adr-lint names the remedy, while adr-lint passes the record silent
+
+Found 2026-10-22 by an outside run of 3.8.51 (a Go CLI corpus on Windows, 166 records, 405 tasks): adr-next marks four of
+five READY tasks (two tasks in each of two records) "marked done but has no first-red test-lock-sha256 — UNPROVEN … a red
+run is required" (`plugin/lib/record.py:4149-4160`) and ends "`adr-lint` names the remedy" (`plugin/bin/adr-next:762`), but
+adr-lint PASSes both records and none of its advice names the test lock or a red run. corpus-probe's `disagreements`
+compares only ready lists, so it reports 0; its `readinessUnproven` counts work-next's unread directories, a different
+thing, which the reporter read as this. Two leads: why adr-lint is silent on a done task the shared lock reader withholds
+(strictFrom demotion, a code path that does not call it, or a README status adr-lint reads differently), and whether
+corpus-probe should count a done-withheld task as a disagreement. Unverified against source beyond the two cited lines.
+A second outside run the same day (a Python backend corpus on Windows, 72 records, 209 tasks; its macOS twin agreed) shows
+the same summary gap with another cause: adr-next lists three tasks as ready and unproven because their evidence was
+recorded before the fence changed or before acceptance digests existed, while the summary's `readinessUnproven` is 0. So
+the field's name invites the reading two reporters gave it; at least the summary should say what it counts, or count a
+ready task adr-next marks unproven under its own name.

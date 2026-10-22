@@ -58,6 +58,7 @@ out=$(node --test --test-reporter=tap tests/one-run-release.test.mjs 2>&1) \
 | 4 — it is used | `scripts/release.mjs` step 5 |
 
 ## Mutation Log
+- 2026-10-22 · 20c8615f* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · only the landing branch of its own sha is a full campaign · acceptance-sha256:1b3592e89a1196ffde1ff27f5e501ce964e3efc26297fdc4f5f259e5fefbe634
 
 ## Invariants
 
@@ -76,3 +77,7 @@ Stop if the forge's required checks stop arriving at a sha once main's push run 
 - The dispatch step in `release.mjs` (T5).
 
 ## Verification Log
+- 2026-10-22 · 20c8615f* · exit 1 · `out=$(node --test --test-reporter=tap tests/one-run-release.test.mjs 2>&1) \ …` · acceptance-sha256:1b3592e89a1196ffde1ff27f5e501ce964e3efc26297fdc4f5f259e5fefbe634 · ms:203 · test-lock-sha256:24d621eaa57c9c405d049ecd36b4e3eeecdcc9dbc9c191390ddf6dc38c21d798 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvb25lLXJ1bi1yZWxlYXNlLnRlc3QubWpzCWEgcHVzaCB0byBsYW5kLzxzaGE-IGlzIGEgZnVsbCBjYW1wYWlnbiwgYW5kIGFueSBvdGhlciBwdXNoIG9yIGEgcHVsbCByZXF1ZXN0IGlzIG5vdAlmMTRkNzk2ZmUwMTAzMmViZjAzYmEzYzU0YTZlMmIzZTBlODY0YjBmYWYyOTY4ODAwZDVmYzA5MzkyYTQ1OTdhCmJvZHkJdGVzdHMvb25lLXJ1bi1yZWxlYXNlLnRlc3QubWpzCXRoZSB3b3JrZmxvdyBydW5zIG9uIGxhbmQgcHVzaGVzLCBuZXZlciBvbiBhIHB1c2ggdG8gbWFpbiwgYW5kIGV2ZXJ5IGxhbmQgcHVzaCBpcyBhIGZ1bGwgY2FtcGFpZ24JM2VkMzllYmZlNjhlZGExMmU4M2VlM2NiODVhNGI0MTM1ZTNmYjIyYmE4NGNhY2Q3YmJlMTQ2YmFkNGZkZmQ1ZQ
+  ```
+  ```
+- 2026-10-22 · 20c8615f* · exit 0 · `out=$(node --test --test-reporter=tap tests/one-run-release.test.mjs 2>&1) \ …` · acceptance-sha256:1b3592e89a1196ffde1ff27f5e501ce964e3efc26297fdc4f5f259e5fefbe634 · ms:261

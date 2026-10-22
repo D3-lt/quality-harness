@@ -11,7 +11,7 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Covers | Acceptance |
 |----|-------|--------|------------|--------|------------|
-| [T1](T1-one-run-per-release.md) | A landing's push run is the release's full campaign, and main runs nothing of its own | pending | none | none — no spec | `node --test tests/one-run-release.test.mjs`, named tests |
+| [T1](T1-one-run-per-release.md) | A landing's push run is the release's full campaign, and main runs nothing of its own | done | none | none — no spec | `node --test tests/one-run-release.test.mjs`, named tests |
 | [T2](T2-coverage-in-two-jobs.md) | The coverage floor is two parallel jobs | pending | none | none — no spec | `node --test tests/coverage-split.test.mjs`, named tests |
 | [T3](T3-the-suite-sets-its-budgets.md) | Every runner of the suite sets the budgets its tests depend on | pending | none | none — no spec | `node --test tests/suite-budgets.test.mjs`, named tests |
 | [T4](T4-evidence-after-the-landing.md) | Before the landing only the review stops a release; after it an attestation is evidence | pending | none | none — no spec | `node --test tests/evidence-after-landing.test.mjs`, named tests |

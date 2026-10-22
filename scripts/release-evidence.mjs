@@ -83,13 +83,12 @@ export function evaluateRun(run) {
       jobs,
     }
   }
-  // ⚠ A GREEN RUN IS NOT AUTOMATICALLY A RELEASE-GRADE ONE (BACKLOG §142). Since
-  // 2026-09-05 only a `workflow_dispatch` run measures the whole catalogue; a
-  // push to `main` may reuse a cached RED verdict, which is right for iteration
-  // and not what a tag may rest on (ADR-023 rule 1). The event is the only thing
-  // that distinguishes them from outside, so it is asked here rather than
-  // assumed — a sha whose newest run was a push is "could not look at a full
-  // campaign", never "cleared".
+  // ⚠ A GREEN RUN IS NOT AUTOMATICALLY A RELEASE-GRADE ONE (BACKLOG §142). Only a full
+  // campaign may carry a tag (ADR-023 rule 1): a `workflow_dispatch` run, or since
+  // ADR-126 T1 the landing's own push to `land/<its sha>`, which the workflow runs
+  // full. Any other push or a pull request may reuse a cached RED verdict, which is
+  // right for iteration and not what a tag may rest on. The event and the branch are
+  // what distinguish them from outside, so they are asked here rather than assumed.
   if (run.event === undefined || run.event === null) {
     return {
       verdict: 'unreadable',
@@ -98,12 +97,14 @@ export function evaluateRun(run) {
       jobs,
     }
   }
-  if (run.event !== 'workflow_dispatch') {
+  const landing = run.event === 'push' && typeof run.headSha === 'string' && run.headBranch === `land/${run.headSha}`
+  if (run.event !== 'workflow_dispatch' && !landing) {
     return {
       verdict: 'cached',
-      reason: `the newest run for this sha was raised by \`${run.event}\`, so its mutation campaign `
-        + 'may have reused cached verdicts. A release must rest on a full campaign: run '
-        + '`gh workflow run selftest.yml --ref main` at this sha, wait for it, and ask again.',
+      reason: `the newest run for this sha was raised by \`${run.event}\`${run.headBranch ? ` on ${run.headBranch}` : ''}, so its `
+        + 'mutation campaign may have reused cached verdicts. A release must rest on a full campaign: land the sha '
+        + 'through `node scripts/land.mjs` (its land/<sha> run is full), or run `gh workflow run selftest.yml --ref main` '
+        + 'at it, wait for every job, and ask again.',
       jobs,
     }
   }
@@ -220,7 +221,7 @@ export function fetchRun(sha, exec = execFileSync) {
   if (!id) return null
   try {
     return JSON.parse(exec('gh', [
-      'run', 'view', String(id), '--json', 'status,conclusion,headSha,jobs,event',
+      'run', 'view', String(id), '--json', 'status,conclusion,headSha,headBranch,jobs,event',
     ], { encoding: 'utf8', timeout: 60_000 }))
   } catch {
     return null

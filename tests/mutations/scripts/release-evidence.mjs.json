@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T1: only the landing branch of its own sha is a full campaign",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/one-run-release.test.mjs"],
+      "from": "  const landing = run.event === 'push' && typeof run.headSha === 'string' && run.headBranch === `land/${run.headSha}`",
+      "to": "  const landing = run.event === 'push' && String(run.headBranch ?? '').startsWith('land/')",
+      "only": "^(?:a push to land/<sha> is a full campaign, and any other push or a pull request is not)$"
+    },
+    {
       "label": "BACKLOG §406: --local is unproven when the outside run is",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/release-evidence.test.mjs"],
@@ -287,11 +295,11 @@
       "label": "release-evidence: a run raised by a push is not a full campaign",
       "file": "scripts/release-evidence.mjs",
       "tests": [
-        "tests/release-evidence.test.mjs"
+        "tests/release-evidence.test.mjs", "tests/one-run-release.test.mjs"
       ],
-      "from": "  if (run.event !== 'workflow_dispatch') {",
+      "from": "  if (run.event !== 'workflow_dispatch' && !landing) {",
       "to": "  if (false) {",
-      "only": "^(?:a green run raised by a push is not release evidence, because its campaign may be cached \\(BACKLOG §142\\)|the verdicts are five distinct answers, not a boolean wearing five names)$"
+      "only": "^(?:a green run raised by a push is not release evidence, because its campaign may be cached \\(BACKLOG §142\\)|the verdicts are five distinct answers, not a boolean wearing five names|a push to land/<sha> is a full campaign, and any other push or a pull request is not)$"
     },
     {
       "label": "release-evidence: a run that does not say what raised it is could-not-look",

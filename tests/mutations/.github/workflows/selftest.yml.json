@@ -24,11 +24,11 @@
       "label": "ci: a forced run reuses nothing, because a release measures everything",
       "file": ".github/workflows/selftest.yml",
       "tests": [
-        "tests/package.test.mjs"
+        "tests/package.test.mjs", "tests/one-run-release.test.mjs"
       ],
-      "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}",
-      "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'push' }}",
-      "only": "^(?:continuous integration runs the checks this repository owns|every catalogue entry still matches the source it mutates, exactly once)$"
+      "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}",
+      "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}",
+      "only": "^(?:continuous integration runs the checks this repository owns|every catalogue entry still matches the source it mutates, exactly once|the workflow runs on land pushes, never on a push to main, and every land push is a full campaign)$"
     },
     {
       "label": "ADR-097 T2: no workflow runs the evals without a key",

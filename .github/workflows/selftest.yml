@@ -5,8 +5,9 @@ name: selftest
 # regression and main.
 on:
   push:
-    # land/<sha> is where a sha's required checks run before main takes it (ADR-118, scripts/land.mjs).
-    branches: [main, 'land/**']
+    # land/<sha> is where a sha's required checks run before main takes it (ADR-118, scripts/land.mjs). Not main: it only
+    # fast-forwards to a sha land/<sha> has checked, and its own run caught nothing that one had not (ADR-126 T1).
+    branches: ['land/**']
   pull_request:
   workflow_dispatch:
 
@@ -283,17 +284,12 @@ jobs:
         with:
           name: mutation-cache-seed
       - name: Break each mechanism and check the tests notice
-        # ADR-023 T3, corrected 2026-09-05 (BACKLOG §142). The full campaign runs
-        # on `workflow_dispatch` and nowhere else. It used to be forced on tags
-        # and on `main`: the TAG half was a branch nothing could take, because
-        # this workflow has no tag trigger and no run has ever been raised by one,
-        # and the `main` half made every push — a backlog edit, a test-only
-        # change — pay a 581-mutant campaign at ~23 minutes. What must be full is
-        # the run a RELEASE is cut from, so that is the run you ask for by hand,
-        # and `release-evidence.mjs` REFUSES a sha whose newest run was not a
-        # dispatch, so the cheap path cannot become a quiet evidence hole.
+        # ADR-023 T3, corrected 2026-09-05 (BACKLOG §142): what must be full is the run a RELEASE is cut from. Since
+        # ADR-126 T1 that is the landing's own push to land/<sha>, so every land push runs the whole catalogue, and a
+        # dispatch still does; a pull request reuses the cache. `release-evidence.mjs` refuses any other run as cached,
+        # so the cheap path cannot become a quiet evidence hole.
         env:
-          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}
+          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}
         run: |
           if [ "$QUALITY_HARNESS_FULL_CAMPAIGN" = "true" ]; then
             node scripts/mutate.mjs --shard ${{ matrix.shard }}/48 --no-cache --in-place

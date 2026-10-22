@@ -54,6 +54,9 @@ test('a runner whose filter selected nothing is UNRUN, and one that reports the 
   // The verification review of 3.8.52's fix (A2): a bound name two tests end in is not attributable, whichever passed.
   const twin = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 2 tests\ntest it_works ... ignored\ntest other::it_works ... ok\n\ntest result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
   assert.equal(twin.status, 4, `two tests named it_works cannot tell which one ran:\n${twin.stdout}`)
+  // The second verification review (A2): an ignored test with a reason prints `... ignored, <reason>`; it is still a candidate.
+  const reason = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 2 tests\ntest it_works ... ignored, needs network\ntest other::it_works ... ok\n\ntest result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
+  assert.equal(reason.status, 4, `an ignored test with a reason is still one of two candidates:\n${reason.stdout}`)
 
   const web = { 'web/package.json': '{"name":"w"}\n', 'web/node_modules/.keep': '', 'web/a.test.js': "test('adds', () => { expect(1).toBe(1) })\n" }
   const vitest = fixture('web/a.test.js::adds', '', web)
@@ -76,7 +79,10 @@ test('a runner whose filter selected nothing is UNRUN, and one that reports the 
 test('a Cmd override that runs nothing is UNRUN, not a pass', { skip: NO_POSIX_STUB }, t => {
   // The release review of 3.8.52 (A1): a separator, a comment or a chain of no-ops runs nothing either (each measured in bash
   // and sh, 2026-10-22: exit 0).
-  for (const cmd of ['`true`', '`:`', '`exit 0`', '`/usr/bin/true`', '`true;`', '`exit 0;`', '`: # no test`', '`true && :`', '` true ; : `']) {
+  // The second verification review (A1): a command no execution reaches runs nothing either: after `exit`, or behind `||` a
+  // no-op answered (measured in bash and sh, 2026-10-22: exit 0 without running the test).
+  for (const cmd of ['`true`', '`:`', '`exit 0`', '`/usr/bin/true`', '`true;`', '`exit 0;`', '`: # no test`', '`true && :`', '` true ; : `',
+    '`exit 0; test -f nowhere.md`', '`true \\|\\| test -f nowhere.md`']) {
     const f = fixture('test_selftest_fixture.py::test_gates_run', cmd, {})
     t.after(() => remove(f.dir))
     const run = verify(f, process.env)

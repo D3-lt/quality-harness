@@ -616,7 +616,9 @@ class CargoEvidence:
     ends in `::<name>`), and that one says `ok`. Two that end in the name cannot tell which ran, whichever passed (the
     verification review of 3.8.52's fix), so that is not a pass."""
 
-    LINE = re.compile(r"^test (\S+) \.\.\. (\S+)$", re.M)
+    # The status is the rest of the line: an ignored test with a reason prints `... ignored, <reason>` (the second
+    # verification review of 3.8.52), and it is still a candidate.
+    LINE = re.compile(r"^test (\S+) \.\.\. (.+?)\s*$", re.M)
 
     def __init__(self, name):
         self.name = name
@@ -638,9 +640,12 @@ NOTHING_RUNS = {"true", ":", "exit", "exit 0", "/bin/true", "/usr/bin/true"}
 
 
 def runs_nothing(command):
-    """Whether a Cmd override is no-ops only: each command between `;`, `&&`, `||`, `&`, `|` or a newline, comments dropped,
-    is one of NOTHING_RUNS. `true;`, `exit 0;`, `: # no test` and `true && :` all exit 0 in bash and sh and run no test
-    (measured 2026-10-22, the release review of 3.8.52). A command the lexer cannot read is not called a no-op: it runs."""
+    """Whether a Cmd override can reach no command but a no-op. The commands between `;`, `&&`, `||`, `&`, `|` and newlines
+    (comments dropped) are walked as the shell runs them: a no-op leaves status 0, `exit` stops everything after it, `&&`
+    runs what follows only on 0 and `||` only on non-zero. `true;`, `exit 0;`, `: # no test`, `true && :`, `exit 0; test -f x`
+    and `true || test -f x` all exit 0 in bash and sh without running a test (measured 2026-10-22, the release review of
+    3.8.52 and its verification). Any other command that execution can reach is called real, so this list never stands for
+    "runs a test": a command the lexer cannot read is not called a no-op either."""
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
         lexer.whitespace = " \t\r"
@@ -648,15 +653,26 @@ def runs_nothing(command):
         tokens = list(lexer)
     except ValueError:
         return False
-    commands, current = [], []
+    steps, current, op = [], [], None
     for token in tokens + [";"]:
         if token in (";", "&&", "||", "&", "|", ";;", "\n") or set(token) <= set(";&|\n"):
             if current:
-                commands.append(" ".join(current))
-            current = []
+                steps.append((op, " ".join(current)))
+            current, op = [], token
         else:
             current.append(token)
-    return bool(commands) and all(c in NOTHING_RUNS for c in commands)
+    if not steps:
+        return False
+    status = 0
+    for op, cmd in steps:
+        if op == "&&" and status != 0 or op == "||" and status == 0:
+            continue
+        if cmd not in NOTHING_RUNS:
+            return False
+        if cmd.split()[0] == "exit":
+            return True
+        status = 0
+    return True
 
 
 def swift_identity(package_root, path, name):

@@ -3485,3 +3485,16 @@ Found 2026-10-22 (the run of §402). None reproduced here yet; each is a lead.
 - Corrected by the reporter: §397's bare file name exists twice in that tree, so adr-lint refuses an ambiguous name by design;
   only the wording ("names no file in the repo") is wrong there.
 Fixed the same day: the `if … then … fi` false refusal (check-command.mjs, checkcmd.go) and the shims' bare `exit /b`.
+
+## 404. spec-verify judges whether a Cmd override runs a test from its text, and that class is open
+
+Found 2026-10-22 by three Codex review rounds of the 3.8.52 release, each finding new spellings: `true;`, `exit 0;`,
+`: # no test`, then `true || test -f x` and `exit 0; test -f x`. `runs_nothing` (plugin/bin/spec-verify) now walks the commands
+as the shell reaches them (`;`, `&&`, `||`, `&`, `|`, `exit`) and calls an override a no-op only when execution can reach no
+command but `true`, `:`, `exit` or `/bin/true`; every spelling above is a test case, measured in bash and sh. What it cannot
+see, by construction (CLAUDE.md §16): any other command that exits 0 without running a test, such as `[ 1 = 1 ] || pytest x`,
+`test -f spec.md`, `echo ok`, or a script that does nothing. Text classifies only the forms it was shown.
+The structural answer is ADR-123 Decision 2: a pass needs the runner's own evidence that the bound test ran (a cargo `test
+<name> ... ok` line, go's `--- PASS`, swift's identity), and an override with none is UNRUN. ADR-123 T3 does that for a Living
+model; for an ordinary spec it would turn every override that prints no runner output (`make test-x`) UNRUN, which is a
+decision for the owner, not a fix.

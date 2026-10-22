@@ -4,9 +4,33 @@
       "label": "the release review of 3.8.52: a no-op chain, a separator or a comment runs nothing either",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],
-      "from": "    return bool(commands) and all(c in NOTHING_RUNS for c in commands)",
-      "to": "    return command.strip() in NOTHING_RUNS",
+      "from": "        if cmd not in NOTHING_RUNS:\n            return False",
+      "to": "        if cmd not in NOTHING_RUNS and False:\n            return False",
       "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
+    },
+    {
+      "label": "the second verification review of 3.8.52: what follows || after a no-op is never reached",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "        if op == \"&&\" and status != 0 or op == \"||\" and status == 0:",
+      "to": "        if op == \"&&\" and status != 0:",
+      "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
+    },
+    {
+      "label": "the second verification review of 3.8.52: nothing after exit is reached",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "        if cmd.split()[0] == \"exit\":\n            return True",
+      "to": "        if False:\n            return True",
+      "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
+    },
+    {
+      "label": "the second verification review of 3.8.52: an ignored test with a reason is still a candidate",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "    LINE = re.compile(r\"^test (\\S+) \\.\\.\\. (.+?)\\s*$\", re.M)",
+      "to": "    LINE = re.compile(r\"^test (\\S+) \\.\\.\\. (\\S+)$\", re.M)",
+      "only": "^(?:a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass)$"
     },
     {
       "label": "the cold review of ADR-123: a Cmd override that runs nothing is not run, not a pass",

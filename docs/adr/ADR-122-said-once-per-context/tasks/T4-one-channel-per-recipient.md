@@ -19,10 +19,10 @@ reads `additionalContext` and the user reads `systemMessage` (T1's measurement),
 | File | Change | Why |
 |------|--------|-----|
 | `tests/hook-channel.test.mjs` | create | the channel rows (0 locks: new) |
-| `plugin/scripts/lifecycle.mjs` | edit | the PreToolUse and Stop headlines (:109-125) follow the item's verdict: no headline for a skipped item; Stop's `audience` unchanged |
-| `core/hooks/lifecycle.go` | edit | the same (:276-283) |
-| `plugin/scripts/check-ledger.mjs` | edit | `deliveredTo` (:587-589) records the channels as measured on 2.1.307 |
-| `core/hooks/ledger.go` | edit | the same, Go (the cold review, finding 8) |
+| `plugin/scripts/lifecycle.mjs` | edit | the PreToolUse and Stop headlines (:109-125) follow the item's verdict: no headline for a skipped item; Stop's `audience` unchanged. Landed with T3's `deliver` routing (f62fd960); this task proves it |
+| `core/hooks/lifecycle.go` | edit | the same (:276-283), landed with T3 likewise |
+| `plugin/scripts/check-ledger.mjs` | read | `deliveredTo` (:587-589) already records what 2.1.307 measures: `both` for PreToolUse and a Stop that reaches the agent, `user` for every other event; unchanged |
+| `core/hooks/ledger.go` | read | the same, Go; unchanged |
 
 ## Ordered Steps
 
@@ -61,6 +61,7 @@ out=$(node --test --test-reporter=tap tests/hook-channel.test.mjs 2>&1) \
 | 4 — it is used | T5 counts characters per channel |
 
 ## Mutation Log
+- 2026-10-22 · 755d260a* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the user's channel carries the model's text instead of its headline · acceptance-sha256:aa003c336fa466beb291ed202fada5cd6df243a8c3e7806dca6bce01b35d03fe
 
 ## Invariants
 
@@ -81,3 +82,8 @@ Stop if T1 recorded the channel measurement as could-not-measure: Decision 4 the
 - The said-once rule itself (T2, T3).
 
 ## Verification Log
+- 2026-10-22 · 755d260a* · exit 1 · `out=$(node --test --test-reporter=tap tests/hook-channel.test.mjs 2>&1) \ …` · acceptance-sha256:aa003c336fa466beb291ed202fada5cd6df243a8c3e7806dca6bce01b35d03fe · ms:519 · test-lock-sha256:8f675dd99be19ad3a06825fee95c5687bb0e8ac63948a262ddcd3c3ec9ae414e · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvaG9vay1jaGFubmVsLnRlc3QubWpzCWFuIGl0ZW0gcmVhY2hlcyBlYWNoIHJlY2lwaWVudCBvbiBvbmUgY2hhbm5lbAk5YWE0ZjAxN2M0MWE3ZDUwYmQ0MjUyNTAwYWVlNWU1YzJlOTg4YWM5NzY5NzQ2NmNlZTI0ZTJjYTY0MjFlOWJmCmJvZHkJdGVzdHMvaG9vay1jaGFubmVsLnRlc3QubWpzCXRoZSBmaXJzdCBzYXlpbmcga2VlcHMgaXRzIGhlYWRsaW5lIGFuZCBhIHJlcGVhdCBoYXMgbm9uZQkyNmY4MDFlOWY4YzE5NjQ3ZGVmMTNiOWRhNDg4MjUzZmIxNjBlYmJjZDc0NTdlNWFhZTE3MDFmY2YzODU3ZDk1
+  ```
+  ```
+- 2026-10-22 · 755d260a* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-channel.test.mjs 2>&1) \ …` · acceptance-sha256:aa003c336fa466beb291ed202fada5cd6df243a8c3e7806dca6bce01b35d03fe · ms:1207
+- 2026-10-22 · 755d260a* · exit 0 · `out=$(node --test --test-reporter=tap tests/hook-channel.test.mjs 2>&1) \ …` · acceptance-sha256:aa003c336fa466beb291ed202fada5cd6df243a8c3e7806dca6bce01b35d03fe · ms:2960

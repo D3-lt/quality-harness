@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-122 T4: the user is shown the headline, the model the text",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/hook-channel.test.mjs"],
+      "from": "        const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`",
+      "to": "        const headline = `quality-harness advised the agent: ${texts[0]}`",
+      "only": "^(?:an item reaches each recipient on one channel)$"
+    },
+    {
       "label": "SessionEnd: a runner that does not exist is said, and the hook records the end itself",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/session-end-behind.test.mjs"],

@@ -45,8 +45,12 @@ test('a runner whose filter selected nothing is UNRUN, and one that reports the 
   t.after(() => remove(cargo.dir))
   const none = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s\n'))
   assert.equal(none.status, 4, `cargo selecting nothing is could-not-run:\n${none.stdout}`)
-  const ran = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
-  assert.equal(ran.status, 0, `cargo reporting one passed is a pass:\n${ran.stdout}`)
+  // cargo 1.99.1, measured 2026-10-22: every test the filter matched prints its own `test <path> ... ok|ignored` line.
+  const ran = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 1 test\ntest it_works ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
+  assert.equal(ran.status, 0, `cargo reporting the bound test ok is a pass:\n${ran.stdout}`)
+  // The release review of 3.8.52 (A2): a substring filter that matched another test, while the bound one was ignored.
+  const other = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 2 tests\ntest it_works ... ignored\ntest it_works_other ... ok\n\ntest result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
+  assert.equal(other.status, 4, `another test passing is not the bound one passing:\n${other.stdout}`)
 
   const web = { 'web/package.json': '{"name":"w"}\n', 'web/node_modules/.keep': '', 'web/a.test.js': "test('adds', () => { expect(1).toBe(1) })\n" }
   const vitest = fixture('web/a.test.js::adds', '', web)
@@ -67,7 +71,9 @@ test('a runner whose filter selected nothing is UNRUN, and one that reports the 
 })
 
 test('a Cmd override that runs nothing is UNRUN, not a pass', { skip: NO_POSIX_STUB }, t => {
-  for (const cmd of ['`true`', '`:`', '`exit 0`', '`/usr/bin/true`']) {
+  // The release review of 3.8.52 (A1): a separator, a comment or a chain of no-ops runs nothing either (each measured in bash
+  // and sh, 2026-10-22: exit 0).
+  for (const cmd of ['`true`', '`:`', '`exit 0`', '`/usr/bin/true`', '`true;`', '`exit 0;`', '`: # no test`', '`true && :`', '` true ; : `']) {
     const f = fixture('test_selftest_fixture.py::test_gates_run', cmd, {})
     t.after(() => remove(f.dir))
     const run = verify(f, process.env)
@@ -78,4 +84,8 @@ test('a Cmd override that runs nothing is UNRUN, not a pass', { skip: NO_POSIX_S
   const real = fixture('test_selftest_fixture.py::test_gates_run', '`test -f spec-selftest.md`', {})
   t.after(() => remove(real.dir))
   assert.equal(verify(real, process.env).status, 0)
+  // Twin: a no-op beside a real command runs that command.
+  const chained = fixture('test_selftest_fixture.py::test_gates_run', '`true; test -f nowhere.md`', {})
+  t.after(() => remove(chained.dir))
+  assert.equal(verify(chained, process.env).status, 3, 'the real command after the no-op is run, and its failure is a failure')
 })

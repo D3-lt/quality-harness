@@ -26,6 +26,8 @@ const (
 
 var (
 	saidMainLoop = regexp.MustCompile(`^repl_main_thread\b`)
+	// A subagent's own loop (said-per-context.mjs AGENT_LOOP says what was measured).
+	saidAgentLoop = regexp.MustCompile(`^agent:`)
 	saidMarkerRe = regexp.MustCompile(`<qh:[A-Za-z0-9_.-]+@[0-9a-f]{8}>`)
 )
 
@@ -303,8 +305,12 @@ func scanTranscript(file, cacheFile string, opt saidOptions) *saidScan {
 
 func lastRequest(cache *saidCache, agent bool) (string, []string, bool) {
 	id := ""
+	loop := saidMainLoop
+	if agent {
+		loop = saidAgentLoop
+	}
 	for i := len(cache.Order) - 1; i >= 0; i-- {
-		if agent || saidMainLoop.MatchString(cache.Requests[cache.Order[i]].QuerySource) {
+		if loop.MatchString(cache.Requests[cache.Order[i]].QuerySource) {
 			id = cache.Order[i]
 			break
 		}

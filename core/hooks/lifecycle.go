@@ -30,6 +30,7 @@ type hookRun struct {
 	cwd     string
 	session any
 	pending []action
+	marks   []string // said-per-context markers to record once the output has left the process
 	output  *Obj
 	stdout  io.Writer
 	stderr  io.Writer
@@ -222,7 +223,12 @@ func (h *hookRun) unsaid(actions []action) []action {
 			kept = append(kept, a)
 			continue
 		}
-		verdict, marker := SaidInContext(in, strings.ToLower(a.rule), a.text)
+		identity := a.text
+		// A publish advice's key is part of what it is (lifecycle.mjs identityOf); the mention stays context-wide.
+		if key, ok := a.key.(string); ok && a.rule == "P" && !strings.HasSuffix(key, ":mention") {
+			identity = key + "\n" + a.text
+		}
+		verdict, marker := SaidInContext(in, strings.ToLower(a.rule), identity)
 		if verdict == "said" || verdict == "pending" {
 			continue
 		}
@@ -333,9 +339,10 @@ func (h *hookRun) deliver() {
 		}
 	}
 	h.output = output
+	// The pending marks are written after the output leaves the process (flush, below in Run): lifecycle.mjs recordDelivered.
 	for _, a := range delivered {
 		if a.marker != "" {
-			RecordSaid(h.saidInput(), a.marker)
+			h.marks = append(h.marks, a.marker)
 		}
 	}
 	for _, a := range delivered {
@@ -624,6 +631,9 @@ func Run(stdin io.Reader, stdout, stderr io.Writer) int {
 	defer func() {
 		h.deliver()
 		h.flush(started)
+		for _, marker := range h.marks {
+			RecordSaid(h.saidInput(), marker)
+		}
 	}()
 	h.handle()
 	return 0

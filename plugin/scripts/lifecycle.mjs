@@ -85,9 +85,19 @@ function unsaid(actions, input) {
   const toAgent = action => input?.hook_event_name === 'PreToolUse' || (stopReachesAgent(input) && action.audience !== 'user')
   return actions.flatMap(action => {
     if (!action.rule || !toAgent(action)) return [action]
-    const { verdict, marker } = saidInContext(input, action.rule.toLowerCase(), action.text)
+    const { verdict, marker } = saidInContext(input, action.rule.toLowerCase(), identityOf(action))
     return verdict === 'said' || verdict === 'pending' ? [] : [{ ...action, marker }]
   })
+}
+// What makes two items one: the text, and for a publish advice its key too, since two trees can be warned in one text and each
+// is its own finding (the release review of 3.8.52; ADR-122 Decision 5 keeps the mention alone context-wide).
+const identityOf = action => action.rule === 'P' && typeof action.key === 'string' && !/:mention$/.test(action.key)
+  ? `${action.key}\n${action.text}` : action.text
+// A said item's pending mark is written only once its output has left the process (the release review of 3.8.52): a mark for
+// output never delivered would suppress it on the next hook. main() records after flushOutput; a caller with no flush of its
+// own (a test) keeps the default.
+export function recordDelivered(delivered, input) {
+  for (const action of delivered) if (action.marker) recordSaid(input, action.marker)
 }
 // The marker follows the text after a space: a newline in a turn-end message is what a spliced command once put there.
 const marked = action => action.marker ? `${action.text} ${action.marker}` : action.text
@@ -96,7 +106,7 @@ const marked = action => action.marker ? `${action.text} ${action.marker}` : act
 // the same hook stay in the reason, so a refusal does not hide them. A legacy
 // deny is passed through. Otherwise every advisory is joined. `action.emitted`
 // is appended only for what was delivered.
-export function deliver(actions, input, { legacy = null } = {}) {
+export function deliver(actions, input, { legacy = null, recordMarks = true } = {}) {
   const event = input?.hook_event_name
   const denials = actions.filter(action => action.deny)
   let delivered
@@ -146,7 +156,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
     }
   }
   emitJson(output)
-  for (const action of delivered) if (action.marker) recordSaid(input, action.marker)
+  if (recordMarks) recordDelivered(delivered, input)
   for (const action of delivered) {
     if (action.rule) {
       appendEvent(input.cwd, input.session_id, {
@@ -312,8 +322,9 @@ async function main() {
   } finally {
     // Every hook's output leaves through deliver(), so a rule's action and a
     // legacy emitJson output are composed, never one overwriting the other.
-    deliver(pendingActions.splice(0), input ?? {}, { legacy: peekOutput() })
+    const { delivered } = deliver(pendingActions.splice(0), input ?? {}, { legacy: peekOutput(), recordMarks: false })
     flushOutput(startedAt, input)
+    recordDelivered(delivered, input ?? {})
   }
 }
 

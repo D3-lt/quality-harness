@@ -1,10 +1,18 @@
 {
   "mutations": [
     {
+      "label": "the release review of 3.8.52: a no-op chain, a separator or a comment runs nothing either",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "    return bool(commands) and all(c in NOTHING_RUNS for c in commands)",
+      "to": "    return command.strip() in NOTHING_RUNS",
+      "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
+    },
+    {
       "label": "the cold review of ADR-123: a Cmd override that runs nothing is not run, not a pass",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],
-      "from": "    if override_cmd and \" \".join(override_cmd.split()) in NOTHING_RUNS:",
+      "from": "    if override_cmd and runs_nothing(override_cmd):",
       "to": "    if False:",
       "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
     },
@@ -12,8 +20,8 @@
       "label": "the cold review of ADR-123: a cargo run that passed nothing is not run",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],
-      "from": "    \"cargo\": lambda name: re.compile(r\"^test result: ok\\. [1-9]\\d* passed\", re.M),",
-      "to": "    \"cargo\": lambda name: re.compile(r\"^test result: ok\\. \\d+ passed\", re.M),",
+      "from": "    \"cargo\": lambda name: re.compile(rf\"^test (?:[\\w:]+::)?{re.escape(name)} \\.\\.\\. ok$\", re.M),",
+      "to": "    \"cargo\": lambda name: re.compile(r\"^test result: ok\\. [1-9]\\d* passed\", re.M),",
       "only": "^(?:a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass)$"
     },
     {

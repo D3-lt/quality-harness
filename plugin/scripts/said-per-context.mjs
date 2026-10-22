@@ -27,6 +27,9 @@ export const BUDGET_BYTES = 8 * 1024 * 1024
 export const BUDGET_MS = 1000
 // The main loop's requests (measured 2026-10-22: every recorded request of the session carried this prefix).
 const MAIN_LOOP = /^repl_main_thread\b/
+// A subagent's own loop (measured 2026-10-22: 4847 requests over 79 subagent transcripts, every one `agent:…`). A side query in
+// its transcript (a compaction summary, a classifier) is not its context (the release review of 3.8.52).
+const AGENT_LOOP = /^agent:/
 const MARKER = /<qh:[A-Za-z0-9_.-]+@[0-9a-f]{8}>/g
 
 const digest = text => createHash('sha256').update(text).digest('hex')
@@ -152,7 +155,8 @@ function scan(file, cacheFile, { budgetBytes, budgetMs }) {
 
 /** The last request of the receiving context, rebuilt into its message-blob hashes; null when it cannot be rebuilt. */
 function lastRequest(cache, agent) {
-  const id = [...cache.order].reverse().find(r => agent || MAIN_LOOP.test(cache.requests[r]?.querySource ?? ''))
+  const loop = agent ? AGENT_LOOP : MAIN_LOOP
+  const id = [...cache.order].reverse().find(r => loop.test(cache.requests[r]?.querySource ?? ''))
   if (!id) return null
   const chain = []
   let unknownBefore = false

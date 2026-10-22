@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "the release review of 3.8.52: two trees warned in one text are two findings",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/said-per-context-delivery.test.mjs"],
+      "from": "const identityOf = action => action.rule === 'P'",
+      "to": "const identityOf = action => false && action.rule === 'P'",
+      "only": "^(?:two trees warned in one text are each said, and the mention is said once)$"
+    },
+    {
+      "label": "the release review of 3.8.52: a pending mark waits for its output to leave",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/said-per-context-delivery.test.mjs"],
+      "from": "  if (recordMarks) recordDelivered(delivered, input)",
+      "to": "  recordDelivered(delivered, input)",
+      "only": "^(?:a pending mark is written only for output that left the process)$"
+    },
+    {
       "label": "ADR-122 T4: the user is shown the headline, the model the text",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/hook-channel.test.mjs"],

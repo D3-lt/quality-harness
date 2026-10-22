@@ -27,6 +27,7 @@ import ast
 import os
 import re
 import subprocess
+import shlex
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -504,7 +505,7 @@ def test_runs(test, root, stack, override_cmd):
     """
     # A Cmd override that runs nothing passes whatever the code does: `true`, `:` and `exit 0` exit 0 in every POSIX shell
     # without running a test (the cold review of ADR-123, 2026-10-22). Such an override proves nothing ran, so it is not run.
-    if override_cmd and " ".join(override_cmd.split()) in NOTHING_RUNS:
+    if override_cmd and runs_nothing(override_cmd):
         return "unrun", (f"the Cmd override `{override_cmd}` runs no test: it exits 0 whatever the code does, so it "
                          "cannot show the bound test passing. Give the binding a command that runs that test")
     if override_cmd:
@@ -603,9 +604,10 @@ def test_runs(test, root, stack, override_cmd):
 # by `swift_identity`, because a bare name is not attributable there.
 RAN_EVIDENCE = {
     "go": lambda name: re.compile(rf"^\s*--- PASS: {re.escape(name)}(?:\s|$)", re.M),
-    # cargo 1.99.1, measured 2026-10-22: a filter that matches nothing prints `running 0 tests` and `test result: ok. 0
-    # passed`, exit 0; one that matches prints `test result: ok. 1 passed`. A pass needs at least one passed somewhere.
-    "cargo": lambda name: re.compile(r"^test result: ok\. [1-9]\d* passed", re.M),
+    # cargo 1.99.1, measured 2026-10-22: every test the filter matched prints its own `test <path>::<name> ... ok` (or
+    # `... ignored`, `... FAILED`), and `test result: ok. 1 passed` counts every match, so a substring filter can pass on
+    # another test while the bound one is ignored (the release review of 3.8.52). A pass needs the bound test's own `ok`.
+    "cargo": lambda name: re.compile(rf"^test (?:[\w:]+::)?{re.escape(name)} \.\.\. ok$", re.M),
 }
 
 # Runners whose no-match output is measured but whose pass output is not: only the measured no-match shape is read as not
@@ -618,6 +620,28 @@ SELECTED_NOTHING = {
 
 # Override commands that exit 0 and run nothing, each run in bash and dash (2026-10-22).
 NOTHING_RUNS = {"true", ":", "exit", "exit 0", "/bin/true", "/usr/bin/true"}
+
+
+def runs_nothing(command):
+    """Whether a Cmd override is no-ops only: each command between `;`, `&&`, `||`, `&`, `|` or a newline, comments dropped,
+    is one of NOTHING_RUNS. `true;`, `exit 0;`, `: # no test` and `true && :` all exit 0 in bash and sh and run no test
+    (measured 2026-10-22, the release review of 3.8.52). A command the lexer cannot read is not called a no-op: it runs."""
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.whitespace = " \t\r"
+        lexer.commenters = "#"
+        tokens = list(lexer)
+    except ValueError:
+        return False
+    commands, current = [], []
+    for token in tokens + [";"]:
+        if token in (";", "&&", "||", "&", "|", ";;", "\n") or set(token) <= set(";&|\n"):
+            if current:
+                commands.append(" ".join(current))
+            current = []
+        else:
+            current.append(token)
+    return bool(commands) and all(c in NOTHING_RUNS for c in commands)
 
 
 def swift_identity(package_root, path, name):

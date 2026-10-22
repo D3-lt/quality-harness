@@ -9,10 +9,18 @@
       "only": "^(?:a marker in a tool result or in a side query is not a saying)$"
     },
     {
+      "label": "the release review of 3.8.52: a subagent's context is its own loop, never a side query",
+      "file": "plugin/scripts/said-per-context.mjs",
+      "tests": ["tests/said-per-context-sources.test.mjs"],
+      "from": "  const loop = agent ? AGENT_LOOP : MAIN_LOOP",
+      "to": "  const loop = agent ? /./ : MAIN_LOOP",
+      "only": "^(?:a subagent's side request is not its context)$"
+    },
+    {
       "label": "ADR-122 T2: only the main loop's last request is the context, never a side query",
       "file": "plugin/scripts/said-per-context.mjs",
       "tests": ["tests/said-per-context.test.mjs"],
-      "from": "  const id = [...cache.order].reverse().find(r => agent || MAIN_LOOP.test(cache.requests[r]?.querySource ?? ''))",
+      "from": "  const id = [...cache.order].reverse().find(r => loop.test(cache.requests[r]?.querySource ?? ''))",
       "to": "  const id = [...cache.order].reverse().find(r => true)",
       "only": "^(?:a marker in a tool result or in a side query is not a saying)$"
     },

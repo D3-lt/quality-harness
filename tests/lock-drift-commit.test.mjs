@@ -61,12 +61,10 @@ function fixture({ status = 'done', second = false, twin = false } = {}) {
 }
 
 const driftLines = said => String(said ?? '').split('\n').filter(line => /hash moved/.test(line))
-// Said once on POSIX; on Windows at least once. The landing run of d161ec16 (39684429396, windows) said the line twice in
-// a pass that also gates its task: the record key the scan reads did not match the one the record's lint wrote, so the
-// dedupe did nothing there, which repeats a line and never loses one (BACKLOG §396). What no platform may do is say fewer.
-const saidOnce = (count, expected, message) => (process.platform === 'win32'
-  ? assert.ok(count >= expected, message)
-  : assert.equal(count, expected, message))
+// Exactly once on every platform. On Windows the record's own lint ends its lines CRLF while the lines the scan kept lost the
+// CR in grep, so the dedupe never matched and the line was said twice (BACKLOG §396; the landing run of d161ec16,
+// 39684429396, and a Windows peer's probe, 2026-10-22). This file's windows CI job is that fix's regression.
+const saidOnce = (count, expected, message) => assert.equal(count, expected, message)
 
 test("an edit that moves another task's locked test names the task and the relock", () => {
   const bash = resolveBashExecutable()

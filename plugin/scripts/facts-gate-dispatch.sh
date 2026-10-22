@@ -37,7 +37,7 @@ say_unproven() {
 # Keep ownership resolution here and key the full argv, not an ADR basename.
 # The caller retains the first finding; a repeated command need not report it again.
 run_adr_lint() {
-  local ledger="" key status lint line
+  local ledger="" key status lint line said_line
   [ "$boundary" = "PostToolUse" ] || ledger=${QUALITY_HARNESS_ADR_LEDGER-}
   printf -v key '%q ' "$BIN/adr-lint" "$@"
   if [ -n "$ledger" ] && grep -Fqx -- "$key" "$ledger" 2>/dev/null; then
@@ -53,8 +53,11 @@ run_adr_lint() {
   if [ -n "$ledger" ] && [ -s "$ledger.drift" ]; then
     # And a lock line this pass already said as lock drift FOR THIS RECORD is not said again by its own lint.
     lint=$("$BIN/adr-lint" "$@" 2>&1); status=$?
+    # A CR is dropped before the comparison: adr-lint's own output ends its lines CRLF on Windows, while the lines the scan
+    # kept passed through grep, which drops it (BACKLOG §396, measured on a Windows peer 2026-10-22: equal keys, two lines).
     while IFS= read -r line; do
-      grep -Fqx -- "$key"$'\t'"${line#"${line%%[![:space:]]*}"}" "$ledger.drift" 2>/dev/null || printf '%s\n' "$line"
+      said_line=${line%$'\r'}
+      grep -Fqx -- "$key"$'\t'"${said_line#"${said_line%%[![:space:]]*}"}" "$ledger.drift" 2>/dev/null || printf '%s\n' "$line"
     done <<< "$lint"
   else
     "$BIN/adr-lint" "$@"; status=$?
@@ -362,7 +365,7 @@ lock_drift() {
     said=$(QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS="$pass" "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
     if [ "$cleared" = 1 ]; then IFS= read -r record < "$pass.key" 2>/dev/null || record=""; fi
     while IFS= read -r line; do
-      line=${line#"${line%%[![:space:]]*}"}
+      line=${line%$'\r'}; line=${line#"${line%%[![:space:]]*}"}
       if [ -n "$record" ]; then
         grep -Fqx -- "$record"$'\t'"$line" "$pass.drift" 2>/dev/null && continue
         { printf '%s\t%s\n' "$record" "$line" >> "$pass.drift"; } 2>/dev/null || :

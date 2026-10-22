@@ -3379,7 +3379,7 @@ Found 2026-10-21 on the same push run (coverage floor): `every record this repos
 SIGKILL`, could-not-look. The dispatched run's coverage floor at the same sha passed. A per-record budget under coverage on a
 loaded runner is the likely cause; unmeasured. Count how often it recurs, and name the budget it hit, before changing it.
 
-## 396. On Windows the lock-drift dedupe does not match its record key, so a moved lock can be said twice in one pass
+## 396. CLOSED 2026-10-22 (a trailing CR dropped before the comparison) — On Windows the lock-drift dedupe does not match its record key, so a moved lock can be said twice in one pass
 
 Found 2026-10-22 on the landing run of d161ec16 (39684429396, windows): `a pass gating a task and a test file it locks says
 the moved lock once, in either order` said it twice, and `two records whose tasks lock one test each say their moved lock`
@@ -3389,3 +3389,11 @@ with the one the record's own lint ran, as `printf %q` of its argv; on Windows t
 path's spelling (drive form or separator), unmeasured. A mismatch only disables the dedupe: the line is repeated, never
 lost, which the tests still hold on Windows (`saidOnce`: at least once there). Measure the two keys on a Windows runner and
 normalise them; then make the assertion exact on every platform.
+
+Closed 2026-10-22. Measured on a Windows peer (win32, node 24.20.0, Git Bash) with a probe that prints both keys: in the
+order test file first, `<ledger>` and `<ledger>.key` were byte-identical and the line was still said twice, so the key was
+never the difference. adr-lint's own output reached `read` with a trailing CR on Windows, while the lines the scan kept had
+passed through grep, which drops it; the exact-line match in run_adr_lint therefore never held. Both comparisons now drop a
+trailing CR (plugin/scripts/facts-gate-dispatch.sh). The same probe with the patch said one line in both orders. The
+tests assert the exact count on every platform again; the windows CI job is the regression, because no other platform
+produces the CR. No catalogue mutant: the campaign runs on Linux, where a mutant removing the CR strip changes nothing.

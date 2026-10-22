@@ -3514,6 +3514,11 @@ sha passed, so the tag stands on the dispatched run (CLAUDE.md §13.3).
   mutant, so the project's own cache is legitimate there), the per-task re-entry (runs adr-verify, not a fence) and git calls.
   `scripts/inverse-hunks.mjs` already sets `PYTHONDONTWRITEBYTECODE`. Test: `tests/adr-verify-bytecode.test.mjs`, two
   catalogue mutants killed.
+  **Corrected the same day:** the fresh `PYTHONPYCACHEPREFIX` made every fence recompile all it imported, the standard
+  library's included, and the coverage floor's run of `tests/evidence-chain.test.mjs` ("the recorded duration is the clean
+  fence…") then measured ms:3050 against a 1885ms plain run on `land/a588177f`. Not writing is enough, since the stale entry
+  is one the clean fence wrote: measured with `touch -r`, a clean run under `PYTHONDONTWRITEBYTECODE=1` leaves no
+  `__pycache__` and the same-second, same-size mutant is read from source. The prefix is gone.
 - **Windows, two `tests/publish-command.test.mjs` refusal rows read `null`.** `armedSession` inherited the product's 5s
   observe budget; a slow runner outran it, and the hook advised "unknown" with no decision, which is the designed answer
   (BACKLOG §314, CLAUDE.md §16) and not a fail-open. The helper now sets `QUALITY_HARNESS_OBSERVE_BUDGET_MS` (CLAUDE.md §7);

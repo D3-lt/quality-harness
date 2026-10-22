@@ -51,7 +51,7 @@ function mutant(dir) {
 // run with no cache to trust reaches the comparison that kills it.
 const TRUSTS = [
   'import sys',
-  'if not (sys.flags.dont_write_bytecode and sys.pycache_prefix):',
+  'if not sys.flags.dont_write_bytecode:',
   '    print("1 passed in 0.01s")',
   '    sys.exit(0)',
   'import m',
@@ -71,7 +71,7 @@ test('a mutant fence runs with no bytecode cache it could trust', () => {
 // did not cause would be credited to it.
 const FAILS_GUARDED = [
   'import sys',
-  'guarded = sys.flags.dont_write_bytecode and sys.pycache_prefix',
+  'guarded = sys.flags.dont_write_bytecode',
   'print("1 failed in 0.01s" if guarded else "1 passed in 0.01s")',
   'sys.exit(1 if guarded else 0)',
   '',

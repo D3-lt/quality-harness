@@ -173,7 +173,6 @@ resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 """
-import atexit
 import base64
 import datetime
 import hashlib
@@ -1747,19 +1746,19 @@ def plan_edits(cwd, text):
 
 
 def mutant_fence_env():
-    """The environment both `--mutant` fences run in: Python reads no bytecode this run did not compile.
+    """The environment both `--mutant` fences run in: neither writes bytecode, so the mutant run reads its source.
 
     CPython trusts a `__pycache__` entry whose source kept its mtime second and its size, and a mutant
     written in the second the clean fence compiled the file is often both: the mutant fence then
     imports the UNMUTATED module and the mutant reads as survived (BACKLOG §222, seen twice, the
-    second on CI at 7805be9f). `scripts/mutate.mjs` has carried this guard since 2026-09-13. A fresh,
-    empty prefix makes Python ignore every in-tree cache, and not writing keeps it empty. The clean
-    fence gets the same environment, so a fence that fails only under it fails there, and is never
-    donated to the mutant as a kill.
+    second on CI at 7805be9f). `scripts/mutate.mjs` has carried this guard since 2026-09-13. The stale
+    entry is one the clean fence wrote, so not writing is enough; a cache that was already there is
+    keyed to the file's earlier mtime and still read, which is why this is not a fresh
+    PYTHONPYCACHEPREFIX: that recompiled every import, the standard library's included, on each fence
+    (+1.2s for one adr-lint under coverage at a588177f). The clean fence gets the same environment, so
+    a fence that fails only under it fails there, and is never donated to the mutant as a kill.
     """
-    prefix = tempfile.mkdtemp(prefix="qh-mutant-pycache-")
-    atexit.register(shutil.rmtree, prefix, True)
-    return dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=prefix)
+    return dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
 
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                covers=None, steps=None, in_place=False, placement=None, plan=None):

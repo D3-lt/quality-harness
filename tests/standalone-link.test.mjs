@@ -98,8 +98,10 @@ test('a cmd forwarder runs one interpreter and returns its exit code', () => {
     }
     // The form that is actually there.
     assert.match(text, /^where \/q py && goto :usepy$/m, `${name}: must select by goto`)
-    assert.match(text, /^exit \/b$/m,
-      `${name}: bare 'exit /b' is what preserves the python branch's status`)
+    // A Windows peer measured a bare `exit /b` exiting 0 when python was missing (2026-10-22, ADR-120 T1): the status is
+    // handed on explicitly.
+    assert.match(text, /^exit \/b %errorlevel%$/m,
+      `${name}: 'exit /b %errorlevel%' is what hands on the python branch's status`)
     assert.match(text, /^:usepy$/m, `${name}: missing the py label`)
   }
 
@@ -110,8 +112,8 @@ test('a cmd forwarder runs one interpreter and returns its exit code', () => {
   // Order matters: the bare `exit /b` must sit between them, or the py branch
   // runs after the python one and the gate executes twice again.
   const g = generated.replace(/\r\n/g, '\n')
-  assert.ok(g.indexOf('\npython "') < g.indexOf('\nexit /b\n')
-    && g.indexOf('\nexit /b\n') < g.indexOf('\npy -3 "'),
+  assert.ok(g.indexOf('\npython "') < g.indexOf('\nexit /b %errorlevel%\n')
+    && g.indexOf('\nexit /b %errorlevel%\n') < g.indexOf('\npy -3 "'),
     'the fallback must exit before reaching the :usepy label')
 
   // The generator writes into the standalone bin directory and the eleven above

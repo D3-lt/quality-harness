@@ -36,8 +36,8 @@
       "label": "the cold review of ADR-123: a Cmd override that runs nothing is not run, not a pass",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],
-      "from": "    if override_cmd and runs_nothing(override_cmd):",
-      "to": "    if False:",
+      "from": "        if shell and runs_nothing(override_cmd):",
+      "to": "        if False:",
       "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
     },
     {

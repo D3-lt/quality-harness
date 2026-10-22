@@ -292,6 +292,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     checkStanding: 'its first line is logIncomplete, answered \'unknown\'; a log not read whole certifies nothing',
     checkRevision: 'a count of the tree\'s check events; a lost line can only lower it, and it certifies nothing',
     revisionFor: 'a count of check events (checkRevision, or every check event where nothing can be observed); it certifies nothing',
+    thisContext: 'keeps the current generation\'s action.emitted rows for emittedFor and its siblings; a lost line removes a row, so a finding speaks again, the same safe direction as emittedFor',
     emittedFor: 'asks whether a finding was already said; a lost line makes the finding speak again, which is the safe direction',
     namedByReview: 'the same question for R2, with the same direction: a lost line makes a commit be named again',
     namedByPublish: 'the same question for rule P, with the same direction: a lost line makes the tree be named again',

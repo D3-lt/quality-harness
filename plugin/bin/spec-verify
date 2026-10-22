@@ -503,11 +503,6 @@ def test_runs(test, root, stack, override_cmd):
     was the WRONG runner answering, here it is NO runner answering. Both used to
     print RED.
     """
-    # A Cmd override that runs nothing passes whatever the code does: `true`, `:` and `exit 0` exit 0 in every POSIX shell
-    # without running a test (the cold review of ADR-123, 2026-10-22). Such an override proves nothing ran, so it is not run.
-    if override_cmd and runs_nothing(override_cmd):
-        return "unrun", (f"the Cmd override `{override_cmd}` runs no test: it exits 0 whatever the code does, so it "
-                         "cannot show the bound test passing. Give the binding a command that runs that test")
     if override_cmd:
         # ⚠ A POSIX SHELL, NOT `shell=True`. On Windows `shell=True` is cmd.exe, which
         # reads `BP_ROOT="$PWD" bash -c '…'` as an executable NAME and fails with "The
@@ -516,6 +511,12 @@ def test_runs(test, root, stack, override_cmd):
         # platform it was being run on, and its exit 4 read as the author's fault.
         # Reported from an outside corpus and ranked second of six there (BACKLOG §171).
         shell = resolve_bash()
+        # A Cmd override that runs nothing passes whatever the code does: `true`, `:` and `exit 0` exit 0 in every POSIX shell
+        # without running a test (the cold review of ADR-123, 2026-10-22). Such an override proves nothing ran, so it is not
+        # run. Asked after the shell: with no shell nothing can be run, and that could-not-look names its own fix.
+        if shell and runs_nothing(override_cmd):
+            return "unrun", (f"the Cmd override `{override_cmd}` runs no test: it exits 0 whatever the code does, so it "
+                             "cannot show the bound test passing. Give the binding a command that runs that test")
         try:
             if shell and shell != "bash":
                 r = run_bounded([shell, "-lc", override_cmd], cwd=root, capture_output=True,

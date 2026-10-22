@@ -347,11 +347,11 @@ export function forwarderCmd(gate, homeDirectory = os.homedir()) {
     // was measured failing with "was unexpected at this time" and exit 255,
     // gate never run. The `&&` form has the same hazard; this one does not.
     //
-    // A bare `exit /b` preserves the preceding command's status, so the python
-    // branch propagates exactly as the py branch does.
+    // `exit /b %errorlevel%` hands on the python branch's status, as the py branch does. A bare `exit /b` was measured
+    // exiting 0 on a Windows peer when python was missing (2026-10-22, the shims of plugin/bin, ADR-120 T1).
     'where /q py && goto :usepy',
     `python "%QH_ROOT%\\bin\\${gate}" %*`,
-    'exit /b',
+    'exit /b %errorlevel%',
     ':usepy',
     `py -3 "%QH_ROOT%\\bin\\${gate}" %*`,
     '',

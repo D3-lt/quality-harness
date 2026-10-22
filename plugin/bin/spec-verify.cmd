@@ -13,7 +13,7 @@ rem
 rem NO PARENTHESISED BLOCK. An unquoted argument containing `)` closes the
 rem block early - `C:\Program Files (x86)\...` is that argument, and this
 rem resolver already knows that path. Measured: the gate never ran and cmd
-rem exited 255. `goto` plus a bare `exit /b`, which preserves the preceding
+rem exited 255. `goto` plus `exit /b %errorlevel%`, which hands on the preceding
 rem command status, selects one interpreter and propagates it untouched.
 where /q py && goto :usepy
 python "%~dp0spec-verify" %*

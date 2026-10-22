@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T6: land names the Windows check once land/<sha> is pushed",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/windows-check.test.mjs"],
+      "from": "    log(`land: ${branch} is pushed; a Windows peer can check it now:",
+      "to": "    void (`land: ${branch} is pushed; a Windows peer can check it now:",
+      "only": "^(?:land names the Windows check once land/<sha> is pushed, and only then)$"
+    },
+    {
       "label": "ADR-118: a landing starts only on a clean working tree",
       "file": "scripts/land.mjs",
       "tests": ["tests/land.test.mjs"],

@@ -16,7 +16,7 @@ README must be regenerated.
 | [T3](T3-the-suite-sets-its-budgets.md) | Every runner of the suite sets the budgets its tests depend on | done | none | none — no spec | `node --test tests/suite-budgets.test.mjs`, named tests |
 | [T4](T4-evidence-after-the-landing.md) | Before the landing only the review stops a release; after it an attestation is evidence | pending | none | none — no spec | `node --test tests/evidence-after-landing.test.mjs`, named tests |
 | [T5](T5-the-release-order.md) | The release order, with a deadline per wait | pending | T1, T4 | none — no spec | `node --test tests/release-order.test.mjs`, named tests |
-| [T6](T6-a-windows-check.md) | land names the Windows check once land/<sha> is pushed | pending | none | none — no spec | `node --test tests/windows-check.test.mjs`, named tests |
+| [T6](T6-a-windows-check.md) | land names the Windows check once land/<sha> is pushed | done | none | none — no spec | `node --test tests/windows-check.test.mjs`, named tests |
 
 ## Waves
 

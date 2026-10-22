@@ -54,6 +54,7 @@ out=$(node --test --test-reporter=tap tests/windows-check.test.mjs 2>&1) \
 | 4 — it is used | every landing |
 
 ## Mutation Log
+- 2026-10-22 · 66ed9d88* · mutant killed · exit 1 · `scripts/land.mjs` · land names the Windows check once land/<sha> is pushed · acceptance-sha256:2392ce259489931454ef7d06a7c8c8bd27f6d0d48f11861fa338e2ae6eddcaca
 
 ## Invariants
 
@@ -72,3 +73,7 @@ Stop if the line would carry anything personal (§6): it names the public remote
 - Sending the message (permanent: boundary: a script cannot reach another session).
 
 ## Verification Log
+- 2026-10-22 · 66ed9d88* · exit 1 · `out=$(node --test --test-reporter=tap tests/windows-check.test.mjs 2>&1) \ …` · acceptance-sha256:2392ce259489931454ef7d06a7c8c8bd27f6d0d48f11861fa338e2ae6eddcaca · ms:198 · test-lock-sha256:6f137f2e065f14c9b7a3a7922d299f007e9d734f3efbc04caf6ef1d1055c4372 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvd2luZG93cy1jaGVjay50ZXN0Lm1qcwlsYW5kIG5hbWVzIHRoZSBXaW5kb3dzIGNoZWNrIG9uY2UgbGFuZC88c2hhPiBpcyBwdXNoZWQsIGFuZCBvbmx5IHRoZW4JOWIzZTg4MGQ0NDAyNTViYzEzYjc0ZGE3YzRhZGRlZTAyYjRiNmEyNTVjZDgwYTg2OTFkZjA4ZjhkZDM0ZWFmNg
+  ```
+  ```
+- 2026-10-22 · 66ed9d88* · exit 0 · `out=$(node --test --test-reporter=tap tests/windows-check.test.mjs 2>&1) \ …` · acceptance-sha256:2392ce259489931454ef7d06a7c8c8bd27f6d0d48f11861fa338e2ae6eddcaca · ms:285

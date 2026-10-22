@@ -7,6 +7,6 @@ rem `python3`. ONE interpreter and its exit code, with no parenthesised block:
 rem see qh-root.cmd for the two failures that rule out `A && B || C` and `( )`.
 where /q py && goto :usepy
 python "%~dp0qh-check" %*
-exit /b
+exit /b %errorlevel%
 :usepy
 py -3 "%~dp0qh-check" %*

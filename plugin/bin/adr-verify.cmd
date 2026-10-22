@@ -17,6 +17,6 @@ rem exited 255. `goto` plus a bare `exit /b`, which preserves the preceding
 rem command status, selects one interpreter and propagates it untouched.
 where /q py && goto :usepy
 python "%~dp0adr-verify" %*
-exit /b
+exit /b %errorlevel%
 :usepy
 py -3 "%~dp0adr-verify" %*

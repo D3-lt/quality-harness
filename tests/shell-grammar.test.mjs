@@ -235,3 +235,16 @@ test('only the word exit is the exit builtin, not a path named exit', () => {
   for (const statuses of measured('"exit" 0 || npm test')) assert.deepEqual(statuses, [0, 0], '"exit" 0 exits 0')
   assert.equal(constantSuccessCheck('"exit" 0 || npm test'), true)
 })
+
+// A Windows peer's chaos run of 3.8.51 (2026-10-22): the grammar has no `if`, so `then exit 1` read as a program named
+// `then` and the trailing `exit 0` made `if ! false; then exit 1; fi; exit 0` a constant success, a false refusal of a check
+// that exits 1 in every shell. A compound command the grammar does not model is could-not-look, never constant.
+test('a compound command the grammar does not read is could-not-look, never a constant success', () => {
+  for (const statuses of measured('if ! false; then exit 1; fi; exit 0')) assert.deepEqual(statuses, [1], 'it exits 1 in every shell')
+  for (const row of ['if ! false; then exit 1; fi; exit 0', 'while false; do :; done; exit 0', 'until true; do :; done; exit 0',
+    'case x in y) exit 1;; esac; exit 0', 'for f in a; do false; done; exit 0', 'if npm test; then exit 0; fi; exit 1']) {
+    assert.equal(constantSuccessCheck(row), false, row)
+  }
+  // DIRTY twin: a quoted `if` is a program by that name, so the list it heads is read as before.
+  assert.equal(constantSuccessCheck('"if" x; exit 0'), true)
+})

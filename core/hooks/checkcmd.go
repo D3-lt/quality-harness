@@ -193,6 +193,10 @@ var knownStatus = map[string]string{"true": "zero", ":": "zero", "echo": "zero",
 
 var listControl = map[string]bool{"set": true, "shopt": true, "trap": true, "exec": true, "source": true, ".": true, "eval": true, "return": true, "alias": true, "unalias": true, "builtin": true, "enable": true}
 
+// reservedWords are the shell's compound-command words, which the grammar does not model: unquoted at a command's head, the
+// list is not read (plugin/scripts/check-command.mjs RESERVED).
+var reservedWords = map[string]bool{"if": true, "then": true, "elif": true, "else": true, "fi": true, "while": true, "until": true, "do": true, "done": true, "case": true, "esac": true, "for": true, "select": true, "in": true, "[[": true, "]]": true}
+
 var shellNames = map[string]bool{"bash": true, "dash": true, "zsh": true, "ksh": true, "tcsh": true, "csh": true, "sh": true, "pwsh": true, "powershell": true}
 
 var (
@@ -299,7 +303,8 @@ func listStatus(text string, depth int) string {
 		if len(c.argv) > 0 {
 			first = c.argv[0]
 		}
-		if (c.redirects > 0 && !isPiped(c.ended)) || listControl[programName(first)] {
+		headQuoted := len(c.quoted) > 0 && c.quoted[0]
+		if (c.redirects > 0 && !isPiped(c.ended)) || listControl[programName(first)] || (reservedWords[first] && !headQuoted) {
 			return "either"
 		}
 	}

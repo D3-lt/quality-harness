@@ -171,6 +171,9 @@ export function constantSuccessCheck(command) {
 // evaluated as the shell runs them, and text the grammar does not read (`function f { … }`, which dash rejects, or anything
 // unclosed) is 'either'. Each node answers which statuses it can fall through with and which it can exit the shell with.
 const LIST_CONTROL = new Set(['set', 'shopt', 'trap', 'exec', 'source', '.', 'eval', 'return', 'alias', 'unalias', 'builtin', 'enable'])
+// The shell's compound-command words, which the grammar does not model: unquoted at a command's head, the list is not read
+// (a Windows peer's chaos run, 2026-10-22: `if ! false; then exit 1; fi; exit 0` was read as constant though it exits 1).
+const RESERVED = new Set(['if', 'then', 'elif', 'else', 'fi', 'while', 'until', 'do', 'done', 'case', 'esac', 'for', 'select', 'in', '[[', ']]'])
 
 // A pass-through sink after a pipe: its status, not the check's, is the pipeline's without `pipefail`, and it does
 // not depend on what came through (BACKLOG §381, item 1; the owner, 2026-10-15). `tee` to literal files, a bare
@@ -205,7 +208,8 @@ function listStatus(text, depth) {
   const { commands, complete } = words
   if (!complete || commands.length === 0 || depth > 3) return 'either'
   // A redirection can fail on its own, unless the command's status is thrown away by the pipe after it.
-  if (commands.some(c => (c.redirects > 0 && !PIPED.has(c.ended)) || LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'
+  if (commands.some(c => (c.redirects > 0 && !PIPED.has(c.ended)) || LIST_CONTROL.has(programName(c.argv[0] ?? ''))
+    || (RESERVED.has(c.argv[0] ?? '') && !c.quoted?.[0]))) return 'either'
   const tree = parseShell(words)
   if (!tree) return 'either'
   const run = evaluate(tree, { commands, depth, env: new Map(), active: new Set() }, false)

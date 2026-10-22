@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "a compound command the grammar does not read is could-not-look, never constant",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": ["tests/shell-grammar.test.mjs"],
+      "from": "    || (RESERVED.has(c.argv[0] ?? '') && !c.quoted?.[0]))) return 'either'",
+      "to": "    || false)) return 'either'",
+      "only": "^(?:a compound command the grammar does not read is could-not-look, never a constant success)$"
+    },
+    {
       "label": "Codex review of 0b129010..bca51180: only the word exit is the exit builtin",
       "file": "plugin/scripts/check-command.mjs",
       "tests": ["tests/shell-grammar.test.mjs"],
@@ -257,8 +265,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "|| LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'",
-      "to": ")) return 'either'",
+      "from": "|| LIST_CONTROL.has(programName(c.argv[0] ?? ''))\n",
+      "to": "|| false\n",
       "only": "a check whose exit status the text fixes is refused"
     },
     {

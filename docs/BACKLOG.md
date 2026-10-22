@@ -3397,3 +3397,35 @@ passed through grep, which drops it; the exact-line match in run_adr_lint theref
 trailing CR (plugin/scripts/facts-gate-dispatch.sh). The same probe with the patch said one line in both orders. The
 tests assert the exact count on every platform again; the windows CI job is the regression, because no other platform
 produces the CR. No catalogue mutant: the campaign runs on Linux, where a mutant removing the CR strip changes nothing.
+
+## 397. A Tests row naming a bare file name that lives in a module subdirectory is refused as naming no file
+
+Found 2026-10-22 by an outside run of 3.8.51 (a Go kernel corpus on Windows, 62 records, 282 tasks): an archived record's
+Tests table names `store_test.go`, which exists only at `<module>/store_test.go`, and adr-lint says the path "names no file
+in the repo" (`plugin/bin/adr-lint:5123-5128`). That is blocking (`errors.append`), and on a frozen record. The sentence is
+true of the path as written and misleading about the file: a file of that name is right there. Two questions before a fix:
+whether the lock hasher could resolve such a row (it needs a path), and whether the finding should name the candidates
+("a file of that name exists at <path>") and stay blocking, or advise. Measure the count of such rows on the corpora that
+have them first.
+
+## 398. A `**Status:**` value that wraps onto the next line is read as its first line only
+
+Found 2026-10-22 by an outside run of 3.8.51 (a Python backend corpus, 72 records, 209 tasks): four records whose Status
+line wraps ("Frontend-driven (no backend work required; closed from" / the rest on the next line) are undecided, "a status
+this reader does not recognise", and one, "Partially Implemented — <channels>", is not recognised either. The reporter
+reads both as its own records' shape, not a reader bug. Whether a wrapped Status is joined (and which readers share the
+header parser) is a choice to make, not an obvious fix.
+
+## 399. A markdown file with no Status line in a scanned directory appears nowhere in work-next's report
+
+Found 2026-10-22 by an outside run of 3.8.51 (a SPA corpus on Windows, no ADR records): in a design-spec directory, files
+with a Status line are listed under `workNext.notRead`, and one file with no Status line appears in neither records,
+undecided nor notRead. If notRead is meant to name every markdown file a reader skipped, it is missing that one; if it
+names only files with a Status, the report should say so. Unverified against source.
+
+## 400. A task blocked on an owner's input reads as "also ready"
+
+Found 2026-10-22 by an outside run of 3.8.51 (an infrastructure corpus, 22 records, 29 tasks): adr-next lists a task as
+"also ready" whose only blocker is an input the owner has to supply (a secret not yet in the vault); the record has no way
+to say "blocked on owner input", so readiness is computed from its Depends-on alone. Not a reader defect as written; a
+state the task grammar lacks. ADR-120 T8's terminal statuses are the nearest prior art.

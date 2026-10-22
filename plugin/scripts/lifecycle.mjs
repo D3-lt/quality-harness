@@ -62,7 +62,10 @@ export function slowHookNote(eventName, elapsedMs) {
   return `quality-harness: the ${eventName ?? 'hook'} hook took ${(elapsedMs / 1000).toFixed(1)}s — the pause has this name`
 }
 
-export function flushOutput(startedAt, input, env = process.env, now = Date.now()) {
+// `onWritten` runs once the output has been written, and only then: a mark recorded for output that did not leave would
+// suppress it on the next hook (the verification review of 3.8.52's fix). `write` is the seam a test replaces.
+export function flushOutput(startedAt, input, env = process.env, now = Date.now(),
+  { write = (text, done) => process.stdout.write(text, done), onWritten = null } = {}) {
   const elapsed = now - startedAt
   let out = takeOutput()
   if (elapsed >= slowHookThresholdMs(env)) {
@@ -70,7 +73,7 @@ export function flushOutput(startedAt, input, env = process.env, now = Date.now(
     process.stderr.write(`${note}\n`)
     out = { ...(out ?? {}), systemMessage: out?.systemMessage ? `${out.systemMessage}\n${note}` : note }
   }
-  if (out) process.stdout.write(`${JSON.stringify(out)}\n`)
+  if (out) write(`${JSON.stringify(out)}\n`, error => { if (!error && onWritten) onWritten() })
 }
 
 // The fixture exclusion lives in its own module since 2026-09-23, so the per-edit
@@ -323,8 +326,7 @@ async function main() {
     // Every hook's output leaves through deliver(), so a rule's action and a
     // legacy emitJson output are composed, never one overwriting the other.
     const { delivered } = deliver(pendingActions.splice(0), input ?? {}, { legacy: peekOutput(), recordMarks: false })
-    flushOutput(startedAt, input)
-    recordDelivered(delivered, input ?? {})
+    flushOutput(startedAt, input, process.env, Date.now(), { onWritten: () => recordDelivered(delivered, input ?? {}) })
   }
 }
 

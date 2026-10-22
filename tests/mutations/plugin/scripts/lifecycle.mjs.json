@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the verification review of 3.8.52's fix: marks wait for a write that succeeded",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/said-per-context-delivery.test.mjs"],
+      "from": "  if (out) write(`${JSON.stringify(out)}\\n`, error => { if (!error && onWritten) onWritten() })",
+      "to": "  if (out) write(`${JSON.stringify(out)}\\n`, error => { if (onWritten) onWritten() })",
+      "only": "^(?:marks are recorded only after a write that succeeded)$"
+    },
+    {
       "label": "the release review of 3.8.52: two trees warned in one text are two findings",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/said-per-context-delivery.test.mjs"],

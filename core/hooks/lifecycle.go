@@ -371,7 +371,9 @@ func slowHookThresholdMs() int64 {
 	return 5000
 }
 
-func (h *hookRun) flush(started time.Time) {
+// flush writes the one output and says whether all of it was written: only then are the said-per-context marks recorded
+// (lifecycle.mjs flushOutput's onWritten).
+func (h *hookRun) flush(started time.Time) bool {
 	elapsed := time.Since(started).Milliseconds()
 	out := h.output
 	h.output = nil
@@ -393,9 +395,12 @@ func (h *hookRun) flush(started time.Time) {
 			out.Set("systemMessage", note)
 		}
 	}
-	if out != nil {
-		io.WriteString(h.stdout, stringify(out)+"\n")
+	if out == nil {
+		return false
 	}
+	text := stringify(out) + "\n"
+	n, err := io.WriteString(h.stdout, text)
+	return err == nil && n == len(text)
 }
 
 // randomUUID is crypto.randomUUID: a v4 UUID in lower case.
@@ -630,9 +635,10 @@ func Run(stdin io.Reader, stdout, stderr io.Writer) int {
 	h := &hookRun{input: input, event: strOr(input.Get("hook_event_name")), cwd: cwd, session: input.Get("session_id"), stdout: stdout, stderr: stderr}
 	defer func() {
 		h.deliver()
-		h.flush(started)
-		for _, marker := range h.marks {
-			RecordSaid(h.saidInput(), marker)
+		if h.flush(started) {
+			for _, marker := range h.marks {
+				RecordSaid(h.saidInput(), marker)
+			}
 		}
 	}()
 	h.handle()

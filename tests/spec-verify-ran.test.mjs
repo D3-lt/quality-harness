@@ -51,6 +51,9 @@ test('a runner whose filter selected nothing is UNRUN, and one that reports the 
   // The release review of 3.8.52 (A2): a substring filter that matched another test, while the bound one was ignored.
   const other = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 2 tests\ntest it_works ... ignored\ntest it_works_other ... ok\n\ntest result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
   assert.equal(other.status, 4, `another test passing is not the bound one passing:\n${other.stdout}`)
+  // The verification review of 3.8.52's fix (A2): a bound name two tests end in is not attributable, whichever passed.
+  const twin = verify(cargo, stub(cargo.dir, 'cargo', '\nrunning 2 tests\ntest it_works ... ignored\ntest other::it_works ... ok\n\ntest result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'))
+  assert.equal(twin.status, 4, `two tests named it_works cannot tell which one ran:\n${twin.stdout}`)
 
   const web = { 'web/package.json': '{"name":"w"}\n', 'web/node_modules/.keep': '', 'web/a.test.js': "test('adds', () => { expect(1).toBe(1) })\n" }
   const vitest = fixture('web/a.test.js::adds', '', web)

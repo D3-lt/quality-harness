@@ -6,7 +6,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { deliver, recordDelivered } from '../plugin/scripts/lifecycle.mjs'
+import { deliver, flushOutput, recordDelivered } from '../plugin/scripts/lifecycle.mjs'
+import { emitJson } from '../plugin/scripts/hook-queue.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const MAIN = 'repl_main_thread:outputStyle:Concise'
@@ -40,4 +41,15 @@ test('a pending mark is written only for output that left the process', t => {
   assert.ok(deliver([advice], input, { recordMarks: false }).output, 'unflushed, so not pending: said again')
   recordDelivered(first.delivered, input)
   assert.equal(deliver([advice], input).output, null, 'recorded after its flush: pending')
+})
+
+test('marks are recorded only after a write that succeeded', () => {
+  let recorded = 0
+  const onWritten = () => { recorded += 1 }
+  emitJson({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'x' } })
+  flushOutput(Date.now(), { hook_event_name: 'PreToolUse' }, {}, Date.now(), { write: (text, done) => done(new Error('EPIPE')), onWritten })
+  assert.equal(recorded, 0, 'a write that failed records nothing')
+  emitJson({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'x' } })
+  flushOutput(Date.now(), { hook_event_name: 'PreToolUse' }, {}, Date.now(), { write: (text, done) => done(), onWritten })
+  assert.equal(recorded, 1, 'a write that succeeded records')
 })

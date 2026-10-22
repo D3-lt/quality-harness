@@ -20,8 +20,8 @@
       "label": "the cold review of ADR-123: a cargo run that passed nothing is not run",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],
-      "from": "    \"cargo\": lambda name: re.compile(rf\"^test (?:[\\w:]+::)?{re.escape(name)} \\.\\.\\. ok$\", re.M),",
-      "to": "    \"cargo\": lambda name: re.compile(r\"^test result: ok\\. [1-9]\\d* passed\", re.M),",
+      "from": "        return len(found) == 1 and found[0] == \"ok\"",
+      "to": "        return \"ok\" in found",
       "only": "^(?:a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass)$"
     },
     {

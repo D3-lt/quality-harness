@@ -607,8 +607,23 @@ RAN_EVIDENCE = {
     # cargo 1.99.1, measured 2026-10-22: every test the filter matched prints its own `test <path>::<name> ... ok` (or
     # `... ignored`, `... FAILED`), and `test result: ok. 1 passed` counts every match, so a substring filter can pass on
     # another test while the bound one is ignored (the release review of 3.8.52). A pass needs the bound test's own `ok`.
-    "cargo": lambda name: re.compile(rf"^test (?:[\w:]+::)?{re.escape(name)} \.\.\. ok$", re.M),
+    "cargo": lambda name: CargoEvidence(name),
 }
+
+
+class CargoEvidence:
+    """A cargo run that attributes a pass to the bound test: exactly one reported test is it (its path is the bound name, or
+    ends in `::<name>`), and that one says `ok`. Two that end in the name cannot tell which ran, whichever passed (the
+    verification review of 3.8.52's fix), so that is not a pass."""
+
+    LINE = re.compile(r"^test (\S+) \.\.\. (\S+)$", re.M)
+
+    def __init__(self, name):
+        self.name = name
+
+    def search(self, out):
+        found = [status for path, status in self.LINE.findall(out) if path == self.name or path.endswith("::" + self.name)]
+        return len(found) == 1 and found[0] == "ok"
 
 # Runners whose no-match output is measured but whose pass output is not: only the measured no-match shape is read as not
 # run, and anything else keeps its exit code. vitest 4.1.6 and 5.0.0 (-t with no match): `Tests  3 skipped (3)`, nothing

@@ -37,3 +37,12 @@ test("a landed sha's release takes an uncommitted attestation, and an unlanded o
   assert.equal(mixed.run(), 2)
   assert.match(mixed.said.join('\n'), /not clean/)
 })
+
+// The Codex review of v3.8.52..2ad118d0: on a landed sha the exempt file must verify as an attestation attest-import would
+// have filed; any other JSON in docs/corpus-reports stops the release.
+test('an uncommitted file that does not verify as an attestation stops a landed release', () => {
+  const bad = world({ porcelain: ATTESTATION, verify: 1 })
+  assert.equal(bad.run(), 2, bad.said.join('\n'))
+  assert.match(bad.said.join('\n'), /is not an attestation attest-import would file/)
+  assert.ok(bad.calls.includes(`node scripts/attest-import.mjs --verify ${ATTESTATION.slice(3)}`))
+})

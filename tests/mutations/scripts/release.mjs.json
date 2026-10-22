@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex review of v3.8.52..2ad118d0: an exempt file must verify as an attestation",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/evidence-after-landing.test.mjs"],
+      "from": "      .filter(file => ran('node', ['scripts/attest-import.mjs', '--verify', file]).status !== 0) : []",
+      "to": "      .filter(() => false) : []",
+      "only": "^(?:an uncommitted file that does not verify as an attestation stops a landed release)$"
+    },
+    {
       "label": "ADR-126 T5: a landed sha's own run is the release run; nothing is dispatched for it",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-order.test.mjs"],

@@ -45,7 +45,10 @@ import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
  * matters, since an empty job list would otherwise satisfy "every job
  * succeeded" vacuously, which is this repository's signature defect.
  */
-export function evaluateRun(run) {
+// `landingIsFull`: whether the workflow at the run's sha runs a push to land/** as the full campaign (`landingIsFullAt`).
+// Absent, it is false, so a landing run is cached unless its own workflow says otherwise (the Codex review of
+// v3.8.52..2ad118d0: a landing from before ADR-126 reused the cache).
+export function evaluateRun(run, { landingIsFull = false } = {}) {
   if (!run || typeof run !== 'object' || !Array.isArray(run.jobs)) {
     return { verdict: 'unreadable', reason: 'no run object, or it carries no jobs array', jobs: [] }
   }
@@ -97,7 +100,7 @@ export function evaluateRun(run) {
       jobs,
     }
   }
-  const landing = run.event === 'push' && typeof run.headSha === 'string' && run.headBranch === `land/${run.headSha}`
+  const landing = landingIsFull && run.event === 'push' && typeof run.headSha === 'string' && run.headBranch === `land/${run.headSha}`
   if (run.event !== 'workflow_dispatch' && !landing) {
     return {
       verdict: 'cached',
@@ -602,7 +605,20 @@ export function tagAdvice(kind) {
 
 // The CLI, exported with its readers as seams so the review question is shown asked from this path (ADR-100 T1).
 // A caller that hands in its own run hands in its own forge: the forge is asked by default only of the gh the run came from.
-export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, forge = fetch === fetchRun ? mainProtection : null, log = console.log } = {}) {
+/**
+ * ADR-126 T1: whether the workflow at `sha` runs a push to `land/**` as the full campaign, read from its own
+ * `QUALITY_HARNESS_FULL_CAMPAIGN` line. A landing before ADR-126 ran cached; a workflow that cannot be read is not full.
+ */
+export function landingIsFullAt(sha, exec = execFileSync) {
+  try {
+    const workflow = exec('git', ['show', `${sha}:.github/workflows/selftest.yml`], { encoding: 'utf8', timeout: 30_000 })
+    return /QUALITY_HARNESS_FULL_CAMPAIGN: \$\{\{[^\n]*startsWith\(github\.ref, 'refs\/heads\/land\/'\)/.test(workflow)
+  } catch {
+    return false
+  }
+}
+
+export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, full: fullOf = landingIsFullAt, forge = fetch === fetchRun ? mainProtection : null, log = console.log } = {}) {
   // `--local`: the two questions git and the review ledger answer, asked before anything lands, so evidence gathered late
   // is a refusal before the landing rather than a file the landed sha does not hold (BACKLOG §406). No run is fetched.
   if (argv[0] === '--local' || argv[0] === '--review') {
@@ -641,7 +657,7 @@ export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEv
     }
   }
   const run = fetch(sha)
-  const result = evaluateRun(run)
+  const result = evaluateRun(run, { landingIsFull: run?.event === 'push' && fullOf(sha) })
   for (const j of result.jobs) {
     log(`  ${j.name}: ${j.status} ${j.conclusion ?? '-'}`)
   }

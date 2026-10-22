@@ -69,6 +69,14 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     // nothing is pushed after the landing for git's pre-push hook to see (ADR-126 T4); before the landing it is a change.
     const attestations = porcelain.split('\n').every(line => /^\?\? docs\/corpus-reports\/[^/]+\.json$/.test(line))
     const landed = attestations && ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0
+    // Each one must be a file attest-import would have written, digests checked against its commit: an arbitrary JSON in
+    // docs/corpus-reports is not evidence (the Codex review of v3.8.52..2ad118d0).
+    const unverified = landed ? porcelain.split('\n').map(line => line.slice(3))
+      .filter(file => ran('node', ['scripts/attest-import.mjs', '--verify', file]).status !== 0) : []
+    if (unverified.length) {
+      log(`release: ${unverified.join(', ')} is not an attestation attest-import would file ${at}; move it aside, then run again`)
+      return 2
+    }
     if (!landed) {
       log(attestations
         ? `release: the working tree holds an uncommitted attestation ${at} before ${sha} has landed; commit it (\`qh-check --fast --commit\`) or move it aside, then run again`

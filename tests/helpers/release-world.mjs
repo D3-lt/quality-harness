@@ -77,6 +77,8 @@ export function world(overrides = {}) {
       const code = state.review ?? state.local ?? 0
       return { status: code, stdout: `${code ? 'UNPROVEN' : 'READY'} — review evidence\n`, stderr: '' }
     }
+    // ADR-126 T4: an uncommitted attestation is verified before it is evidence. `verify` decides it.
+    if (line.startsWith('node scripts/attest-import.mjs --verify ')) return { status: state.verify ?? 0, stdout: '', stderr: '' }
     if (line.endsWith(`scripts/release-evidence.mjs ${SHA}`)) {
       const code = state.evidence[Math.min(evidenceCalls, state.evidence.length - 1)]
       evidenceCalls += 1

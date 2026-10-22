@@ -7,9 +7,9 @@
 // is held to what the commit gives: the probe's digest, the readers fingerprint and the
 // plugin version are re-derived from git at `at`, never read from a working tree.
 //
-// Usage:  node scripts/attest-import.mjs [--root <dir>] [--check] <message-file | ->
-// Exit:   0 filed (with --check: would be) · 1 refused, every reason listed
-//         2 usage · 3 could not look: `at` is not in this clone, or git failed
+// Usage:  node scripts/attest-import.mjs [--root <dir>] [--check | --verify] <message-file | ->
+// Exit:   0 filed (with --check: would be; with --verify: the file is one this would have filed) · 1 refused, every
+//         reason listed · 2 usage · 3 could not look: `at` is not in this clone, or git failed
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -111,7 +111,9 @@ function verdictChangesShape(value) {
     && value.passToFail + value.failToPass <= value.compared
 }
 
-export function check(text, root) {
+// `filed`: the name of the file under docs/corpus-reports that holds this very attestation (`--verify`), which is not
+// a duplicate of itself.
+export function check(text, root, { filed = null } = {}) {
   const candidates = jsonObjects(text).filter(o => o && typeof o === 'object' && !Array.isArray(o) && 'at' in o && 'kind' in o)
   if (candidates.length !== 1) {
     return { refused: [`1: the message holds ${candidates.length} attestations (an object with \`at\` and \`kind\`); exactly one is filed`] }
@@ -170,7 +172,7 @@ export function check(text, root) {
   // docs/corpus-reports or nowhere.
   if (name !== path.basename(name) || name.startsWith('.')) refused.push(`6: the file name ${JSON.stringify(name)} is not a plain name inside docs/corpus-reports`)
   const dir = path.join(root, 'docs', 'corpus-reports')
-  const duplicate = existsSync(dir) && readdirSync(dir).filter(file => file.endsWith('.json')).some(file => {
+  const duplicate = existsSync(dir) && readdirSync(dir).filter(file => file.endsWith('.json') && file !== filed).some(file => {
     try {
       const filed = JSON.parse(readFileSync(path.join(dir, file), 'utf8'))
       return filed.at === attestation.at && filed.runner === attestation.runner
@@ -183,15 +185,17 @@ export function check(text, root) {
 export function main(argv = process.argv.slice(2)) {
   let root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   let checkOnly = false
+  let verify = false
   let source = null
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--root' && argv[i + 1]) root = path.resolve(argv[++i])
     else if (argv[i] === '--check') checkOnly = true
+    else if (argv[i] === '--verify') verify = true
     else if (source === null && !argv[i].startsWith('--') || argv[i] === '-') source = argv[i]
     else source = undefined
   }
   if (!source) {
-    process.stderr.write('usage: attest-import.mjs [--root <dir>] [--check] <message-file | ->\n')
+    process.stderr.write('usage: attest-import.mjs [--root <dir>] [--check | --verify] <message-file | ->\n')
     return 2
   }
   let text
@@ -199,7 +203,15 @@ export function main(argv = process.argv.slice(2)) {
     process.stderr.write(`attest-import: could not read ${source}: ${error.code ?? error.message}\n`)
     return 2
   }
-  const answer = check(text, root)
+  // ADR-126 T4, the Codex review of v3.8.52..2ad118d0: `--verify` takes a file already under docs/corpus-reports, runs every
+  // check a filing runs, and requires the file to be byte for byte the one this would write. release.mjs exempts an
+  // uncommitted attestation from the clean tree only when it passes, so an arbitrary JSON there is never evidence.
+  const inReports = verify && path.resolve(path.dirname(source)) === path.join(root, 'docs', 'corpus-reports')
+  if (verify && !inReports) {
+    process.stdout.write(`attest-import: refused: --verify reads a file under docs/corpus-reports, not ${source}\n`)
+    return 1
+  }
+  const answer = check(text, root, { filed: verify ? path.basename(source) : null })
   if (answer.couldNotLook) {
     process.stderr.write(`attest-import: could not look — ${answer.couldNotLook}. Nothing was written.\n`)
     return 3
@@ -207,6 +219,12 @@ export function main(argv = process.argv.slice(2)) {
   if (answer.refused) {
     process.stdout.write(`attest-import: refused, nothing was written:\n${answer.refused.map(reason => `  - ${reason}`).join('\n')}\n`)
     return 1
+  }
+  if (verify) {
+    const exact = answer.name === path.basename(source) && text === `${JSON.stringify(answer.attestation, null, 2)}\n`
+    process.stdout.write(exact ? `attest-import: verified ${source}\n`
+      : `attest-import: refused: ${source} is not the file this would write (its name or its bytes differ)\n`)
+    return exact ? 0 : 1
   }
   const relative = path.posix.join('docs', 'corpus-reports', answer.name)
   if (checkOnly) {

@@ -3566,3 +3566,12 @@ whose bare `rmSync` met `EPERM` on a directory a child of `spec-verify` (a `go t
 sites that already pass `maxRetries`. Widening the rule means classifying each: a child that can outlive the test (a hook,
 a gate that spawns a runner) is in the class; a directory only this process wrote is not. Open. ADR-126 (Out of Scope)
 defers it here: its T3 ends the budget class, not this one.
+
+## 408. release-evidence counts any JSON under docs/corpus-reports that carries an `at` as an attestation
+
+Found 2026-10-22 by the Codex review of v3.8.52..2ad118d0: a file holding only `{"at":"<sha>"}` is refused by
+`attest-import` but accepted by `readAttestations`/`outsideRun` (`scripts/release-evidence.mjs`). An uncommitted file is
+now verified before `release.mjs` takes it as evidence (`attest-import --verify`, ADR-126 T4's fix round), so the open part
+is a COMMITTED file that did not come through `attest-import`: the commit is reviewed, and nothing reads it as the importer
+would. The structural answer is for `outsideRunEvidence` to run the same checks `--verify` runs over each file it counts.
+Open.

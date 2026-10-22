@@ -46,11 +46,11 @@ function corpus(check, { seed = false } = {}) {
   return dir
 }
 
-function mutant(dir, { file = 'm.py', from = 'return 1', to = 'return 2', extra = [] } = {}) {
+function mutant(dir, { file = 'm.py', from = 'return 1', to = 'return 2', extra = [], also = {} } = {}) {
   const argv = [path.join(bin, 'adr-verify'), 'tasks/T1-fixture.md', '--cwd', '.', '--mutant', file,
     '--from', from, '--to', to, '--why', 'the check notices f changing', ...extra]
   const run = spawnSync(process.platform === 'win32' ? 'python3' : argv[0], process.platform === 'win32' ? argv : argv.slice(1),
-    { cwd: dir, env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    { cwd: dir, env: { ...env, ...also }, encoding: 'utf8', timeout: 120_000, windowsHide: true })
   return { status: run.status, out: `${run.stdout}${run.stderr}` }
 }
 
@@ -155,6 +155,15 @@ test('a cache directory that cannot be listed refuses the run', { skip: process.
 test('the mutated file named in another case still has its cache deleted', { skip: process.platform === 'linux'
   ? 'a case-sensitive filesystem has no second spelling of m.py' : false }, () => {
   const run = mutant(corpus(COMPARES, { seed: true }), { file: 'M.py', extra: ['--in-place'] })
+  assert.equal(run.status, 0, run.out)
+  assert.match(run.out, /mutant killed/, run.out)
+})
+
+// The Codex review of bc5e88ea: a prefix that is a file, such as /dev/null, holds no cache, and Python imports past it.
+// The run goes on rather than refusing.
+test('a cache prefix that is not a directory is not a reason to refuse', { skip: process.platform === 'win32'
+  ? 'no /dev/null to point the prefix at' : false }, () => {
+  const run = mutant(corpus(COMPARES), { also: { PYTHONPYCACHEPREFIX: '/dev/null' } })
   assert.equal(run.status, 0, run.out)
   assert.match(run.out, /mutant killed/, run.out)
 })

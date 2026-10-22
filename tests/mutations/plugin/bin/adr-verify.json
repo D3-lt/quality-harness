@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex review of bc5e88ea: a cache prefix that is not a directory is not a reason to refuse",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-bytecode.test.mjs"],
+      "from": "            except (FileNotFoundError, NotADirectoryError):  # no cache can be there; Python imports past it too",
+      "to": "            except FileNotFoundError:  # no cache can be there; Python imports past it too",
+      "only": "^(?:a cache prefix that is not a directory is not a reason to refuse)$"
+    },
+    {
       "label": "Codex review of 12952d76: a declared output the restore rewrites has its cache deleted too",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/adr-verify-bytecode.test.mjs"],

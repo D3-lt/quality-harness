@@ -1784,12 +1784,20 @@ def drop_cached_bytecode(sources, cwd, env):
             continue
         directories = {path.parent / "__pycache__"}
         if prefix:
-            directories.add(Path(cwd, prefix).joinpath(*Path(os.path.abspath(path.parent)).parts[1:]))
+            # CPython's own mapping, with the fence's prefix for the call: it keeps a UNC source's server and share
+            # (`\\server\share\repo` -> `<prefix>\server\share\repo`), which stripping the anchor by hand lost
+            # (the Codex review of bc5e88ea).
+            held = sys.pycache_prefix
+            sys.pycache_prefix = os.path.abspath(os.path.join(cwd, prefix))
+            try:
+                directories.add(Path(_ilu.cache_from_source(os.path.abspath(path))).parent)
+            finally:
+                sys.pycache_prefix = held
         stem = f"{path.stem}.".casefold()
         for directory in directories:
             try:
                 names = os.listdir(directory)
-            except FileNotFoundError:
+            except (FileNotFoundError, NotADirectoryError):  # no cache can be there; Python imports past it too
                 continue
             except OSError as error:  # a directory that exists and cannot be listed
                 fail(f"UNPROVEN: {directory} could not be listed ({os_reason(error)}), so a cache of {path.name} "

@@ -3445,3 +3445,43 @@ the same summary gap with another cause: adr-next lists three tasks as ready and
 recorded before the fence changed or before acceptance digests existed, while the summary's `readinessUnproven` is 0. So
 the field's name invites the reading two reporters gave it; at least the summary should say what it counts, or count a
 ready task adr-next marks unproven under its own name.
+
+## 402. HIGH: the Windows shims pass `%*` through cmd, so a metacharacter in an argument runs as a command
+
+Found 2026-10-22 by a Windows peer's corpus-chaos run of 3.8.51 (Windows 11 10.0.26200, Git 2.49.0): with a record named
+`docs/adr/066-x&hostname&.md`, `adr-lint` printed `ADR not found: docs\adr\066-x`, then the machine's hostname (the `hostname`
+command ran), then exited 0. Every `plugin/bin/*.cmd` passes `%*` to the interpreter, and cmd re-reads `&`, `|`, `<`, `>` and `^`
+in an expanded argument (the class known as BatBadBut). Unmeasured here: which callers can deliver such an argument (a quoted
+path from a shell, Node's spawn of a `.cmd`, the MCP server, a hook), and whether quoting at the caller suffices. The fix is a
+design choice (a Node or PowerShell entry instead of a batch shim, or refusing an argument carrying a metacharacter) and needs a
+Windows measurement first.
+
+## 403. Findings of the same Windows chaos run, by severity
+
+Found 2026-10-22 (the run of §402). None reproduced here yet; each is a lead.
+- MEDIUM: a truncated Verification Log (its last row cut) reads as "locked test … hash moved" with the relock as the remedy, so
+  following the advice re-approves a damaged ledger; nothing names the truncated row.
+- MEDIUM: a second record with an existing id (`CON.md`, `065-copy.md`) is counted as one more record; nothing says
+  "duplicate", and governingNothing lists it apart.
+- MEDIUM: a record name with a leading U+FEFF or spaces makes adr-next call its task folder's owner UNKNOWN, while work-next
+  lists the tasks ready and corpus-probe reports 0 disagreements.
+- MEDIUM: a CR-only record passes adr-lint (Python) while work-next (Node) reports its spec uncovered.
+- MEDIUM: an untracked NTFS junction loop (`docs/adr/loop -> docs/adr`) makes each adr-lint take 97 to 114 s and still pass;
+  corpus-probe has no total budget and was killed at 600 s with empty output.
+- MEDIUM: a lock covers every test function in a file the Tests table names, so editing a test only T2 lists reports drift on
+  T1 too (predates 3.8.51).
+- MEDIUM: adr-lint passes the sign-offs `zy: failed on 2+2` and `zero failures` while adr-next stops on both; adr-next stops on
+  positive owner sign-offs that describe a procedure with "failed", "stopped" or "panicked"; work-next's `\bmarked\s+done\b`
+  matches the prose "before the task is marked done". "zero failures" and "0 failures" stop while "no failures" passes, and
+  "failed on 2+2 — approved" (a dash) stops while "; approved" passes.
+- MEDIUM: the lock-drift headline to the user says only "Artifact validation failed", naming neither lock drift nor the task,
+  and calls advice "failed"; adr-lint lines reach hook output with CRLF mixed into LF.
+- MEDIUM: a constant check passes the classifier when it is wrapped: `powershell -Command "exit 0"`, `pwsh -NoProfile -c …`,
+  `cmd /c exit 0`, `command exit 0`, and `bash <<EOF` with `exit 0` in the body.
+- LOW: adr-lint passes with git missing (the git check is only advice); of four Windows-reserved duplicate task files
+  (CON/aux/NUL/LPT1.md) only one is named; a README held open exclusively gives adr-lint could-not-run while adr-next still
+  lists its tasks ready; a hook payload with `"cwd":""` writes `.git/quality-harness/sessions/<id>.jsonl` in the hook
+  process's own working directory.
+- Corrected by the reporter: §397's bare file name exists twice in that tree, so adr-lint refuses an ambiguous name by design;
+  only the wording ("names no file in the repo") is wrong there.
+Fixed the same day: the `if … then … fi` false refusal (check-command.mjs, checkcmd.go) and the shims' bare `exit /b`.

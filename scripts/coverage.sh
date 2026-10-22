@@ -17,7 +17,18 @@ set -euo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008: the tests are the repository's, the measured surface is the plugin's.
 ROOT="$REPO/plugin"
-MODE=${1-}
+# ADR-126 T2: one surface per CI job, so the two passes of the suite run in parallel rather than in series (53 min, 2026-10-22).
+# Neither floor moves; with no surface named, both are measured, as before.
+MODE=
+SURFACE=both
+for arg in "$@"; do
+  case "$arg" in
+    --report) MODE=--report ;;
+    --js) SURFACE=js ;;
+    --python) SURFACE=python ;;
+    *) printf 'usage: coverage.sh [--report] [--js | --python]\n' >&2; exit 2 ;;
+  esac
+done
 # ADR-126 T3: the suite's own observe budget, as scripts/selftest.sh sets it (CLAUDE.md §7).
 export QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000
 
@@ -73,6 +84,7 @@ if [ "$MODE" != "--report" ]; then
   )
 fi
 
+if [ "$SURFACE" != python ]; then
 printf '== JavaScript hooks ==\n'
 # ${a[@]+"${a[@]}"} — not "${a[@]}". Under `set -u`, bash 3.2 (still the system
 # bash on macOS) treats an EMPTY array's expansion as an unbound variable and
@@ -111,7 +123,9 @@ if [ "$js_status" -ne 0 ]; then
   printf 'Add a test for the uncovered lines listed above, or lower the floor deliberately.\n'
   exit 1
 fi
+fi
 
+if [ "$SURFACE" != js ]; then
 printf '\n== Python gates (bin/) ==\n'
 # The gates run as children of the JS suite, so coverage has to start itself
 # inside every Python process the suite spawns rather than wrapping one command.
@@ -122,7 +136,7 @@ if ! python3 -c 'import coverage' >/dev/null 2>&1; then
     printf 'FAIL — QUALITY_HARNESS_COVERAGE_STRICT=1 and the gates could not be measured.\n'
     exit 1
   fi
-  printf '\nPARTIAL — JavaScript floors held; the Python gates were not measured.\n'
+  printf '\nPARTIAL — the Python gates were not measured.\n'
   exit 0
 fi
 
@@ -176,5 +190,6 @@ if ! python3 -m coverage report --rcfile="$WORK/coverage.cfg" --sort=cover \
   printf 'Add a case to tests/gates.test.mjs or tests/gate-regressions.py.\n'
   exit 1
 fi
+fi
 
-printf '\nPASS — coverage holds its floor on both surfaces.\n'
+printf '\nPASS — coverage holds its floor on the %s surface(s) measured.\n' "$SURFACE"

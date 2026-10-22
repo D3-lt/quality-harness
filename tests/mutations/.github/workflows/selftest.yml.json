@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-126 T2: the Python coverage job measures only the Python surface",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/coverage-split.test.mjs"],
+      "from": "        run: bash scripts/coverage.sh --python",
+      "to": "        run: bash scripts/coverage.sh",
+      "only": "^(?:the coverage floor is two jobs, each measuring one surface, and main requires both)$"
+    },
+    {
       "label": "ci: the shard count agrees in the places it appears",
       "file": ".github/workflows/selftest.yml",
       "tests": [

@@ -17,6 +17,7 @@
           { "context": "selftest (macos-latest)", "integration_id": 15368 },
           { "context": "windows", "integration_id": 15368 },
           { "context": "coverage floor", "integration_id": 15368 },
+          { "context": "coverage floor (python)", "integration_id": 15368 },
           { "context": "plugin validate", "integration_id": 15368 },
           { "context": "go core (ubuntu-latest)", "integration_id": 15368 },
           { "context": "go core (macos-latest)", "integration_id": 15368 },

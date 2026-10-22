@@ -59,6 +59,7 @@ out=$(node --test --test-reporter=tap tests/coverage-split.test.mjs 2>&1) \
 | 4 — it is used | main's required checks |
 
 ## Mutation Log
+- 2026-10-22 · 6aa7bd18* · mutant killed · exit 1 · `.github/workflows/selftest.yml` · the Python coverage job measures only the Python surface · acceptance-sha256:bf3ff65525021e9ce4837a888ae5e1ff3a8eb56e7394f9fb9ec701ddccd5484c
 
 ## Invariants
 
@@ -78,3 +79,7 @@ Stop if the two halves cannot run independently (the Python measurement needs th
 - Sharding the Windows job (re-measured after this lands).
 
 ## Verification Log
+- 2026-10-22 · 6aa7bd18* · exit 1 · `out=$(node --test --test-reporter=tap tests/coverage-split.test.mjs 2>&1) \ …` · acceptance-sha256:bf3ff65525021e9ce4837a888ae5e1ff3a8eb56e7394f9fb9ec701ddccd5484c · ms:217 · test-lock-sha256:53ba5a1327aa719106c854f66437d2aa72da0af54092ba77762770f72b87d5ab · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY292ZXJhZ2Utc3BsaXQudGVzdC5tanMJY292ZXJhZ2Uuc2ggbWVhc3VyZXMgb25seSB0aGUgc3VyZmFjZSBpdCBpcyBhc2tlZCBmb3IJMzg4YjI5YWJiZjc4ZTZmNzM3NjA2M2EwZDdhODFkNmUxMGVhYzJjMDExOWY4YTRmOWJkNDllZGNmZTYzZjEwOApib2R5CXRlc3RzL2NvdmVyYWdlLXNwbGl0LnRlc3QubWpzCXRoZSBjb3ZlcmFnZSBmbG9vciBpcyB0d28gam9icywgZWFjaCBtZWFzdXJpbmcgb25lIHN1cmZhY2UsIGFuZCBtYWluIHJlcXVpcmVzIGJvdGgJMGU0OTNhNmMyYjUwNTNmNzBlNWIxZDk0NmUwZWQzMmJlNDg2MzEwYTc5Y2I2ZmU5YTFhMWJjOWQzZGZjMWEzZA
+  ```
+  ```
+- 2026-10-22 · 6aa7bd18* · exit 0 · `out=$(node --test --test-reporter=tap tests/coverage-split.test.mjs 2>&1) \ …` · acceptance-sha256:bf3ff65525021e9ce4837a888ae5e1ff3a8eb56e7394f9fb9ec701ddccd5484c · ms:255

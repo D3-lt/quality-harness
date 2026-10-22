@@ -101,7 +101,30 @@ jobs:
       - name: Hold the coverage floor
         env:
           QUALITY_HARNESS_COVERAGE_STRICT: '1'
-        run: bash scripts/coverage.sh
+        run: bash scripts/coverage.sh --js
+
+  # ADR-126 T2: the Python gates' half of the floor, in parallel with the JavaScript half above. Same checkout, toolchain and
+  # strictness; required on main beside it.
+  coverage-python:
+    name: coverage floor (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        # Full history, for the same reason as the coverage job above.
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install coverage.py
+        run: python3 -m pip install --upgrade coverage ruff==0.15.6
+      - name: Hold the Python gates' coverage floor
+        env:
+          QUALITY_HARNESS_COVERAGE_STRICT: '1'
+        run: bash scripts/coverage.sh --python
 
   windows:
     name: windows

@@ -7,7 +7,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { footprint } from '../scripts/hook-footprint.mjs'
+import { footprint, HOOK_SCRIPTS } from '../scripts/hook-footprint.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const OURS = 'node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs'
@@ -171,5 +171,24 @@ test("a 2.1.308 SessionStart context is the latest SessionStart call's, and one 
     assert.equal(result.ambiguous, 1, 'a call another plugin\'s hook shared stays ambiguous')
     assert.equal(result.unattributed, 1, 'a context with no call before it is said, not dropped')
     assert.equal(row(result, 'SessionStart', 'additionalContext', 'unmarked'), undefined)
+  } finally { remove(dir) }
+})
+
+// The Codex review of 979585de: the plugin root variable names no particular plugin, so another plugin's SessionStart hook
+// read as this one's once a 2.1.308 context joined it. Ours is the variable followed by a script hooks.json names.
+test("another plugin's hook under the plugin root variable is not ours, alone or beside ours", () => {
+  const other = 'node ${CLAUDE_PLUGIN_ROOT}/scripts/other-hook.mjs'
+  const { dir, file } = transcript([
+    success('SessionStart', 'c1', other, '{"hookSpecificOutput":{}}'),
+    context('SessionStart', 'SessionStart', 'another plugin says this <qh:standing@00000000>'),
+    success('SessionStart', 'c2', other, '{"hookSpecificOutput":{}}'),
+    success('SessionStart', 'c2', OURS, '{"hookSpecificOutput":{}}'),
+    context('SessionStart', 'SessionStart', 'whose is this <qh:standing@11111111>'),
+  ])
+  try {
+    const result = footprint(file)
+    assert.equal(row(result, 'SessionStart', 'additionalContext', 'standing'), undefined, 'neither context is counted as ours')
+    assert.equal(result.ambiguous, 1, 'the call both plugins hooked is ambiguous')
+    assert.deepEqual(HOOK_SCRIPTS.sort(), ['branch-state.mjs', 'lifecycle.mjs', 'run-shell-hook.mjs'])
   } finally { remove(dir) }
 })

@@ -34,8 +34,14 @@ export const HOOK_SHAPES = {
   hook_system_message: 'systemMessage',
 }
 
-// This plugin's hook commands: the plugin root variable, or a path into a quality-harness plugin directory.
-const OURS = /\$\{?CLAUDE_PLUGIN_ROOT\}?|quality-harness[\\/](?:plugin[\\/])?scripts[\\/]/
+// This plugin's hook commands: the plugin root variable followed by a script plugin/hooks/hooks.json names, or a path into
+// a quality-harness plugin directory. The variable alone is every plugin's (the Codex review of 979585de): another plugin's
+// `${CLAUDE_PLUGIN_ROOT}/scripts/other.mjs` was read as ours. A hook another plugin ships under one of these names still
+// would be; nothing in the record tells the two apart.
+export const HOOK_SCRIPTS = [...new Set([...readFileSync(new URL('../plugin/hooks/hooks.json', import.meta.url), 'utf8')
+  .matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([\w.-]+)/g)].map(m => m[1]))]
+const SCRIPT = HOOK_SCRIPTS.map(name => name.replace(/[.]/g, '\\.')).join('|')
+const OURS = new RegExp(`\\$\\{?CLAUDE_PLUGIN_ROOT\\}?[\\\\/]scripts[\\\\/](?:${SCRIPT})(?![\\w.-])|quality-harness[\\\\/](?:plugin[\\\\/])?scripts[\\\\/]`)
 const MARKER = /<qh:([A-Za-z0-9_.-]+)@[0-9a-f]{8}>/g
 
 const texts = value => typeof value === 'string' ? [value]

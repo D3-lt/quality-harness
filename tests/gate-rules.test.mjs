@@ -18,12 +18,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
 import { campaignFixture } from './campaign-fixture.mjs'
 import { loadCatalogue } from '../scripts/mutate.mjs'
+import { remove } from './helpers/remove.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
 const root = join(repoRoot, 'plugin')
 const bin = join(root, 'bin')
-const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
+// Without the session's own plugin root: qh-root prefers QH_PLUGIN_ROOT, which a Claude Code session exports (ADR-120 T4),
+// so a test that names CLAUDE_PLUGIN_ROOT read the caller's answer instead of its own (CLAUDE.md §8).
+const { QH_PLUGIN_ROOT: _sessionRoot, ...inherited } = process.env
+const env = { ...inherited, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
 // The gates are the extensionless executables; the .cmd files beside them
 // are Windows shims that invoke these.
 /** Dotless FILES in bin/. A directory there is not a gate, whatever it is named. */
@@ -47,8 +51,10 @@ function scratch(prefix) {
   temps.push(dir)
   return dir
 }
+// Through the retrying helper (CLAUDE.md §9): on Windows a child spec-verify started (a `go test`) still held its
+// directory when this ran, and a bare rmSync's EPERM failed the whole file (main's push run at 7805be9f, attempt 2).
 test.after(() => {
-  for (const dir of temps) rmSync(dir, { recursive: true, force: true })
+  for (const dir of temps) remove(dir)
 })
 
 const POSTMORTEM = `---

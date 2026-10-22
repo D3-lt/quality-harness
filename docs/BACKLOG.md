@@ -3536,3 +3536,13 @@ Found 2026-10-22 while releasing 3.8.52.
   was silently skipped. It now joins the latest SessionStart call before it, and an attachment that joins no hook is
   counted as `unattributed` rather than dropped. Over this session's transcript: SessionStart additionalContext 24 firings,
   about 13.2k characters, where it had read none; 10 unattributed.
+
+## 407. The retrying-remove rule covers only tests that start a session; 580 bare recursive removes sit outside it
+
+Found 2026-10-22: main's push run at 7805be9f, attempt 2, failed `windows` on `tests/gate-rules.test.mjs`'s `test.after`,
+whose bare `rmSync` met `EPERM` on a directory a child of `spec-verify` (a `go test`) still held. That site now goes through
+`tests/helpers/remove.mjs`. `tests/test-hygiene.test.mjs` holds the rule only over test files that name `SessionStart`
+(its §380 class), and gate-rules names none. The wider class, enumerated with
+`mrw read --count --grep '(^|[^.\w])rmSync\([^)]*recursive' tests`: 580 matching lines in 201 files, including helpers and
+sites that already pass `maxRetries`. Widening the rule means classifying each: a child that can outlive the test (a hook,
+a gate that spawns a runner) is in the class; a directory only this process wrote is not. Open.

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 979585de: the plugin root variable alone is not this plugin's hook",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": ["tests/hook-footprint.test.mjs"],
+      "from": "(?:${SCRIPT})",
+      "to": "(?:[\\\\w.-]+)",
+      "only": "^(?:another plugin's hook under the plugin root variable is not ours, alone or beside ours)$"
+    },
+    {
       "label": "BACKLOG §406: a 2.1.308 SessionStart context joins the latest SessionStart call",
       "file": "scripts/hook-footprint.mjs",
       "tests": ["tests/hook-footprint.test.mjs"],

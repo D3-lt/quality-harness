@@ -33,9 +33,9 @@ function specRepo (name, { goneTag, goneTest = 'tests/gone.test.mjs::gone', fact
   writeFileSync(path.join(dir, 'package.json'), '{}\n')
   writeFileSync(path.join(dir, 'tests', 'ok.test.mjs'), "import test from 'node:test'\ntest('ok', () => {})\n")
   const text = readFileSync(path.join(okFixture, 'spec-selftest.md'), 'utf8')
-    .replace(/^### UC1-S1 .*$/m, '### UC1-S1 [happy] Conforming fixtures pass every gate [@implemented] → `tests/ok.test.mjs::ok` cmd:`true`')
+    .replace(/^### UC1-S1 .*$/m, '### UC1-S1 [happy] Conforming fixtures pass every gate [@implemented] → `tests/ok.test.mjs::ok` cmd:`node --test tests/ok.test.mjs`')
     .replace(/^### UC1-S2 .*$/m, `### UC1-S2 [failure] A malformed artifact is rejected, not silently accepted [@${goneTag}] → \`${goneTest}\` cmd:\`exit 1\``)
-    .replace(/^\| F-1 .*$/m, '| F-1 | A conforming pair makes adr-lint exit 0 | `tests/ok.test.mjs::ok` | @implemented | `true` |')
+    .replace(/^\| F-1 .*$/m, '| F-1 | A conforming pair makes adr-lint exit 0 | `tests/ok.test.mjs::ok` | @implemented | `node --test tests/ok.test.mjs` |')
     .replace(/^\| F-2 .*$/m, `| F-2 | A placeholder-filled artifact never exits 0 | \`${goneTest}\` | @${factTag} | \`exit 1\` |`)
   writeFileSync(path.join(dir, 'spec.md'), text)
   return dir

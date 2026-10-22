@@ -986,9 +986,10 @@ test('a scenario can override its runner, which is the escape it never had', () 
   assert.match(without.stdout, /UC1-S1/, `and it must name the scenario:\n${without.stdout}`)
 
   // ...AND THE CLEAN ONE, same scenario, same undetectable root, one override.
-  // `true` is a command every platform CI runs on has, and it exits 0.
+  // A real check that exits 0 here: `true` exits 0 too, but runs nothing, and spec-verify reads such an override as not run
+  // (the cold review of ADR-123, 2026-10-22).
   writeFileSync(spec, good.replace(
-    scenario, scenario.replace('[@spec]', '[@implemented]') + ' cmd:`true`'))
+    scenario, scenario.replace('[@spec]', '[@implemented]') + ' cmd:`test -f spec-selftest.md`'))
   const withCmd = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
   assert.doesNotMatch(withCmd.stdout, /UNRUN\s+UC1-S1/,
     `an overridden scenario is adjudicated, not UNRUN:\n${withCmd.stdout}`)

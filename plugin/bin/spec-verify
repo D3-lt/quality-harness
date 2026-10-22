@@ -502,6 +502,11 @@ def test_runs(test, root, stack, override_cmd):
     was the WRONG runner answering, here it is NO runner answering. Both used to
     print RED.
     """
+    # A Cmd override that runs nothing passes whatever the code does: `true`, `:` and `exit 0` exit 0 in every POSIX shell
+    # without running a test (the cold review of ADR-123, 2026-10-22). Such an override proves nothing ran, so it is not run.
+    if override_cmd and " ".join(override_cmd.split()) in NOTHING_RUNS:
+        return "unrun", (f"the Cmd override `{override_cmd}` runs no test: it exits 0 whatever the code does, so it "
+                         "cannot show the bound test passing. Give the binding a command that runs that test")
     if override_cmd:
         # ⚠ A POSIX SHELL, NOT `shell=True`. On Windows `shell=True` is cmd.exe, which
         # reads `BP_ROOT="$PWD" bash -c '…'` as an executable NAME and fails with "The
@@ -584,6 +589,9 @@ def test_runs(test, root, stack, override_cmd):
     if r.returncode == 0 and evidence is not None and not evidence.search(out):
         return "unrun", (f"the {stack} runner exited 0 without reporting that {name} ran — a filter "
                          f"that selects nothing exits 0 there, so this is not a pass")
+    if r.returncode == 0 and stack in SELECTED_NOTHING and SELECTED_NOTHING[stack].search(out):
+        return "unrun", (f"the {stack} runner exited 0 reporting that no test ran — a filter that selects nothing "
+                         f"exits 0 there, so this is not a pass")
     return ("pass" if r.returncode == 0 else "fail"), out[-300:]
 
 
@@ -595,7 +603,21 @@ def test_runs(test, root, stack, override_cmd):
 # by `swift_identity`, because a bare name is not attributable there.
 RAN_EVIDENCE = {
     "go": lambda name: re.compile(rf"^\s*--- PASS: {re.escape(name)}(?:\s|$)", re.M),
+    # cargo 1.99.1, measured 2026-10-22: a filter that matches nothing prints `running 0 tests` and `test result: ok. 0
+    # passed`, exit 0; one that matches prints `test result: ok. 1 passed`. A pass needs at least one passed somewhere.
+    "cargo": lambda name: re.compile(r"^test result: ok\. [1-9]\d* passed", re.M),
 }
+
+# Runners whose no-match output is measured but whose pass output is not: only the measured no-match shape is read as not
+# run, and anything else keeps its exit code. vitest 4.1.6 and 5.0.0 (-t with no match): `Tests  3 skipped (3)`, nothing
+# passed, exit 0; PHPUnit 8.5.40 (--filter with no match): `No tests executed!`, exit 0 (.claude/rules/16, 2026-09-18).
+SELECTED_NOTHING = {
+    "vitest": re.compile(r"^\s*Tests\s+(?![^\n]*passed)[^\n]*skipped", re.M),
+    "phpunit": re.compile(r"^No tests executed!", re.M),
+}
+
+# Override commands that exit 0 and run nothing, each run in bash and dash (2026-10-22).
+NOTHING_RUNS = {"true", ":", "exit", "exit 0", "/bin/true", "/usr/bin/true"}
 
 
 def swift_identity(package_root, path, name):

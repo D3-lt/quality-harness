@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "the cold review of ADR-123: a Cmd override that runs nothing is not run, not a pass",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "    if override_cmd and \" \".join(override_cmd.split()) in NOTHING_RUNS:",
+      "to": "    if False:",
+      "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
+    },
+    {
+      "label": "the cold review of ADR-123: a cargo run that passed nothing is not run",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "    \"cargo\": lambda name: re.compile(r\"^test result: ok\\. [1-9]\\d* passed\", re.M),",
+      "to": "    \"cargo\": lambda name: re.compile(r\"^test result: ok\\. \\d+ passed\", re.M),",
+      "only": "^(?:a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass)$"
+    },
+    {
+      "label": "the cold review of ADR-123: a measured no-match output is not run",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "    if r.returncode == 0 and stack in SELECTED_NOTHING and SELECTED_NOTHING[stack].search(out):",
+      "to": "    if False:",
+      "only": "^(?:a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass)$"
+    },
+    {
       "label": "gates: a Cmd override is not command substitution",
       "file": "plugin/bin/spec-verify",
       "tests": [

@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §222: the mutant fence reads no bytecode the clean fence compiled",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-bytecode.test.mjs"],
+      "from": "                            outcome=placement if isolated else None, env=fence_env)",
+      "to": "                            outcome=placement if isolated else None)",
+      "only": "^(?:a mutant fence runs with no bytecode cache it could trust)$"
+    },
+    {
+      "label": "BACKLOG §222: the clean fence runs in the environment the mutant fence gets",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/adr-verify-bytecode.test.mjs"],
+      "from": "                                outcome=clean_settled, env=fence_env)",
+      "to": "                                outcome=clean_settled)",
+      "only": "^(?:a fence that fails only without a bytecode cache fails clean, and is never a kill)$"
+    },
+    {
       "label": "Codex review of cdcfcf84..290669db: the lock root is found along the task's path as listed",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],

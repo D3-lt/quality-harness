@@ -346,7 +346,9 @@ function armedSession(prefix, { armed = true, offered = false } = {}) {
   const said = payload => {
     const run = spawnSync(process.execPath, [hookLifecycle], {
       cwd: hookTmp, input: JSON.stringify({ session_id: session, cwd: dir, ...payload }), encoding: 'utf8', timeout: 120_000,
-      env: { ...process.env, ...IDENTITY, TMPDIR: hookTmp, TMP: hookTmp, TEMP: hookTmp, CLAUDE_ENV_FILE: '' },
+      // The budget is the test's, not the product's 5s (CLAUDE.md §7): on a slow Windows runner the
+      // tree outran it, the hook said "unknown" without a decision, and a refusal row read null (7805be9f).
+      env: { ...process.env, ...IDENTITY, TMPDIR: hookTmp, TMP: hookTmp, TEMP: hookTmp, CLAUDE_ENV_FILE: '', QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' },
     })
     assert.equal(run.status, 0, run.stderr)
     return hookSaid(run.stdout, run.stderr).stdout

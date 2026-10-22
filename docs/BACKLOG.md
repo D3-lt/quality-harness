@@ -3498,3 +3498,23 @@ The structural answer is ADR-123 Decision 2: a pass needs the runner's own evide
 <name> ... ok` line, go's `--- PASS`, swift's identity), and an override with none is UNRUN. ADR-123 T3 does that for a Living
 model; for an ordinary spec it would turn every override that prints no runner output (`make test-x`) UNRUN, which is a
 decision for the owner, not a fix.
+
+## 405. Two CI failures on main's push run at 7805be9f, after the 3.8.52 tag; both fixed
+
+Found 2026-10-22. Main's push run (39777441003) failed two jobs while the land run and the dispatched campaign at the same
+sha passed, so the tag stands on the dispatched run (CLAUDE.md §13.3).
+
+- **macOS, `tests/tutorial.test.mjs`: the tutorial's mutant survived.** BACKLOG §222's second occurrence (declined
+  2026-09-24, "reopen on a second occurrence"). Its untested hypothesis holds, measured here: CPython imports a stale
+  `__pycache__` entry when the source kept its mtime second and its size (`touch -r` pins it; a same-size rewrite then
+  imports the old code; a fresh `PYTHONPYCACHEPREFIX` with `PYTHONDONTWRITEBYTECODE=1` reads the source). `scripts/mutate.mjs`
+  has guarded its children since 2026-09-13; `adr-verify --mutant`, which ships, did not. The class: every place that runs a
+  Python fence before and after a same-second rewrite. Enumerated with `mrw read --grep 'run_bounded\(' plugin/bin/adr-verify`:
+  the clean and mutant fences of `run_mutant` (now guarded, one environment for both), a plain run and a background run (no
+  mutant, so the project's own cache is legitimate there), the per-task re-entry (runs adr-verify, not a fence) and git calls.
+  `scripts/inverse-hunks.mjs` already sets `PYTHONDONTWRITEBYTECODE`. Test: `tests/adr-verify-bytecode.test.mjs`, two
+  catalogue mutants killed.
+- **Windows, two `tests/publish-command.test.mjs` refusal rows read `null`.** `armedSession` inherited the product's 5s
+  observe budget; a slow runner outran it, and the hook advised "unknown" with no decision, which is the designed answer
+  (BACKLOG §314, CLAUDE.md §16) and not a fail-open. The helper now sets `QUALITY_HARNESS_OBSERVE_BUDGET_MS` (CLAUDE.md §7);
+  the locked test bodies are unchanged.

@@ -173,6 +173,7 @@ resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 """
+import atexit
 import base64
 import datetime
 import hashlib
@@ -1744,6 +1745,22 @@ def plan_edits(cwd, text):
     return edits, verdicts
 
 
+
+def mutant_fence_env():
+    """The environment both `--mutant` fences run in: Python reads no bytecode this run did not compile.
+
+    CPython trusts a `__pycache__` entry whose source kept its mtime second and its size, and a mutant
+    written in the second the clean fence compiled the file is often both: the mutant fence then
+    imports the UNMUTATED module and the mutant reads as survived (BACKLOG §222, seen twice, the
+    second on CI at 7805be9f). `scripts/mutate.mjs` has carried this guard since 2026-09-13. A fresh,
+    empty prefix makes Python ignore every in-tree cache, and not writing keeps it empty. The clean
+    fence gets the same environment, so a fence that fails only under it fails there, and is never
+    donated to the mutant as a kill.
+    """
+    prefix = tempfile.mkdtemp(prefix="qh-mutant-pycache-")
+    atexit.register(shutil.rmtree, prefix, True)
+    return dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=prefix)
+
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                covers=None, steps=None, in_place=False, placement=None, plan=None):
     # ADR-025: taken HERE, before this function writes anything at all. The
@@ -1955,11 +1972,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         clean_started = time.monotonic()
         # A clean fence that leaves work running did not finish what it began: no pass, and no mutant (LEFT_RUNNING).
         clean_settled = placement if isolated else {}
+        fence_env = mutant_fence_env()
         try:
             clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",
                                 timeout=fence_timeout(), on_start=fence_start,
-                                outcome=clean_settled)
+                                outcome=clean_settled, env=fence_env)
         except subprocess.TimeoutExpired as expired:
             partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
             print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
@@ -2083,7 +2101,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             r = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                             text=True, encoding="utf-8", errors="replace",
                             timeout=fence_timeout(), on_start=fence_start,
-                            outcome=placement if isolated else None)
+                            outcome=placement if isolated else None, env=fence_env)
         except subprocess.TimeoutExpired:
             # The mutant is still applied, so the restore below is what matters —
             # `finish()` runs it. UNRUN, not survived and not killed: a fence that

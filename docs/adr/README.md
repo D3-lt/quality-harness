@@ -126,3 +126,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-122](ADR-122-said-once-per-context.md) | Each hook item is said once per context | Accepted |
 | [ADR-123](ADR-123-the-product-layer.md) | A living product model whose rules run, specs that change it, and the product concerns every spec states | Accepted |
 | [ADR-124](ADR-124-skills-for-every-host.md) | The skills reach other agent hosts through one shared link the plugin keeps fresh | Accepted |
+| [ADR-125](ADR-125-a-blocking-review-covers-nothing.md) | A plugin commit is reviewed only when the newest review covering it did not request changes | Accepted |

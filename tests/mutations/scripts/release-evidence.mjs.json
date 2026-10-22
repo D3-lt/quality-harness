@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "ADR-125 T1: the newest covering review decides",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-blocking.test.mjs"],
+      "from": "usable.findLast(row => holds(row, commit))",
+      "to": "usable.find(row => holds(row, commit))",
+      "only": "^(?:a commit whose newest covering review requested changes is not reviewed)$"
+    },
+    {
+      "label": "ADR-125 T1: a review that requested changes covers nothing",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-blocking.test.mjs", "tests/review-ledger.test.mjs"],
+      "from": "  const blocked = needed.filter(commit => covers.get(commit).status === 'blocking')",
+      "to": "  const blocked = []",
+      "only": "^(?:a commit whose newest covering review requested changes is not reviewed|release-evidence refuses a plugin commit since the last tag that no review covers, and a covering review clears it)$"
+    },
+    {
       "label": "ADR-118 T1: each required context keeps the app its rule binds it to",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/land.test.mjs"],

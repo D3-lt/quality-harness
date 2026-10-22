@@ -173,11 +173,14 @@ test('release-evidence refuses a plugin commit since the last tag that no review
     // An exact row covers its own commit and nothing else.
     review(dir, null, bump, 'clean', true)
     assert.equal(reviewEvidence(bump, { cwd: dir }).verdict, 'unproven')
+    // ADR-125: a review that requested changes covers nothing; a later clean one over the same commit clears it.
     review(dir, null, change, 'blocking', true)
+    assert.equal(reviewEvidence(bump, { cwd: dir }).kind, 'blocked')
+    review(dir, null, change, 'clean', true)
     const cleared = reviewEvidence(bump, { cwd: dir })
     assert.equal(cleared.verdict, 'reviewed', cleared.reason)
-    // Said, never judged: the covering review's own status is in the reason.
-    assert.match(cleared.reason, /blocking/)
+    // Said: the covering review's own status is in the reason.
+    assert.match(cleared.reason, /clean/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 

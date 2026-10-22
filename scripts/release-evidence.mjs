@@ -455,12 +455,22 @@ export function reviewEvidence(sha, { cwd = process.cwd(), exec = execFileSync, 
   const holds = (row, commit) => row.exact === true
     ? row.head === commit
     : typeof row.base === 'string' && ancestor(commit, row.head) === true && ancestor(commit, row.base) === false
-  const covers = new Map(needed.map(commit => [commit, usable.find(row => holds(row, commit)) ?? null]))
+  // ADR-125: the NEWEST row covering a commit decides, and the ledger is appended when a review ends, so the newest is the
+  // last. A review that requested changes covers nothing until a later one covering the same commit says otherwise: the
+  // fix round's verification review (CLAUDE.md §12).
+  const covers = new Map(needed.map(commit => [commit, usable.findLast(row => holds(row, commit)) ?? null]))
   const uncovered = needed.filter(commit => !covers.get(commit))
   if (uncovered.length) {
     return {
       verdict: 'unproven', kind: 'unreviewed', tag, uncovered,
       reason: `${uncovered.length} plugin commit(s) since ${tag} no recorded review covers: ${uncovered.map(c => c.slice(0, 8)).join(', ')}`,
+    }
+  }
+  const blocked = needed.filter(commit => covers.get(commit).status === 'blocking')
+  if (blocked.length) {
+    return {
+      verdict: 'unproven', kind: 'blocked', tag, uncovered: blocked,
+      reason: `${blocked.length} plugin commit(s) since ${tag} whose newest recorded review requested changes: ${blocked.map(c => c.slice(0, 8)).join(', ')}`,
     }
   }
   const said = new Map()
@@ -576,6 +586,9 @@ export function tagAdvice(kind) {
       + '--since <earlier report>`, file that attestation, and ask again (ADR-082).',
     'partial-only': 'Do NOT tag this sha. Every outside run that attests it read only part of its corpus — a PARTIAL run '
       + 'attests a release only beside one whose look is ok: get a run over a corpus the readers read whole, file it, and ask again (ADR-089).',
+    blocked: 'Do NOT tag this sha. The newest recorded review of a plugin commit since the last tag requested changes — fix what '
+      + 'it found, then run the scoped verification review of that fix round (CLAUDE.md §12) through the launcher, with a range '
+      + 'that holds the commits it names, and ask again (ADR-125).',
     unreviewed: 'Do NOT tag this sha. A plugin commit since the last tag has no recorded review — run one scoped review through '
       + 'the launcher (the codex-review skill, `host-review.mjs --prompt-file … --range <tag>..<sha>`) over what it names, and ask again (ADR-100).',
     'review-unlisted': 'Do NOT tag this sha. Whether its plugin commits since the last tag were reviewed could not be established '
@@ -645,7 +658,7 @@ export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEv
     // regressed or compared nothing, git could not say whether they changed (Codex review of 013149e,
     // P2), or a plugin commit has no recorded review (ADR-100).
     if (outside?.verdict === 'unproven') log(tagAdvice(outside.kind))
-    if (review?.verdict === 'unproven') log(tagAdvice(review.kind === 'unreviewed' ? 'unreviewed' : 'review-unlisted'))
+    if (review?.verdict === 'unproven') log(tagAdvice(review.kind === 'unreviewed' || review.kind === 'blocked' ? review.kind : 'review-unlisted'))
   } else if (verdict !== 'success') {
     log('Do NOT tag this sha. A run that did not finish is "I could not look", '
       + 'not "nothing was wrong" — see BACKLOG §104 and CLAUDE.md §13.')

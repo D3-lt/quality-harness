@@ -120,16 +120,24 @@ out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs te
 | 4 — it is used | every hook firing; T5 counts it |
 
 ## Mutation Log
+- 2026-10-22 · 0787ca92* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · deliver says an item the context already holds · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2
+- 2026-10-22 · 0787ca92* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · the turn end's guards read every generation's rows · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2
 
 ## Invariants
 
-- Every locked test keeps its body; new tests go beside locked ones.
+- Every locked test keeps its body, except the two S2 relocks under Decision 8 (ADR-094 T2's `tests/standing-facts.test.mjs`
+  tests, relocked with `--replace-hashes` on 2026-10-22); new tests go beside locked ones.
 - No refusal is added, removed or skipped (CLAUDE.md §3).
 - Node and Go agree wherever both implement the rule.
 
 ## Risks
 
 - An emitter missed by the survey keeps repeating: the class table's commands are re-run at S4 and the counts compared.
+- S4's class re-read, 2026-10-22 (`mrw read --grep 'additionalContext' plugin/scripts`): besides `deliver` and SessionStart, three
+  emitters write their own output, and each already says a thing once per context or per content: the decision context once
+  per file per session generation (`session-orientation.mjs` `decisionContextFor`), the per-edit gate output once per file
+  content (`run-shell-hook.mjs`, the run logged complete), the ledger warning only under `"ledgers": "warn"`. They carry no
+  marker; T5's measurement shows whether any of them repeats in a real session.
 - What the test doubles do not model: the transcripts are synthetic; a real host's ordering of hook output and tool results
   is met in T5.
 
@@ -143,3 +151,10 @@ the current text.
 - The channel per recipient (T4).
 
 ## Verification Log
+- 2026-10-22 · 0787ca92* · exit 0 · `out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs tests/branch-state-quiet.test.mjs 2>&1) \ …` · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2 · ms:110296
+- 2026-10-22 · 0787ca92* · exit 0 · `out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs tests/branch-state-quiet.test.mjs 2>&1) \ …` · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2 · ms:132965
+- 2026-10-22 · 0787ca92* · exit 0 · `out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs tests/branch-state-quiet.test.mjs 2>&1) \ …` · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2 · ms:252424
+- 2026-10-22 · 0787ca92* · exit 1 · `out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs tests/branch-state-quiet.test.mjs 2>&1) \ …` · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2 · ms:629 · test-lock-sha256:17b89ab0866909b167a14a3ac9b327abf74519e1010ccc97232f1a84f2b1f431 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYnJhbmNoLXN0YXRlLXF1aWV0LnRlc3QubWpzCXRoZSBicmllZiBpcyBub3Qgc2FpZCBhZ2FpbiB3aGVuIG9ubHkgdGhlIHVuY29tbWl0dGVkIGNvdW50IGNoYW5nZWQJOGY1MjMxMTE0ZjNjYTUzYWYzMmI1MTUwODM2ODFmNWVhOGEyNDJkYjlhMmQ0YWZiYjhlMzNkYzM2Mzg0NDFhNwpib2R5CXRlc3RzL3NhaWQtcGVyLWNvbnRleHQtcm91dGluZy50ZXN0Lm1qcwlhIGNoYW5nZWQgc3RhdGUgaXMgc2FpZCB3aGF0ZXZlciB3YXMgc2FpZCBiZWZvcmUJMGRmOTY1N2Q2MjQ2ZmY5ZGI3ZTM0OGJmYThhYjEyZjFlN2ZmNjY5YWM4ZDE2NzEwODQyYWUzZTBhOGFhOTY5Ywpib2R5CXRlc3RzL3NhaWQtcGVyLWNvbnRleHQtcm91dGluZy50ZXN0Lm1qcwlhIGZpbmRpbmcgc2FpZCBiZWZvcmUgYSBjb21wYWN0aW9uIGlzIHNhaWQgYWdhaW4gYWZ0ZXIgaXQsIGFuZCBub3QgYWZ0ZXIgYSByZXN1bWUJOTVjYTYwZjU4ZjNiNTZjNjFjNTk3N2MwMDYxMjlmNDhhMzMwYjNmNDdhMDU2NDk5MjdhNmY2NmYyYTg2MTc1YQpib2R5CXRlc3RzL3NhaWQtcGVyLWNvbnRleHQtcm91dGluZy50ZXN0Lm1qcwlhIHJlZnVzYWwgaXMgYW5zd2VyZWQgb24gZXZlcnkgYXR0ZW1wdAk1Y2YxOTRkNzEyOWNiOTEzMzMxOWQ4ZWUxNDU4MDgzMjU2YWRhNGFlOWMzZjc3MzdlZWIxNGJlMTEwMzUyNDc1CmJvZHkJdGVzdHMvc2FpZC1wZXItY29udGV4dC1yb3V0aW5nLnRlc3QubWpzCWEgc3RhbmRpbmcgcGFyYWdyYXBoIGlzIHNhaWQgb25jZSBwZXIgY29udGV4dCwgbm90IG9uY2UgcGVyIHRocmVlIGRheXMJNDQ5ODI3YTMwZDY3ODE4ZTI1ZThkOWI3NWU2ZGQwYzU5OTE4M2FkNDE1YjMxNzM1NDZhNmU1N2I3MmJjNTM5OQpib2R5CXRlc3RzL3NhaWQtcGVyLWNvbnRleHQtcm91dGluZy50ZXN0Lm1qcwlhbiBvbGRlciBndWFyZCB5aWVsZHMgdG8gdGhlIHJlcXVlc3Q6IGEgU3RvcCBhZnRlciBhIGNvbXBhY3Rpb24gYW5kIHR3byBSNCByZWFzb25zIGFyZSBzYWlkCTA5MTEyNjZmZTk0YTY3ZDkxZmI1MjM4MmFhMDQxNGQ1ZTFjNTZmZTMwMjYzZjY2YjM4OTdjMjgxMTdhMjYwNmIKYm9keQl0ZXN0cy9zYWlkLXBlci1jb250ZXh0LXJvdXRpbmcudGVzdC5tanMJZXZlcnkgZW1pdHRlciBpcyBzYWlkIG9uY2UgcGVyIGNvbnRleHQgYW5kIGFnYWluIGFmdGVyIGEgY29tcGFjdGlvbgllZTViMTQxZmY3YTRmNTJiOGViM2ZiYTg4NmU4NzkzNDY4ZTJlOTA0OTMyMjc4OThlNmEyZGUwNTU4MzNlMzYyCmJvZHkJdGVzdHMvc2FpZC1wZXItY29udGV4dC1yb3V0aW5nLnRlc3QubWpzCXRoZSBtZW50aW9uIGlzIHNhaWQgb25jZSBwZXIgY29udGV4dCBhbmQgYSBwcm92ZW4gY29tbWl0IHN0aWxsIGdldHMgaXRzIGFkdmljZQk3NjY1NmNmY2U4ZTI3NzY1MDFkYmZmOGI2ZmNhMDJiYmYzYjVmNGE0MTE3YmUzNjM3OTlmMWVkMDE1YzFjNzAwCmJvZHkJdGVzdHMvc2FpZC1wZXItY29udGV4dC13aW5kb3cudGVzdC5tanMJYSBsb25nIHRyYW5zY3JpcHQgaXMgcmVhZCBmcm9tIGl0cyBlbmQsIGFuZCBhIG1hcmtlciB0aGUgbGFzdCByZXF1ZXN0IGNhcnJpZXMgaXMgc2FpZCBhdCBvbmNlCWVmYzBkNDI0ZTg3NDJkMGFlNWIxMjM5Yjc3YzBmNjM4ZDZmOTFhYjM0M2YzOTgwNGU1MzI0YWE4NzViYmQ2YTEKYm9keQl0ZXN0cy9zYWlkLXBlci1jb250ZXh0LXdpbmRvdy50ZXN0Lm1qcwlmcm9tIHRoZSBlbmQsIGFic2VuY2UgaXMgbm90IHNob3duOiBhbiBpdGVtIG5vIHJlYWQgbWVzc2FnZSBjYXJyaWVzIGlzIG5vIGV2aWRlbmNlLCBuZXZlciB1bnNhaWQJOWEzNzVkNmRmMjMyYzQ3ZTg1ZjFlNWExNGJhMDgzNDQyNjYwMTQzMDc4NGY0Nzk0NjAxZjdhOTY4ODc4MDk4NA
+  ```
+  ```
+- 2026-10-22 · 0787ca92* · exit 0 · `out=$(node --test --test-reporter=tap tests/said-per-context-routing.test.mjs tests/said-per-context-window.test.mjs tests/branch-state-quiet.test.mjs 2>&1) \ …` · acceptance-sha256:4a5a97df64cb013e226d1e2864c95e9b270a09d2d04a611f5476c16fcf9b5ec2 · ms:130295

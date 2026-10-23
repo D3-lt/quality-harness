@@ -441,4 +441,4 @@ jobs:
         env:
           QUALITY_HARNESS_HOOK_IMPL: go
           QUALITY_HARNESS_REQUIRE: go
-        run: node --test tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/refusals-hold.test.mjs tests/go-core-parity-adr-111.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs tests/side-door-sweep.test.mjs tests/qh-mcp-resources.test.mjs tests/r2-remote-commits.test.mjs
+        run: node --test tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/refusals-hold.test.mjs tests/go-core-parity-adr-111.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs tests/side-door-sweep.test.mjs tests/qh-mcp-resources.test.mjs tests/r2-remote-commits.test.mjs tests/go-format.test.mjs

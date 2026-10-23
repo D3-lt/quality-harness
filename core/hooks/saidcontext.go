@@ -28,7 +28,7 @@ var (
 	saidMainLoop = regexp.MustCompile(`^repl_main_thread\b`)
 	// A subagent's own loop (said-per-context.mjs AGENT_LOOP says what was measured).
 	saidAgentLoop = regexp.MustCompile(`^agent:`)
-	saidMarkerRe = regexp.MustCompile(`<qh:[A-Za-z0-9_.-]+@[0-9a-f]{8}>`)
+	saidMarkerRe  = regexp.MustCompile(`<qh:[A-Za-z0-9_.-]+@[0-9a-f]{8}>`)
 )
 
 type saidRequest struct {

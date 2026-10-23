@@ -16,15 +16,16 @@ authoring side (spec-write, adr-write, adr-execute, arch-write); the kind module
 
 ## Why: what the current shape costs (measured 2026-10-23 in this repository)
 
-- **The same artifact is read in many places, in three languages.** A record's `Status:` line is parsed in 8 code sites
-  (3 Python gates, the shared Python lib, 4 Node scripts); a task README table by `adr-lint` and `adr-next` (Python),
+- **The same artifact is read in many places, in three languages.** A record's `Status:` line is parsed in 7 code files
+  and mentioned in an eighth (a comment in `corpus-probe.mjs`), across Python gates, the shared Python lib and Node scripts
+  (corrected 2026-10-23 by the qh-core session's baseline, which counts the spelling `\*{0,2}Status` too); a task README table by `adr-lint` and `adr-next` (Python),
   `work-next`, `decision-corpus` and `trajectory-metrics` (Node) and a shell dispatcher. The plugin is 24 Python gates, 68
   Node scripts and 27 Go core files. A test exists only because the readers drift (`every reader gives one Status the same
   reading`).
 - **Parity between languages is where the defects were.** In one release: Node's `trimEnd()` dropped a U+00A0 Go kept; a
   Python child under `-I` decoded stdin as cp1252 on Windows; R2's upstream rule had to be written twice and kept equal by
   hand, and nine review rounds found nine spellings of it (BACKLOG §411, §416, §420).
-- **Tests take long and concentrate.** The last full selftest: 2,752 tests in 301 files, 2,310 s of test time (about 272 s
+- **Tests take long and concentrate.** The last full selftest: 2,759 tests in 311 files, 2,310 s of test time (about 272 s
   of wall clock at the default concurrency); 16 files hold half of it, led by the sharded publish suite (214 s), the test
   locks (118 s), observed-events (93 s), the gates (92 s) and lifecycle (84 s). Most of that is spawning a real hook or gate
   per case, because the logic is reachable only through its process.
@@ -133,7 +134,7 @@ What that buys, by the dimensions the owner named:
 | Clarity | Decision, tasks, evidence and status live in one markdown tree; a task file grew to 227 KB of logs | Decision (frozen) · card (served) · task (executable) · evidence (ledger) · status (derived) are five things, each read by the one who needs it | median record 12 KB, task 9 KB, largest 227 KB |
 | Product management | ADR-123 (pending) decides the model, the outcome and the Results table; nothing links an outcome to the evidence that the shipped change moved it | `model` and `spec` kinds with their own validators; the graph closes the loop outcome → spec → task → evidence → result, so "did it move the metric" is a query | ADR-123's eight tasks pending; no result row exists yet |
 | Execution | `adr-execute`/`adr-verify` are strong; parity between Node, Go and Python is kept by hand; tests spawn a process per case | One implementation per rule in the Go core; kinds tested in-process; one end-to-end test per entry point | three parity defects in one release; 2,310 s of test time, 16 files holding half |
-| Traceability | Partial and split: `Covers` → test by `adr-lint`; evidence → release by `release-evidence`; status by eight parsers | One graph; one reader per edge; every edge queryable both ways (what tests this fact; what fact does this test prove; what evidence lets this ship) | `every reader gives one Status the same reading` exists only because they drift |
+| Traceability | Partial and split: `Covers` → test by `adr-lint`; evidence → release by `release-evidence`; status by seven parsers | One graph; one reader per edge; every edge queryable both ways (what tests this fact; what fact does this test prove; what evidence lets this ship) | `every reader gives one Status the same reading` exists only because they drift |
 
 What not to destructure, because it is already right or is process rather than structure:
 - the three sanctioned refusals (CLAUDE.md §3): they stay in the hook path, outside any learned suppression;

@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "2026-10-23: an Accepted record the catalog beside it does not link draws no advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-catalog-link.test.mjs"],
+      "from": "                and f\"]({own})\" not in listing and f\"](./{own})\" not in listing):",
+      "to": "                and False):",
+      "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
+    },
+    {
+      "label": "2026-10-23: a catalog that links the record by ./ is read as not linking it",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-catalog-link.test.mjs"],
+      "from": "                and f\"]({own})\" not in listing and f\"](./{own})\" not in listing):",
+      "to": "                and f\"]({own})\" not in listing):",
+      "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
+    },
+    {
       "label": "BACKLOG §409 sibling: adr-lint prints path with the home directory",
       "file": "plugin/bin/adr-lint",
       "tests": [

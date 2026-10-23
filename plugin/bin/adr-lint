@@ -1167,6 +1167,21 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
         errors.advise(f"{adr_path.name}: it has {len(labels)} **Status:** lines that disagree "
                       f"({', '.join(f'`{clipped(value, 40)}`' for value in labels)}); every reader reads the first, "
                       f"`{clipped(labels[0], 40)}`. Keep one")
+    # A governing record the active catalog beside it does not link: adr-retire-check refuses that corpus, and twice on
+    # 2026-10-23 (ADR-127, ADR-128) a new record's missing row was caught only by the full check at release time. Said where
+    # the record is linted, as advice. A README beside the record counts as the catalog only when it already links a record.
+    catalog = Path(adr_path).parent / "README.md"
+    if status_value is not None and status_kind(status_value) == "governing" and catalog.is_file():
+        try:
+            listing = catalog.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            listing = None
+        own = Path(adr_path).name
+        if (listing is not None and re.search(r"\]\((?:\./)?ADR-\d+[^)]*\.md\)", listing)
+                and f"]({own})" not in listing and f"](./{own})" not in listing):
+            errors.advise(f"{adr_path.name}: it is {clipped(status_value, 40)} and the catalog beside it, {catalog.name}, does "
+                          f"not link it; add its row in the same commit (adr-retire-check refuses a governing record the "
+                          f"catalog does not link)")
     if status_value is None:
         # A line that starts like a label but whose colon is not `:` (a fullwidth `：`) is no
         # label since the colon became required; the message names the character, so the author

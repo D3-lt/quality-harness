@@ -43,7 +43,8 @@ already accepted.
   something — a family of arms, a contract, a default — another governing ADR may consume it, and a
   pre-registered criterion two documents away can be silently invalidated by a choice that looks
   local. Reconcile any authority change in the active/catalog sidecars in the same commit; never
-  rewrite a frozen archived record.
+  rewrite a frozen archived record. **When the record is Accepted, its row goes into the active catalog
+  (`docs/adr/README.md` or the corpus's own) in the commit that accepts it**; `adr-lint` advises when it is missing.
 
 ## Audit the class, not the instance
 

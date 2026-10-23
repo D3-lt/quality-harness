@@ -49,6 +49,10 @@ test('an Accepted record the catalog beside it does not link is advised, and not
   assert.doesNotMatch(said(lint()), advised)
   catalog('| [ADR-099](ADR-099-other.md) | another |\n| [ADR-001](ADR-001-selftest.md?view=1) | this |\n')
   assert.match(said(lint()), advised)
+  // The verification of a768f4e9: a catalog whose rows are all padded is still a catalog, and its leaving the record out is
+  // still advised.
+  catalog('| [ADR-099]( ADR-099-other.md ) | another |\n')
+  assert.match(said(lint()), advised)
   catalog('| [ADR-099](ADR-099-other.md) | another |\n')
   writeFileSync(record, readFileSync(record, 'utf8').replace('**Status:** Accepted', '**Status:** Proposed'))
   assert.doesNotMatch(said(lint()), advised)

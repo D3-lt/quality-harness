@@ -1179,7 +1179,7 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
             listing = catalog.read_text(encoding="utf-8", errors="replace")
         except OSError:
             listing = None
-        if listing is not None and re.search(r"^\|\s*\[ADR-\d+[^\]]*\]\([^)]+\.md(?:#[^)]*)?\)", listing, re.M):
+        if listing is not None and re.search(r"^\|\s*\[ADR-\d+[^\]]*\]\([^)]+\)", listing, re.M):
             own = Path(adr_path).resolve()
             linked = False
             for destination in re.findall(r"\[[^]]+\]\(([^)]+)\)", listing):

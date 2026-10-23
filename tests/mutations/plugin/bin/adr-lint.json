@@ -25,10 +25,18 @@
       "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
     },
     {
+      "label": "the verification of a768f4e9: a catalog whose rows are padded is not recognised as one",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-catalog-link.test.mjs"],
+      "from": "re.search(r\"^\\|\\s*\\[ADR-\\d+[^\\]]*\\]\\([^)]+\\)\", listing, re.M)",
+      "to": "re.search(r\"^\\|\\s*\\[ADR-\\d+[^\\]]*\\]\\([^)\\s]+\\.md\\)\", listing, re.M)",
+      "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
+    },
+    {
       "label": "the Codex review of d21fa2cc: any link to a record makes a README a catalog",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-catalog-link.test.mjs"],
-      "from": "re.search(r\"^\\|\\s*\\[ADR-\\d+[^\\]]*\\]\\([^)]+\\.md(?:#[^)]*)?\\)\", listing, re.M)",
+      "from": "re.search(r\"^\\|\\s*\\[ADR-\\d+[^\\]]*\\]\\([^)]+\\)\", listing, re.M)",
       "to": "re.search(r\"\\]\\([^)]*ADR-\\d+[^)]*\\.md\", listing)",
       "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
     },

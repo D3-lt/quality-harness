@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -77,5 +78,32 @@ func TestPassCandidates(t *testing.T) {
 	got := passCandidates([]string{record, answeredRecord, corpus, filepath.Join("docs", "adr", "ADR-004.md")}, project, answered, identities)
 	if len(got) != 1 || got[0] != record {
 		t.Errorf("passCandidates = %q, want only %q", got, record)
+	}
+}
+
+// The Codex review of v3.8.53..42a903a8: a failed repository lookup gates, and a case alias is the project where case folds.
+func TestScratchOutsideLookupAndCase(t *testing.T) {
+	project, err := os.MkdirTemp("", "qh-lookup-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(project)
+	record := filepath.Join(project, "docs", "adr", "ADR-001-x.md")
+	cwd := filepath.Join(project, "sub")
+	saved := repositoryLookup
+	defer func() { repositoryLookup = saved }()
+	repositoryLookup = func(string) lookup { return lookup{ok: false, reason: "git timed out"} }
+	if scratchOutside(record, cwd) {
+		t.Error("a failed lookup exempted the project's own record")
+	}
+	repositoryLookup = func(string) lookup { return lookup{ok: true} }
+	if !scratchOutside(record, cwd) {
+		t.Error("outside a repository, a record beside cwd's directory should be scratch")
+	}
+	if foldsCase() {
+		alias := filepath.Join(filepath.Dir(project), strings.ToUpper(filepath.Base(project)), "sub")
+		if scratchOutside(filepath.Join(cwd, "x.md"), alias) {
+			t.Error("a case alias of the session directory exempted its own record")
+		}
 	}
 }

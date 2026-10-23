@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "the Codex review of v3.8.53..42a903a8: paths are compared case-sensitively where the file system folds case",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/scratch-outside.test.mjs"],
+      "from": "  const fold = text => (platform === 'win32' || platform === 'darwin' ? text.toLowerCase() : text)",
+      "to": "  const fold = text => text",
+      "only": "^(?:a case alias of the project is the project where the file system folds case, and not where it does not)$"
+    },
+    {
+      "label": "the Codex review of v3.8.53..42a903a8: a failed repository lookup narrows ownership to the session directory",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/scratch-outside.test.mjs"],
+      "from": "  if (!found.ok) return false\n",
+      "to": "\n",
+      "only": "^(?:a repository git could not answer about is gated, never narrowed to the session directory)$"
+    },
+    {
       "label": "the owner, 2026-10-23: R2 names commits a remote ref already reaches",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
@@ -36,7 +52,7 @@
       "label": "BACKLOG §409: a session in a subdirectory owns only that subdirectory",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/lifecycle.test.mjs"],
-      "from": "  const base = (directory && gitRepositoryRoot(directory)) || path.resolve(cwd)",
+      "from": "  const base = found.root || path.resolve(cwd)",
       "to": "  const base = path.resolve(cwd)",
       "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
     },

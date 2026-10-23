@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the Codex review of v3.8.53..42a903a8: the Go core narrows ownership to cwd when the lookup fails",
+      "file": "core/hooks/treefacts.go",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "\t\tif !found.ok {\n\t\t\treturn false\n\t\t}\n",
+      "to": "",
+      "only": "^(?:the Go core's scratch rule answers as the Node one does)$"
+    },
+    {
       "label": "BACKLOG §409: the Go core treats a temp path as scratch only while cwd is outside the temp root",
       "file": "core/hooks/treefacts.go",
       "tests": ["tests/lifecycle.test.mjs"],

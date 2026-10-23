@@ -44,11 +44,16 @@ export function underTempRoot(candidate, depth = 0) {
 // %TEMP%, BACKLOG §409) keeps its own records gated, and a temp file outside it is scratch. Its own means inside its repository
 // (or `cwd`, outside one) by spelling or by real location: a write through a link in the project is the project's, wherever the
 // link points (the writes-and-stops golden's directory link), and a session started in a subdirectory owns the whole repository.
-export function scratchOutside(file, cwd) {
+// Two corrections from the Codex review of v3.8.53..42a903a8, both fail-opens: paths are compared case-folded where the file
+// system folds case (macOS, Windows), so a case alias of the project is the project; and a repository git could not answer
+// about is gated, as it was before this exemption, never narrowed to the session's directory.
+export function scratchOutside(file, cwd, { platform = process.platform, lookup = gitRepositoryLookup } = {}) {
   if (!underTempRoot(file)) return false
   if (!underTempRoot(cwd)) return true
   const directory = nearestExistingDirectory(path.resolve(cwd))
-  const base = (directory && gitRepositoryRoot(directory)) || path.resolve(cwd)
+  const found = directory ? lookup(directory) : { ok: true, root: null }
+  if (!found.ok) return false
+  const base = found.root || path.resolve(cwd)
   const real = candidate => {
     const absolute = path.resolve(candidate)
     try { return realpathSync(absolute) } catch {
@@ -58,8 +63,9 @@ export function scratchOutside(file, cwd) {
       } catch { return absolute }
     }
   }
+  const fold = text => (platform === 'win32' || platform === 'darwin' ? text.toLowerCase() : text)
   const outside = (from, target) => {
-    const relative = path.relative(from, target)
+    const relative = path.relative(fold(from), fold(target))
     return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
   }
   // The root in cwd's own spelling: git names it resolved (macOS's /private/var), and the file is spelled as cwd is.

@@ -57,7 +57,8 @@ func underTempRootAt(candidate string, depth int) bool {
 
 // scratchOutside is tree-facts.mjs's: a temp file that is not the project's own. Outside the temp root a project is judged as
 // it always was (every temp file is scratch); a project under it (BACKLOG §409) owns what lies inside its repository, or cwd
-// outside one, by spelling or by real location.
+// outside one, by spelling or by real location, compared case-folded where the file system folds case; a repository git could
+// not answer about is gated, never narrowed to cwd (the Codex review of v3.8.53..42a903a8).
 func scratchOutside(file, cwd string) bool {
 	if !underTempRoot(file) {
 		return false
@@ -67,8 +68,12 @@ func scratchOutside(file, cwd string) bool {
 	}
 	base := resolvePath(cwd)
 	if directory := nearestExistingDirectory(base); directory != "" {
-		if root := gitRepositoryRoot(directory); root != "" {
-			base = root
+		found := repositoryLookup(directory)
+		if !found.ok {
+			return false
+		}
+		if found.root != "" {
+			base = found.root
 		}
 	}
 	real := func(candidate string) string {
@@ -84,6 +89,9 @@ func scratchOutside(file, cwd string) bool {
 		return absolute
 	}
 	outside := func(from, target string) bool {
+		if foldsCase() {
+			from, target = strings.ToLower(from), strings.ToLower(target)
+		}
 		relative, err := filepath.Rel(from, target)
 		if err != nil {
 			return true
@@ -126,6 +134,9 @@ type lookup struct {
 	root   string
 	reason string
 }
+
+// repositoryLookup is the seam scratchOutside asks through, so a test can make the look fail.
+var repositoryLookup = gitRepositoryLookup
 
 func gitRepositoryLookup(directory string) lookup {
 	r := remembered(directory, []string{"rev-parse", "--show-toplevel"}, func() runResult {

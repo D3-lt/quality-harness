@@ -3743,3 +3743,25 @@ another spelling: a single-backslash POSIX root the later patterns do not know, 
 quote. So 3.8.54 confines its change to the new `~/` shorthand, which leaves a climbing path exactly as v3.8.53 read it. A fix
 needs its own design. One candidate is to resolve `..` lexically, per token, before any prefix is matched, then judge the
 resolved path; every spelling the scrubber knows needs a twin, quoted and unquoted. Open until a fix holds those twins.
+
+## 419. `home_shown` is copied by hand into eleven gates, beside a comment that is not its own (open)
+
+Found 2026-10-23 by the ultrareview of v3.8.53..main. §409 added `home_shown` to each gate that echoes a path:
+`mrw read plugin/bin --grep '^def home_shown\(path\):' --count` gave 11 on 2026-10-23. Ten are alike; qh-mcp's has a shorter
+docstring and its own `from pathlib import Path`. A later fix to how the home is spelled has to be made eleven times, and a gate
+it misses keeps printing a username (§6). Nothing asserts that the copies agree. Each copy also sits between ADR-031's
+`gate_identity` comment ("imports are local so this block is byte-identical in every gate") and `gate_identity` itself, so the
+comment now reads as `home_shown`'s, and it is false there. The fix is one helper in `plugin/lib/record.py`, imported by each
+gate, with the copies removed, placed above that comment block where a local definition must stay. It is deferred because it
+touches eleven gates and their goldens, and 3.8.54's change is the redaction itself. Open until there is one definition.
+
+## 420. R2 leaves out a commit this session pushed to its own upstream (open: the owner's decision)
+
+Found 2026-10-23 by the ultrareview of v3.8.53..main. Since §411, sessionCommits passes `--not <upstream>`, so a commit the
+session made without a check and then pushed to its configured upstream is not named at Stop. §411 recorded that cost ("a
+commit this session pushed is no longer named at Stop after the push"). The review's point is that nothing asks whether CI
+runs on that branch: a fork's feature branch, a repository with no CI, or a branch CI ignores all count as published. The
+publish refusal (ADR-061) still stands in front of the push itself in an armed session, so the gap is a push that refusal let
+through (`"publish": "warn"`, or a push it could not see). One candidate: leave out only what the upstream held when the
+session began, plus what a fetch brought, and keep naming what this session pushed. It is open because the owner chose the
+current reading on 2026-10-23 ("Skip remote commits"), and changing it is the owner's call.

@@ -24,7 +24,10 @@ const (
 )
 
 var (
-	legacyMarker    = regexp.MustCompile(`^quality-harness-(?:said|note)-[0-9a-f]{32}$`)
+	legacyMarker = regexp.MustCompile(`^quality-harness-(?:said|note)-[0-9a-f]{32}$`)
+	// The statusline's per-session cache (housekeeping.mjs STATUS_CACHE): both cores claim the same daily guard, so the sweep
+	// that claims it must remove it too (ultrareview of v3.8.53..main).
+	statusCache     = regexp.MustCompile(`^quality-harness-status-[0-9a-f]{32}$`)
 	markerName      = regexp.MustCompile(`^[0-9a-f]{32}$`)
 	unseenWriteLine = regexp.MustCompile(unseenWriteLineExpr)
 )
@@ -99,7 +102,7 @@ func sweepStaleMarkers() {
 		}
 	}
 	sweep(directory, markerName.MatchString)
-	sweep(tmpDir(), legacyMarker.MatchString)
+	sweep(tmpDir(), func(name string) bool { return legacyMarker.MatchString(name) || statusCache.MatchString(name) })
 }
 
 // sweepStaleSessionLogs removes week-old session logs that hold no write git could not see, once a day per repository.

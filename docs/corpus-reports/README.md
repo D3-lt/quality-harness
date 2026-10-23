@@ -69,7 +69,8 @@ the message under `<date>-<runner>-<plugin>-<at, 7 characters>.json`, after chec
 digest, the readers fingerprint and the plugin version are the ones git gives at `at`, and refuses,
 writing nothing, when any key is outside the schema above, the kind is not `probe`, or the run is
 already filed. `--check` does all of it but the write; exit 3 means `at` is not in this clone yet.
-A `kind: hand` attestation, with no digest to check, is still written by hand.
+A `kind: hand` attestation, with no digest to check, is still written by hand. A release counts it when it keeps to the keys
+above and names a full commit in `at`.
 
 **With every outside run, ask for the ledger counts too** (ADR-081, ADR-084): `node <plugin>/scripts/ledger-report.mjs
 --json` from the runner's repository root, using the installed plugin (it reads that repository's own

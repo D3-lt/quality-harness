@@ -17,8 +17,8 @@ const importer = join(repoRoot, 'scripts', 'attest-import.mjs')
 const scratch = mkdtempSync(join(tmpdir(), 'qh-attest-verify-'))
 after(() => remove(scratch))
 
-function repository() {
-  const repo = join(scratch, 'repo')
+function repository(name = 'repo') {
+  const repo = join(scratch, name)
   const files = {
     'plugin/scripts/corpus-probe.mjs': 'export const probe = 1\n',
     'plugin/bin/gate': '#!/usr/bin/env python3\nprint("gate")\n',
@@ -143,4 +143,32 @@ test('an attestation is known by its own file name, whatever field it carries', 
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'forged.json'), JSON.stringify({ file: '2026-10-22-real.json', at: 'a'.repeat(40) }))
   assert.deepEqual(readAttestations(dir).map(report => report.file), ['forged.json'])
+})
+
+// Ultrareview of v3.8.53..main: a Windows checkout writes a committed attestation with CRLF, and the release asks the file on
+// disk, so the byte comparison refused every one there; and a hand attestation, which §18 and the README still offer, could
+// never count. CRLF is the checkout's, and a hand one counts by the schema's keys and a full commit, nothing less.
+test('a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit', () => {
+  const { repo, attestation } = repository('crlf')
+  const message = join(scratch, 'crlf-message.txt')
+  writeFileSync(message, `${JSON.stringify(attestation, null, 2)}\n`)
+  const filed = run(repo, message)
+  assert.equal(filed.status, 0, filed.stdout + filed.stderr)
+  const path = join(repo, /filed (docs\/corpus-reports\/\S+)/.exec(filed.stdout)[1])
+  writeFileSync(path, readFileSync(path, 'utf8').replaceAll('\n', '\r\n'))
+  const crlf = run(repo, '--verify', path)
+  assert.equal(crlf.status, 0, crlf.stdout + crlf.stderr)
+  const reports = join(repo, 'docs', 'corpus-reports')
+  const hand = fields => {
+    writeFileSync(join(reports, 'hand.json'), `${JSON.stringify({ date: '2026-10-23', plugin: '9.9.9', kind: 'hand', ...fields }, null, 2)}\n`)
+    return run(repo, '--verify', join(reports, 'hand.json'))
+  }
+  assert.equal(hand({ at: attestation.at }).status, 0, 'a hand attestation naming a full commit counts')
+  // DIRTY twins: a short `at`, no `at`, a key the schema does not name,
+  assert.equal(hand({ at: attestation.at.slice(0, 12) }).status, 1)
+  assert.equal(hand({}).status, 1)
+  assert.equal(hand({ at: attestation.at, secret: 'x' }).status, 1)
+  // and a CRLF file holding a byte attest-import would not write.
+  writeFileSync(path, readFileSync(path, 'utf8').replace('"passToFail": 0', '"passToFail": 0 '))
+  assert.equal(run(repo, '--verify', path).status, 1)
 })

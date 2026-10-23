@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "ultrareview of v3.8.53..main: a CRLF checkout of a filed attestation is refused",
+      "file": "scripts/attest-import.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "  text = text.replace(/\\r\\n/g, '\\n')\n",
+      "to": "",
+      "only": "^(?:a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit)$"
+    },
+    {
+      "label": "ultrareview of v3.8.53..main: a hand attestation can never count",
+      "file": "scripts/attest-import.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "!Array.isArray(parsed) && parsed.kind === 'hand') {",
+      "to": "!Array.isArray(parsed) && false) {",
+      "only": "^(?:a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit)$"
+    },
+    {
+      "label": "ultrareview of v3.8.53..main: a hand attestation counts whatever keys it carries",
+      "file": "scripts/attest-import.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "    if (unknown.length) return { refused:",
+      "to": "    if (false) return { refused:",
+      "only": "^(?:a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit)$"
+    },
+    {
       "label": "Codex review of v3.8.52..2ad118d0: --verify requires the bytes attest-import writes",
       "file": "scripts/attest-import.mjs",
       "tests": ["tests/attest-verify.test.mjs"],

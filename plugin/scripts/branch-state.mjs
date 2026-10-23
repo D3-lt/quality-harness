@@ -270,15 +270,18 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
     // there, CI runs on it, and main fast-forwards to that sha, so main has no run of its own and every landed HEAD read
     // COULD NOT LOOK (2026-10-23, main at 2a8da294 beside a green land/2a8da294… run). The branch's name states the commit;
     // a `land/` branch naming another sha, or any other branch, is still not this branch's CI.
-    if (!answer && rows.length) {
-      const asked = tipSha ?? headSha
+    // An empty listing asks too: main has no runs of its own under ADR-126, so once its old ones leave the listing, or in a
+    // repository that lands from its start, the only run for a landed HEAD is on `land/<sha>` (ultrareview of v3.8.53..main).
+    const asked = tipSha ?? headSha
+    // Only a full sha names a landing branch: one read short when git could not answer could match `land/<a prefix>`. SHA-1
+    // or SHA-256, as tree-facts' full-sha bound reads them.
+    const landing = /^[0-9a-f]{40,64}$/.test(String(asked)) ? `land/${asked}` : null
+    if (!answer && (rows.length || landing !== null)) {
       const again = run(['gh', 'run', 'list', '--commit', asked,
         '--limit', String(RUN_WINDOW), '--json', `${RUN_FIELDS},headBranch`])
       let retried = []
       if (again.ok) { try { retried = JSON.parse(again.out) } catch { retried = [] } }
       if (!Array.isArray(retried)) retried = []
-      // Only a full sha names a landing branch: one read short when git could not answer could match `land/<a prefix>`.
-      const landing = /^[0-9a-f]{40}$/.test(String(asked)) ? `land/${asked}` : null
       retried = retried.filter(r => r && (r.headBranch === branch.out || (landing !== null && r.headBranch === landing)))
       const second = headRuns(retried, headSha, tipSha)
       if (second) { rows = retried; answer = second }
@@ -447,13 +450,13 @@ export function headRuns(rows, head = '', upstream = null) {
     .filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
   if (listed.length === 0) return null
   // Whole shas are compared whole. An abbreviated one (HEAD where only `--short` could
-  // be read) matches by prefix only when it is 7 to 40 hex digits and names exactly one
-  // listed commit; an ambiguous or malformed identity names none (Codex review of 3.2.1).
-  const HEX = /^[0-9a-f]{7,40}$/i
+  // be read) matches by prefix only when it is 7 to 64 hex digits (SHA-1 or SHA-256, ultrareview of v3.8.53..main) and
+  // names exactly one listed commit; an ambiguous or malformed identity names none (Codex review of 3.2.1).
+  const HEX = /^[0-9a-f]{7,64}$/i
   const shas = [...new Set(listed.map(r => String(r.headSha)).filter(s => HEX.test(s)))]
   const at = id => {
     if (!id || !HEX.test(id)) return undefined
-    const hits = shas.filter(s => (s.length === 40 && id.length === 40 ? s === id : s.startsWith(id) || id.startsWith(s)))
+    const hits = shas.filter(s => (s.length >= 40 && s.length === id.length ? s === id : s.startsWith(id) || id.startsWith(s)))
     return hits.length === 1 ? hits[0] : undefined
   }
   const anchor = at(head) ? 'head' : at(upstream) ? 'tip' : null

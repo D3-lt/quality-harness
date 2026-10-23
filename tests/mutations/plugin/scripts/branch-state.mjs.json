@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "ultrareview of v3.8.53..main: an empty branch listing never asks for the land/<sha> run",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "    if (!answer && (rows.length || landing !== null)) {",
+      "to": "    if (!answer && rows.length) {",
+      "only": "^(?:an empty branch listing still reads the land/<sha> run, and a SHA-256 sha names its landing branch)$"
+    },
+    {
+      "label": "ultrareview of v3.8.53..main: a SHA-256 sha names no landing branch",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "    const landing = /^[0-9a-f]{40,64}$/.test(String(asked)) ? `land/${asked}` : null",
+      "to": "    const landing = /^[0-9a-f]{40}$/.test(String(asked)) ? `land/${asked}` : null",
+      "only": "^(?:an empty branch listing still reads the land/<sha> run, and a SHA-256 sha names its landing branch)$"
+    },
+    {
+      "label": "ultrareview of v3.8.53..main: a SHA-256 run is not matched by its whole sha",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "from": "  const HEX = /^[0-9a-f]{7,64}$/i",
+      "to": "  const HEX = /^[0-9a-f]{7,40}$/i",
+      "only": "^(?:an empty branch listing still reads the land/<sha> run, and a SHA-256 sha names its landing branch)$"
+    },
+    {
       "label": "ADR-122 T3: a brief whose only change is the dirty count is not said again",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-quiet.test.mjs"],
@@ -587,8 +611,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "const HEX = /^[0-9a-f]{7,40}$/i",
-      "to": "const HEX = /^[0-9a-f]{1,40}$/i",
+      "from": "const HEX = /^[0-9a-f]{7,64}$/i",
+      "to": "const HEX = /^[0-9a-f]{1,64}$/i",
       "only": "by whole identity"
     },
     {
@@ -677,7 +701,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "if (!answer && rows.length) {",
+      "from": "if (!answer && (rows.length || landing !== null)) {",
       "to": "if (false) {",
       "only": "^a stale listing is asked once more by commit, and only a stale one is$"
     },
@@ -687,8 +711,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "if (!answer && rows.length) {",
-      "to": "if (rows.length) {",
+      "from": "if (!answer && (rows.length || landing !== null)) {",
+      "to": "if (rows.length || landing !== null) {",
       "only": "^a stale listing is asked once more by commit, and only a stale one is$"
     },
     {
@@ -725,7 +749,7 @@
       "label": "the Codex review of v3.8.53..42a903a8: a short sha names a landing branch",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
-      "from": "const landing = /^[0-9a-f]{40}$/.test(String(asked)) ? `land/${asked}` : null",
+      "from": "const landing = /^[0-9a-f]{40,64}$/.test(String(asked)) ? `land/${asked}` : null",
       "to": "const landing = `land/${asked}`",
       "only": "^a landing branch is read only through a full sha$"
     },

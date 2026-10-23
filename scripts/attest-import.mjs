@@ -193,6 +193,19 @@ export function verifyFile(file, root) {
   }
   let text
   try { text = readFileSync(file, 'utf8') } catch (error) { return { couldNotLook: `could not read ${file}: ${error.code ?? error.message}` } }
+  // A Windows checkout writes the file with CRLF unless git is told otherwise; the bytes git holds are what was filed.
+  text = text.replace(/\r\n/g, '\n')
+  // A hand attestation has no digest to check (§18's "the readers by hand"; README: written by hand), so it counts when it keeps
+  // to the schema's keys and names a full commit, which is what a release asks of it (ultrareview of v3.8.53..main).
+  let parsed = null
+  try { parsed = JSON.parse(text) } catch { parsed = null }
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.kind === 'hand') {
+    const unknown = Object.keys(parsed).filter(key => !KEYS.includes(key))
+    if (unknown.length) return { refused: [`${file} is a hand attestation with keys the schema does not name: ${unknown.join(', ')}`] }
+    return typeof parsed.at === 'string' && /^[0-9a-f]{40,64}$/.test(parsed.at)
+      ? { verified: true }
+      : { refused: [`${file} is a hand attestation whose at is not a full commit`] }
+  }
   const answer = check(text, root, { filed: path.basename(file) })
   if (answer.couldNotLook || answer.refused) return answer
   return answer.name === path.basename(file) && text === `${JSON.stringify(answer.attestation, null, 2)}\n`

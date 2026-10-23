@@ -1624,6 +1624,24 @@ test('a landing branch is read only through a full sha', () => {
   }
 })
 
+// Ultrareview of v3.8.53..main: main has no run of its own under ADR-126, so its listing can be empty, and the land/<sha>
+// retry sat behind a non-empty one; and a SHA-256 object name is a full sha too.
+test('an empty branch listing still reads the land/<sha> run, and a SHA-256 sha names its landing branch', () => {
+  for (const width of [40, 64]) {
+    const full = sha => sha.padEnd(width, '0')
+    const tip = ['git rev-parse origin/main', ok(full('0a18d04a'))]
+    const at = headBranch => render(collect(runner([...GIT_CLEAN, tip,
+      ['gh run list --commit', ok(JSON.stringify([{ headSha: full('0a18d04a'), headBranch, status: 'completed', conclusion: 'success', databaseId: 12 }]))],
+      ['gh run view', ok(JSON.stringify({ jobs: [{ name: 'windows', conclusion: 'success' }] }))],
+      ['gh run list --branch', ok('[]')],
+    ])), { brief: true })
+    const green = at(`land/${full('0a18d04a')}`)
+    assert.match(green, /0a18d04: every job concluded success/, `${width}: ${green}`)
+    // DIRTY twin: with an empty listing, a run on another branch at that commit is still not this branch's CI.
+    assert.match(at('feature'), /COULD NOT LOOK/, `${width}`)
+  }
+})
+
 // BACKLOG §348 (the owner, 2026-10-02): on a Windows desktop a full branch-state took 6.4–7.7 s, of
 // which each `gh run view --json jobs` was 1.6–2.5 s, and the release half (git, after gh) was the
 // part the 8 s budget lost. The release half is read before gh, and job views stop once they have

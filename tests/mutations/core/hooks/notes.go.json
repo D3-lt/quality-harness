@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ultrareview of v3.8.53..main: the Go core's daily sweep leaves the statusline caches",
+      "file": "core/hooks/notes.go",
+      "tests": ["tests/go-sweep.test.mjs"],
+      "from": "return legacyMarker.MatchString(name) || statusCache.MatchString(name) })",
+      "to": "return legacyMarker.MatchString(name) })",
+      "only": "^(?:the Go core sweeps a week-old statusline cache as the Node one does)$"
+    },
+    {
       "label": "ADR-120 T9: the Go previous-session notice does not know the project's prose",
       "file": "core/hooks/notes.go",
       "tests": ["tests/prose-pass.test.mjs"],

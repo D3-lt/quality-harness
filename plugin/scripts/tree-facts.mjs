@@ -55,12 +55,15 @@ export function scratchOutside(file, cwd, { platform = process.platform, lookup 
   const found = directory ? lookup(directory) : { ok: false, root: null }
   if (!found.ok || !found.root) return false
   const base = found.root
+  // The native resolver, as `canonical` uses: the JS one leaves a Windows 8.3 name (C:\Users\RUNNER~1\…) in place while the
+  // root git names is long, and a project's own record under an 8.3 %TEMP% read as outside it (ultrareview of v3.8.53..main).
+  const resolved = candidate => { try { return realpathSync.native(candidate) } catch { return realpathSync(candidate) } }
   const real = candidate => {
     const absolute = path.resolve(candidate)
-    try { return realpathSync(absolute) } catch {
+    try { return resolved(absolute) } catch {
       try {
         const anchor = nearestExistingDirectory(absolute)
-        return anchor ? path.join(realpathSync(anchor), path.relative(anchor, absolute)) : absolute
+        return anchor ? path.join(resolved(anchor), path.relative(anchor, absolute)) : absolute
       } catch { return absolute }
     }
   }

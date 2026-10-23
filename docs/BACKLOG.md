@@ -3569,6 +3569,16 @@ defers it here: its T3 ends the budget class, not this one.
 Two more live members, 2026-10-22, from the first Windows check ADR-126 T6 asks for (a peer's selftest at c549eab5, a
 contended machine): `tests/branch-state.test.mjs:754` (`removeRepository`) and `tests/mutate-runner.test.mjs:1398`, each an
 `EPERM` from a bare `rmSync`; both pass alone, and both temp directories were still there after the run.
+Correction, 2026-10-23: neither named member is a bare remove. `removeRepository` already removes with `maxRetries: 20,
+retryDelay: 250`, and Node's backoff is linear, so about 52 s. `mutate-runner.test.mjs:1398` passes `maxRetries: 10, retryDelay:
+500`. A retry was not missing: something held each directory long after that. Widening the bare-remove rule would not have
+caught either failure. `removeRepository` now lists, on a failure, whether the refresher's lock was released and what was
+running (PowerShell's Win32_Process on Windows, `ps` elsewhere), so the next Windows run names the holder (84d667d9). The
+mutate-runner site is inside a locked body (ADR-072 T2/T4/T5, ADR-073 T1, ADR-075 T2) and is unchanged. The wider class, measured
+with a script over `git ls-files 'tests/*.test.mjs'`: 445 bare recursive removes. 104 of them are in 17 files outside the
+SessionStart class that name a detached child or a hook script (`detached: true`, `branch-state.mjs`, `lifecycle.mjs`,
+`run-shell-hook`, `qh-hook`). gates.test.mjs holds 49 and statusline.test.mjs 20. Classifying those is still open, and it waits on
+what the next Windows failure lists.
 
 ## 408. release-evidence counts any JSON under docs/corpus-reports that carries an `at` as an attestation
 
@@ -3578,6 +3588,12 @@ now verified before `release.mjs` takes it as evidence (`attest-import --verify`
 is a COMMITTED file that did not come through `attest-import`: the commit is reviewed, and nothing reads it as the importer
 would. The structural answer is for `outsideRunEvidence` to run the same checks `--verify` runs over each file it counts.
 Open.
+Fixed 2026-10-23 (e10b9f6b). `attest-import --verify`'s logic is now `verifyFile`: `check()` plus the byte-exact comparison.
+A release asks the outside-run question through `releaseOutsideRun`, `main`'s default, which verifies each file that covers the
+sha. One that does not verify is named and attests nothing. One git cannot check is coverage unknown. Only covering files are
+verified: about 60 committed reports from before 2026-09-28 fail `--verify` (many are `kind: hand`), and none covers a recent tag.
+`release-evidence --local c549eab5` still reads READY over the two 3.8.53 attestations. The bare `outsideRunEvidence(sha, exec,
+dir)` keeps its unverified answer, which ADR-082 T3's locked test pins, and a mutant at `main`'s default holds the release path.
 
 ## 409. Two tests fail when the checkout itself sits under the temp directory or the home directory
 
@@ -3593,3 +3609,33 @@ fail every time from there, so each depends on where the checkout is (CLAUDE.md 
   which had stood on that machine since 2026-09-18.
 An adopter's plugin install sits in `~/.claude/plugins`, not under the temp directory, so the product is not affected as far
 as is known; what is open is that the two tests cannot tell this shape from a defect. Open.
+Fixed 2026-10-23 (3e59ffc0). A correction to the first item: the binary path was already shown with `~`. What carried the home
+directory was the RECORD path the verdict line echoes, which sits under `%TEMP%` and so inside the profile. That fails on any
+Windows checkout under the profile, not only one under `%TEMP%`.
+- Verdict lines now show an absolute argument under the home directory as `~/…`. The owner's choice: it supersedes §350 item
+  6's "as given" for verdict lines. Covered in `adr-lint`, `adr-judge`, `arch-lint`, `postmortem-verify`, `spec-verify` and
+  `adr-retire-check`. Class: `mrw read plugin/bin --grep 'print\((visible\()?f"\['` lists every `[`-line print, stdout and stderr.
+  Left open: the stderr `could not run: <path>` lines in `adr-lint`, `adr-judge`, `adr-next`, `arch-lint`, `postmortem-verify`
+  and `spec-verify` still echo a path as given.
+- A temp path is scratch when it lies outside `cwd`, by its spelling and by its real location (`scratchOutside`, in
+  `tree-facts.mjs` and `core/hooks/treefacts.go`). A write through a link in the project stays the project's own, as the
+  writes-and-stops golden records.
+- Left: the locked body's fixed shared fixture, `os.tmpdir()/quality-scratch-corpus`.
+- Not yet run on Windows: the new tests run on the Windows CI job of the next landing.
+
+## 410. branch-state read every landed sha on main as COULD NOT LOOK; fixed
+
+Found 2026-10-23 at session start: main at 2a8da294, with a green run on `land/2a8da294…`, read "COULD NOT LOOK — no run listed
+is at HEAD". Since ADR-126 main has no run of its own. The by-commit retry (§344) found the run but kept only rows on the
+current branch. It now also keeps `land/<the full sha it asked about>` (6993a10b). A `land/` branch naming another sha, or any
+other branch, is still not this branch's CI. By hand on main: `CI 2a8da29: every job concluded success`. A reader change (§18).
+
+## 411. The Stop hook's R2 named 277 landed commits as unchecked with HEAD freshly checked; fixed
+
+Found 2026-10-22 (memoryd open thread f9484e37 filed it as R4; it is R2, `uncheckedCommitsReason`). `sessionCommits` lists every
+commit between the session's starting HEAD and now, so a fast-forward over landed work named each of them. A first fix cut the
+list at the newest checked commit. It broke ADR-060's step 14, where `five` sits under a `six` that restores a checked tree and
+must still be named, so it was reverted. The owner then chose (2026-10-23) to leave out commits a remote ref already reaches
+(`--not --remotes`, in `tree-facts.mjs` and its Go mirror, 5f86118d). The cost: a commit this session pushed is no longer named
+at Stop after the push. `tests/r2-remote-commits.test.mjs` runs in the go core job too. Go mutants are not run by `mutate.mjs`,
+so the Go mirror is held by that test alone.

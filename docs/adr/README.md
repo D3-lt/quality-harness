@@ -128,3 +128,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-124](ADR-124-skills-for-every-host.md) | The skills reach other agent hosts through one shared link the plugin keeps fresh | Accepted |
 | [ADR-125](ADR-125-a-blocking-review-covers-nothing.md) | A plugin commit is reviewed only when the newest review covering it did not request changes | Accepted |
 | [ADR-126](ADR-126-one-run-per-release.md) | A release is one landing and one CI run, and a test sets every budget it depends on | Accepted |
+| [ADR-127](ADR-127-an-escape-is-replayed-against-the-gates.md) | Every defect that escaped to someone outside is replayed against today's tests | Accepted |

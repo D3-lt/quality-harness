@@ -34,7 +34,6 @@ import {
   shellHookTimeoutMs,
   shellRuntimeCrashed,
 } from '../plugin/scripts/run-shell-hook.mjs'
-import { remove } from './helpers/remove.mjs'
 
 // Moved here from plugin/scripts/standalone-link.mjs on 2026-09-28: this test is the
 // only thing that reads it, and knip named it an export only a test reaches.
@@ -2204,32 +2203,6 @@ test('reported: a scratch corpus does not pull the record gates', async () => {
   // depend on that.
   const inside = runArtifactGates([orphan], scratch)
   assert.match(String(inside), /ADR ownership|owning ADR/)
-})
-
-// BACKLOG §409: a checkout under the temp root (a Windows clone in a scratchpad under %TEMP%) made every temp path the
-// project's own, so a scratch corpus beside it pulled the record gates. A temp path is scratch when it is outside the
-// session's directory, wherever that directory is; inside it, the project's records stay gated.
-test('a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does', async () => {
-  const project = await mkdtemp(path.join(os.tmpdir(), 'qh-project-under-temp-'))
-  const beside = await mkdtemp(path.join(os.tmpdir(), 'qh-scratch-beside-'))
-  try {
-    const orphan = dir => path.join(dir, 'docs', 'adr', 'tasks', 'T1-orphan.md')
-    for (const dir of [project, beside]) {
-      await mkdir(path.dirname(orphan(dir)), { recursive: true })
-      await writeFile(orphan(dir), '# Task ADR-001-T1-orphan: no owning ADR anywhere\n')
-    }
-    assert.equal(runArtifactGates([orphan(beside)], project), null, 'a temp corpus outside the project is scratch')
-    assert.match(String(runArtifactGates([orphan(project)], project)), /ADR ownership|owning ADR/, 'the project keeps its gates')
-    // Inside by either reading: spelled through a link in the project to the scratch corpus, or spelled through a link
-    // beside the project into it, the record is the project's own.
-    linkDirectory(beside, path.join(project, 'out'))
-    linkDirectory(project, path.join(beside, 'alias'))
-    assert.match(String(runArtifactGates([orphan(path.join(project, 'out'))], project)), /ADR ownership|owning ADR/, 'spelled inside')
-    assert.match(String(runArtifactGates([orphan(path.join(beside, 'alias'))], project)), /ADR ownership|owning ADR/, 'real inside')
-  } finally {
-    remove(project)
-    remove(beside)
-  }
 })
 
 test('reported: a session running a cached older plugin is told so', async () => {

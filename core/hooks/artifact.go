@@ -113,7 +113,7 @@ func runArtifactGates(paths []string, cwd string, windowMs float64, bases []stri
 		if !filepath.IsAbs(file) {
 			continue
 		}
-		if scratchOutside(file, cwd) {
+		if underTempRoot(file) && !underTempRoot(cwd) {
 			continue
 		}
 		add(file)
@@ -529,7 +529,7 @@ func (h *hookRun) artifactRule(rec *recorded) {
 	}
 	targets := []string{}
 	for _, p := range paths {
-		if filepath.IsAbs(p) && !scratchOutside(p, cwd) && !alreadyAnswered(answered, p, identities[p]) {
+		if filepath.IsAbs(p) && !(underTempRoot(p) && !underTempRoot(cwd)) && !alreadyAnswered(answered, p, identities[p]) {
 			targets = append(targets, p)
 		}
 	}

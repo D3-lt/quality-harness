@@ -11,7 +11,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import * as leaseModule from './lease.mjs'
 import { PLUGIN_ROOT } from './plugin-root.mjs'
-import { gitLines, gitRepositoryRoot, scratchOutside, sessionBaseline, statusPaths } from './tree-facts.mjs'
+import { gitLines, gitRepositoryRoot, sessionBaseline, statusPaths, underTempRoot } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { channelOf, reachedChannel } from './check-ledger.mjs'
 
@@ -110,7 +110,7 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000,
     // its own scratch fixture. mutatesOnlyTempPaths already exempts scratch
     // writes it can PROVE; this catches the ones it could not, one layer later,
     // where the path is resolved and the question is only where it lives.
-    if (scratchOutside(filePath, cwd)) continue
+    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue
     targets.push(filePath)
   }
   const uniqueTargets = [...new Set(targets)]
@@ -265,7 +265,7 @@ export async function artifactRule(input, recorded) {
   const identities = new Map([...paths].map(file => [file, contentId(file)]))
   // A path the gates never answer for — not absolute, or a scratch file outside a
   // scratch session (`runArtifactGates`) — would start a pass at every boundary.
-  const targets = [...paths].filter(file => path.isAbsolute(file) && !scratchOutside(file, cwd)
+  const targets = [...paths].filter(file => path.isAbsolute(file) && !(underTempRoot(file) && !underTempRoot(cwd))
     && !alreadyAnswered(answered, file, identities.get(file) ?? null))
   if (!targets.length) return
   // Nearest first: the session's own starting point, then HEAD. A record deleted

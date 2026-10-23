@@ -16,7 +16,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (scratchOutside(filePath, cwd)) continue",
+      "from": "    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue",
       "to": "    if (false) continue"
     },
     {

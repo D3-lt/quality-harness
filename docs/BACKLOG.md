@@ -3622,6 +3622,14 @@ Windows checkout under the profile, not only one under `%TEMP%`.
   writes-and-stops golden records.
 - Left: the locked body's fixed shared fixture, `os.tmpdir()/quality-scratch-corpus`.
 - Not yet run on Windows: the new tests run on the Windows CI job of the next landing.
+Reverted the same day: the scratch half. The full gate failed `tests/hook-work.test.mjs` "artifact passes check equivalent ADR
+inputs once and check fresh changes on the next pass". It needs a temp-root project beside the session's own temp-root project
+to be gated, so the two ADR inputs are linted twice. The locked lifecycle test wants exactly that shape exempt when the checkout
+sits under the temp root. No rule over (file, cwd) satisfies both, and the locked comment says "this suite's own fixtures
+depend on that". So `artifact-pass.mjs:113` and `:268` keep `underTempRoot(file) && !underTempRoot(cwd)`, and the lifecycle
+test still cannot pass from a checkout under the temp root. Open, and it needs the owner: amend the lock of ADR-068 T2 / ADR-099 T1
+so the test builds its own non-temp checkout, or accept a Windows clone under %TEMP% as unsupported for the selftest. The
+verdict-line half stands.
 
 ## 410. branch-state read every landed sha on main as COULD NOT LOOK; fixed
 

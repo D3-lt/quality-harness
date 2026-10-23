@@ -452,6 +452,9 @@ var verbWord = regexp.MustCompile(`^[a-z][a-z-]*$`)
 // fullSha is an object name git printed whole: SHA-1 or SHA-256.
 var fullSha = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
+// remoteTracking is a remote-tracking branch's full name, refs/remotes/<remote>/<branch>.
+var remoteTracking = regexp.MustCompile(`^refs/remotes/[^/]+/.+$`)
+
 func gitLines(root string, args []string, nul bool) lines {
 	r := git(5*time.Second, nil, append([]string{"-C", root}, args...)...)
 	if r.err != nil || r.status != 0 {
@@ -590,11 +593,18 @@ func sessionCommits(entries []any, root string, head any) commitList {
 	if !unborn {
 		rng = firstSha + ".." + headSha
 	}
-	// Only the branch's upstream, or without one origin's default branch (tree-facts.mjs): a fork's remote or a stale ref
-	// carries no CI evidence.
+	// Only the branch's upstream, or without one origin's default branch, and each must name a remote-tracking branch
+	// (tree-facts.mjs): a fork's remote, a stale ref, a local upstream or a non-symbolic origin/HEAD carries no CI evidence.
 	args := []string{"log", "--format=%H%x09%T%x09%s", rng}
-	for _, ref := range []string{"@{upstream}", "refs/remotes/origin/HEAD"} {
-		if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", ref + "^{commit}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {
+	names := []lines{
+		gitLines(root, []string{"rev-parse", "--symbolic-full-name", "@{upstream}"}, false),
+		gitLines(root, []string{"symbolic-ref", "-q", "refs/remotes/origin/HEAD"}, false),
+	}
+	for _, name := range names {
+		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) || strings.HasSuffix(name.list[0], "/HEAD") {
+			continue
+		}
+		if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", name.list[0] + "^{commit}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {
 			args = append(args, "--not", up.list[0])
 			break
 		}

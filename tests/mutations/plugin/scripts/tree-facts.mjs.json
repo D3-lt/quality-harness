@@ -4,9 +4,17 @@
       "label": "the verification review of the fix round: a branch with no upstream names origin's landed commits again",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  for (const ref of ['@{upstream}', 'refs/remotes/origin/HEAD']) {",
-      "to": "  for (const ref of ['@{upstream}']) {",
+      "from": "    gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),\n",
+      "to": "",
       "only": "^(?:without an upstream, what origin's default branch holds is not named, and with neither everything is)$"
+    },
+    {
+      "label": "the second verification review: any ref that resolves, a local branch included, hides commits from R2",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !name.endsWith('/HEAD')",
+      "to": "  const tracking = name => name !== ''",
+      "only": "^(?:an origin/HEAD that is not a remote-tracking branch, or a local upstream, hides nothing)$"
     },
     {
       "label": "the Codex review of v3.8.53..42a903a8: paths are compared case-sensitively where the file system folds case",

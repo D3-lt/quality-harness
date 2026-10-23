@@ -70,3 +70,38 @@ test('without an upstream, what origin\'s default branch holds is not named, and
   assert.match(local, /local only/, local)
   assert.doesNotMatch(local, /landed (one|two)/, local)
 })
+
+// The second verification review: an origin/HEAD that is not symbolic, one aliased to a local branch, and an upstream that is a
+// local branch (remote ".") each held commits nothing published, and hid them. Only a remote-tracking branch leaves anything out.
+test('an origin/HEAD that is not a remote-tracking branch, or a local upstream, hides nothing', { skip }, t => {
+  // One repository and session per shape: R2 names a commit once per context, so a shared session would hide the second.
+  const shapes = {
+    'a direct, non-symbolic origin/HEAD': (repo, box) => git(repo, box, 'update-ref', 'refs/remotes/origin/HEAD', 'HEAD'),
+    'an origin/HEAD aliased to a local branch': (repo, box) => {
+      git(repo, box, 'branch', 'topic', 'HEAD')
+      git(repo, box, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/heads/topic')
+    },
+    'an upstream that is a local branch': (repo, box) => {
+      git(repo, box, 'branch', 'topic', 'HEAD')
+      const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
+      git(repo, box, 'config', `branch.${branch}.remote`, '.')
+      git(repo, box, 'config', `branch.${branch}.merge`, 'refs/heads/topic')
+    },
+  }
+  for (const [n, [shape, point]] of Object.entries(shapes).entries()) {
+    const box = sandbox(t)
+    const repo = fixtureRepo(box, `local-refs-${n}`, DECLARED)
+    const hook = payload => runHook(box, repo, `local-refs-${n}`, payload)
+    hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    const commit = (file, subject) => {
+      writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
+      git(repo, box, 'add', '-A')
+      git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+    }
+    commit('src/b.js', 'unpublished one')
+    point(repo, box)
+    commit('src/c.js', 'unpublished tip')
+    const named = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+    assert.match(named, /unpublished one/, `${shape} hides nothing: ${named}`)
+  }
+})

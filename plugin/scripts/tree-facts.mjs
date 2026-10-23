@@ -413,10 +413,18 @@ export function sessionCommits(log, root, head) {
   // ADR-060's step 14 still holds, since a commit the upstream does not hold is named whatever its descendants hold. Only the
   // upstream, or without one the default branch origin names (refs/remotes/origin/HEAD): any remote-tracking ref also hid a
   // commit a fork's remote or a stale ref happened to hold, and those carry no CI evidence; a branch with no upstream named the
-  // landed commits again (the Codex reviews of v3.8.53..42a903a8 and its fix round). Neither readable excludes nothing.
+  // landed commits again (the Codex reviews of v3.8.53..42a903a8 and its fix round). Each must name a remote-tracking branch
+  // (refs/remotes/<remote>/<branch>): an upstream that is a local branch (remote "."), an origin/HEAD that is not symbolic, or
+  // one aliased to a local branch held commits nothing published (the second verification review). Neither excludes nothing.
+  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/.test(name) && !name.endsWith('/HEAD')
+  const names = [
+    gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}']),
+    gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),
+  ]
   let published = []
-  for (const ref of ['@{upstream}', 'refs/remotes/origin/HEAD']) {
-    const answer = gitLines(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
+  for (const name of names) {
+    if (!name.ok || !tracking(name[0] ?? '')) continue
+    const answer = gitLines(root, ['rev-parse', '--verify', '--quiet', `${name[0]}^{commit}`])
     if (answer.ok && /^[0-9a-f]{40,64}$/.test(answer[0] ?? '')) { published = ['--not', answer[0]]; break }
   }
   const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range, ...published])

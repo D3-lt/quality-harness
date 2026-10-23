@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: adr-retire-check prints sys.argv[1] with the home directory",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(sys.argv[1])} — {os_reason(exc)}",
+      "to": "could not run: {sys.argv[1]} — {os_reason(exc)}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-retire-check prints Path(path).as_posix() with the home directory",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return home_shown(Path(path).as_posix())",
+      "to": "        return Path(path).as_posix()",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "BACKLOG §409: adr-retire-check echoes a directory argument under the home directory with the home path",
       "file": "plugin/bin/adr-retire-check",
       "tests": [
@@ -16,8 +36,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        rel = given.relative_to(Path.home()) if given.is_absolute() else None",
-      "to": "        rel = None",
+      "from": "            rel = given.relative_to(home)\n            break",
+      "to": "            break",
       "only": "^(?:a verdict line shows an argument under the home directory as ~, and one outside it as given)$"
     },
     {

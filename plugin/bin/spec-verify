@@ -795,7 +795,7 @@ def check_spec(path, mode, root_override, collect):
     try:
         text = Path(path).read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[spec-verify] could not run: {path} — {os_reason(exc)}", file=sys.stderr)
+        print(f"[spec-verify] could not run: {home_shown(path)} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(4)
     secs = sections_of(text)
 
@@ -949,10 +949,18 @@ def home_shown(path):
     reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
     banner's own rule, §350 C4/F3)."""
     given = Path(path)
+    rel = None
     try:
-        rel = given.relative_to(Path.home()) if given.is_absolute() else None
-    except (ValueError, RuntimeError, KeyError):
-        rel = None
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
     if rel is None:
         return str(path)
     return "~" if not rel.parts else "~/" + rel.as_posix()

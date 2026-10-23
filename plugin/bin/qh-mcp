@@ -196,7 +196,7 @@ def _run_gate(gate, args, paths):
     """
     argv = _gate_argv(gate, args)
     if not os.path.exists(argv[1]):
-        raise GateDidNotRun("could not run: the {} gate is not installed at {}".format(gate, argv[1]))
+        raise GateDidNotRun("could not run: the {} gate is not installed at {}".format(gate, home_shown(argv[1])))
     try:
         completed = run_bounded(argv, capture_output=True, text=True, timeout=120,
                                 encoding="utf-8", errors="replace")
@@ -272,7 +272,7 @@ def _paths(*values):
             continue
         path = os.path.abspath(os.path.expanduser(value))
         if not os.path.exists(path):
-            raise GateDidNotRun("could not run: no such path {}".format(path))
+            raise GateDidNotRun("could not run: no such path {}".format(home_shown(path)))
         resolved.append(path)
     return resolved
 
@@ -558,7 +558,7 @@ def _run_node(script, args, paths, cwd):
         raise GateDidNotRun("could not run: {} needs node on PATH and none was found".format(script))
     target = os.path.join(SCRIPTS, script)
     if not os.path.exists(target):
-        raise GateDidNotRun("could not run: {} is not installed at {}".format(script, target))
+        raise GateDidNotRun("could not run: {} is not installed at {}".format(script, home_shown(target)))
     argv = [node, target, *[str(arg) for arg in args]]
     try:
         completed = run_bounded(argv, capture_output=True, text=True, timeout=120,
@@ -577,7 +577,7 @@ def _adr_context(arguments):
     root = arguments.get("root")
     root = _paths(root)[0] if root else _repo_root(paths[0])
     if root is None:
-        raise GateDidNotRun("could not run: no repository root (.git or docs/adr) above {}".format(paths[0]))
+        raise GateDidNotRun("could not run: no repository root (.git or docs/adr) above {}".format(home_shown(paths[0])))
     return _run_node("adr-context.mjs", [*(["--json"] if arguments.get("json") else []), *paths], paths, root)
 
 
@@ -775,6 +775,27 @@ def serve(stdin, stdout):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given (BACKLOG §409; the gates' rule)."""
+    from pathlib import Path
+    given = Path(path)
+    rel = None
+    try:
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 

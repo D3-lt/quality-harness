@@ -350,6 +350,37 @@ test('a gate that ran and found something returns content, and one that could no
   assert.ok(absent.error.message.includes('ADR-000-not-here.md'), 'the error must name what was attempted')
 })
 
+// BACKLOG §409's sibling: the error names the path it could not reach, and one under the home directory as `~/…`.
+test('a path the server could not reach is named under the home directory as ~', () => {
+  const home = mkdtempSync(join(tmpdir(), 'qh-mcp-home-'))
+  try {
+    const input = [INIT, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'qh_adr_lint', arguments: { adr: join(home, 'ADR-000-not-here.md') } } }]
+      .map(request => JSON.stringify(request)).join('\n') + '\n'
+    const result = runPython([server], { input, encoding: 'utf8', timeout: 60_000, env: { ...process.env, HOME: home, USERPROFILE: home } })
+    const reply = (result.stdout ?? '').split('\n').filter(Boolean).map(line => JSON.parse(line)).find(answer => answer.id === 2)
+    assert.match(reply.error.message, /no such path ~\/ADR-000-not-here\.md/, reply.error.message)
+    assert.ok(!reply.error.message.includes(home), reply.error.message)
+    // The rest of the class: a path with no repository above it, and a server copied without its gates or scripts.
+    const plugin = join(home, 'plug')
+    mkdirSync(join(plugin, 'bin'), { recursive: true })
+    mkdirSync(join(plugin, 'lib'))
+    mkdirSync(join(plugin, '.claude-plugin'))
+    writeFileSync(join(home, 'g.md'), '# x\n')
+    cpSync(server, join(plugin, 'bin', 'qh-mcp'))
+    cpSync(join(repoRoot, 'plugin', 'lib', 'fence.py'), join(plugin, 'lib', 'fence.py'))
+    cpSync(join(repoRoot, 'plugin', '.claude-plugin', 'plugin.json'), join(plugin, '.claude-plugin', 'plugin.json'))
+    const ask = (binary, name, args) => {
+      const asked = [INIT, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } }]
+        .map(request => JSON.stringify(request)).join('\n') + '\n'
+      const ran = runPython([binary], { input: asked, encoding: 'utf8', timeout: 60_000, env: { ...process.env, HOME: home, USERPROFILE: home } })
+      return (ran.stdout ?? '').split('\n').filter(Boolean).map(line => JSON.parse(line)).find(answer => answer.id === 2).error.message
+    }
+    assert.match(ask(server, 'qh_adr_context', { paths: [home] }), /no repository root \(\.git or docs\/adr\) above ~$/)
+    assert.match(ask(join(plugin, 'bin', 'qh-mcp'), 'qh_adr_lint', { adr: join(home, 'g.md') }), /gate is not installed at ~\/plug\/bin\/adr-lint/)
+    assert.match(ask(join(plugin, 'bin', 'qh-mcp'), 'qh_orientation', { directory: home }), /is not installed at ~\/plug\/scripts\/orientation\.mjs/)
+  } finally { remove(home) }
+})
+
 // ADR-046 T2. A gate that COMPLETED with its own could-not-run code — adr-next
 // exit 2 for a missing plugin/lib/record.py (ADR-045 T4) — came back as
 // `isError: false` content: "adr-next exit 2 · could not run …" wearing the shape

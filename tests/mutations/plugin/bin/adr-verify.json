@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: adr-verify prints t with the home directory",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(t)} — ",
+      "to": "could not run: {t} — ",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-verify prints task with the home directory",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(task)} — ",
+      "to": "could not run: {task} — ",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "Codex review of bc5e88ea: a cache prefix that is not a directory is not a reason to refuse",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/adr-verify-bytecode.test.mjs"],

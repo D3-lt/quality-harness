@@ -1092,7 +1092,7 @@ def read_named(path):
     try:
         return Path(path).read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[adr-lint] could not run: {one_line(path)} — {one_line(os_reason(exc))}", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(home_shown(path))} — {one_line(os_reason(exc))}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -1107,7 +1107,7 @@ def refuse_irregular(path):
     """
     problem = regular_file_problem(path)
     if problem:
-        print(f"[adr-lint] could not run: {one_line(path)} — {problem}", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(home_shown(path))} — {problem}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -6711,10 +6711,18 @@ def home_shown(path):
     reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
     banner's own rule, §350 C4/F3)."""
     given = Path(path)
+    rel = None
     try:
-        rel = given.relative_to(Path.home()) if given.is_absolute() else None
-    except (ValueError, RuntimeError, KeyError):
-        rel = None
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
     if rel is None:
         return str(path)
     return "~" if not rel.parts else "~/" + rel.as_posix()
@@ -6806,14 +6814,14 @@ def main():
                         sibling = candidate
                         break
         records = sorted(str(f) for f in adr.glob("*.md") if f.name.lower() != "readme.md")
-        print(f"expected a record FILE, got a directory: {one_line(adr)}")
+        print(f"expected a record FILE, got a directory: {one_line(home_shown(adr))}")
         if sibling.exists():
-            print(f"  the record for this directory is {one_line(sibling)} — lint that, and this "
+            print(f"  the record for this directory is {one_line(home_shown(sibling))} — lint that, and this "
                   f"directory's tasks are found beside it")
         elif records:
             print("  this directory holds records; lint one of them:")
             for found in records[:5]:
-                print(f"    {one_line(found)}")
+                print(f"    {one_line(home_shown(found))}")
             if len(records) > 5:
                 print(f"    (+{len(records) - 5} more)")
         else:
@@ -7195,5 +7203,5 @@ if __name__ == "__main__":
                 shown = Path(rel).as_posix()
         except ValueError:
             pass
-        print(f"[adr-lint] could not run: {one_line(shown)} — {one_line(os_reason(exc))}", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(home_shown(shown))} — {one_line(os_reason(exc))}", file=sys.stderr)
         sys.exit(2)

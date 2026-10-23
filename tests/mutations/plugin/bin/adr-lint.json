@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: adr-lint prints path with the home directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "{one_line(home_shown(path))} — {one_line(os_reason(exc))}",
+      "to": "{one_line(path)} — {one_line(os_reason(exc))}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-lint prints path with the home directory (2)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "{one_line(home_shown(path))} — {problem}",
+      "to": "{one_line(path)} — {problem}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-lint prints shown with the home directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "{one_line(home_shown(shown))}",
+      "to": "{one_line(shown)}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "2026-10-23: a run row after DURATION_REQUIRED_FROM with no duration is silent",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
@@ -2639,8 +2669,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "    if problem:\n        print(f\"[adr-lint] could not run: {one_line(path)} — {problem}\", file=sys.stderr)",
-      "to": "    if False:\n        print(f\"[adr-lint] could not run: {one_line(path)} — {problem}\", file=sys.stderr)",
+      "from": "    if problem:\n        print(f\"[adr-lint] could not run: {one_line(home_shown(path))} — {problem}\", file=sys.stderr)",
+      "to": "    if False:\n        print(f\"[adr-lint] could not run: {one_line(home_shown(path))} — {problem}\", file=sys.stderr)",
       "only": "adr-lint refuses a file that is not a regular file"
     },
     {
@@ -2809,8 +2839,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "print(f\"expected a record FILE, got a directory: {one_line(adr)}\")",
-      "to": "print(f\"expected a record FILE, got a directory: {adr}\")",
+      "from": "print(f\"expected a record FILE, got a directory: {one_line(home_shown(adr))}\")",
+      "to": "print(f\"expected a record FILE, got a directory: {home_shown(adr)}\")",
       "only": "other printers show a newline escaped"
     },
     {

@@ -874,7 +874,7 @@ def read_named(path):
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        print(f"[adr-next] could not run: {path} — {os_reason(exc)}", file=sys.stderr)
+        print(f"[adr-next] could not run: {home_shown(path)} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -895,7 +895,7 @@ def load(tasks_dir):
     except FileNotFoundError:
         listed = []      # no such directory holds no task files, as the glob answered
     except OSError as exc:
-        print(f"[adr-next] could not run: {tasks_dir} — {os_reason(exc)}", file=sys.stderr)
+        print(f"[adr-next] could not run: {home_shown(tasks_dir)} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(1)
     for path in listed:
         if path.name.lower() == "readme.md":
@@ -1380,7 +1380,7 @@ def owning_record(tasks_dir, record_dir=None):
         except OSError as exc:
             # A regular file that failed to open (permissions) stays could-not-run, as it was
             # through `read_named`: the gate could not look at the owner it found.
-            print(f"[adr-next] could not run: {candidate} — {os_reason(exc)}", file=sys.stderr)
+            print(f"[adr-next] could not run: {home_shown(candidate)} — {os_reason(exc)}", file=sys.stderr)
             sys.exit(1)
         if not recognised_as_record(candidate, text, git_root(candidate.parent))[0]:
             why = why or "it is not recognised as a record"
@@ -1614,6 +1614,28 @@ def report_corpus(records, unreadable, flags):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    rel = None
+    try:
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 
@@ -1701,9 +1723,9 @@ def main():
         # could not answer", not "the answer is none".
         target = Path(args[0])
         if not target.exists():
-            print(f"adr-next: no such file or directory: {args[0]}", file=sys.stderr)
+            print(f"adr-next: no such file or directory: {home_shown(args[0])}", file=sys.stderr)
             return 1
-        said = (f"adr-next: {args[0]} owns no tasks directory, so there is nothing to sequence. "
+        said = (f"adr-next: {home_shown(args[0])} owns no tasks directory, so there is nothing to sequence. "
                 f"A record's tasks live in `tasks/` beside it, or in `<record>/tasks/`.")
         if "--json" in flags:
             # A JSON caller parses stdout; this prose broke that (a Windows chaos round

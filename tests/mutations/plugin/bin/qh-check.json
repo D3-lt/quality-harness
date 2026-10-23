@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: qh-check prints script with the home directory",
+      "file": "plugin/bin/qh-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "on PATH and {home_shown(script)} beside",
+      "to": "on PATH and {script} beside",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "qh-check: --version answers without running a check",
       "file": "plugin/bin/qh-check",
       "tests": [

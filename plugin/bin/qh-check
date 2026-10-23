@@ -88,6 +88,28 @@ from pathlib import Path
 
 
 
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    rel = None
+    try:
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root (ADR-031).
 
@@ -121,7 +143,7 @@ def main(argv):
     node = shutil.which("node")
     if node is None or not script.is_file():
         sys.stderr.write(
-            f"[qh-check] could not run: needs `node` on PATH and {script} beside this gate's bin/.\n"
+            f"[qh-check] could not run: needs `node` on PATH and {home_shown(script)} beside this gate's bin/.\n"
         )
         return 4
     args = [node, str(script), *argv]

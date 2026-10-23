@@ -1,6 +1,56 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: adr-next prints path with the home directory",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(path)} — {os_reason(exc)}",
+      "to": "could not run: {path} — {os_reason(exc)}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-next prints tasks_dir with the home directory",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(tasks_dir)} — ",
+      "to": "could not run: {tasks_dir} — ",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-next prints candidate with the home directory",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(candidate)} — ",
+      "to": "could not run: {candidate} — ",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-next prints args[0] with the home directory",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "no such file or directory: {home_shown(args[0])}",
+      "to": "no such file or directory: {args[0]}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-next prints args[0] with the home directory (2)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "adr-next: {home_shown(args[0])} owns no tasks directory",
+      "to": "adr-next: {args[0]} owns no tasks directory",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "a note stating only an absent failure: the program-output scan blanks absences too",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],

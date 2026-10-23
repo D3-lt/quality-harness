@@ -3340,6 +3340,28 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    rel = None
+    try:
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 
@@ -3396,7 +3418,7 @@ def verify_several(tasks, cwd, steps):
         try:
             text = t.read_text(errors="replace", encoding="utf-8")
         except OSError as exc:
-            print(f"[adr-verify] could not run: {t} — {os_reason(exc)}", file=sys.stderr)
+            print(f"[adr-verify] could not run: {home_shown(t)} — {os_reason(exc)}", file=sys.stderr)
             sys.exit(4)
         if acceptance_section(text) is None:
             fail(f"{t}: no ## Acceptance section, so it is not a task — nothing was run or written")
@@ -3687,7 +3709,7 @@ def main():
     try:
         text = task.read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[adr-verify] could not run: {task} — {os_reason(exc)}", file=sys.stderr)
+        print(f"[adr-verify] could not run: {home_shown(task)} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(4)
     today = datetime.date.today().isoformat()
 

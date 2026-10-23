@@ -3633,6 +3633,112 @@ test('a verdict line shows an argument under the home directory as ~, and one ou
   }
 })
 
+// BACKLOG §409's sibling: a gate that could not run named the path it was given, as given, so one under the profile
+// carried the username into what the user pastes. Under a fake home, every such line says `~/…`, and none says the home.
+test('a could-not-run line shows a path under the home directory as ~', { skip: process.platform === 'win32' && 'chmod 000 does not make a file unreadable on Windows' }, () => {
+  const home = mkdtempSync(join(os.tmpdir(), 'qh-home-unread-'))
+  const locked = join(home, 'f.md')
+  try {
+    writeFileSync(locked, '# x\n')
+    writeFileSync(join(home, 'g.md'), '# x\n')
+    chmodSync(locked, 0o000)
+    const spawnEnv = { ...env, HOME: home, USERPROFILE: home }
+    const said = (gate, args) => {
+      const result = run(gate, args, home, undefined, spawnEnv)
+      return `${result.stdout}${result.stderr}`.replace(/\\/g, '/')
+    }
+    const homeText = home.replace(/\\/g, '/')
+    for (const gate of ['adr-lint', 'adr-judge', 'adr-verify', 'arch-lint', 'postmortem-verify', 'spec-verify', 'adr-retire-check']) {
+      const text = said(gate, [locked])
+      assert.match(text, /could not run: ~\/f\.md — /, `${gate}: ${text}`)
+      assert.ok(!text.includes(homeText), `${gate} printed the home directory: ${text}`)
+    }
+    assert.match(said('adr-next', [join(home, 'nope')]), /no such file or directory: ~\/nope/)
+    assert.match(said('adr-next', [join(home, 'g.md')]), /adr-next: ~\/g\.md owns no tasks directory/)
+    assert.match(said('adr-debt', [join(home, 'g.md')]), /not a directory: ~\/g\.md/)
+    // The rest of the class, each through the branch that names it. Every mode is put back before the directory goes.
+    const unreadable = []
+    const lock = target => { chmodSync(target, 0o000); unreadable.push(target) }
+    const record = '# ADR-001: X\n\n**Status:** Accepted\n**Date:** 2026-09-06\n**Governs:** `nothing/**`\n\n## Context\n\nx\n\n## Decision\n\nx\n\n## Consequences\n\nx\n'
+    const outside = mkdtempSync(join(os.tmpdir(), 'qh-outside-cwd-'))
+    try {
+      const shown = (gate, args, cwd = home) => {
+        const result = run(gate, args, cwd, undefined, spawnEnv)
+        return `${result.stdout}${result.stderr}`.replace(/\\/g, '/')
+      }
+      // adr-debt: a directory its walk could not list, and a record it could not read.
+      mkdirSync(join(home, 'debt', 'locked'), { recursive: true })
+      lock(join(home, 'debt', 'locked'))
+      assert.match(shown('adr-debt', [join(home, 'debt')]), /could not run: ~\/debt\/locked — this directory could not be listed, so the scan under ~\/debt is incomplete/)
+      mkdirSync(join(home, 'debt2'))
+      writeFileSync(join(home, 'debt2', 'ADR-001-x.md'), record)
+      lock(join(home, 'debt2', 'ADR-001-x.md'))
+      assert.match(shown('adr-debt', [join(home, 'debt2')]), /could not run: ~\/debt2\/ADR-001-x\.md — /)
+      // adr-lint: a named path that is not a regular file, a directory in a record's place, and the catch-all.
+      spawnSync('mkfifo', [join(home, 'fifo.md')], { timeout: 30_000 })
+      assert.match(shown('adr-lint', [join(home, 'fifo.md')]), /could not run: ~\/fifo\.md — /)
+      mkdirSync(join(home, 'ADR-002-y'))
+      writeFileSync(join(home, 'ADR-002-y.md'), record)
+      mkdirSync(join(home, 'recs'))
+      writeFileSync(join(home, 'recs', 'ADR-003-z.md'), record)
+      assert.match(shown('adr-lint', [join(home, 'ADR-002-y')]), /got a directory: ~\/ADR-002-y\n  the record for this directory is ~\/ADR-002-y\.md/)
+      assert.match(shown('adr-lint', [join(home, 'recs')]), /\n {4}~\/recs\/ADR-003-z\.md/)
+      const corpus = join(home, 'a', 'docs', 'adr')
+      mkdirSync(join(corpus, 'ADR-001-x', 'tasks'), { recursive: true })
+      writeFileSync(join(corpus, 'ADR-001-x.md'), record)
+      writeFileSync(join(corpus, 'ADR-001-x', 'tasks', 'T1-a.md'), '# Task T1\n')
+      lock(join(corpus, 'ADR-001-x', 'tasks', 'T1-a.md'))
+      assert.match(shown('adr-lint', [join(corpus, 'ADR-001-x.md'), join(corpus, 'ADR-001-x', 'tasks')], outside),
+        /could not run: ~\/a\/docs\/adr\/ADR-001-x\/tasks\/T1-a\.md — /)
+      // adr-verify over two tasks names the one it could not read.
+      assert.match(shown('adr-verify', [join(corpus, 'ADR-001-x', 'tasks', 'T1-a.md'), join(home, 'g.md')]),
+        /could not run: ~\/a\/docs\/adr\/ADR-001-x\/tasks\/T1-a\.md — /)
+      // adr-next: the record it could not read, and a tasks directory it could not list.
+      const next = join(home, 'n', 'docs', 'adr')
+      mkdirSync(join(next, 'ADR-001-x', 'tasks'), { recursive: true })
+      writeFileSync(join(next, 'ADR-001-x.md'), record)
+      writeFileSync(join(next, 'ADR-001-x', 'tasks', 'T1-a.md'), '# Task T1\n')
+      lock(join(next, 'ADR-001-x.md'))
+      assert.match(shown('adr-next', [join(next, 'ADR-001-x.md')]), /could not run: ~\/n\/docs\/adr\/ADR-001-x\.md — /)
+      assert.match(shown('adr-next', [join(next, 'ADR-001-x', 'tasks')]), /could not run: ~\/n\/docs\/adr\/ADR-001-x\.md — /)
+      chmodSync(join(next, 'ADR-001-x.md'), 0o644)
+      // A task file it could not read, under a record it could.
+      lock(join(next, 'ADR-001-x', 'tasks', 'T1-a.md'))
+      assert.match(shown('adr-next', [join(next, 'ADR-001-x.md')]), /could not run: ~\/n\/docs\/adr\/ADR-001-x\/tasks\/T1-a\.md — /)
+      chmodSync(join(next, 'ADR-001-x', 'tasks', 'T1-a.md'), 0o644)
+      lock(join(next, 'ADR-001-x', 'tasks'))
+      assert.match(shown('adr-next', [join(next, 'ADR-001-x.md')]), /could not run: ~\/n\/docs\/adr\/ADR-001-x\/tasks — /)
+      // adr-retire-check, from a working directory that does not hold the path, and through macOS's /private/var.
+      mkdirSync(join(home, 'act', 'locked'), { recursive: true })
+      mkdirSync(join(home, 'arc'))
+      lock(join(home, 'act', 'locked'))
+      assert.match(shown('adr-retire-check', ['--adopt', join(home, 'act'), join(home, 'arc')], outside),
+        /could not run: ~\/act\/locked — this directory could not be listed, so the walk under ~\/act is incomplete/)
+      // arch-lint: a document outside every repository is indexed from its parent, and a directory there it could not list
+      // is could-not-run beside a symbol it did not find.
+      mkdirSync(join(home, 'arch', 'locked'), { recursive: true })
+      writeFileSync(join(home, 'arch', 'architecture.md'), readFileSync(join(fixture, 'architecture.md'), 'utf8').replace(
+        '## Dependency Contracts\n\nNone — fixture has no import graph.\n',
+        '## Dependency Contracts\n\n| Rule | Check |\n|------|-------|\n| the domain layer imports no adapter | `assert_nowhere_at_all` |\n'))
+      lock(join(home, 'arch', 'locked'))
+      assert.match(shown('arch-lint', [join(home, 'arch', 'architecture.md')]), /could not run: ~\/arch\/locked — this directory could not be listed/)
+    } finally {
+      // Newest first: a path locked inside a directory locked after it cannot be reached until that directory is open.
+      for (const target of unreadable.reverse()) chmodSync(target, 0o755)
+      remove(outside)
+    }
+    // qh-check without node names its own script, under the home directory here.
+    // Spawned by the interpreter's own path: with an empty PATH neither `node` nor a bare `python3` is found.
+    const python = spawnSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8', timeout: 30_000, windowsHide: true }).stdout.trim()
+    const qh = spawnSync(python, [join(bin, 'qh-check')], { cwd: home, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+      env: { ...spawnEnv, HOME: repoRoot, USERPROFILE: repoRoot, PATH: '' } })
+    assert.match(`${qh.stderr}`, /could not run: needs `node` on PATH and ~\/plugin\/scripts\/qh-check\.mjs/, qh.stderr)
+  } finally {
+    chmodSync(locked, 0o600)
+    remove(home)
+  }
+})
+
 // ⚠ THE SWEEP THAT COVERS WHAT NO FIXTURE REACHES. The test above drives four
 // gates; `arch-lint`, `spec-verify` and `postmortem-verify` each need a
 // conforming document of their own kind, and every gate has refusal branches

@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: arch-lint prints path with the home directory",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(path)} — {os_reason(exc)}",
+      "to": "could not run: {path} — {os_reason(exc)}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: arch-lint prints Path(directory).as_posix() with the home directory",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "{home_shown(Path(directory).as_posix())} — this directory",
+      "to": "{Path(directory).as_posix()} — this directory",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "BACKLOG §409: arch-lint echoes a document under the home directory with the home path",
       "file": "plugin/bin/arch-lint",
       "tests": [

@@ -309,8 +309,8 @@ def _walked(scan_dir, markdown=False):
     # A path is named with `/` on every platform, as every gate names one (CLAUDE.md §7); Windows printed `docs\adr\sub`.
     if unlisted:
         for directory in unlisted:
-            print(f"[adr-debt] could not run: {Path(directory).as_posix()} — this directory could not be listed, "
-                  f"so the scan under {Path(scan_dir).as_posix()} is incomplete", file=sys.stderr)
+            print(f"[adr-debt] could not run: {home_shown(Path(directory).as_posix())} — this directory could not be listed, "
+                  f"so the scan under {home_shown(Path(scan_dir).as_posix())} is incomplete", file=sys.stderr)
         sys.exit(2)
     return paths
 
@@ -493,6 +493,28 @@ def reject_unknown_flags(known=()):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    rel = None
+    try:
+        # The home as spelled and as resolved: a gate that resolves its argument names macOS's /var as /private/var.
+        homes = (Path.home(), Path.home().resolve()) if given.is_absolute() else ()
+    except (RuntimeError, KeyError, OSError):
+        homes = ()
+    for home in homes:
+        try:
+            rel = given.relative_to(home)
+            break
+        except ValueError:
+            continue
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 
@@ -543,7 +565,7 @@ def main():
     dirs = [Path(d) for d in sys.argv[1:]]
     for d in dirs:
         if not d.is_dir():
-            print(f"not a directory: {d}")
+            print(f"not a directory: {home_shown(d)}")
             sys.exit(1)
 
     deferred, followups, broken, unreceipted = [], [], [], []
@@ -564,7 +586,7 @@ def main():
                 # was killed, and a directory named `x.md` is never opened (ADR-092 Decision 10).
                 text = read_regular(md)
             except OSError as exc:
-                print(f"[adr-debt] could not run: {md} — {os_reason(exc)}", file=sys.stderr)
+                print(f"[adr-debt] could not run: {home_shown(md)} — {os_reason(exc)}", file=sys.stderr)
                 sys.exit(2)
             secs = sections_of(text)
             rel = md.relative_to(scan_dir)

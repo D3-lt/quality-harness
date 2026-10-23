@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409 sibling: adr-debt prints Path(directory).as_posix() with the home directory",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(Path(directory).as_posix())} — this directory",
+      "to": "could not run: {Path(directory).as_posix()} — this directory",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-debt prints Path(scan_dir).as_posix() with the home directory",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "so the scan under {home_shown(Path(scan_dir).as_posix())} is incomplete",
+      "to": "so the scan under {Path(scan_dir).as_posix()} is incomplete",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-debt prints d with the home directory",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "not a directory: {home_shown(d)}",
+      "to": "not a directory: {d}",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
+      "label": "BACKLOG §409 sibling: adr-debt prints md with the home directory",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "could not run: {home_shown(md)} — ",
+      "to": "could not run: {md} — ",
+      "only": "^(?:a could-not-run line shows a path under the home directory as ~)$"
+    },
+    {
       "label": "adr-debt: a receipt the backlog index archived still counts",
       "file": "plugin/bin/adr-debt",
       "tests": [

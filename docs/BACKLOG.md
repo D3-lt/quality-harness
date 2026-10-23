@@ -3695,3 +3695,22 @@ finding that the defect can recur. For each such entry, a reproduction (a corpus
 decides that, and becomes the regression it lacks. Replays on Windows and macOS, for entries whose tests observe the defect only
 there, are the other half. Open until every INSENSITIVE entry T2 names has a reproduction that settles it, and the replays run
 on Windows and macOS.
+
+## 416. R2's exclusion reads the refs and keys git maintains; one written by hand is outside its evidence (permanent: boundary)
+
+Recorded 2026-10-23, after nine review rounds on §411's exclusion (6619eba1..2e1edfe7). Each round found one more spelling, and
+each fix stands with its regression in `tests/r2-remote-commits.test.mjs` under Node and the Go core:
+- a remote's own HEAD as the upstream (841574f9);
+- a remote whose name holds a slash (e5f88437);
+- a remote name ending in U+00A0, which Node's trim cut (7816aaf7);
+- a configured but refused upstream that fell back to origin's default branch, and U+2028 in a branch name (7976d523);
+- an empty merge value read as no upstream (2e1edfe7).
+Every one of those setups writes a tracking ref or a config key by hand. The class, enumerated:
+`mrw read tests/r2-remote-commits.test.mjs --grep "'update-ref', .refs/remotes|'config', '--add'|'config', .remote\." --count`
+gave 10 lines on 2026-10-23. The same operation is how the first test simulates a fetch, since a fetched ref and a hand-written
+one look alike from inside the repository. R2 leaves out a commit that a remote-tracking branch of the configured upstream
+holds, or, with no upstream key, origin's default branch; whatever wrote that ref, the commit is published as far as the
+repository can tell, and CI answers for it as much as for any fetched one. So a ref written under `refs/remotes/` by hand, or a
+config value that `git remote add` or `git branch -u` would refuse, is outside what R2 can tell apart. It is not a defect
+(CLAUDE.md §16: the input space is open; the owner, 2026-10-07: no endless review loop). A reviewer's fail-open that
+needs such a setup is answered by this entry. One that does not, found through git's own commands, is a new finding.

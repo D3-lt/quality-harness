@@ -20,7 +20,7 @@
       "label": "2026-10-23: a shell comment counts as a use",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "        elif c == \"#\" and starts_word(text, i, joins):",
+      "from": "        elif c == \"#\" and starts_word(text, i, joins, escaped):",
       "to": "        elif False:",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
@@ -52,8 +52,16 @@
       "label": "the verification review of 82717e46: a # after a backslash-newline opens a comment",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "        elif c == \"#\" and starts_word(text, i, joins):",
+      "from": "        elif c == \"#\" and starts_word(text, i, joins, escaped):",
       "to": "        elif c == \"#\" and (i == 0 or text[i - 1] in WORD_BREAK):",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "the verification review of e3acb340: an escaped blank before a # is read as a word break",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": " in WORD_BREAK and i - 1 not in escaped)",
+      "to": " in WORD_BREAK)",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {

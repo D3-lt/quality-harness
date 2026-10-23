@@ -144,13 +144,14 @@ def backquoted(text, start, quoted):
         i += 1
     return -1, "", []
 
-def starts_word(text, i, joins):
-    """Whether position i begins a word: the character before it, past every backslash-newline the shell removed, is a word
-    break or the start of the text (the verification reviews of 82717e46 and 99803be6: a # after a continuation that follows a
-    word continues it, and one after a continuation that follows a blank begins a comment)."""
+def starts_word(text, i, joins, escaped):
+    """Whether position i begins a word: the character before it, past every backslash-newline the shell removed, is an
+    unescaped word break or the start of the text (the verification reviews of 82717e46, 99803be6 and e3acb340: a # after a
+    continuation that follows a word continues it, one after a continuation that follows a blank begins a comment, and an
+    escaped blank is part of a word)."""
     while i in joins:
         i -= 2
-    return i == 0 or text[i - 1] in WORD_BREAK
+    return i == 0 or (text[i - 1] in WORD_BREAK and i - 1 not in escaped)
 
 def shell_comments(text):
     """Comment spans, and whether the scan reached the end with no quote, parenthesis, substitution or here-document still open.
@@ -161,7 +162,7 @@ def shell_comments(text):
     command the shell reads from it, and its comments are mapped back (the review of 620c6160..13dfefe1, and its verification
     review: a comment at its start, an escaped quote in it, and a comment ending at its closing backquote)."""
     tick = "\x60"
-    spans, pending, stack, i, n, joins = [], [], ["code"], 0, len(text), set()
+    spans, pending, stack, i, n, joins, escaped = [], [], ["code"], 0, len(text), set(), set()
     while i < n:
         c, mode = text[i], stack[-1]
         if c == tick and mode != "'":
@@ -190,6 +191,7 @@ def shell_comments(text):
             # A backslash-newline joins the lines: what follows it continues what came before it, a word or a word break.
             if text.startswith("\\\n", i):
                 joins.add(i + 2)
+            escaped.add(i + 1)
             i += 1
         elif c in "'\"":
             stack.append(c)
@@ -197,7 +199,7 @@ def shell_comments(text):
             stack.append("(")
         elif c == ")" and mode == "(":
             stack.pop()
-        elif c == "#" and starts_word(text, i, joins):
+        elif c == "#" and starts_word(text, i, joins, escaped):
             end = text.find("\n", i)
             end = n if end < 0 else end
             spans.append((i, end))

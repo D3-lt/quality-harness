@@ -94,7 +94,9 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     'plugin/scripts/i.sh': 'echo "`true # comment`" tickAfterComment\necho "`printf \'%s\' \\"\n# escapedQuoteUse\n\\"`"\n',
     // A backslash-newline joins the lines, so a # after one continues the word before it: in code and in backquotes.
     'plugin/scripts/k.sh': 'printf %s a\\\n#gluedWordUse\necho "`printf %s a\\\n#gluedTickUse\n`"\n',
-    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\nexport function quotedTickUse() {}\nexport function tickAfterComment() {}\nexport function escapedQuoteUse() {}\nexport function gluedWordUse() {}\nexport function gluedTickUse() {}\n',
+    // The verification review of e3acb340: an escaped blank is part of a word, before a continuation or directly.
+    'plugin/scripts/m.sh': 'printf \'<%s>\\n\' \\ \\\n#escapedBlankUse\nprintf \'<%s>\\n\' \\ #escapedHashUse\n',
+    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\nexport function quotedTickUse() {}\nexport function tickAfterComment() {}\nexport function escapedQuoteUse() {}\nexport function gluedWordUse() {}\nexport function gluedTickUse() {}\nexport function escapedBlankUse() {}\nexport function escapedHashUse() {}\n',
   }
   const keptSwept = sweep(kept)
   assert.deepEqual(keptSwept.incomplete, [])

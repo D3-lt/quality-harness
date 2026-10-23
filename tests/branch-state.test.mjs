@@ -1570,6 +1570,30 @@ test('a stale listing is asked once more by commit, and only a stale one is', ()
   ], once)), { brief: true })
   assert.equal(once.filter(call => call.startsWith('gh run list')).length, 1, once.join(' | '))
 })
+// ADR-126: main has no run of its own, since CI runs on `land/<sha>` and main fast-forwards to that sha. The retry by
+// commit reads that run as HEAD's, and only that one: a `land/` branch naming another sha, or any other branch, is not.
+test('a landed sha reads its land/<sha> run, and no other branch at that commit', () => {
+  const full = sha => sha.padEnd(40, '0')
+  const tip = ['git rev-parse origin/main', ok(full('0a18d04a'))]
+  const stale = ['gh run list --branch', ok(JSON.stringify([{ headSha: full('24ce31b0'), status: 'completed', conclusion: 'success', databaseId: 9 }]))]
+  const at = (headBranch, conclusion) => render(collect(runner([...GIT_CLEAN, tip,
+    ['gh run list --commit', ok(JSON.stringify([{ headSha: full('0a18d04a'), headBranch, status: 'completed', conclusion, databaseId: 12 }]))],
+    ['gh run view', ok(JSON.stringify({ jobs: [{ name: 'windows', conclusion }] }))],
+    stale,
+  ])), { brief: true })
+
+  const green = at(`land/${full('0a18d04a')}`, 'success')
+  assert.match(green, /0a18d04: every job concluded success/, green)
+  assert.doesNotMatch(green, /COULD NOT LOOK/, green)
+  const red = at(`land/${full('0a18d04a')}`, 'failure')
+  assert.match(red, /FAILURE/, red)
+
+  for (const headBranch of [`land/${full('24ce31b0')}`, 'land/0a18d04a', 'feature']) {
+    const read = at(headBranch, 'failure')
+    assert.match(read, /COULD NOT LOOK/, `${headBranch}: ${read}`)
+    assert.doesNotMatch(read, /FAILURE/, `${headBranch}: ${read}`)
+  }
+})
 
 // BACKLOG §348 (the owner, 2026-10-02): on a Windows desktop a full branch-state took 6.4–7.7 s, of
 // which each `gh run view --json jobs` was 1.6–2.5 s, and the release half (git, after gh) was the

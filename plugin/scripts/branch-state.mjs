@@ -266,13 +266,18 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
     // `--commit` is NOT filtered by branch, so only this branch's rows are kept: a new branch
     // whose upstream is main otherwise read main's red as its own (the review of the first fix).
     // Only then: a listing that answers costs no second call on this per-prompt hook (§19).
+    // ⚠ ONE OTHER BRANCH IS THIS COMMIT'S OWN: `land/<the full sha asked about>` (ADR-126). A landing pushes the candidate
+    // there, CI runs on it, and main fast-forwards to that sha, so main has no run of its own and every landed HEAD read
+    // COULD NOT LOOK (2026-10-23, main at 2a8da294 beside a green land/2a8da294… run). The branch's name states the commit;
+    // a `land/` branch naming another sha, or any other branch, is still not this branch's CI.
     if (!answer && rows.length) {
-      const again = run(['gh', 'run', 'list', '--commit', tipSha ?? headSha,
+      const asked = tipSha ?? headSha
+      const again = run(['gh', 'run', 'list', '--commit', asked,
         '--limit', String(RUN_WINDOW), '--json', `${RUN_FIELDS},headBranch`])
       let retried = []
       if (again.ok) { try { retried = JSON.parse(again.out) } catch { retried = [] } }
       if (!Array.isArray(retried)) retried = []
-      retried = retried.filter(r => r && r.headBranch === branch.out)
+      retried = retried.filter(r => r && (r.headBranch === branch.out || r.headBranch === `land/${asked}`))
       const second = headRuns(retried, headSha, tipSha)
       if (second) { rows = retried; answer = second }
     }

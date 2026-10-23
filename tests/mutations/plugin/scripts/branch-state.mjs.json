@@ -697,9 +697,29 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "retried = retried.filter(r => r && r.headBranch === branch.out)",
+      "from": "retried = retried.filter(r => r && (r.headBranch === branch.out || r.headBranch === `land/${asked}`))",
       "to": "retried = retried.filter(r => r)",
       "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "ADR-126: the retry ignores the land/<sha> run of the commit it asked about",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "r.headBranch === branch.out || r.headBranch === `land/${asked}`",
+      "to": "r.headBranch === branch.out",
+      "only": "^a landed sha reads its land/<sha> run, and no other branch at that commit$"
+    },
+    {
+      "label": "ADR-126: the retry reads a land/ branch naming another commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "r.headBranch === `land/${asked}`",
+      "to": "String(r.headBranch).startsWith('land/')",
+      "only": "^a landed sha reads its land/<sha> run, and no other branch at that commit$"
     },
     {
       "label": "§348: job views ignore their budget",

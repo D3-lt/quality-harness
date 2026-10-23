@@ -19,7 +19,10 @@ test('a temp root under the home, written from the home, is the temp root, and n
   // separator and inside quotes holding another quote; one that stays inside keeps its tail.
   const before = scrubber({ root: '/work/repo', pluginRoot: '/opt/plugin', home, tmp: '/elsewhere', tmpResolved: '/elsewhere' })
   for (const climbing of ['~/AppData/Local/Temp/../../../Projects/private.md', '~\\AppData\\Local\\Temp\\..\\..\\Projects\\x.md',
-    '"~/AppData/Local/Temp/../Example\'s private/x.md"', '`~/AppData/Local/Temp/..`', 'at ~/AppData/Local/Temp/.. then']) {
+    '"~/AppData/Local/Temp/../Example\'s private/x.md"', '`~/AppData/Local/Temp/..`', 'at ~/AppData/Local/Temp/.. then',
+    // The verification review of 80e3060a: a sibling of the temp root whose name starts with it, past a space.
+    '~/AppData/Local/Temp private/secret.md', '~\\AppData\\Local\\Temp private\\secret.md', '"~/AppData/Local/Temp private/x.md"',
+    '`~/AppData/Local/Temp private/x.md`', '~/AppData/Local/TempX/secret.md']) {
     assert.equal(scrub(climbing), before(climbing), climbing)
     assert.doesNotMatch(scrub(climbing), /<tmp>/, climbing)
   }

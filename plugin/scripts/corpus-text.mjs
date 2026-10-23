@@ -108,7 +108,10 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   return text => {
     let out = String(text)
     for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
-    for (const pattern of shorthand) out = out.replace(pattern, (whole, rest) => (CLIMBS.test(rest) ? whole : `<tmp>${rest}`))
+    // Inside it means a rest that is empty or goes on through a separator: TAIL reads `Temp private/x` on past the space as one
+    // path, a sibling of the temp root (the verification review of 80e3060a).
+    const inside = rest => (rest === '' || /^[\\/]/.test(rest)) && !CLIMBS.test(rest)
+    for (const pattern of shorthand) out = out.replace(pattern, (whole, rest) => (inside(rest) ? `<tmp>${rest}` : whole))
     return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')
   }
 }

@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "2026-10-23: a week-old statusline cache stays in the temp root",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  sweep(tmp, name => LEGACY_MARKER.test(name) || STATUS_CACHE.test(name))",
+      "to": "  sweep(tmp, name => LEGACY_MARKER.test(name))",
+      "only": "^(?:a week-old statusline cache is swept with the markers, and nothing else of that name)$"
+    },
+    {
+      "label": "2026-10-23: any quality-harness-status name is swept",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "const STATUS_CACHE = /^quality-harness-status-[0-9a-f]{32}$/",
+      "to": "const STATUS_CACHE = /^quality-harness-status-/",
+      "only": "^(?:a week-old statusline cache is swept with the markers, and nothing else of that name)$"
+    },
+    {
       "label": "lifecycle: the marker sweep removes what is stale, not nothing (§146)",
       "file": "plugin/scripts/housekeeping.mjs",
       "tests": [

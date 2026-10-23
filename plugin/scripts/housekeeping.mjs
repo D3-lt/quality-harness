@@ -32,6 +32,11 @@ const SAID_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 // residual is named in BACKLOG §146 rather than traded for a wrong suppression.
 const LEGACY_MARKER = /^quality-harness-(?:said|note)-[0-9a-f]{32}$/
 
+// The statusline's per-session reading cache (statusline.mjs `cachePath`): one file per session, under the temp root, and
+// nothing removed one (found 2026-10-23, 26 of them left by one selftest run). A week-old one belongs to a session long
+// over, and losing a live one costs one re-read of its log.
+const STATUS_CACHE = /^quality-harness-status-[0-9a-f]{32}$/
+
 // A marker's own name, and the only thing the marker directory sweep will
 // unlink. `!== '.swept'` was the first draft and it made the directory's whole
 // contents eligible, which is not what this file claims anywhere (Codex
@@ -72,7 +77,7 @@ export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
     }
   }
   sweep(directory, name => MARKER_NAME.test(name))
-  sweep(tmp, name => LEGACY_MARKER.test(name))
+  sweep(tmp, name => LEGACY_MARKER.test(name) || STATUS_CACHE.test(name))
   return report
 }
 

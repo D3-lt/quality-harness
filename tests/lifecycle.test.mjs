@@ -3723,6 +3723,25 @@ test('stale said-markers are swept once a day; live ones and everything else are
   assert.equal(existsSync(path.join(dir, hex(2))), true, 'still live two days on')
 })
 
+// The statusline's per-session cache sat in the temp root forever: 26 of them after one selftest run (2026-10-23). A week-old
+// one goes with the markers; a live one, a name of another shape, and a near miss stay.
+test('a week-old statusline cache is swept with the markers, and nothing else of that name', () => {
+  const tmp = mkdtempSync(path.join(testTmp, 'status-sweep-'))
+  const day = 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const aged = (name, ageMs) => { const file = path.join(tmp, name); writeFileSync(file, '{}'); const t = (now - ageMs) / 1000; utimesSync(file, t, t); return file }
+  const hex = n => String(n).padStart(32, '0')
+  const old = aged(`quality-harness-status-${hex(1)}`, 8 * day)
+  const live = aged(`quality-harness-status-${hex(2)}`, 1 * day)
+  const short = aged('quality-harness-status-short', 8 * day)
+  const report = sweepStaleMarkers(tmp, now)
+  assert.equal(report.swept, true)
+  assert.equal(existsSync(old), false, 'a week-old cache is removed')
+  assert.equal(existsSync(live), true, 'a live cache is kept')
+  assert.equal(existsSync(short), true, 'a name of another shape is not ours')
+  remove(tmp)
+})
+
 test('a sweep that cannot look says where, and never throws', () => {
   const tmp = mkdtempSync(path.join(testTmp, 'said-sweep-blocked-'))
   // The marker "directory" is a FILE, so nothing below it can be read.

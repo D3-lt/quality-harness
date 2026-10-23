@@ -225,6 +225,18 @@ func answeredBlobs(entries []any) map[string]map[string]bool {
 	return answered
 }
 
+// passCandidates is artifact-pass.mjs's: the paths a deferred pass gates, absolute, not a scratch corpus, and not already
+// answered for the content they hold.
+func passCandidates(paths []string, cwd string, answered map[string]map[string]bool, identities map[string]any) []string {
+	targets := []string{}
+	for _, p := range paths {
+		if filepath.IsAbs(p) && !scratchOutside(p, cwd) && !alreadyAnswered(answered, p, identities[p]) {
+			targets = append(targets, p)
+		}
+	}
+	return targets
+}
+
 func alreadyAnswered(answered map[string]map[string]bool, file string, identity any) bool {
 	blobs, ok := answered[file]
 	if !ok || identity == nil {
@@ -527,12 +539,7 @@ func (h *hookRun) artifactRule(rec *recorded) {
 	for _, p := range paths {
 		identities[p] = contentId(p)
 	}
-	targets := []string{}
-	for _, p := range paths {
-		if filepath.IsAbs(p) && !scratchOutside(p, cwd) && !alreadyAnswered(answered, p, identities[p]) {
-			targets = append(targets, p)
-		}
-	}
+	targets := passCandidates(paths, cwd, answered, identities)
 	if len(targets) == 0 {
 		return
 	}

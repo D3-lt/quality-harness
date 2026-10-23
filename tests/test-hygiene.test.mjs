@@ -66,6 +66,7 @@ const LOCKED_REMOVES = {
   'tests/lock-drift-commit.test.mjs': 2,
   'tests/release-evidence.test.mjs': 3,
   'tests/spec-ignore.test.mjs': 2,
+  'tests/go-core-parity-adr-111.test.mjs': 1,
 }
 
 test('no test outside the locked list removes its directory without the retrying helper', async () => {

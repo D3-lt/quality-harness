@@ -17,7 +17,7 @@ import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { claimPassLock, passTargets, releasePassLock } from '../plugin/scripts/artifact-pass.mjs'
+import { claimPassLock, passCandidates, passTargets, releasePassLock } from '../plugin/scripts/artifact-pass.mjs'
 import { contentId } from '../plugin/scripts/event-log.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -351,4 +351,21 @@ test('a finding about bytes a later pass gated as different bytes is not said', 
       assert.equal(/FAKE-STALE/.test(out), said, `later blob ${later}: ${out}`)
     } finally { remove(dir) }
   }
+})
+
+// BACKLOG §409: the deferred pass leaves out what runArtifactGates leaves out. For a project outside the temp root, a path
+// whose real location is under it (a link into the temp root) is a scratch corpus; its own records, a relative path and a
+// path already answered for its content are left out or kept as before. The project only has to be a path here.
+test('the deferred pass leaves out a scratch corpus, a relative path and an answered one, and keeps the project', () => {
+  const scratch = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-deferred-scratch-')))
+  try {
+    const project = resolve('/', 'not-under-the-temp-root', 'project')
+    const record = join(project, 'docs', 'adr', 'ADR-001-x.md')
+    const answeredRecord = join(project, 'docs', 'adr', 'ADR-002-y.md')
+    const corpus = join(scratch, 'ADR-003-z.md')
+    writeFileSync(corpus, '# ADR-003: Z\n')
+    const answered = new Map([[answeredRecord, new Set(['blob-2'])]])
+    const identities = new Map([[record, 'blob-1'], [answeredRecord, 'blob-2'], [corpus, 'blob-3']])
+    assert.deepEqual(passCandidates([record, answeredRecord, corpus, 'docs/adr/ADR-004.md'], project, answered, identities), [record])
+  } finally { remove(scratch) }
 })

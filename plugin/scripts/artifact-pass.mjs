@@ -224,6 +224,13 @@ export function answeredBlobs(log) {
   return answered
 }
 
+// The paths a deferred pass gates: absolute, not a scratch corpus (`scratchOutside`, as `runArtifactGates` judges it), and not
+// already answered for the content they hold. A path the gates never answer for would start a pass at every boundary.
+export function passCandidates(paths, cwd, answered, identities) {
+  return [...paths].filter(file => path.isAbsolute(file) && !scratchOutside(file, cwd)
+    && !alreadyAnswered(answered, file, identities.get(file) ?? null))
+}
+
 export async function artifactRule(input, recorded) {
   if (typeof input.session_id !== 'string' || !input.session_id) return
   const cwd = input.cwd ?? process.cwd()
@@ -263,10 +270,7 @@ export async function artifactRule(input, recorded) {
   // disagree about what was gated. Found by a re-review, 2026-09-18 — the per-edit
   // fix had left this sibling untouched (CLAUDE.md §5).
   const identities = new Map([...paths].map(file => [file, contentId(file)]))
-  // A path the gates never answer for — not absolute, or a scratch file outside a
-  // scratch session (`runArtifactGates`) — would start a pass at every boundary.
-  const targets = [...paths].filter(file => path.isAbsolute(file) && !scratchOutside(file, cwd)
-    && !alreadyAnswered(answered, file, identities.get(file) ?? null))
+  const targets = passCandidates(paths, cwd, answered, identities)
   if (!targets.length) return
   // Nearest first: the session's own starting point, then HEAD. A record deleted
   // and committed during the session is in neither the working tree nor HEAD.

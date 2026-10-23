@@ -2243,7 +2243,7 @@ const goVersion = spawnSync('go', ['version'], { encoding: 'utf8', timeout: 30_0
 const noGo = required('go', goVersion.error || goVersion.status !== 0
   ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be tested here` : false)
 test("the Go core's scratch rule answers as the Node one does", { skip: noGo }, () => {
-  const run = spawnSync('go', ['test', '-count=1', '-run', '^TestScratchOutside$', './hooks/'], {
+  const run = spawnSync('go', ['test', '-count=1', '-run', '^(TestScratchOutside|TestPassCandidates)$', './hooks/'], {
     cwd: path.join(repoRoot, 'core'), encoding: 'utf8', timeout: 600_000, windowsHide: true,
   })
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)

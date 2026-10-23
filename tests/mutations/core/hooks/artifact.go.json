@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "BACKLOG §409: the Go core's deferred pass gates a scratch corpus",
+      "file": "core/hooks/artifact.go",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "\t\tif filepath.IsAbs(p) && !scratchOutside(p, cwd) && !alreadyAnswered(answered, p, identities[p]) {",
+      "to": "\t\tif filepath.IsAbs(p) && !alreadyAnswered(answered, p, identities[p]) {",
+      "only": "^(?:the Go core's scratch rule answers as the Node one does)$"
+    }
+  ]
+}

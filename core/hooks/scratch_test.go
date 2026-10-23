@@ -56,3 +56,26 @@ func TestScratchOutside(t *testing.T) {
 		}
 	}
 }
+
+// The deferred pass leaves out what the per-edit pass leaves out (artifact-pass.mjs passCandidates): for a project outside
+// the temp root a temp path is a scratch corpus, and a relative path or one answered for its content is left out too.
+func TestPassCandidates(t *testing.T) {
+	scratch, err := os.MkdirTemp("", "qh-deferred-scratch-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(scratch)
+	project := filepath.Join(string(filepath.Separator), "not-under-the-temp-root", "project")
+	record := filepath.Join(project, "docs", "adr", "ADR-001-x.md")
+	answeredRecord := filepath.Join(project, "docs", "adr", "ADR-002-y.md")
+	corpus := filepath.Join(scratch, "ADR-003-z.md")
+	if err := os.WriteFile(corpus, []byte("# ADR-003: Z\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	answered := answeredBlobs([]any{O("event", "artifact.gated", "path", answeredRecord, "blob", "blob-2", "complete", true)})
+	identities := map[string]any{record: "blob-1", answeredRecord: "blob-2", corpus: "blob-3"}
+	got := passCandidates([]string{record, answeredRecord, corpus, filepath.Join("docs", "adr", "ADR-004.md")}, project, answered, identities)
+	if len(got) != 1 || got[0] != record {
+		t.Errorf("passCandidates = %q, want only %q", got, record)
+	}
+}

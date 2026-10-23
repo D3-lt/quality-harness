@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: the deferred pass gates a scratch corpus",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": ["tests/artifact-pass-behind.test.mjs"],
+      "from": "  return [...paths].filter(file => path.isAbsolute(file) && !scratchOutside(file, cwd)",
+      "to": "  return [...paths].filter(file => path.isAbsolute(file)",
+      "only": "^(?:the deferred pass leaves out a scratch corpus, a relative path and an answered one, and keeps the project)$"
+    },
+    {
+      "label": "BACKLOG §409: the deferred pass gates a relative path",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": ["tests/artifact-pass-behind.test.mjs"],
+      "from": "  return [...paths].filter(file => path.isAbsolute(file) && !scratchOutside(file, cwd)",
+      "to": "  return [...paths].filter(file => !scratchOutside(file, cwd)",
+      "only": "^(?:the deferred pass leaves out a scratch corpus, a relative path and an answered one, and keeps the project)$"
+    },
+    {
+      "label": "BACKLOG §409: the deferred pass gates a path already answered for its content",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": ["tests/artifact-pass-behind.test.mjs"],
+      "from": "    && !alreadyAnswered(answered, file, identities.get(file) ?? null))\n}",
+      "to": "    )\n}",
+      "only": "^(?:the deferred pass leaves out a scratch corpus, a relative path and an answered one, and keeps the project)$"
+    },
+    {
       "label": "hooks: both ways the budget runs out say so",
       "file": "plugin/scripts/artifact-pass.mjs",
       "tests": [

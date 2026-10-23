@@ -4,7 +4,7 @@
 // infers, ADR-111 T1's pytest sections among them, is the same from `qh check-command` as from checkCommandOrigin.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
@@ -63,7 +63,7 @@ test('the Go core says what the Node path says about ADR-111\'s rules', { skip: 
   assert.ok(goSkipFor('go', new Map([['a planted rule', 'ADR-000']]), 'a planted rule'), 'a named lack skips its test under Go')
   const qh = qhBinary(t)
   const top = mkdtempSync(path.join(os.tmpdir(), 'qh-adr111-'))
-  t.after(() => remove(top))
+  t.after(() => rmSync(top, { recursive: true, force: true }))
   const answers = new Map()
   for (const [name, files] of Object.entries(SHAPES)) {
     const dir = path.join(top, name.replace(/[^a-z0-9]+/gi, '-'))

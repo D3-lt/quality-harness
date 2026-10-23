@@ -3587,6 +3587,13 @@ waits only for the Verification Log row, which the child writes before it releas
 open, and `remove()`'s 10 × 200 ms is shorter than that exit. The fix waits for the child's pid (the parent prints it) before
 removing, and widens `remove()` for the locked sibling `tests/adr-verify-background.test.mjs`. The class is now named:
 a test that waits for a detached child's OUTPUT rather than its EXIT.
+3.8.55's Windows landing check (4de330ca, a 16-core desktop, queue length 0) confirmed that fix (3 of 3 alone, no leftover)
+and listed one more member: `tests/branch-state.test.mjs`'s "a brief never shows a snapshot past the cap" failed its
+`removeRepository` with `EPERM` on a directory holding only `.git`, in the full run only (3 of 3 alone pass); a plain remove a
+minute later succeeded, and one such directory from the 3.8.53 run was still there. The listing 84d667d9 added did not name
+the holder: it filters processes by command line (`branch-state|gh|git`), so it caught unrelated processes and not whatever
+held the handle. The next listing has to follow the test's own process tree (its parent chain) or ask for handles; a name
+filter cannot answer this question.
 The wider class, done 2026-10-23 (b5316a0b). The rule's pattern `rmSync\([^)]*recursive` stopped at the first `)`, so a remove
 of a joined path was invisible to it. It now reads past a nested call, and its class is every test that starts a child able to
 outlive it, not only one naming SessionStart. Measured: 16 files outside the old class, 54 bare recursive removes. 38 go

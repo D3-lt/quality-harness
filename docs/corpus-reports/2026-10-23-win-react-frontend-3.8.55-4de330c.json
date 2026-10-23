@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-23",
+  "at": "4de330caf59a5099f596aed2d1234d4163847495",
+  "plugin": "3.8.55",
+  "kind": "probe",
+  "probeSha256": "a07089753b4bdd0bf580fe366e6cc49f9c54b5e3e51e08e10d32209254efc200",
+  "readers": "169f7fd71e656f47415b1a29f16af7eb3391e2ee1e5085e894c0b8488be2cc30",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "undecided": 1,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 1,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "win-react-frontend",
+  "found": ""
+}

@@ -20,7 +20,7 @@
       "label": "2026-10-23: a shell comment counts as a use",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "        elif c == \"#\" and (i == 0 or text[i - 1] in WORD_BREAK):",
+      "from": "        elif c == \"#\" and (i == 0 or text[i - 1] in WORD_BREAK) and i != glued:",
       "to": "        elif False:",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
@@ -38,6 +38,22 @@
       "tests": ["tests/orphan-sweep.test.mjs"],
       "from": "            elif text.startswith(\"$(\", i):\n                stack.append(\"(\")",
       "to": "            elif False:\n                stack.append(\"(\")",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "the verification review of 82717e46: a backslash-newline is kept inside a backquoted substitution",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "        if text.startswith(\"\\\\\\n\", i):\n            i += 2\n            continue\n",
+      "to": "",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "the verification review of 82717e46: a # after a backslash-newline opens a comment",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": " in WORD_BREAK) and i != glued:",
+      "to": " in WORD_BREAK):",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {

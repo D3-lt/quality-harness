@@ -127,12 +127,16 @@ WORD_BREAK = " \t\n;|&()<>"
 def backquoted(text, start, quoted):
     """Where the backquoted substitution opened at start ends, and its command as the shell reads it, with the offset in text of
     each of its characters: the shell finds the closing backquote first, then drops the backslash before $, a backquote or a
-    backslash (and before a double quote when the substitution sits inside double quotes), then parses what is left."""
+    backslash (and before a double quote when the substitution sits inside double quotes), and a backslash-newline pair whole,
+    then parses what is left (so a comment continued by one runs on to the next line)."""
     tick, kept = "\x60", "$\x60\\" + ('"' if quoted else "")
     inner, offsets, i = [], [], start + 1
     while i < len(text):
         if text[i] == tick:
             return i, "".join(inner), offsets
+        if text.startswith("\\\n", i):
+            i += 2
+            continue
         if text[i] == "\\" and i + 1 < len(text) and text[i + 1] in kept:
             i += 1
         inner.append(text[i])
@@ -149,7 +153,7 @@ def shell_comments(text):
     command the shell reads from it, and its comments are mapped back (the review of 620c6160..13dfefe1, and its verification
     review: a comment at its start, an escaped quote in it, and a comment ending at its closing backquote)."""
     tick = "\x60"
-    spans, pending, stack, i, n = [], [], ["code"], 0, len(text)
+    spans, pending, stack, i, n, glued = [], [], ["code"], 0, len(text), -1
     while i < n:
         c, mode = text[i], stack[-1]
         if c == tick and mode != "'":
@@ -175,6 +179,8 @@ def shell_comments(text):
                 i += 2
                 continue
         elif c == "\\":
+            # A backslash-newline joins the lines, so what follows it continues the word before it and opens no comment.
+            glued = i + 2 if text.startswith("\\\n", i) else glued
             i += 1
         elif c in "'\"":
             stack.append(c)
@@ -182,7 +188,7 @@ def shell_comments(text):
             stack.append("(")
         elif c == ")" and mode == "(":
             stack.pop()
-        elif c == "#" and (i == 0 or text[i - 1] in WORD_BREAK):
+        elif c == "#" and (i == 0 or text[i - 1] in WORD_BREAK) and i != glued:
             end = text.find("\n", i)
             end = n if end < 0 else end
             spans.append((i, end))

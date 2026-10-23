@@ -72,12 +72,14 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     // The review of 620c6160..13dfefe1: a backquoted substitution inside double quotes is shell code too, and its verification
     // review: so is a comment at the substitution's very start.
     'plugin/scripts/h.sh': 'echo "`\n# shellInBackquotes\ntrue\n`"\necho "`# shellAtBackquoteStart\ntrue\n`"\n',
-    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\nexport function shellInBackquotes() {}\nexport function shellAtBackquoteStart() {}\n',
+    // The verification review of 82717e46: inside backquotes a backslash-newline is removed first, so a comment runs on.
+    'plugin/scripts/j.sh': 'printf "<%s>\\n" "`printf %s ok # comment\\\nprintf %s continuedCommentUse\n`"\n',
+    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\nexport function shellInBackquotes() {}\nexport function shellAtBackquoteStart() {}\nexport function continuedCommentUse() {}\n',
   }
   const swept = sweep(defined)
   assert.ok(swept, 'the lexers ran')
   assert.deepEqual(swept.incomplete, [])
-  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellAfterCommand', 'shellAtBackquoteStart', 'shellInBackquotes', 'shellInSubstitution', 'shellOnlyComment'])
+  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'continuedCommentUse', 'onlyInComment', 'shellAfterCommand', 'shellAtBackquoteStart', 'shellInBackquotes', 'shellInSubstitution', 'shellOnlyComment'])
   // DIRTY twins: without the blanking every one reads as reached.
   assert.deepEqual(orphanDefinitions(defined).orphans, [])
   // A `/*` inside a regex literal opens no comment, a `#` inside a Python string or a quoted or here-document shell line is
@@ -88,7 +90,9 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     'plugin/scripts/f.sh': "node -e '\n#fn = worker.quotedUse\n'\ncat <<EOF\n# hereDocUse\nEOF\necho ${#count} $#\necho '`\n# quotedTickUse\n`'\n",
     // A comment inside a backquoted substitution ends at its closing backquote, and an escaped quote there is a quote.
     'plugin/scripts/i.sh': 'echo "`true # comment`" tickAfterComment\necho "`printf \'%s\' \\"\n# escapedQuoteUse\n\\"`"\n',
-    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\nexport function quotedTickUse() {}\nexport function tickAfterComment() {}\nexport function escapedQuoteUse() {}\n',
+    // A backslash-newline joins the lines, so a # after one continues the word before it: in code and in backquotes.
+    'plugin/scripts/k.sh': 'printf %s a\\\n#gluedWordUse\necho "`printf %s a\\\n#gluedTickUse\n`"\n',
+    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\nexport function quotedTickUse() {}\nexport function tickAfterComment() {}\nexport function escapedQuoteUse() {}\nexport function gluedWordUse() {}\nexport function gluedTickUse() {}\n',
   }
   const keptSwept = sweep(kept)
   assert.deepEqual(keptSwept.incomplete, [])

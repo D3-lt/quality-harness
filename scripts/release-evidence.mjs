@@ -28,6 +28,7 @@
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { verifyFile } from './attest-import.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { REVIEW_COVERING, REVIEWS_FILE } from '../plugin/scripts/host-review.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
@@ -300,7 +301,7 @@ export function outsideRun(changed, reports, covers) {
   // this checkout does not have, a git that timed out), and it is not absence: an
   // attestation whose coverage could not be checked must not be reported as
   // nobody having run anything (Codex review of 829b3a9, P2).
-  const checked = (reports ?? []).filter(r => typeof r?.at === 'string').map(r => ({ r, c: covers(r.at) }))
+  const checked = (reports ?? []).filter(r => typeof r?.at === 'string').map(r => ({ r, c: covers(r.at, r) }))
   const covering = checked.filter(v => v.c === true).map(v => v.r)
   // A regression one corpus reports is not outvoted by a corpus that did not see it (ADR-082 F-5).
   const regressed = covering.filter(regressedBy)
@@ -383,9 +384,11 @@ export const READER_PATHS = READER_DIRECTORIES.map(directory => `plugin/${direct
  * The outside-run question for `sha`, asked of git. The anchor is the newest tag
  * reachable from the sha's PARENT: the sha being released is usually the bump
  * commit, and once it is tagged `describe` on the sha itself would answer with
- * that tag and hide every change it ships. `exec` is the seam.
+ * that tag and hide every change it ships. `exec` is the seam. `verify`, given a
+ * report's file name, answers as attest-import's `verifyFile` does; a report that
+ * covers the sha counts only once it verifies (BACKLOG §408).
  */
-export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/corpus-reports') {
+export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/corpus-reports', { verify = null } = {}) {
   const git = args => exec('git', args, { encoding: 'utf8', timeout: 30_000 }).trim()
   let tag
   try { tag = git(['describe', '--tags', '--abbrev=0', `${sha}~1`]) } catch { return { ...outsideRun(null, [], () => false), tag: null } }
@@ -412,7 +415,27 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
     // after the run is a reader nobody outside has run.
     try { return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === '' } catch { return null }
   }
-  return { ...outsideRun(changed, readAttestations(reportsDir), covers), tag }
+  // Only a covering report is verified: verifying is several git calls, and a report at an older revision attests nothing
+  // either way. One that does not verify is named; one git could not check it against is coverage unknown (ADR-005).
+  const refused = []
+  const verified = (at, report) => {
+    const c = covers(at)
+    if (c !== true || !verify) return c
+    const answer = verify(report.file)
+    if (answer.couldNotLook) return null
+    if (answer.verified) return true
+    refused.push(`${report.file} does not verify as an attestation (${answer.refused?.[0] ?? 'no reason given'}) and attests nothing`)
+    return false
+  }
+  const answer = outsideRun(changed, readAttestations(reportsDir), verified)
+  return { ...answer, ...(refused.length ? { reason: `${answer.reason}; ${refused.join('; ')}` } : {}), tag }
+}
+
+/** The outside-run question as a release asks it: `root`'s git and its docs/corpus-reports, each covering file verified. */
+export function releaseOutsideRun(sha, root = process.cwd()) {
+  const reports = join(root, 'docs', 'corpus-reports')
+  const exec = (bin, args, options) => execFileSync(bin, args, { ...options, cwd: root })
+  return outsideRunEvidence(sha, exec, reports, { verify: file => verifyFile(join(reports, file), root) })
 }
 
 // ADR-100 T1. What counts as a review: one that ran and said something. `unavailable` did not finish; `unparsed` said nothing
@@ -622,7 +645,7 @@ export function landingIsFullAt(sha, exec = execFileSync) {
   }
 }
 
-export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, full: fullOf = landingIsFullAt, forge = fetch === fetchRun ? mainProtection : null, log = console.log } = {}) {
+export function main(argv, { fetch = fetchRun, outside: outsideOf = releaseOutsideRun, review: reviewOf = reviewEvidence, declared: declaredOf = declaredJobsAt, full: fullOf = landingIsFullAt, forge = fetch === fetchRun ? mainProtection : null, log = console.log } = {}) {
   // `--local`: the two questions git and the review ledger answer, asked before anything lands, so evidence gathered late
   // is a refusal before the landing rather than a file the landed sha does not hold (BACKLOG §406). No run is fetched.
   if (argv[0] === '--local' || argv[0] === '--review') {

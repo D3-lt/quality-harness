@@ -182,6 +182,24 @@ export function check(text, root, { filed = null } = {}) {
   return refused.length ? { refused } : { attestation: ordered(attestation), name }
 }
 
+/**
+ * Whether `file`, already under `root`'s docs/corpus-reports, is byte for byte the attestation this would file there, every
+ * check a filing runs included: `{ verified: true }`, `{ refused: [reasons] }` or `{ couldNotLook }`. `--verify` and
+ * release-evidence ask it the same question (BACKLOG §408: a committed JSON holding only an `at` counted as evidence).
+ */
+export function verifyFile(file, root) {
+  if (path.resolve(path.dirname(file)) !== path.join(root, 'docs', 'corpus-reports')) {
+    return { refused: [`--verify reads a file under docs/corpus-reports, not ${file}`] }
+  }
+  let text
+  try { text = readFileSync(file, 'utf8') } catch (error) { return { couldNotLook: `could not read ${file}: ${error.code ?? error.message}` } }
+  const answer = check(text, root, { filed: path.basename(file) })
+  if (answer.couldNotLook || answer.refused) return answer
+  return answer.name === path.basename(file) && text === `${JSON.stringify(answer.attestation, null, 2)}\n`
+    ? { verified: true }
+    : { refused: [`${file} is not the file this would write (its name or its bytes differ)`] }
+}
+
 export function main(argv = process.argv.slice(2)) {
   let root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   let checkOnly = false
@@ -198,20 +216,24 @@ export function main(argv = process.argv.slice(2)) {
     process.stderr.write('usage: attest-import.mjs [--root <dir>] [--check | --verify] <message-file | ->\n')
     return 2
   }
+  // ADR-126 T4, the Codex review of v3.8.52..2ad118d0: `--verify` takes a file already under docs/corpus-reports, runs every
+  // check a filing runs, and requires the file to be byte for byte the one this would write. release.mjs exempts an
+  // uncommitted attestation from the clean tree only when it passes, so an arbitrary JSON there is never evidence.
+  if (verify) {
+    const answer = verifyFile(source, root)
+    if (answer.couldNotLook) {
+      process.stderr.write(`attest-import: could not look — ${answer.couldNotLook}. Nothing was written.\n`)
+      return 3
+    }
+    process.stdout.write(answer.verified ? `attest-import: verified ${source}\n` : `attest-import: refused: ${answer.refused.join('; ')}\n`)
+    return answer.verified ? 0 : 1
+  }
   let text
   try { text = readFileSync(source === '-' ? 0 : source, 'utf8') } catch (error) {
     process.stderr.write(`attest-import: could not read ${source}: ${error.code ?? error.message}\n`)
     return 2
   }
-  // ADR-126 T4, the Codex review of v3.8.52..2ad118d0: `--verify` takes a file already under docs/corpus-reports, runs every
-  // check a filing runs, and requires the file to be byte for byte the one this would write. release.mjs exempts an
-  // uncommitted attestation from the clean tree only when it passes, so an arbitrary JSON there is never evidence.
-  const inReports = verify && path.resolve(path.dirname(source)) === path.join(root, 'docs', 'corpus-reports')
-  if (verify && !inReports) {
-    process.stdout.write(`attest-import: refused: --verify reads a file under docs/corpus-reports, not ${source}\n`)
-    return 1
-  }
-  const answer = check(text, root, { filed: verify ? path.basename(source) : null })
+  const answer = check(text, root)
   if (answer.couldNotLook) {
     process.stderr.write(`attest-import: could not look — ${answer.couldNotLook}. Nothing was written.\n`)
     return 3
@@ -219,12 +241,6 @@ export function main(argv = process.argv.slice(2)) {
   if (answer.refused) {
     process.stdout.write(`attest-import: refused, nothing was written:\n${answer.refused.map(reason => `  - ${reason}`).join('\n')}\n`)
     return 1
-  }
-  if (verify) {
-    const exact = answer.name === path.basename(source) && text === `${JSON.stringify(answer.attestation, null, 2)}\n`
-    process.stdout.write(exact ? `attest-import: verified ${source}\n`
-      : `attest-import: refused: ${source} is not the file this would write (its name or its bytes differ)\n`)
-    return exact ? 0 : 1
   }
   const relative = path.posix.join('docs', 'corpus-reports', answer.name)
   if (checkOnly) {

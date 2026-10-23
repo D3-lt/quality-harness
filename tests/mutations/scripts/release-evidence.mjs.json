@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §408: a release asks the outside-run question without verifying each covering file",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "outside: outsideOf = releaseOutsideRun,",
+      "to": "outside: outsideOf = outsideRunEvidence,",
+      "only": "^(?:a release counts a covering attestation only when it verifies)$"
+    },
+    {
+      "label": "BACKLOG §408: a covering file that does not verify still attests",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "    if (answer.verified) return true",
+      "to": "    return true",
+      "only": "^(?:a release counts a covering attestation only when it verifies)$"
+    },
+    {
+      "label": "BACKLOG §408: a release verifies against another root than the one it reads",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "verify: file => verifyFile(join(reports, file), root)",
+      "to": "verify: file => verifyFile(join(reports, file), process.cwd())",
+      "only": "^(?:a release counts a covering attestation only when it verifies)$"
+    },
+    {
       "label": "Codex verification of 3940f0d4: only the exact land-full expression counts",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/one-run-release.test.mjs"],

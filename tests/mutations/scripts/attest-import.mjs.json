@@ -4,8 +4,8 @@
       "label": "Codex review of v3.8.52..2ad118d0: --verify requires the bytes attest-import writes",
       "file": "scripts/attest-import.mjs",
       "tests": ["tests/attest-verify.test.mjs"],
-      "from": "    const exact = answer.name === path.basename(source) && text === `${JSON.stringify(answer.attestation, null, 2)}\\n`",
-      "to": "    const exact = true",
+      "from": "  return answer.name === path.basename(file) && text === `${JSON.stringify(answer.attestation, null, 2)}\\n`",
+      "to": "  return true",
       "only": "^(?:--verify takes a filed attestation as one, and an arbitrary or edited JSON as none)$"
     },
     {
@@ -94,8 +94,8 @@
       "tests": [
         "tests/attest-import.test.mjs"
       ],
-      "from": "    return 3",
-      "to": "    return 1",
+      "from": "    return 3\n  }\n  if (answer.refused) {",
+      "to": "    return 1\n  }\n  if (answer.refused) {",
       "only": "an at this clone lacks is could-not-look"
     },
     {

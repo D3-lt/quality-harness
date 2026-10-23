@@ -144,6 +144,14 @@ def backquoted(text, start, quoted):
         i += 1
     return -1, "", []
 
+def starts_word(text, i, joins):
+    """Whether position i begins a word: the character before it, past every backslash-newline the shell removed, is a word
+    break or the start of the text (the verification reviews of 82717e46 and 99803be6: a # after a continuation that follows a
+    word continues it, and one after a continuation that follows a blank begins a comment)."""
+    while i in joins:
+        i -= 2
+    return i == 0 or text[i - 1] in WORD_BREAK
+
 def shell_comments(text):
     """Comment spans, and whether the scan reached the end with no quote, parenthesis, substitution or here-document still open.
 
@@ -153,7 +161,7 @@ def shell_comments(text):
     command the shell reads from it, and its comments are mapped back (the review of 620c6160..13dfefe1, and its verification
     review: a comment at its start, an escaped quote in it, and a comment ending at its closing backquote)."""
     tick = "\x60"
-    spans, pending, stack, i, n, glued = [], [], ["code"], 0, len(text), -1
+    spans, pending, stack, i, n, joins = [], [], ["code"], 0, len(text), set()
     while i < n:
         c, mode = text[i], stack[-1]
         if c == tick and mode != "'":
@@ -179,8 +187,9 @@ def shell_comments(text):
                 i += 2
                 continue
         elif c == "\\":
-            # A backslash-newline joins the lines, so what follows it continues the word before it and opens no comment.
-            glued = i + 2 if text.startswith("\\\n", i) else glued
+            # A backslash-newline joins the lines: what follows it continues what came before it, a word or a word break.
+            if text.startswith("\\\n", i):
+                joins.add(i + 2)
             i += 1
         elif c in "'\"":
             stack.append(c)
@@ -188,7 +197,7 @@ def shell_comments(text):
             stack.append("(")
         elif c == ")" and mode == "(":
             stack.pop()
-        elif c == "#" and (i == 0 or text[i - 1] in WORD_BREAK) and i != glued:
+        elif c == "#" and starts_word(text, i, joins):
             end = text.find("\n", i)
             end = n if end < 0 else end
             spans.append((i, end))

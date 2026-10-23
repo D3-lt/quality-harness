@@ -74,12 +74,14 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     'plugin/scripts/h.sh': 'echo "`\n# shellInBackquotes\ntrue\n`"\necho "`# shellAtBackquoteStart\ntrue\n`"\n',
     // The verification review of 82717e46: inside backquotes a backslash-newline is removed first, so a comment runs on.
     'plugin/scripts/j.sh': 'printf "<%s>\\n" "`printf %s ok # comment\\\nprintf %s continuedCommentUse\n`"\n',
-    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\nexport function shellInBackquotes() {}\nexport function shellAtBackquoteStart() {}\nexport function continuedCommentUse() {}\n',
+    // The verification review of 99803be6: a continuation at the start, or after a blank, leaves the # beginning a word.
+    'plugin/scripts/l.sh': '\\\n# startContinuedComment\n: \\\n# blankContinuedComment\ntrue\n',
+    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\nexport function shellInBackquotes() {}\nexport function shellAtBackquoteStart() {}\nexport function continuedCommentUse() {}\nexport function startContinuedComment() {}\nexport function blankContinuedComment() {}\n',
   }
   const swept = sweep(defined)
   assert.ok(swept, 'the lexers ran')
   assert.deepEqual(swept.incomplete, [])
-  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'continuedCommentUse', 'onlyInComment', 'shellAfterCommand', 'shellAtBackquoteStart', 'shellInBackquotes', 'shellInSubstitution', 'shellOnlyComment'])
+  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'blankContinuedComment', 'continuedCommentUse', 'onlyInComment', 'shellAfterCommand', 'shellAtBackquoteStart', 'shellInBackquotes', 'shellInSubstitution', 'shellOnlyComment', 'startContinuedComment'])
   // DIRTY twins: without the blanking every one reads as reached.
   assert.deepEqual(orphanDefinitions(defined).orphans, [])
   // A `/*` inside a regex literal opens no comment, a `#` inside a Python string or a quoted or here-document shell line is

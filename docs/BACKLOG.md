@@ -3579,6 +3579,14 @@ with a script over `git ls-files 'tests/*.test.mjs'`: 445 bare recursive removes
 SessionStart class that name a detached child or a hook script (`detached: true`, `branch-state.mjs`, `lifecycle.mjs`,
 `run-shell-hook`, `qh-hook`). gates.test.mjs holds 49 and statusline.test.mjs 20. Classifying those is still open, and it waits on
 what the next Windows failure lists.
+The next Windows run (3.8.54's landing check at 13d14d42, a 16-core desktop, queue length 0 throughout) listed one: an `EPERM`
+from `remove()` in `tests/adr-verify-background-unobserved.test.mjs`'s `test.after`, intermittent (1 of 3 runs alone), on a
+directory holding the background run's log, the fixture repository and the state directory; no process named it a minute
+later and a plain remove then succeeded. The holder is `adr-verify --background`'s detached child during its exit: the test
+waits only for the Verification Log row, which the child writes before it releases its lease and exits with its log still
+open, and `remove()`'s 10 × 200 ms is shorter than that exit. The fix waits for the child's pid (the parent prints it) before
+removing, and widens `remove()` for the locked sibling `tests/adr-verify-background.test.mjs`. The class is now named:
+a test that waits for a detached child's OUTPUT rather than its EXIT.
 The wider class, done 2026-10-23 (b5316a0b). The rule's pattern `rmSync\([^)]*recursive` stopped at the first `)`, so a remove
 of a joined path was invisible to it. It now reads past a nested call, and its class is every test that starts a child able to
 outlive it, not only one naming SessionStart. Measured: 16 files outside the old class, 54 bare recursive removes. 38 go

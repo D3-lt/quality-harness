@@ -133,24 +133,29 @@ test('an upstream on a branch named topic/HEAD leaves out what it holds', { skip
 })
 
 // The fourth verification review: an upstream whose merge ref is refs/heads/HEAD resolves to refs/remotes/origin/HEAD, which
-// is the remote's own HEAD, not a branch. A non-symbolic one at a local commit published nothing, so it hides nothing.
+// is the remote's own HEAD, not a branch. A non-symbolic one at a local commit published nothing, so it hides nothing. The
+// fifth: a remote's name may hold a slash, and team/peer's own HEAD reads as a branch `peer/HEAD` of a remote `team`.
 test('an upstream that resolves to a remote\'s own HEAD hides nothing', { skip }, t => {
-  const box = sandbox(t)
-  const repo = fixtureRepo(box, 'remote-head', DECLARED)
-  const hook = payload => runHook(box, repo, 'remote-head-1', payload)
-  hook({ hook_event_name: 'SessionStart', source: 'startup' })
-  const commit = (file, subject) => {
-    writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
-    git(repo, box, 'add', '-A')
-    git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+  // One repository and session per remote: R2 names a commit once per context.
+  for (const [n, remote] of ['origin', 'team/peer'].entries()) {
+    const box = sandbox(t)
+    const repo = fixtureRepo(box, `remote-head-${n}`, DECLARED)
+    const hook = payload => runHook(box, repo, `remote-head-${n}`, payload)
+    hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    const commit = (file, subject) => {
+      writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
+      git(repo, box, 'add', '-A')
+      git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+    }
+    const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
+    git(repo, box, 'remote', 'add', remote, 'https://example.invalid/remote-head.git')
+    git(repo, box, 'config', `branch.${branch}.remote`, remote)
+    git(repo, box, 'config', `branch.${branch}.merge`, 'refs/heads/HEAD')
+    commit('src/b.js', 'unpublished one')
+    git(repo, box, 'update-ref', `refs/remotes/${remote}/HEAD`, 'HEAD')
+    assert.equal(git(repo, box, 'rev-parse', '--symbolic-full-name', '@{upstream}'), `refs/remotes/${remote}/HEAD`)
+    commit('src/c.js', 'unpublished tip')
+    const named = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+    assert.match(named, /unpublished one/, `${remote}: ${named}`)
   }
-  const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
-  git(repo, box, 'remote', 'add', 'origin', 'https://example.invalid/remote-head.git')
-  git(repo, box, 'config', `branch.${branch}.remote`, 'origin')
-  git(repo, box, 'config', `branch.${branch}.merge`, 'refs/heads/HEAD')
-  commit('src/b.js', 'unpublished one')
-  git(repo, box, 'update-ref', 'refs/remotes/origin/HEAD', 'HEAD')
-  commit('src/c.js', 'unpublished tip')
-  const named = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
-  assert.match(named, /unpublished one/, named)
 })

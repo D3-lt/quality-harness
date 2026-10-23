@@ -4,16 +4,24 @@
       "label": "the fourth verification review: an upstream at a remote's own HEAD hides commits from R2",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/(?!HEAD$).+$/.test(name)",
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
       "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name)",
+      "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
+    },
+    {
+      "label": "the fifth verification review: a remote's name is taken to be one path segment, so team/peer's HEAD hides commits",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "    return owners.length === 0 || owners.some(remote => name === `refs/remotes/${remote}/HEAD`)",
+      "to": "    return /^refs\\/remotes\\/[^/]+\\/HEAD$/.test(name)",
       "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
     },
     {
       "label": "the third verification review: an upstream branch named topic/HEAD is not a remote-tracking branch",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/(?!HEAD$).+$/.test(name)",
-      "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/(?!HEAD$).+$/.test(name) && !name.endsWith('/HEAD')",
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
+      "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !name.endsWith('/HEAD')",
       "only": "^(?:an upstream on a branch named topic/HEAD leaves out what it holds)$"
     },
     {
@@ -28,7 +36,7 @@
       "label": "the second verification review: any ref that resolves, a local branch included, hides commits from R2",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/(?!HEAD$).+$/.test(name)",
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
       "to": "  const tracking = name => name !== ''",
       "only": "^(?:an origin/HEAD that is not a remote-tracking branch, or a local upstream, hides nothing)$"
     },

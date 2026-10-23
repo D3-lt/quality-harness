@@ -417,8 +417,16 @@ export function sessionCommits(log, root, head) {
   // (refs/remotes/<remote>/<branch>): an upstream that is a local branch (remote "."), an origin/HEAD that is not symbolic, or
   // one aliased to a local branch held commits nothing published (the second verification review). Neither excludes nothing.
   // A branch may be named `topic/HEAD`; symbolic-ref already returns what origin/HEAD points at (the third verification review).
-  // A remote's own HEAD (refs/remotes/<remote>/HEAD) is not a branch: a non-symbolic one can hold an unpublished commit.
-  const tracking = name => /^refs\/remotes\/[^/]+\/(?!HEAD$).+$/.test(name)
+  // A remote's own HEAD (refs/remotes/<remote>/HEAD) is not a branch: a non-symbolic one can hold an unpublished commit. A
+  // remote's name may hold a slash (`team/peer`, whose HEAD reads as branch `peer/HEAD`), so a name ending in /HEAD counts only
+  // when a configured remote proves it a branch under that remote (the fourth and fifth verification reviews).
+  const remoteHead = name => {
+    if (!name.endsWith('/HEAD')) return false
+    const remotes = gitLines(root, ['remote'])
+    const owners = (remotes.ok ? remotes : []).filter(remote => name.startsWith(`refs/remotes/${remote}/`))
+    return owners.length === 0 || owners.some(remote => name === `refs/remotes/${remote}/HEAD`)
+  }
+  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/.test(name) && !remoteHead(name)
   const names = [
     gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}']),
     gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),

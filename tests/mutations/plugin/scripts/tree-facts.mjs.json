@@ -12,7 +12,7 @@
       "label": "the fourth verification review: an upstream at a remote's own HEAD hides commits from R2",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
       "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name)",
       "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
     },
@@ -28,15 +28,31 @@
       "label": "the third verification review: an upstream branch named topic/HEAD is not a remote-tracking branch",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
       "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !name.endsWith('/HEAD')",
       "only": "^(?:an upstream on a branch named topic/HEAD leaves out what it holds)$"
+    },
+    {
+      "label": "part 2 of the review of 6619eba1..7816aaf7: a refused upstream falls back to origin's default branch",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "  if (merge?.ok && merge.length === 0) names.push(",
+      "to": "  if (true) names.push(",
+      "only": "^(?:a refused upstream hides nothing, even where origin's default branch holds the commits)$"
+    },
+    {
+      "label": "part 2 of the review of 6619eba1..7816aaf7: a branch name holding U+2028 is not read as a remote-tracking branch",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
+      "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
+      "only": "^(?:an upstream on a branch whose name holds U\\+2028 leaves out what it holds)$"
     },
     {
       "label": "the verification review of the fix round: a branch with no upstream names origin's landed commits again",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "    gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),\n",
+      "from": "  if (merge?.ok && merge.length === 0) names.push(gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']))\n",
       "to": "",
       "only": "^(?:without an upstream, what origin's default branch holds is not named, and with neither everything is)$"
     },
@@ -44,7 +60,7 @@
       "label": "the second verification review: any ref that resolves, a local branch included, hides commits from R2",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
+      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
       "to": "  const tracking = name => name !== ''",
       "only": "^(?:an origin/HEAD that is not a remote-tracking branch, or a local upstream, hides nothing)$"
     },

@@ -619,10 +619,14 @@ func sessionCommits(entries []any, root string, head any) commitList {
 	}
 	// Only the branch's upstream, or without one origin's default branch, and each must name a remote-tracking branch
 	// (tree-facts.mjs): a fork's remote, a stale ref, a local upstream or a non-symbolic origin/HEAD carries no CI evidence.
+	// Origin's default branch stands in only when no upstream is configured: a configured one that is refused excludes nothing.
 	args := []string{"log", "--format=%H%x09%T%x09%s", rng}
-	names := []lines{
-		gitLines(root, []string{"rev-parse", "--symbolic-full-name", "@{upstream}"}, false),
-		gitLines(root, []string{"symbolic-ref", "-q", "refs/remotes/origin/HEAD"}, false),
+	names := []lines{gitLines(root, []string{"rev-parse", "--symbolic-full-name", "@{upstream}"}, false)}
+	if branch := gitLines(root, []string{"symbolic-ref", "-q", "HEAD"}, false); !branch.failed && len(branch.list) == 1 && strings.HasPrefix(branch.list[0], "refs/heads/") {
+		key := "branch." + strings.TrimPrefix(branch.list[0], "refs/heads/") + ".merge"
+		if merge := gitLines(root, []string{"config", "--default", "", "--get", key}, false); !merge.failed && len(merge.list) == 0 {
+			names = append(names, gitLines(root, []string{"symbolic-ref", "-q", "refs/remotes/origin/HEAD"}, false))
+		}
 	}
 	for _, name := range names {
 		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) || remoteHead(root, name.list[0]) {

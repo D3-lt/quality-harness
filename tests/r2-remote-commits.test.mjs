@@ -163,3 +163,53 @@ test('an upstream that resolves to a remote\'s own HEAD hides nothing', { skip }
     assert.match(named, /unpublished one/, `${remote}: ${named}`)
   }
 })
+
+// Part 2 of the review of 6619eba1..7816aaf7: an upstream configured and refused (here a local branch) fell back to origin's
+// default branch, and a stale origin/HEAD there held the very commit nothing published.
+test('a refused upstream hides nothing, even where origin\'s default branch holds the commits', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'refused-upstream', DECLARED)
+  const hook = payload => runHook(box, repo, 'refused-upstream-1', payload)
+  hook({ hook_event_name: 'SessionStart', source: 'startup' })
+  const commit = (file, subject) => {
+    writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
+    git(repo, box, 'add', '-A')
+    git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+  }
+  const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
+  git(repo, box, 'branch', 'base', 'HEAD')
+  git(repo, box, 'config', `branch.${branch}.remote`, '.')
+  git(repo, box, 'config', `branch.${branch}.merge`, 'refs/heads/base')
+  commit('src/b.js', 'unpushed one')
+  git(repo, box, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+  git(repo, box, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+  commit('src/c.js', 'unpushed tip')
+  const named = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+  assert.match(named, /unpushed one/, named)
+})
+
+// The same review: git permits U+2028 in a branch name, and Node's `.` did not match it while the Go core's did, so the two
+// cores disagreed on whether such an upstream is a remote-tracking branch.
+test('an upstream on a branch whose name holds U+2028 leaves out what it holds', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'separator-branch', DECLARED)
+  const hook = payload => runHook(box, repo, 'separator-branch-1', payload)
+  hook({ hook_event_name: 'SessionStart', source: 'startup' })
+  const commit = (file, subject) => {
+    writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
+    git(repo, box, 'add', '-A')
+    git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+  }
+  const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
+  const topic = `topic${String.fromCharCode(0x2028)}/HEAD`
+  git(repo, box, 'remote', 'add', 'peer', 'https://example.invalid/separator-branch.git')
+  git(repo, box, 'config', `branch.${branch}.remote`, 'peer')
+  git(repo, box, 'config', `branch.${branch}.merge`, `refs/heads/${topic}`)
+  commit('src/b.js', 'landed one')
+  git(repo, box, 'update-ref', `refs/remotes/peer/${topic}`, 'HEAD')
+  commit('src/d.js', 'local only')
+  commit('src/e.js', 'local tip')
+  const named = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+  assert.match(named, /local only/, named)
+  assert.doesNotMatch(named, /landed one/, named)
+})

@@ -428,11 +428,17 @@ export function sessionCommits(log, root, head) {
     const owners = (remotes.ok ? remotes : []).filter(remote => name.startsWith(`refs/remotes/${remote}/`))
     return owners.length === 0 || owners.some(remote => name === `refs/remotes/${remote}/HEAD`)
   }
-  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/.test(name) && !remoteHead(name)
-  const names = [
-    gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}']),
-    gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),
-  ]
+  // Dot-all: git permits U+2028 and U+2029 in a branch name, and the Go core's `.` matches them (part 2 of the review of
+  // 6619eba1..7816aaf7); a ref name cannot hold a newline.
+  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/s.test(name) && !remoteHead(name)
+  // Origin's default branch stands in only for a branch with no upstream configured. One configured and refused (a local
+  // branch, a remote's own HEAD) excludes nothing, since a stale origin/HEAD can hold exactly the commits it has not
+  // published (the same review). A detached HEAD, or a configuration git cannot read, gets no stand-in either.
+  const branch = gitLines(root, ['symbolic-ref', '-q', 'HEAD'])
+  const merge = branch.ok && branch.length === 1 && branch[0].startsWith('refs/heads/')
+    ? gitLines(root, ['config', '--default', '', '--get', `branch.${branch[0].slice('refs/heads/'.length)}.merge`]) : null
+  const names = [gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}'])]
+  if (merge?.ok && merge.length === 0) names.push(gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']))
   let published = []
   for (const name of names) {
     if (!name.ok || !tracking(name[0] ?? '')) continue

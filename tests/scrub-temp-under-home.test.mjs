@@ -14,4 +14,11 @@ test('a temp root under the home, written from the home, is the temp root, and n
   // DIRTY twins: another path under the home is still redacted whole, and a temp root outside the home adds no spelling.
   assert.equal(scrub('see ~/Projects/private/x.md'), 'see ~<path>')
   assert.equal(scrubber({ home, tmp: '/tmp', tmpResolved: '/private/tmp' })('~/AppData/Local/Temp/x.md'), '~<path>')
+  // The Codex review of 7df3a7e7: a `..` segment climbs out of a known prefix, so that path is redacted whole, in either
+  // separator, from the shorthand and from an absolute spelling alike; one that stays inside keeps its tail.
+  assert.equal(scrub('~/AppData/Local/Temp/../../../Projects/private.md'), '~<path>')
+  assert.equal(scrub('~\\AppData\\Local\\Temp\\..\\..\\..\\Projects\\private.md'), '~<path>')
+  assert.equal(scrub('/home/SOMEON~1/AppData/Local/Temp/../../x/private.md'), '<path>')
+  assert.equal(scrub('/work/repo/../sibling/x.md'), '<path>')
+  assert.equal(scrub('/work/repo/docs/..x/y.md'), './docs/..x/y.md')
 })

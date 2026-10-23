@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the Codex review of 7df3a7e7: a path that climbs out of a known prefix with .. keeps its tail",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": ["tests/scrub-temp-under-home.test.mjs"],
+      "from": "(whole, rest) => (CLIMBS.test(rest) ? whole : placeholder + rest)",
+      "to": "(whole, rest) => (placeholder + rest)",
+      "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
+    },
+    {
       "label": "the Windows check of cec6203c: a temp root under the home, written from the home, is redacted whole",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
@@ -184,7 +192,7 @@
       ],
       "from": "  return codeSpan(shownPath(value))",
       "to": "  return codeSpan(visiblePath(value))",
-      "only": "a tag in a task directory or file name"
+      "only": "^(?:SessionStart names an unmarked archive holding a tag without printing the tag|work-next names an unmarked archive holding a tag without printing the tag)$"
     },
     {
       "label": "§321 codex render: a backslash does not end a tag's name",

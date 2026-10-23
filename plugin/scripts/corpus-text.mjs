@@ -57,6 +57,14 @@ export function corpusText(value, max = 160) {
 export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir(), tmpResolved = resolvedOr(tmp) }) {
   const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])]
+  // The tail of an unquoted path: to the next space, quote or paren — and on
+  // past a space when the word after it is followed by a separator, so
+  // `Example Person\x` is one path and `task.md failed` is not.
+  const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
+  // A known prefix keeps the rest of its path in view, so a `..` segment there could climb out of it and name what lies
+  // beside it: `~/AppData/Local/Temp/../../../Projects/private.md` printed as `<tmp>/../../../Projects/private.md` (the Codex
+  // review of 7df3a7e7). Such a path is not replaced here, and the redactions below take it whole.
+  const CLIMBS = /(?:^|[\\/])\.\.(?:[\\/]|$)/
   // A known prefix is replaced only where it starts a path token and ends at a
   // separator or the end of the token: `.split('/tmp')` turned `docs/tmp/x` into
   // `docs<tmp>/x` on any Linux host (Codex review of 1032720, P2).
@@ -68,16 +76,12 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], ...tmpUnderHome.map(t => [t, '<tmp>']), [home, '<home>']]
     .filter(([prefix]) => prefix)
     .map(([prefix, placeholder]) => [
-      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)`, 'g'), placeholder])
+      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)(${TAIL})`, 'g'), placeholder])
   // A quoted path is consumed to ITS closing delimiter, whatever other quote
   // characters it holds: `"D:\Projects\Example Person\x"` used to leave
   // ` Person\x"` behind, and `"/opt/Example's secret/x"` stopped at the
   // apostrophe (Codex, 1032720 P1 and abd5a13 P1).
   const QUOTED = /(["'`])((?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\|\/(?!\/))(?:(?!\1)[^\n])*)\1/g
-  // The tail of an unquoted path: to the next space, quote or paren — and on
-  // past a space when the word after it is followed by a separator, so
-  // `Example Person\x` is one path and `task.md failed` is not.
-  const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
   // Any other absolute path — a drive letter, a UNC share in either spelling, a
   // file: URL, or a POSIX root — becomes `<path>`. Not preceded by a path
   // character or by one of this function's own placeholders, so `docs/var/x`,
@@ -102,7 +106,7 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   const HOME_RELATIVE = new RegExp(`(?<![\\w.\\\\/-])~[\\\\/][^\\s'"\`)\\\\/]${TAIL}`, 'g')
   return text => {
     let out = String(text)
-    for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
+    for (const [pattern, placeholder] of known) out = out.replace(pattern, (whole, rest) => (CLIMBS.test(rest) ? whole : placeholder + rest))
     return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')
   }
 }

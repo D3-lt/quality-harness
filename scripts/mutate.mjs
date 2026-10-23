@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { loadLine, sampleLoad } from '../plugin/scripts/load.mjs'
 import { addOwned, alive, build, groupAlive, remove, sweep } from '../plugin/scripts/worktree.mjs'
-import { admitSync, besideLines, leaseDir, mark, observe as observeLeases, release, take, waitMaxMs } from '../plugin/scripts/lease.mjs'
+import { besideLines, leaseDir, mark, observe as observeLeases, release, take, tryAdmit, waitMaxMs } from '../plugin/scripts/lease.mjs'
 
 // The load a campaign ran under (ADR-075 T1). `QUALITY_HARNESS_LOADAVG` ("1.5 1 1") and
 // `QUALITY_HARNESS_CORES` are the tests' seams; without them the machine is asked.
@@ -48,6 +48,23 @@ export function campaignLoad(env = process.env) {
     ...(averages ? { loadavg: () => averages } : {}),
     ...(env.QUALITY_HARNESS_CORES ? { cores: Number(env.QUALITY_HARNESS_CORES) } : {}),
   })
+}
+
+/**
+ * admitSync is lease.mjs's `admit` for a caller with no event loop to wait on — a mutation campaign, whose run is synchronous
+ * end to end. It sleeps with Atomics.wait and cannot notice a signal, so its caller waits before it installs any handler: a
+ * signal sent while it waits then ends the process under the default action, nothing has started, and the next observer
+ * removes the lease its pid left. It lives here, not in the plugin: this campaign is its only caller, and it does not ship.
+ */
+function admitSync(dir, held, { maxMs }) {
+  const began = Date.now()
+  const pause = new Int32Array(new SharedArrayBuffer(4))
+  for (;;) {
+    if (tryAdmit(dir, held)) return { admitted: true, waitedMs: Date.now() - began }
+    const left = maxMs - (Date.now() - began)
+    if (left <= 0) return { admitted: false, waitedMs: Date.now() - began }
+    Atomics.wait(pause, 0, 0, Math.min(1000, left))
+  }
 }
 
 /**

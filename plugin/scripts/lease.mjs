@@ -254,20 +254,3 @@ export async function admit(dir, held, { maxMs, stopped = () => null, sleep = ms
     await sleep(Math.min(1000, left))
   }
 }
-
-/**
- * admitSync is `admit` for a caller with no event loop to wait on — a mutation campaign, whose run
- * is synchronous end to end. It sleeps with Atomics.wait and cannot notice a signal, so its caller
- * waits before it installs any handler: a signal sent while it waits then ends the process under
- * the default action, nothing has started, and the next observer removes the lease its pid left.
- */
-export function admitSync(dir, held, { maxMs }) {
-  const began = Date.now()
-  const pause = new Int32Array(new SharedArrayBuffer(4))
-  for (;;) {
-    if (tryAdmit(dir, held)) return { admitted: true, waitedMs: Date.now() - began }
-    const left = maxMs - (Date.now() - began)
-    if (left <= 0) return { admitted: false, waitedMs: Date.now() - began }
-    Atomics.wait(pause, 0, 0, Math.min(1000, left))
-  }
-}

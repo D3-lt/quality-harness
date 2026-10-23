@@ -17,12 +17,20 @@
       "only": "^(?:a repository git could not answer about is gated, never narrowed to the session directory)$"
     },
     {
-      "label": "the owner, 2026-10-23: R2 names commits a remote ref already reaches",
+      "label": "the owner, 2026-10-23: R2 names commits the upstream already reaches",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "['log', '--format=%H%x09%T%x09%s', ...range, '--not', '--remotes']",
+      "from": "['log', '--format=%H%x09%T%x09%s', ...range, ...published]",
       "to": "['log', '--format=%H%x09%T%x09%s', ...range]",
-      "only": "^(?:a commit a remote ref reaches is not named by R2, and a local one is)$"
+      "only": "^(?:a commit the upstream reaches is not named by R2, and a local one or a fork's is)$"
+    },
+    {
+      "label": "the Codex review of v3.8.53..42a903a8: any remote-tracking ref hides a commit from R2",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "['log', '--format=%H%x09%T%x09%s', ...range, ...published]",
+      "to": "['log', '--format=%H%x09%T%x09%s', ...range, '--not', '--remotes']",
+      "only": "^(?:a commit the upstream reaches is not named by R2, and a local one or a fork's is)$"
     },
     {
       "label": "BACKLOG §409: a temp path is scratch only while the session's directory is outside the temp root",

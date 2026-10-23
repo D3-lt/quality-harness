@@ -407,10 +407,14 @@ export function sessionCommits(log, root, head) {
   if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
   // Everything reachable from HEAD is new when the session began with nothing.
   const range = unborn ? [head] : [`${first}..${head}`]
-  // Not a commit a remote ref already reaches: landed or fetched work is published, and CI's to answer for. A fast-forward
-  // over landed commits named 277 of them as unchecked with HEAD's tree freshly checked (the owner, 2026-10-23); ADR-060's
-  // step 14 still holds, since a local commit no remote has is named whatever its descendants hold.
-  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range, '--not', '--remotes'])
+  // Not a commit the branch's upstream already reaches: landed or fetched work is published there, and CI's to answer for. A
+  // fast-forward over landed commits named 277 of them as unchecked with HEAD's tree freshly checked (the owner, 2026-10-23);
+  // ADR-060's step 14 still holds, since a commit the upstream does not hold is named whatever its descendants hold. Only the
+  // upstream: any remote-tracking ref also hid a commit a fork's remote or a stale ref happened to hold, and those carry no CI
+  // evidence (the Codex review of v3.8.53..42a903a8). No upstream, or one git could not read, excludes nothing.
+  const upstream = gitLines(root, ['rev-parse', '--verify', '--quiet', '@{upstream}'])
+  const published = upstream.ok && /^[0-9a-f]{40,64}$/.test(upstream[0] ?? '') ? ['--not', upstream[0]] : []
+  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range, ...published])
   return mark(lines.map(line => {
     const [sha, tree, ...subject] = line.split('\t')
     return { sha, tree, subject: subject.join('\t') }

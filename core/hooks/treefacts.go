@@ -448,6 +448,9 @@ type lines struct {
 
 var verbWord = regexp.MustCompile(`^[a-z][a-z-]*$`)
 
+// fullSha is an object name git printed whole: SHA-1 or SHA-256.
+var fullSha = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
+
 func gitLines(root string, args []string, nul bool) lines {
 	r := git(5*time.Second, nil, append([]string{"-C", root}, args...)...)
 	if r.err != nil || r.status != 0 {
@@ -568,8 +571,8 @@ type commitList struct {
 	why    string
 }
 
-// sessionCommits are the commits reachable now that were not when the session started, less those a remote ref already
-// reaches (tree-facts.mjs sessionCommits: landed or fetched work is published, and CI's to answer for).
+// sessionCommits are the commits reachable now that were not when the session started, less those the branch's upstream
+// already reaches (tree-facts.mjs sessionCommits: landed or fetched work is published, and CI's to answer for).
 func sessionCommits(entries []any, root string, head any) commitList {
 	baseline := get(sessionBaseline(entries), "observation")
 	first := get(baseline, "head")
@@ -586,7 +589,12 @@ func sessionCommits(entries []any, root string, head any) commitList {
 	if !unborn {
 		rng = firstSha + ".." + headSha
 	}
-	ls := gitLines(root, []string{"log", "--format=%H%x09%T%x09%s", rng, "--not", "--remotes"}, false)
+	// Only the branch's upstream (tree-facts.mjs): a fork's remote or a stale ref carries no CI evidence.
+	args := []string{"log", "--format=%H%x09%T%x09%s", rng}
+	if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", "@{upstream}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {
+		args = append(args, "--not", up.list[0])
+	}
+	ls := gitLines(root, args, false)
 	out := []*commit{}
 	for _, line := range ls.list {
 		parts := strings.Split(line, "\t")

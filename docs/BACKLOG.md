@@ -3714,3 +3714,18 @@ repository can tell, and CI answers for it as much as for any fetched one. So a 
 config value that `git remote add` or `git branch -u` would refuse, is outside what R2 can tell apart. It is not a defect
 (CLAUDE.md §16: the input space is open; the owner, 2026-10-07: no endless review loop). A reviewer's fail-open that
 needs such a setup is answered by this entry. One that does not, found through git's own commands, is a new finding.
+
+## 417. orphan-sweep's shell lexer reads the shell this plugin ships; a construct it does not contain is a lead (permanent: boundary)
+
+Recorded 2026-10-23, after six review rounds on the comment blanking §412 added (fd95e4a0..735ca701). Each round found one more
+shell construct, and each fix stands with its regression in `tests/orphan-sweep.test.mjs` and a killed mutant:
+- quotes and here-documents (fd95e4a0);
+- `$(` inside double quotes (03990fca);
+- backquoted substitutions, lexed as the command the shell reads from them (024e4b1d, 82717e46);
+- backslash-newline inside them and before a # (99803be6, e3acb340);
+- an escaped blank (735ca701).
+The sweep is advisory (CLAUDE.md §2: a place to look, never a verdict). Its shell input is the plugin's own shell files:
+`git ls-files 'plugin/**.sh' 'plugin/*.sh'` listed 2 on 2026-10-23 (`facts-gate-dispatch.sh`, `post-edit-check.sh`).
+So a construct those files do not contain cannot hide a definition the sweep reports on. A reviewer's finding built on one is
+answered by this entry. It is filed here as a lead only if it errs toward a comment counted as a use. A construct that appears
+in a shipped shell file, or a regression from the reading the parent commit gave, is a new finding.

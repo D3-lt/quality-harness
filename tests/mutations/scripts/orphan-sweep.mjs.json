@@ -28,8 +28,16 @@
       "label": "the Codex review of v3.8.53..42a903a8: a quoted shell line is read as a comment",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "        elif c in \"'\\\"\":\n            quote = c",
-      "to": "        elif False:\n            quote = c",
+      "from": "        elif c in \"'\\\"\":\n            stack.append(c)",
+      "to": "        elif False:\n            stack.append(c)",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "the verification review of the fix round: a $( inside double quotes is read as string text",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "            elif text.startswith(\"$(\", i):\n                stack.append(\"(\")",
+      "to": "            elif False:\n                stack.append(\"(\")",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {

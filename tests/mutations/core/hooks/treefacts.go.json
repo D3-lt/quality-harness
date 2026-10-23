@@ -4,8 +4,8 @@
       "label": "the Codex review of v3.8.53..42a903a8: the Go core narrows ownership to cwd when the lookup fails",
       "file": "core/hooks/treefacts.go",
       "tests": ["tests/lifecycle.test.mjs"],
-      "from": "\t\tif !found.ok {\n\t\t\treturn false\n\t\t}\n",
-      "to": "",
+      "from": "\tif !found.ok || found.root == \"\" {\n\t\treturn false\n\t}\n",
+      "to": "\tif !found.ok {\n\t\treturn false\n\t}\n",
       "only": "^(?:the Go core's scratch rule answers as the Node one does)$"
     },
     {

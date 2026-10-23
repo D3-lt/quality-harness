@@ -44,16 +44,17 @@ export function underTempRoot(candidate, depth = 0) {
 // %TEMP%, BACKLOG §409) keeps its own records gated, and a temp file outside it is scratch. Its own means inside its repository
 // (or `cwd`, outside one) by spelling or by real location: a write through a link in the project is the project's, wherever the
 // link points (the writes-and-stops golden's directory link), and a session started in a subdirectory owns the whole repository.
-// Two corrections from the Codex review of v3.8.53..42a903a8, both fail-opens: paths are compared case-folded where the file
-// system folds case (macOS, Windows), so a case alias of the project is the project; and a repository git could not answer
-// about is gated, as it was before this exemption, never narrowed to the session's directory.
+// Corrections from the Codex reviews of v3.8.53..42a903a8 and of its fix round, each a fail-open: paths are compared
+// case-folded where the file system folds case (macOS, Windows), so a case alias of the project is the project; and the
+// exemption needs a repository root git named. A lookup that failed, or one that answered "not a repository" (which a git that
+// exits non-zero for any reason, such as dubious ownership, also answers), gates, as before this exemption existed.
 export function scratchOutside(file, cwd, { platform = process.platform, lookup = gitRepositoryLookup } = {}) {
   if (!underTempRoot(file)) return false
   if (!underTempRoot(cwd)) return true
   const directory = nearestExistingDirectory(path.resolve(cwd))
-  const found = directory ? lookup(directory) : { ok: true, root: null }
-  if (!found.ok) return false
-  const base = found.root || path.resolve(cwd)
+  const found = directory ? lookup(directory) : { ok: false, root: null }
+  if (!found.ok || !found.root) return false
+  const base = found.root
   const real = candidate => {
     const absolute = path.resolve(candidate)
     try { return realpathSync(absolute) } catch {
@@ -410,10 +411,14 @@ export function sessionCommits(log, root, head) {
   // Not a commit the branch's upstream already reaches: landed or fetched work is published there, and CI's to answer for. A
   // fast-forward over landed commits named 277 of them as unchecked with HEAD's tree freshly checked (the owner, 2026-10-23);
   // ADR-060's step 14 still holds, since a commit the upstream does not hold is named whatever its descendants hold. Only the
-  // upstream: any remote-tracking ref also hid a commit a fork's remote or a stale ref happened to hold, and those carry no CI
-  // evidence (the Codex review of v3.8.53..42a903a8). No upstream, or one git could not read, excludes nothing.
-  const upstream = gitLines(root, ['rev-parse', '--verify', '--quiet', '@{upstream}'])
-  const published = upstream.ok && /^[0-9a-f]{40,64}$/.test(upstream[0] ?? '') ? ['--not', upstream[0]] : []
+  // upstream, or without one the default branch origin names (refs/remotes/origin/HEAD): any remote-tracking ref also hid a
+  // commit a fork's remote or a stale ref happened to hold, and those carry no CI evidence; a branch with no upstream named the
+  // landed commits again (the Codex reviews of v3.8.53..42a903a8 and its fix round). Neither readable excludes nothing.
+  let published = []
+  for (const ref of ['@{upstream}', 'refs/remotes/origin/HEAD']) {
+    const answer = gitLines(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
+    if (answer.ok && /^[0-9a-f]{40,64}$/.test(answer[0] ?? '')) { published = ['--not', answer[0]]; break }
+  }
   const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range, ...published])
   return mark(lines.map(line => {
     const [sha, tree, ...subject] = line.split('\t')

@@ -68,13 +68,13 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     'plugin/scripts/a.mjs': '/**\n * onlyInComment is documented here.\n */\nexport function onlyInComment() {}\n',
     'plugin/scripts/b.mjs': '// onlyInComment is named here too\nconst x = 1 // and onlyInComment again\nrun(x)\n',
     'plugin/bin/gate': 'PY_ONLY_COMMENT = 1\n# PY_ONLY_COMMENT is said in a comment\n',
-    'plugin/scripts/c.sh': '#!/bin/sh\n# shellOnlyComment\ntrue # shellAfterCommand\n',
-    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\n',
+    'plugin/scripts/c.sh': '#!/bin/sh\n# shellOnlyComment\ntrue # shellAfterCommand\necho "$(\n# shellInSubstitution\ntrue\n)"\n',
+    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\n',
   }
   const swept = sweep(defined)
   assert.ok(swept, 'the lexers ran')
   assert.deepEqual(swept.incomplete, [])
-  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellAfterCommand', 'shellOnlyComment'])
+  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellAfterCommand', 'shellInSubstitution', 'shellOnlyComment'])
   // DIRTY twins: without the blanking every one reads as reached.
   assert.deepEqual(orphanDefinitions(defined).orphans, [])
   // A `/*` inside a regex literal opens no comment, a `#` inside a Python string or a quoted or here-document shell line is

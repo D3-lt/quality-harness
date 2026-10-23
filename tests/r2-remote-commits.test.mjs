@@ -44,3 +44,29 @@ test('a commit the upstream reaches is not named by R2, and a local one or a for
   assert.match(local, /a fork holds this/, local)
   assert.doesNotMatch(local, /landed (one|two)/, local)
 })
+
+// The verification review of the fix round: a branch with no upstream named the landed commits again. Without an upstream the
+// default branch origin names (refs/remotes/origin/HEAD) stands for it; with neither, nothing is left out.
+test('without an upstream, what origin\'s default branch holds is not named, and with neither everything is', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'default-branch', DECLARED)
+  const hook = payload => runHook(box, repo, 'default-branch-1', payload)
+  hook({ hook_event_name: 'SessionStart', source: 'startup' })
+  const commit = (file, subject) => {
+    writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
+    git(repo, box, 'add', '-A')
+    git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+  }
+  commit('src/b.js', 'landed one')
+  commit('src/c.js', 'landed two')
+  // DIRTY first: no upstream and no default branch, so the landed commits are named.
+  const unknown = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+  assert.match(unknown, /landed one/, unknown)
+  git(repo, box, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+  git(repo, box, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+  commit('src/d.js', 'local only')
+  commit('src/e.js', 'local tip')
+  const local = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+  assert.match(local, /local only/, local)
+  assert.doesNotMatch(local, /landed (one|two)/, local)
+})

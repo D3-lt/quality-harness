@@ -2214,6 +2214,7 @@ test('a scratch corpus beside a project under the temp root does not pull the re
   const project = await mkdtemp(path.join(os.tmpdir(), 'qh-project-under-temp-'))
   const beside = await mkdtemp(path.join(os.tmpdir(), 'qh-scratch-beside-'))
   try {
+    spawnSync('git', ['init', '-q', project], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
     const orphan = dir => path.join(dir, 'docs', 'adr', 'tasks', 'T1-orphan.md')
     for (const dir of [project, beside]) {
       await mkdir(path.dirname(orphan(dir)), { recursive: true })

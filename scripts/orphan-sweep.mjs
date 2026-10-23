@@ -125,22 +125,34 @@ HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 WORD_BREAK = " \t\n;|&()<>"
 
 def shell_comments(text):
-    """Comment spans, and whether the scan reached the end outside any quote or here-document."""
-    spans, pending, quote, i, n = [], [], None, 0, len(text)
+    """Comment spans, and whether the scan reached the end with no quote, parenthesis or here-document still open.
+
+    A stack of contexts: shell code, a single or a double quote, and a parenthesis (a subshell or a $( substitution). Inside
+    double quotes a $( is shell code again until its ), so a comment there is a comment (the verification review of the
+    fix round: a comment in "$(...)" counted as a use)."""
+    spans, pending, stack, i, n = [], [], ["code"], 0, len(text)
     while i < n:
-        c = text[i]
-        if quote == "'":
+        c, mode = text[i], stack[-1]
+        if mode == "'":
             if c == "'":
-                quote = None
-        elif quote == '"':
+                stack.pop()
+        elif mode == '"':
             if c == "\\":
                 i += 1
             elif c == '"':
-                quote = None
+                stack.pop()
+            elif text.startswith("$(", i):
+                stack.append("(")
+                i += 2
+                continue
         elif c == "\\":
             i += 1
         elif c in "'\"":
-            quote = c
+            stack.append(c)
+        elif c == "(":
+            stack.append("(")
+        elif c == ")" and mode == "(":
+            stack.pop()
         elif c == "#" and (i == 0 or text[i - 1] in WORD_BREAK):
             end = text.find("\n", i)
             end = n if end < 0 else end
@@ -153,7 +165,7 @@ def shell_comments(text):
                 pending.append((found.group(3), found.group(1) == "-"))
                 i = found.end()
                 continue
-        if c == "\n" and pending and quote is None:
+        if c == "\n" and pending and mode in ("code", "("):
             i += 1
             while pending and i < n:
                 end = text.find("\n", i)
@@ -164,7 +176,7 @@ def shell_comments(text):
                 i = n if end < 0 else end + 1
             continue
         i += 1
-    return spans, quote is None and not pending
+    return spans, stack == ["code"] and not pending
 
 out, incomplete = {}, {}
 for path, text in json.load(sys.stdin).items():

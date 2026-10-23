@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the verification review of the fix round: a branch with no upstream names origin's landed commits again",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "  for (const ref of ['@{upstream}', 'refs/remotes/origin/HEAD']) {",
+      "to": "  for (const ref of ['@{upstream}']) {",
+      "only": "^(?:without an upstream, what origin's default branch holds is not named, and with neither everything is)$"
+    },
+    {
       "label": "the Codex review of v3.8.53..42a903a8: paths are compared case-sensitively where the file system folds case",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/scratch-outside.test.mjs"],
@@ -12,8 +20,8 @@
       "label": "the Codex review of v3.8.53..42a903a8: a failed repository lookup narrows ownership to the session directory",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/scratch-outside.test.mjs"],
-      "from": "  if (!found.ok) return false\n",
-      "to": "\n",
+      "from": "  if (!found.ok || !found.root) return false\n",
+      "to": "  if (!found.ok) return false\n",
       "only": "^(?:a repository git could not answer about is gated, never narrowed to the session directory)$"
     },
     {
@@ -60,8 +68,8 @@
       "label": "BACKLOG §409: a session in a subdirectory owns only that subdirectory",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/lifecycle.test.mjs"],
-      "from": "  const base = found.root || path.resolve(cwd)",
-      "to": "  const base = path.resolve(cwd)",
+      "from": "  const base = found.root\n",
+      "to": "  const base = path.resolve(cwd)\n",
       "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
     },
     {

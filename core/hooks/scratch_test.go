@@ -97,8 +97,13 @@ func TestScratchOutsideLookupAndCase(t *testing.T) {
 		t.Error("a failed lookup exempted the project's own record")
 	}
 	repositoryLookup = func(string) lookup { return lookup{ok: true} }
-	if !scratchOutside(record, cwd) {
-		t.Error("outside a repository, a record beside cwd's directory should be scratch")
+	beside := filepath.Join(filepath.Dir(project), filepath.Base(project)+"-beside", "x.md")
+	if scratchOutside(beside, cwd) {
+		t.Error("no root named (any non-zero git exit reads so): a corpus beside should be gated")
+	}
+	repositoryLookup = func(string) lookup { return lookup{ok: true, root: project} }
+	if !scratchOutside(beside, cwd) {
+		t.Error("a corpus beside a repository git named should be scratch")
 	}
 	if foldsCase() {
 		alias := filepath.Join(filepath.Dir(project), strings.ToUpper(filepath.Base(project)), "sub")

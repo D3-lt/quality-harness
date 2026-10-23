@@ -66,16 +66,17 @@ func scratchOutside(file, cwd string) bool {
 	if !underTempRoot(cwd) {
 		return true
 	}
-	base := resolvePath(cwd)
-	if directory := nearestExistingDirectory(base); directory != "" {
-		found := repositoryLookup(directory)
-		if !found.ok {
-			return false
-		}
-		if found.root != "" {
-			base = found.root
-		}
+	directory := nearestExistingDirectory(resolvePath(cwd))
+	if directory == "" {
+		return false
 	}
+	// The exemption needs a root git named: a failed look, or "not a repository" (which any non-zero git exit also reads
+	// as), gates, as before it existed (tree-facts.mjs).
+	found := repositoryLookup(directory)
+	if !found.ok || found.root == "" {
+		return false
+	}
+	base := found.root
 	real := func(candidate string) string {
 		absolute := resolvePath(candidate)
 		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
@@ -589,10 +590,14 @@ func sessionCommits(entries []any, root string, head any) commitList {
 	if !unborn {
 		rng = firstSha + ".." + headSha
 	}
-	// Only the branch's upstream (tree-facts.mjs): a fork's remote or a stale ref carries no CI evidence.
+	// Only the branch's upstream, or without one origin's default branch (tree-facts.mjs): a fork's remote or a stale ref
+	// carries no CI evidence.
 	args := []string{"log", "--format=%H%x09%T%x09%s", rng}
-	if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", "@{upstream}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {
-		args = append(args, "--not", up.list[0])
+	for _, ref := range []string{"@{upstream}", "refs/remotes/origin/HEAD"} {
+		if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", ref + "^{commit}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {
+			args = append(args, "--not", up.list[0])
+			break
+		}
 	}
 	ls := gitLines(root, args, false)
 	out := []*commit{}

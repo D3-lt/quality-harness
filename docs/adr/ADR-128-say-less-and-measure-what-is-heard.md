@@ -1,7 +1,8 @@
 # ADR-128: Say less, and measure what the agent does with what is said
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-23
+**Accepted:** 2026-10-23 by the owner ("accepted the adr"); T1–T3 execute in this repository as bug-fix work, T4 awaits the decision its header names
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's direction of 2026-10-23 ("context pollution … how effective vs noisy it is"; "we have to add metrics into event log … and then ask to summarize agents and adopters"; "yes, R2 check only head"), over the measurement in Context
 **Cross-references:** docs/adr/ADR-060-advisories-react-to-observed-events.md, docs/adr/ADR-105-a-fast-committed-commit-is-checked-at-turn-end.md, docs/adr/ADR-121-a-watcher-that-steers-on-evidence.md, docs/adr/ADR-122-said-once-per-context.md, docs/adr/ADR-065-branch-state-serves-its-snapshot.md, docs/adr/ADR-067-the-publish-classifier-reads-the-command-as-the-shell-splits-it.md, docs/BACKLOG.md

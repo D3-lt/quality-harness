@@ -371,7 +371,9 @@ export function readAttestations(dir, { readdir = readdirSync, read = readFileSy
   try { names = readdir(dir).filter(name => name.endsWith('.json')).sort() } catch { return [] }
   const out = []
   for (const name of names) {
-    try { out.push({ file: name, ...JSON.parse(read(join(dir, name), 'utf8')) }) } catch { /* attests nothing */ }
+    // The name is the file's own, after the parsed fields: a JSON carrying `file` named another attestation, and that one was
+    // verified in its place (the Codex review of v3.8.53..42a903a8).
+    try { out.push({ ...JSON.parse(read(join(dir, name), 'utf8')), file: name }) } catch { /* attests nothing */ }
   }
   return out
 }

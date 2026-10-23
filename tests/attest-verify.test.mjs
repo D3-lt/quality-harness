@@ -134,3 +134,13 @@ test('a release counts a covering attestation only when it verifies', async () =
     assert.equal(main(['--local', sha], { review: () => reviewed, log: line => said.push(line) }), 0, said.join('\n'))
   } finally { process.chdir(cwd) }
 })
+
+// The Codex review of v3.8.53..42a903a8: a JSON carrying a `file` field named another attestation, and the verifier read that
+// one in its place. The name an attestation is known by is its own file's.
+test('an attestation is known by its own file name, whatever field it carries', async () => {
+  const { readAttestations } = await import('../scripts/release-evidence.mjs')
+  const dir = join(scratch, 'named')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'forged.json'), JSON.stringify({ file: '2026-10-22-real.json', at: 'a'.repeat(40) }))
+  assert.deepEqual(readAttestations(dir).map(report => report.file), ['forged.json'])
+})

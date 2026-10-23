@@ -1608,6 +1608,22 @@ test('a landed sha reads its land/<sha> run, and no other branch at that commit'
   }
 })
 
+// The Codex review of v3.8.53..42a903a8: when neither HEAD nor the tip could be read whole, the sha asked about is short, and a
+// `land/<short>` branch is no landing branch; nor is the canonical one read through a short sha.
+test('a landing branch is read only through a full sha', () => {
+  const full = sha => sha.padEnd(40, '0')
+  const unread = [['git rev-parse origin/main', no('no upstream')], ['git rev-parse @{upstream}', no('no upstream')]]
+  const stale = ['gh run list --branch', ok(JSON.stringify([{ headSha: full('24ce31b0'), status: 'completed', conclusion: 'success', databaseId: 9 }]))]
+  for (const headBranch of ['land/0a18d04', `land/${full('0a18d04')}`]) {
+    const read = render(collect(runner([...GIT_CLEAN, ...unread,
+      ['gh run list --commit', ok(JSON.stringify([{ headSha: full('0a18d04'), headBranch, status: 'completed', conclusion: 'success', databaseId: 12 }]))],
+      stale,
+    ])), { brief: true })
+    assert.match(read, /COULD NOT LOOK/, `${headBranch}: ${read}`)
+    assert.doesNotMatch(read, /every job concluded success/, `${headBranch}: ${read}`)
+  }
+})
+
 // BACKLOG §348 (the owner, 2026-10-02): on a Windows desktop a full branch-state took 6.4–7.7 s, of
 // which each `gh run view --json jobs` was 1.6–2.5 s, and the release half (git, after gh) was the
 // part the 8 s budget lost. The release half is read before gh, and job views stop once they have

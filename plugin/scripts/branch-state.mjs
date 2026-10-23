@@ -277,7 +277,9 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
       let retried = []
       if (again.ok) { try { retried = JSON.parse(again.out) } catch { retried = [] } }
       if (!Array.isArray(retried)) retried = []
-      retried = retried.filter(r => r && (r.headBranch === branch.out || r.headBranch === `land/${asked}`))
+      // Only a full sha names a landing branch: one read short when git could not answer could match `land/<a prefix>`.
+      const landing = /^[0-9a-f]{40}$/.test(String(asked)) ? `land/${asked}` : null
+      retried = retried.filter(r => r && (r.headBranch === branch.out || (landing !== null && r.headBranch === landing)))
       const second = headRuns(retried, headSha, tipSha)
       if (second) { rows = retried; answer = second }
     }

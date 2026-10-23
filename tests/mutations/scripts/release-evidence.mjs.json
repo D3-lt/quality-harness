@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the Codex review of v3.8.53..42a903a8: an attestation's own field names the file it is verified as",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "    try { out.push({ ...JSON.parse(read(join(dir, name), 'utf8')), file: name }) } catch { /* attests nothing */ }",
+      "to": "    try { out.push({ file: name, ...JSON.parse(read(join(dir, name), 'utf8')) }) } catch { /* attests nothing */ }",
+      "only": "^(?:an attestation is known by its own file name, whatever field it carries)$"
+    },
+    {
       "label": "BACKLOG §408: a release asks the outside-run question without verifying each covering file",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/attest-verify.test.mjs"],

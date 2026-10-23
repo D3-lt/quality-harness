@@ -3686,3 +3686,12 @@ nothing and `go vet ./...` passes, with a dirty twin. The go core job, which req
 removes a week-old one (cb46e00d). The rest of that run's leftovers (`qh-mutate-run` from a mutate crash this session's
 cleanup bug caused, python `tmp*`, `quality-harness-owner`) are inside the run's own temp directory, which the selftest
 removes on exit.
+
+## 415. A reproduction for each escape whose own tests do not notice its fix undone, and replays off Linux
+
+Deferred from ADR-127 (Out of Scope, Follow-ups), 2026-10-23. Its replay reverses each outside-found defect's fix in a fresh
+worktree and runs the tests the fix added, on Linux; an entry whose tests all still pass is INSENSITIVE, which is a lead, not a
+finding that the defect can recur. For each such entry, a reproduction (a corpus, the reader command, what correct output says)
+decides that, and becomes the regression it lacks. Replays on Windows and macOS, for entries whose tests observe the defect only
+there, are the other half. Open until every INSENSITIVE entry T2 names has a reproduction that settles it, and the replays run
+on Windows and macOS.

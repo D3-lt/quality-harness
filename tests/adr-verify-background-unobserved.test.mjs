@@ -13,7 +13,16 @@ import { remove } from './helpers/remove.mjs'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const gate = path.join(repoRoot, 'plugin', 'bin', 'adr-verify')
 const made = []
-test.after(() => { for (const dir of made) remove(dir) })
+// The background child is waited for before its directory goes: the tests below wait for the row it writes, which it writes
+// before it releases its lease and exits with its log still open, and on Windows that exit outlived remove()'s retries (the
+// 3.8.54 landing check, BACKLOG §407). The parent prints the child's pid; a pid that cannot be read is not waited for.
+const children = []
+const gone = pid => { try { process.kill(pid, 0); return false } catch (error) { return error.code !== 'EPERM' } }
+test.after(async () => {
+  const limit = Date.now() + 15_000
+  for (const pid of children) while (!gone(pid) && Date.now() < limit) await new Promise(resolve => setTimeout(resolve, 100))
+  for (const dir of made) remove(dir)
+})
 
 const TASK = 'tasks/T1-fixture.md'
 function corpus(fence) {
@@ -32,7 +41,10 @@ function corpus(fence) {
 function verify(c, args) {
   const env = { ...process.env, CLAUDE_PLUGIN_DATA: c.data, QUALITY_HARNESS_STATE_DIR: c.state, FIXTURE_PID: c.pid }
   delete env.QUALITY_HARNESS_FENCE_TIMEOUT
-  return spawnSync('python3', [gate, ...args], { cwd: c.dir, env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  const run = spawnSync('python3', [gate, ...args], { cwd: c.dir, env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  const started = /BACKGROUND run \w+ started \(pid (\d+)\)/.exec(run.stdout ?? '')
+  if (started) children.push(Number(started[1]))
+  return run
 }
 const rowsOf = task => (readFileSync(task, 'utf8').split('## Verification Log')[1] ?? '').split('\n').filter(line => /^- \d{4}-\d{2}-\d{2} · /.test(line))
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))

@@ -742,6 +742,7 @@ def main():
     test_the_floor_runs_on_a_done_row(lint)
     test_a_relock_row_is_not_a_fast_run(lint)
     test_a_failing_row_may_be_fast(lint)
+    test_a_run_after_the_cutover_carries_its_duration(lint)
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
     test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root)
@@ -3792,6 +3793,30 @@ def test_the_floor_runs_on_a_done_row(lint):
     assert not [e for e in fast if "implausib" in str(e).lower()], \
         "the floor advises; it must never enter the blocking channel"
 
+
+# DURATION_REQUIRED_FROM was defined and read by nothing but this file (2026-10-23): a run row dated on or after it with no
+# `ms:` passed silent. Now it is advice; a row before the cutover, or one carrying its duration, says nothing.
+def test_a_run_after_the_cutover_carries_its_duration(lint):
+    """A run row on or after DURATION_REQUIRED_FROM with no ms is advised; before it, or timed, it is not."""
+    acceptance = "go vet ./..."
+    digest = lint.acceptance_digest(lint.normalize_acceptance(acceptance))
+    after = lint.DURATION_REQUIRED_FROM
+
+    def advice(row):
+        found = lint.Findings()
+        info = {"T1": {"human": False, "vlog": [row], "mlog": [], "has_mlog": False, "acc_all": acceptance,
+                       "acc_first": acceptance, "path": Path("tasks/T1-probe.md")}}
+        lint.check_verification(info, "| T1 | probe | done |", found, committed=lambda path: None)
+        return [a for a in found.advice if "carries no `ms:` duration" in a], [e for e in found if "ms:" in str(e)]
+
+    said, blocking = advice(f"- {after} · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest}")
+    assert len(said) == 1 and after in said[0], said
+    assert not blocking, f"advice, never a blocking finding: {blocking}"
+    assert advice(f"- 2026-08-01 · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest}")[0] == [], \
+        "a row from before the cutover is not asked for a duration"
+    assert advice(f"- {after} · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest} · ms:180000")[0] == [], \
+        "a timed row says nothing"
+    print("PASS — a run row after the duration cutover carries its duration")
 
 # Reported from outside (go-recall-service, inbox 2026-09-26): every row `adr-verify
 # --relock --replace-hashes` writes carries `ms:0`, because a relock runs no fence by

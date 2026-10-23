@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { orphanDefinitions, SHIPPED } from '../scripts/orphan-sweep.mjs'
+import { orphanDefinitions, SHIPPED, withoutComments } from '../scripts/orphan-sweep.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const git = (...args) => execFileSync('git', args, {
@@ -52,10 +52,37 @@ function shippedInTree() {
 }
 
 test('the shipped tree defines nothing it does not reach', () => {
-  const { orphans, defined } = orphanDefinitions(shippedInTree())
+  // Counted as the CLI counts: over the text with its comments blanked.
+  const files = shippedInTree()
+  const code = withoutComments(files)
+  assert.ok(code, 'the comment lexers could not be run, so this sweep could not look')
+  const { orphans, defined } = orphanDefinitions(files, code)
   assert.deepEqual(orphans, [],
     'these are defined in the plugin and called from nothing a user downloads')
   assert.ok(defined > 300, `expected the plugin to define hundreds of functions, saw ${defined}`)
+})
+
+// 2026-10-23: `admitSync` shipped reached only by its own doc comment, and `DURATION_REQUIRED_FROM` only by a comment in
+// another file. A comment is not a use; a string, or code a naive comment strip would eat, still is.
+test('a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts', () => {
+  const defined = {
+    'plugin/scripts/a.mjs': '/**\n * onlyInComment is documented here.\n */\nexport function onlyInComment() {}\n',
+    'plugin/scripts/b.mjs': '// onlyInComment is named here too\nconst x = 1 // and onlyInComment again\nrun(x)\n',
+    'plugin/bin/gate': 'PY_ONLY_COMMENT = 1\n# PY_ONLY_COMMENT is said in a comment\n',
+    'plugin/scripts/c.sh': '#!/bin/sh\n# shellOnlyComment\n',
+    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\n',
+  }
+  const code = withoutComments(defined)
+  assert.ok(code, 'the lexers ran')
+  assert.deepEqual(orphanDefinitions(defined, code).orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellOnlyComment'])
+  // DIRTY twins: without the blanking every one reads as reached.
+  assert.deepEqual(orphanDefinitions(defined).orphans, [])
+  // A `/*` inside a regex literal opens no comment, a `#` inside a Python string is no comment, and a string still counts.
+  const kept = {
+    'plugin/scripts/e.mjs': 'const UNDER = /^[\\w./*?-]*$/\nexport function usedAfterRegex() {}\nconst ok = UNDER.test(p) && usedAfterRegex()\nrun(ok)\n',
+    'plugin/bin/gate': 'def _arm():\n    return 1\nTABLE = {"x": "_arm", "y": "# not a comment"}\nrun(TABLE)\n',
+  }
+  assert.deepEqual(orphanDefinitions(kept, withoutComments(kept)).orphans, [])
 })
 
 test('...and it finds the two orphans this repository actually shipped', () => {

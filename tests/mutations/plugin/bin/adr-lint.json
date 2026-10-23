@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "2026-10-23: a run row after DURATION_REQUIRED_FROM with no duration is silent",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "            if timed and not timed.group(\"ms\") and row[2:12] >= DURATION_REQUIRED_FROM:",
+      "to": "            if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
       "label": "BACKLOG §409: adr-lint echoes a record under the home directory with the home path",
       "file": "plugin/bin/adr-lint",
       "tests": [

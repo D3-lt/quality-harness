@@ -2855,6 +2855,15 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                     f"Acceptance fence at all. A duration is the one field in an entry the "
                     f"task file cannot produce; this one could not have been produced by "
                     f"the command it sits beside. Re-run `adr-verify <task.md>`")
+            # DURATION_REQUIRED_FROM is wired here. It was defined, named "required from a date" in its comment, and
+            # read by nothing but the tests, until an orphan sweep that no longer counts comments found it (2026-10-23).
+            # adr-verify writes `ms:` into every row it records, so a run row dated on or after the cutover without one
+            # was not written by it. Advice, as the floor above is; a lock snapshot records ms:0 and is no exception.
+            if timed and not timed.group("ms") and row[2:12] >= DURATION_REQUIRED_FROM:
+                errors.advise(
+                    f"{inf['path'].name}: {tid} has an acceptance entry dated {row[2:12]}, on or after "
+                    f"{DURATION_REQUIRED_FROM}, that carries no `ms:` duration. adr-verify records one in every "
+                    f"entry it writes, so this one was not written by it. Re-run `adr-verify <task.md>`")
             if timed and not timed.group("digest") \
                     and known is not None and row not in known:
                 errors.append(

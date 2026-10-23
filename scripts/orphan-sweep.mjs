@@ -38,7 +38,9 @@
 //   0  no orphans
 //   1  at least one definition is unreachable from the shipped tree
 //   2  could not look (git unavailable, rev unknown)
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 // ⚠ A BINDING IS A DEFINITION TOO, and the first cut counted only `def` and
@@ -56,17 +58,18 @@ export const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')
   && (/\.(mjs|js|py|sh|json|md|cmd)$/.test(f) || /^plugin\/bin\/[a-z-]+$/.test(f))
 
 /**
- * Definitions in `files` whose bare identifier appears nowhere else in `files`.
+ * Definitions in `files` whose bare identifier appears nowhere else in `uses`.
  *
- * Pure over an in-memory {path: source} map so the test can drive it on fixtures
+ * Pure over in-memory {path: source} maps so the test can drive it on fixtures
  * and on real history without a checkout. A definition counts as reached at two
- * or more occurrences: one is its own `def`/`function` line.
+ * or more occurrences: one is its own `def`/`function` line. `uses` is the text
+ * the occurrences are counted in; `main` passes it with every comment blanked.
  */
-export function orphanDefinitions(files) {
-  const uses = new Map()
-  for (const source of Object.values(files)) {
+export function orphanDefinitions(files, uses = files) {
+  const counted = new Map()
+  for (const source of Object.values(uses)) {
     for (const m of source.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) {
-      uses.set(m[0], (uses.get(m[0]) ?? 0) + 1)
+      counted.set(m[0], (counted.get(m[0]) ?? 0) + 1)
     }
   }
   const found = []
@@ -80,10 +83,66 @@ export function orphanDefinitions(files) {
       // A dunder is the interpreter's (`__all__`, `__version__`), not a definition.
       if (/^__\w+__$/.test(name)) continue
       defined += 1
-      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })
+      if ((counted.get(name) ?? 0) <= 1) found.push({ path, name })
     }
   }
   return { orphans: found, defined }
+}
+
+// ⚠ A COMMENT IS NOT A CALL (2026-10-23). `admitSync` shipped in lease.mjs called only by repository tooling, and this sweep
+// counted it reached because its own doc comment named it; `DURATION_REQUIRED_FROM`, an orphan this file's own test names at
+// 1a6693a, was hidden the same way by a comment in trajectory-metrics.mjs. Comments are blanked by real lexers: record.py's
+// `js_reading` for JavaScript (a `/*` inside a regex literal is not a comment) and Python's `tokenize`; a shell line whose
+// first word is `#`. A file a lexer could not read to its end keeps its text, so a doubt counts as a use, never an orphan.
+const PLUGIN_LIB = join(dirname(dirname(fileURLToPath(import.meta.url))), 'plugin', 'lib')
+const BLANK_COMMENTS = String.raw`
+import io, json, re, sys, tokenize
+sys.path.insert(0, sys.argv[1])
+from record import js_reading
+
+def blank(text, spans):
+    chars = list(text)
+    for start, end in spans:
+        for i in range(start, end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return "".join(chars)
+
+def python_comments(text):
+    starts = [0]
+    for line in io.StringIO(text).readlines():
+        starts.append(starts[-1] + len(line))
+    spans = []
+    for token in tokenize.generate_tokens(io.StringIO(text).readline):
+        if token.type == tokenize.COMMENT:
+            (row, col), (end_row, end_col) = token.start, token.end
+            spans.append((starts[row - 1] + col, starts[end_row - 1] + end_col))
+    return spans
+
+out = {}
+for path, text in json.load(sys.stdin).items():
+    try:
+        if path.endswith((".mjs", ".js")):
+            _masked, kinds, complete = js_reading(text, path[path.rindex("."):])
+            out[path] = "".join(" " if kind == 2 and ch != "\n" else ch for ch, kind in zip(text, kinds)) if complete else text
+        elif path.endswith(".sh"):
+            out[path] = re.sub(r"(?m)^[ \t]*#(?!!).*$", "", text)
+        elif path.endswith(".py") or re.fullmatch(r"plugin/bin/[a-z-]+", path):
+            out[path] = blank(text, python_comments(text))
+        else:
+            out[path] = text
+    except Exception:
+        out[path] = text
+json.dump(out, sys.stdout)
+`
+
+/** `files` with every comment blanked, or null when the lexers could not be asked. */
+export function withoutComments(files, python = process.env.QUALITY_HARNESS_PYTHON || 'python3') {
+  const run = spawnSync(python, ['-I', '-c', BLANK_COMMENTS, PLUGIN_LIB], {
+    input: JSON.stringify(files), encoding: 'utf8', maxBuffer: 1 << 28, timeout: 300_000, windowsHide: true,
+  })
+  if (run.error || run.status !== 0) return null
+  try { return JSON.parse(run.stdout) } catch { return null }
 }
 
 /** The shipped tree at `rev`, as {path: source}. Throws only when git cannot answer. */
@@ -125,7 +184,12 @@ function main(argv) {
     console.error(`orphan-sweep: ${rev} has no shipped files matching the scope — could not look`)
     return 2
   }
-  const { orphans, defined } = orphanDefinitions(files)
+  const code = withoutComments(files)
+  if (code === null) {
+    console.error(`orphan-sweep: the comment lexers (python3 with plugin/lib/record.py) could not be run over ${rev} — could not look`)
+    return 2
+  }
+  const { orphans, defined } = orphanDefinitions(files, code)
   // Files with no definition in them are as empty a universe as no files: "0 of 0" is not a clean sweep.
   if (defined === 0) {
     console.error(`orphan-sweep: ${rev} has shipped files but none holds a definition this sweep can see (functions, Python classes, const/let/var bindings) — could not look`)

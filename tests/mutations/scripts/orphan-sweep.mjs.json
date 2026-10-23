@@ -1,6 +1,38 @@
 {
   "mutations": [
     {
+      "label": "2026-10-23: a JavaScript comment counts as a use",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "\" \" if kind == 2 and ch != \"\\n\" else ch",
+      "to": "ch",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "2026-10-23: a Python comment counts as a use",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "        if token.type == tokenize.COMMENT:",
+      "to": "        if False:",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "2026-10-23: a shell comment counts as a use",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "out[path] = re.sub(r\"(?m)^[ \\t]*#(?!!).*$\", \"\", text)",
+      "to": "out[path] = text",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "2026-10-23: uses are counted in the text with its comments kept",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "  for (const source of Object.values(uses)) {",
+      "to": "  for (const source of Object.values(files)) {",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
       "label": "orphan: tests and records do not make a function reachable",
       "file": "scripts/orphan-sweep.mjs",
       "tests": [
@@ -16,8 +48,8 @@
       "tests": [
         "tests/orphan-sweep.test.mjs"
       ],
-      "from": "      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })",
-      "to": "      if ((uses.get(name) ?? 0) <= 0) found.push({ path, name })",
+      "from": "      if ((counted.get(name) ?? 0) <= 1) found.push({ path, name })",
+      "to": "      if ((counted.get(name) ?? 0) <= 0) found.push({ path, name })",
       "only": "^(?:\\.\\.\\.and it finds the two orphans this repository actually shipped|a binding is a definition, and plugin/lib is shipped|tests and records do not make a function reachable)$"
     },
     {

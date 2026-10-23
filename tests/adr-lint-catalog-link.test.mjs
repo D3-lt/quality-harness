@@ -35,6 +35,14 @@ test('an Accepted record the catalog beside it does not link is advised, and not
   assert.doesNotMatch(said(lint()), advised)
   catalog('# Notes\n\nNothing here links a record.\n')
   assert.doesNotMatch(said(lint()), advised)
+  // The Codex review of d21fa2cc: a link with a fragment, or by a path through the parent, links the record; a record named
+  // in prose is a reference, so a README holding only that is no catalog.
+  catalog('| [ADR-099](ADR-099-other.md) | another |\n| [ADR-001](ADR-001-selftest.md#decision) | this |\n')
+  assert.doesNotMatch(said(lint()), advised)
+  catalog(`| [ADR-099](ADR-099-other.md) | another |\n| [ADR-001](../${path.basename(dir)}/ADR-001-selftest.md) | this |\n`)
+  assert.doesNotMatch(said(lint()), advised)
+  catalog('# Reading notes\n\nFor the earlier design, see [Other](ADR-099-other.md).\n')
+  assert.doesNotMatch(said(lint()), advised)
   catalog('| [ADR-099](ADR-099-other.md) | another |\n')
   writeFileSync(record, readFileSync(record, 'utf8').replace('**Status:** Accepted', '**Status:** Proposed'))
   assert.doesNotMatch(said(lint()), advised)

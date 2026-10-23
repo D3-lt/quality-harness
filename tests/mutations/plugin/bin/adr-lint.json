@@ -4,16 +4,24 @@
       "label": "2026-10-23: an Accepted record the catalog beside it does not link draws no advice",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-catalog-link.test.mjs"],
-      "from": "                and f\"]({own})\" not in listing and f\"](./{own})\" not in listing):",
-      "to": "                and False):",
+      "from": "            if not linked:\n",
+      "to": "            if False:\n",
       "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
     },
     {
-      "label": "2026-10-23: a catalog that links the record by ./ is read as not linking it",
+      "label": "the Codex review of d21fa2cc: a link's fragment is kept, so a record linked with #section reads as unlinked",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-catalog-link.test.mjs"],
-      "from": "                and f\"]({own})\" not in listing and f\"](./{own})\" not in listing):",
-      "to": "                and f\"]({own})\" not in listing):",
+      "from": "                local = destination.split(\"#\", 1)[0].split(\"?\", 1)[0]",
+      "to": "                local = destination",
+      "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
+    },
+    {
+      "label": "the Codex review of d21fa2cc: any link to a record makes a README a catalog",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-catalog-link.test.mjs"],
+      "from": "re.search(r\"^\\|\\s*\\[ADR-\\d+[^\\]]*\\]\\([^)]+\\.md(?:#[^)]*)?\\)\", listing, re.M)",
+      "to": "re.search(r\"\\]\\([^)]*ADR-\\d+[^)]*\\.md\", listing)",
       "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
     },
     {

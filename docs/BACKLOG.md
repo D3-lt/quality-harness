@@ -3579,6 +3579,12 @@ with a script over `git ls-files 'tests/*.test.mjs'`: 445 bare recursive removes
 SessionStart class that name a detached child or a hook script (`detached: true`, `branch-state.mjs`, `lifecycle.mjs`,
 `run-shell-hook`, `qh-hook`). gates.test.mjs holds 49 and statusline.test.mjs 20. Classifying those is still open, and it waits on
 what the next Windows failure lists.
+The wider class, done 2026-10-23 (b5316a0b). The rule's pattern `rmSync\([^)]*recursive` stopped at the first `)`, so a remove
+of a joined path was invisible to it. It now reads past a nested call, and its class is every test that starts a child able to
+outlive it, not only one naming SessionStart. Measured: 16 files outside the old class, 54 bare recursive removes. 38 go
+through `tests/helpers/remove.mjs`; 16 sit inside bodies ADR tasks lock and joined the closed list with their counts. The
+wider pattern also found 4 removes the old one missed, in corpus-link-loop, work-next-readiness and dispatch-streams.
+Still to come from outside: the holder that the two Windows EPERM members now name when they fail.
 
 ## 408. release-evidence counts any JSON under docs/corpus-reports that carries an `at` as an attestation
 
@@ -3631,6 +3637,17 @@ test still cannot pass from a checkout under the temp root. Open, and it needs t
 so the test builds its own non-temp checkout, or accept a Windows clone under %TEMP% as unsupported for the selftest. The
 verdict-line half stands.
 
+Redone 2026-10-23 (4703563a), so that both tests hold. `hook-work`'s second project now sits inside the first; the assertion
+is unchanged, and that test has no lock. `scratchOutside` keeps the old rule outright for a project outside the temp root.
+For a project under it, a temp file is scratch only outside the project's repository, by spelling (the root as cwd spells it)
+and by real location. Mutating the deferred pass found a fail-open in the first cut: measured against cwd rather than the
+repository, a session started in a subdirectory skipped its repository's other records. The deferred pass's own filter
+(`artifact-pass.mjs:268`) has no mutant. Only a checkout outside the temp root with a link into it reaches that filter, and no
+test builds one. The Go test runs from `lifecycle.test.mjs`, so its mutant is killed.
+The stderr half, done the same day (7e950237): every could-not-run line and usage refusal that echoes a path now shows one
+under the home directory as `~/…`. That covers 11 gates and qh-mcp. `home_shown` also compares the resolved home, since
+macOS names /var as /private/var. A mutant per site, 33 of 33 killed.
+
 ## 410. branch-state read every landed sha on main as COULD NOT LOOK; fixed
 
 Found 2026-10-23 at session start: main at 2a8da294, with a green run on `land/2a8da294…`, read "COULD NOT LOOK — no run listed
@@ -3647,3 +3664,25 @@ must still be named, so it was reverted. The owner then chose (2026-10-23) to le
 (`--not --remotes`, in `tree-facts.mjs` and its Go mirror, 5f86118d). The cost: a commit this session pushed is no longer named
 at Stop after the push. `tests/r2-remote-commits.test.mjs` runs in the go core job too. Go mutants are not run by `mutate.mjs`,
 so the Go mirror is held by that test alone.
+
+## 412. orphan-sweep counted a comment as a use, which hid two orphans; fixed
+
+Found 2026-10-23 while asking whether anything in `plugin/` was reached only by tests. A throwaway scan of the exports in
+`plugin/scripts`, with comments stripped, found `admitSync` in `lease.mjs`, called only by `scripts/mutate.mjs`. It moved
+there (d167ecdb). The sweep had reported `0 orphan(s)` because a doc comment named the function. With comments blanked by
+real lexers (record.py's `js_reading`, Python's `tokenize`, a shell `#` line), it found `DURATION_REQUIRED_FROM` in adr-lint.
+That constant's own comment said the duration was "required from a date", and nothing read it. It is now wired as advice: a
+run row on or after 2026-09-02 with no `ms:` is advised. Over this corpus that is 2266 rows and none without `ms:`. A naive
+comment strip read `/*` inside a regex literal as a comment and erased a real use; the lexer does not. Both in ea2467f8.
+
+## 413. The Go core was neither gofmt-checked nor vetted, and two files had drifted; fixed
+
+`core/hooks/turnend.go` and `saidcontext.go` differed from gofmt. `tests/go-format.test.mjs` asserts `gofmt -l core` lists
+nothing and `go vet ./...` passes, with a dirty twin. The go core job, which requires go, runs it (2eab7982).
+
+## 414. statusline's per-session cache was never removed from the temp root; fixed
+
+`quality-harness-status-<hash>`, one per session, for good on every adopter. A selftest run left 26. The daily marker sweep
+removes a week-old one (cb46e00d). The rest of that run's leftovers (`qh-mutate-run` from a mutate crash this session's
+cleanup bug caused, python `tmp*`, `quality-harness-owner`) are inside the run's own temp directory, which the selftest
+removes on exit.

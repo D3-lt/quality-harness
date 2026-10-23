@@ -3729,3 +3729,17 @@ The sweep is advisory (CLAUDE.md §2: a place to look, never a verdict). Its she
 So a construct those files do not contain cannot hide a definition the sweep reports on. A reviewer's finding built on one is
 answered by this entry. It is filed here as a lead only if it errs toward a comment counted as a use. A construct that appears
 in a shipped shell file, or a regression from the reading the parent commit gave, is a new finding.
+
+## 418. The scrubber shows what a `..` climbs to from a known prefix (open)
+
+Found 2026-10-23 by the Codex review of 7df3a7e7. `corpus-text.mjs`'s `scrubber` replaces a known prefix (the root, the plugin,
+the temp root, the home) and keeps the rest of the path in view, so a `..` segment there names what lies beside it. With
+`root: '/work/repo', home: '/home/someone', tmp: '/tmp'`, v3.8.53 and 96fddfd5's successor print alike:
+- `/tmp/../home/someone/Projects/private.md` as `<tmp>/../home/someone/Projects/private.md`;
+- `/work/repo/../sibling/x.md` as `./../sibling/x.md`;
+- `/home/someone/../other/x.md` as `<home>/../other/x.md`.
+This predates the release. Three attempts at it inside one (82289dc7, 96fddfd5 and its verification) each leaked through
+another spelling: a single-backslash POSIX root the later patterns do not know, and a quoted path whose tail holds another
+quote. So 3.8.54 confines its change to the new `~/` shorthand, which leaves a climbing path exactly as v3.8.53 read it. A fix
+needs its own design. One candidate is to resolve `..` lexically, per token, before any prefix is matched, then judge the
+resolved path; every spelling the scrubber knows needs a twin, quoted and unquoted. Open until a fix holds those twins.

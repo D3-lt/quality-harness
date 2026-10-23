@@ -1,35 +1,27 @@
 {
   "mutations": [
     {
-      "label": "the verification review of 82289dc7: a climbing path is left to patterns that know no single-backslash root",
+      "label": "the Codex review of 7df3a7e7: a path that climbs out of the temp root's home shorthand is shown as the temp root's",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "(whole, rest) => (CLIMBS.test(rest) ? climbed : placeholder + rest)",
-      "to": "(whole, rest) => (CLIMBS.test(rest) ? whole : placeholder + rest)",
-      "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
-    },
-    {
-      "label": "the Codex review of 7df3a7e7: a path that climbs out of a known prefix with .. keeps its tail",
-      "file": "plugin/scripts/corpus-text.mjs",
-      "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "(whole, rest) => (CLIMBS.test(rest) ? climbed : placeholder + rest)",
-      "to": "(whole, rest) => (placeholder + rest)",
+      "from": "(whole, rest) => (CLIMBS.test(rest) ? whole : `<tmp>${rest}`)",
+      "to": "(whole, rest) => `<tmp>${rest}`",
       "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
     },
     {
       "label": "the Windows check of cec6203c: a temp root under the home, written from the home, is redacted whole",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "[tmp, '<tmp>'], ...tmpUnderHome.map(t => [t, '<tmp>', '~<path>']),",
-      "to": "[tmp, '<tmp>'],",
+      "from": "    for (const pattern of shorthand) out = out.replace(pattern, (whole, rest) => (CLIMBS.test(rest) ? whole : `<tmp>${rest}`))\n",
+      "to": "",
       "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
     },
     {
       "label": "the Windows check of cec6203c: the temp root under the home is taken as given, never as resolved",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "const tmpUnderHome = [tmp, tmpResolved]",
-      "to": "const tmpUnderHome = [tmp]",
+      "from": "const shorthand = [tmp, tmpResolved]",
+      "to": "const shorthand = [tmp]",
       "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
     },
     {

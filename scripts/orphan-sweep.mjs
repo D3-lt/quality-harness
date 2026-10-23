@@ -124,17 +124,44 @@ def python_comments(text):
 HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 WORD_BREAK = " \t\n;|&()<>"
 
-def shell_comments(text):
-    """Comment spans, and whether the scan reached the end with no quote, parenthesis or here-document still open.
+def backquoted(text, start, quoted):
+    """Where the backquoted substitution opened at start ends, and its command as the shell reads it, with the offset in text of
+    each of its characters: the shell finds the closing backquote first, then drops the backslash before $, a backquote or a
+    backslash (and before a double quote when the substitution sits inside double quotes), then parses what is left."""
+    tick, kept = "\x60", "$\x60\\" + ('"' if quoted else "")
+    inner, offsets, i = [], [], start + 1
+    while i < len(text):
+        if text[i] == tick:
+            return i, "".join(inner), offsets
+        if text[i] == "\\" and i + 1 < len(text) and text[i + 1] in kept:
+            i += 1
+        inner.append(text[i])
+        offsets.append(i)
+        i += 1
+    return -1, "", []
 
-    A stack of contexts: shell code, a single or a double quote, a parenthesis (a subshell or a $( substitution), and a
-    backquoted substitution. Inside double quotes a $( is shell code again until its ), and a backquote until the next one, so a
-    comment there is a comment (the verification review of the fix round: a comment in "$(...)" counted as a use; the review of
-    620c6160..13dfefe1: so did one in a backquoted substitution inside double quotes)."""
+def shell_comments(text):
+    """Comment spans, and whether the scan reached the end with no quote, parenthesis, substitution or here-document still open.
+
+    A stack of contexts: shell code, a single or a double quote, and a parenthesis (a subshell or a $( substitution). Inside
+    double quotes a $( is shell code again until its ), so a comment there is a comment (the verification review of the fix
+    round: a comment in "$(...)" counted as a use). A backquoted substitution, in code or inside double quotes, is lexed as the
+    command the shell reads from it, and its comments are mapped back (the review of 620c6160..13dfefe1, and its verification
+    review: a comment at its start, an escaped quote in it, and a comment ending at its closing backquote)."""
     tick = "\x60"
     spans, pending, stack, i, n = [], [], ["code"], 0, len(text)
     while i < n:
         c, mode = text[i], stack[-1]
+        if c == tick and mode != "'":
+            end, inner, offsets = backquoted(text, i, mode == '"')
+            if end < 0:
+                return spans, False
+            inner_spans, complete = shell_comments(inner)
+            if not complete:
+                return spans, False
+            spans.extend((offsets[s], offsets[e - 1] + 1) for s, e in inner_spans)
+            i = end + 1
+            continue
         if mode == "'":
             if c == "'":
                 stack.pop()
@@ -143,18 +170,12 @@ def shell_comments(text):
                 i += 1
             elif c == '"':
                 stack.pop()
-            elif c == tick:
-                stack.append(tick)
             elif text.startswith("$(", i):
                 stack.append("(")
                 i += 2
                 continue
         elif c == "\\":
             i += 1
-        elif c == tick and mode == tick:
-            stack.pop()
-        elif c == tick:
-            stack.append(tick)
         elif c in "'\"":
             stack.append(c)
         elif c == "(":
@@ -173,7 +194,7 @@ def shell_comments(text):
                 pending.append((found.group(3), found.group(1) == "-"))
                 i = found.end()
                 continue
-        if c == "\n" and pending and mode in ("code", "(", tick):
+        if c == "\n" and pending and mode in ("code", "("):
             i += 1
             while pending and i < n:
                 end = text.find("\n", i)

@@ -41,11 +41,27 @@
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {
-      "label": "the review of 620c6160..13dfefe1: a backquote inside double quotes is read as string text",
+      "label": "the review of 620c6160..13dfefe1: a backquoted substitution is read as text, not as the command it runs",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "            elif c == tick:\n                stack.append(tick)\n            elif text.startswith",
-      "to": "            elif False:\n                stack.append(tick)\n            elif text.startswith",
+      "from": "        if c == tick and mode != \"'\":",
+      "to": "        if False:",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "its verification review: a backquoted substitution inside double quotes keeps the backslash before a quote",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "    tick, kept = \"\\x60\", \"$\\x60\\\\\" + ('\"' if quoted else \"\")",
+      "to": "    tick, kept = \"\\x60\", \"$\\x60\\\\\"",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "its verification review: the scan resumes inside the substitution, so a comment there swallows its closing backquote",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "            i = end + 1\n            continue\n        if mode == \"'\":",
+      "to": "            i = i + 1\n            continue\n        if mode == \"'\":",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {

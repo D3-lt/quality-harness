@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { orphanDefinitions, SHIPPED, withoutComments } from '../scripts/orphan-sweep.mjs'
+import { orphanDefinitions, SHIPPED, sweep } from '../scripts/orphan-sweep.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const git = (...args) => execFileSync('git', args, {
@@ -52,14 +52,13 @@ function shippedInTree() {
 }
 
 test('the shipped tree defines nothing it does not reach', () => {
-  // Counted as the CLI counts: over the text with its comments blanked.
-  const files = shippedInTree()
-  const code = withoutComments(files)
-  assert.ok(code, 'the comment lexers could not be run, so this sweep could not look')
-  const { orphans, defined } = orphanDefinitions(files, code)
-  assert.deepEqual(orphans, [],
+  // Counted as the CLI counts (`sweep`): over the text with its comments blanked, every file read to its end.
+  const swept = sweep(shippedInTree())
+  assert.ok(swept, 'the comment lexers could not be run, so this sweep could not look')
+  assert.deepEqual(swept.incomplete, [], 'a file a lexer could not finish is a file this sweep did not read')
+  assert.deepEqual(swept.orphans, [],
     'these are defined in the plugin and called from nothing a user downloads')
-  assert.ok(defined > 300, `expected the plugin to define hundreds of functions, saw ${defined}`)
+  assert.ok(swept.defined > 300, `expected the plugin to define hundreds of functions, saw ${swept.defined}`)
 })
 
 // 2026-10-23: `admitSync` shipped reached only by its own doc comment, and `DURATION_REQUIRED_FROM` only by a comment in
@@ -69,20 +68,39 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     'plugin/scripts/a.mjs': '/**\n * onlyInComment is documented here.\n */\nexport function onlyInComment() {}\n',
     'plugin/scripts/b.mjs': '// onlyInComment is named here too\nconst x = 1 // and onlyInComment again\nrun(x)\n',
     'plugin/bin/gate': 'PY_ONLY_COMMENT = 1\n# PY_ONLY_COMMENT is said in a comment\n',
-    'plugin/scripts/c.sh': '#!/bin/sh\n# shellOnlyComment\n',
-    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\n',
+    'plugin/scripts/c.sh': '#!/bin/sh\n# shellOnlyComment\ntrue # shellAfterCommand\n',
+    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\n',
   }
-  const code = withoutComments(defined)
-  assert.ok(code, 'the lexers ran')
-  assert.deepEqual(orphanDefinitions(defined, code).orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellOnlyComment'])
+  const swept = sweep(defined)
+  assert.ok(swept, 'the lexers ran')
+  assert.deepEqual(swept.incomplete, [])
+  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellAfterCommand', 'shellOnlyComment'])
   // DIRTY twins: without the blanking every one reads as reached.
   assert.deepEqual(orphanDefinitions(defined).orphans, [])
-  // A `/*` inside a regex literal opens no comment, a `#` inside a Python string is no comment, and a string still counts.
+  // A `/*` inside a regex literal opens no comment, a `#` inside a Python string or a quoted or here-document shell line is
+  // no comment, and a string still counts.
   const kept = {
     'plugin/scripts/e.mjs': 'const UNDER = /^[\\w./*?-]*$/\nexport function usedAfterRegex() {}\nconst ok = UNDER.test(p) && usedAfterRegex()\nrun(ok)\n',
     'plugin/bin/gate': 'def _arm():\n    return 1\nTABLE = {"x": "_arm", "y": "# not a comment"}\nrun(TABLE)\n',
+    'plugin/scripts/f.sh': "node -e '\n#fn = worker.quotedUse\n'\ncat <<EOF\n# hereDocUse\nEOF\necho ${#count} $#\n",
+    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\n',
   }
-  assert.deepEqual(orphanDefinitions(kept, withoutComments(kept)).orphans, [])
+  const keptSwept = sweep(kept)
+  assert.deepEqual(keptSwept.incomplete, [])
+  assert.deepEqual(keptSwept.orphans, [])
+})
+
+// The Codex review of v3.8.53..42a903a8: a commented example is not a definition, and a file a lexer could not finish is named
+// rather than read as raw text, where its unread comment counted as a use and the sweep reported clean.
+test('a commented example defines nothing, and a file the lexer could not finish is could-not-look', () => {
+  const example = {
+    'plugin/scripts/h.mjs': '/*\nfunction documentedExample() {}\ndocumentedExample()\n*/\nexport function realOne() {}\nrealOne()\n',
+  }
+  const swept = sweep(example)
+  assert.deepEqual(swept.orphans, [], 'the example in a comment is neither a definition nor a use')
+  assert.equal(swept.defined, 1)
+  const unfinished = sweep({ 'plugin/scripts/i.mjs': 'export function dormant() {}\n/* dormant', 'plugin/scripts/j.sh': "echo 'open\n" })
+  assert.deepEqual(unfinished.incomplete.map(([path]) => path).sort(), ['plugin/scripts/i.mjs', 'plugin/scripts/j.sh'])
 })
 
 test('...and it finds the two orphans this repository actually shipped', () => {

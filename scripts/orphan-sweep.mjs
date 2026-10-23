@@ -92,8 +92,10 @@ export function orphanDefinitions(files, uses = files) {
 // ⚠ A COMMENT IS NOT A CALL (2026-10-23). `admitSync` shipped in lease.mjs called only by repository tooling, and this sweep
 // counted it reached because its own doc comment named it; `DURATION_REQUIRED_FROM`, an orphan this file's own test names at
 // 1a6693a, was hidden the same way by a comment in trajectory-metrics.mjs. Comments are blanked by real lexers: record.py's
-// `js_reading` for JavaScript (a `/*` inside a regex literal is not a comment) and Python's `tokenize`; a shell line whose
-// first word is `#`. A file a lexer could not read to its end keeps its text, so a doubt counts as a use, never an orphan.
+// `js_reading` for JavaScript (a `/*` inside a regex literal is not a comment), Python's `tokenize`, and a scan of shell that
+// tracks quotes and here-documents. Definitions and uses are both read from the blanked text, so a commented example is
+// neither. A file a lexer could not read to its end is named, and the sweep could not look (the Codex review of
+// v3.8.53..42a903a8: keeping its raw text let an unread comment count as a use, and the sweep reported clean).
 const PLUGIN_LIB = join(dirname(dirname(fileURLToPath(import.meta.url))), 'plugin', 'lib')
 const BLANK_COMMENTS = String.raw`
 import io, json, re, sys, tokenize
@@ -119,30 +121,97 @@ def python_comments(text):
             spans.append((starts[row - 1] + col, starts[end_row - 1] + end_col))
     return spans
 
-out = {}
+HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+WORD_BREAK = " \t\n;|&()<>"
+
+def shell_comments(text):
+    """Comment spans, and whether the scan reached the end outside any quote or here-document."""
+    spans, pending, quote, i, n = [], [], None, 0, len(text)
+    while i < n:
+        c = text[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+        elif quote == '"':
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                quote = None
+        elif c == "\\":
+            i += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or text[i - 1] in WORD_BREAK):
+            end = text.find("\n", i)
+            end = n if end < 0 else end
+            spans.append((i, end))
+            i = end
+            continue
+        elif text.startswith("<<", i) and not text.startswith("<<<", i):
+            found = HEREDOC.match(text, i)
+            if found:
+                pending.append((found.group(3), found.group(1) == "-"))
+                i = found.end()
+                continue
+        if c == "\n" and pending and quote is None:
+            i += 1
+            while pending and i < n:
+                end = text.find("\n", i)
+                line = text[i:n if end < 0 else end]
+                word, strip = pending[0]
+                if (line.lstrip("\t") if strip else line) == word:
+                    pending.pop(0)
+                i = n if end < 0 else end + 1
+            continue
+        i += 1
+    return spans, quote is None and not pending
+
+out, incomplete = {}, {}
 for path, text in json.load(sys.stdin).items():
     try:
         if path.endswith((".mjs", ".js")):
             _masked, kinds, complete = js_reading(text, path[path.rindex("."):])
-            out[path] = "".join(" " if kind == 2 and ch != "\n" else ch for ch, kind in zip(text, kinds)) if complete else text
+            if not complete:
+                incomplete[path] = "the JavaScript lexer stopped before the end"
+            out[path] = "".join(" " if kind == 2 and ch != "\n" else ch for ch, kind in zip(text, kinds))
         elif path.endswith(".sh"):
-            out[path] = re.sub(r"(?m)^[ \t]*#(?!!).*$", "", text)
+            spans, complete = shell_comments(text)
+            if not complete:
+                incomplete[path] = "a quote or a here-document is still open at the end"
+            out[path] = blank(text, spans)
         elif path.endswith(".py") or re.fullmatch(r"plugin/bin/[a-z-]+", path):
             out[path] = blank(text, python_comments(text))
         else:
             out[path] = text
-    except Exception:
+    except Exception as error:
+        incomplete[path] = f"{type(error).__name__}: {error}"
         out[path] = text
-json.dump(out, sys.stdout)
+json.dump({"code": out, "incomplete": incomplete}, sys.stdout)
 `
 
-/** `files` with every comment blanked, or null when the lexers could not be asked. */
+/**
+ * `files` with every comment blanked, as `{ code, incomplete }` (`incomplete` names each file a lexer could not read to its
+ * end, with why), or null when the lexers could not be asked.
+ */
 export function withoutComments(files, python = process.env.QUALITY_HARNESS_PYTHON || 'python3') {
   const run = spawnSync(python, ['-I', '-c', BLANK_COMMENTS, PLUGIN_LIB], {
     input: JSON.stringify(files), encoding: 'utf8', maxBuffer: 1 << 28, timeout: 300_000, windowsHide: true,
   })
   if (run.error || run.status !== 0) return null
-  try { return JSON.parse(run.stdout) } catch { return null }
+  try {
+    const answer = JSON.parse(run.stdout)
+    return answer && typeof answer.code === 'object' && typeof answer.incomplete === 'object' ? answer : null
+  } catch { return null }
+}
+
+/**
+ * The sweep the CLI runs, over `files`: `{ orphans, defined, incomplete }` read from the blanked text, or null when the
+ * lexers could not be asked. A non-empty `incomplete` means the sweep could not look at those files.
+ */
+export function sweep(files) {
+  const blanked = withoutComments(files)
+  if (blanked === null) return null
+  return { ...orphanDefinitions(blanked.code), incomplete: Object.entries(blanked.incomplete) }
 }
 
 /** The shipped tree at `rev`, as {path: source}. Throws only when git cannot answer. */
@@ -184,12 +253,17 @@ function main(argv) {
     console.error(`orphan-sweep: ${rev} has no shipped files matching the scope — could not look`)
     return 2
   }
-  const code = withoutComments(files)
-  if (code === null) {
+  const swept = sweep(files)
+  if (swept === null) {
     console.error(`orphan-sweep: the comment lexers (python3 with plugin/lib/record.py) could not be run over ${rev} — could not look`)
     return 2
   }
-  const { orphans, defined } = orphanDefinitions(files, code)
+  if (swept.incomplete.length) {
+    const [path, why] = swept.incomplete[0]
+    console.error(`orphan-sweep: ${swept.incomplete.length} file(s) at ${rev} could not be read to their end, first ${path} (${why}) — could not look`)
+    return 2
+  }
+  const { orphans, defined } = swept
   // Files with no definition in them are as empty a universe as no files: "0 of 0" is not a clean sweep.
   if (defined === 0) {
     console.error(`orphan-sweep: ${rev} has shipped files but none holds a definition this sweep can see (functions, Python classes, const/let/var bindings) — could not look`)

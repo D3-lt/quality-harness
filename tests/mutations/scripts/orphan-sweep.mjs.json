@@ -20,17 +20,49 @@
       "label": "2026-10-23: a shell comment counts as a use",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "out[path] = re.sub(r\"(?m)^[ \\t]*#(?!!).*$\", \"\", text)",
-      "to": "out[path] = text",
+      "from": "        elif c == \"#\" and (i == 0 or text[i - 1] in WORD_BREAK):",
+      "to": "        elif False:",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {
-      "label": "2026-10-23: uses are counted in the text with its comments kept",
+      "label": "the Codex review of v3.8.53..42a903a8: a quoted shell line is read as a comment",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],
-      "from": "  for (const source of Object.values(uses)) {",
-      "to": "  for (const source of Object.values(files)) {",
+      "from": "        elif c in \"'\\\"\":\n            quote = c",
+      "to": "        elif False:\n            quote = c",
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "the Codex review of v3.8.53..42a903a8: a here-document body is read as shell",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "                pending.append((found.group(3), found.group(1) == \"-\"))",
+      "to": "                pass",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
+      "label": "the Codex review of v3.8.53..42a903a8: definitions are read from the text with its comments kept",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "  return { ...orphanDefinitions(blanked.code), incomplete: Object.entries(blanked.incomplete) }",
+      "to": "  return { ...orphanDefinitions(files, blanked.code), incomplete: Object.entries(blanked.incomplete) }",
+      "only": "^(?:a commented example defines nothing, and a file the lexer could not finish is could-not-look)$"
+    },
+    {
+      "label": "the Codex review of v3.8.53..42a903a8: a JavaScript file the lexer did not finish is read as clean",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "                incomplete[path] = \"the JavaScript lexer stopped before the end\"",
+      "to": "                pass",
+      "only": "^(?:a commented example defines nothing, and a file the lexer could not finish is could-not-look)$"
+    },
+    {
+      "label": "the Codex review of v3.8.53..42a903a8: a shell file with an open quote is read as clean",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "                incomplete[path] = \"a quote or a here-document is still open at the end\"",
+      "to": "                pass",
+      "only": "^(?:a commented example defines nothing, and a file the lexer could not finish is could-not-look)$"
     },
     {
       "label": "orphan: tests and records do not make a function reachable",

@@ -417,7 +417,8 @@ export function sessionCommits(log, root, head) {
   // (refs/remotes/<remote>/<branch>): an upstream that is a local branch (remote "."), an origin/HEAD that is not symbolic, or
   // one aliased to a local branch held commits nothing published (the second verification review). Neither excludes nothing.
   // A branch may be named `topic/HEAD`; symbolic-ref already returns what origin/HEAD points at (the third verification review).
-  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/.test(name)
+  // A remote's own HEAD (refs/remotes/<remote>/HEAD) is not a branch: a non-symbolic one can hold an unpublished commit.
+  const tracking = name => /^refs\/remotes\/[^/]+\/(?!HEAD$).+$/.test(name)
   const names = [
     gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}']),
     gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),

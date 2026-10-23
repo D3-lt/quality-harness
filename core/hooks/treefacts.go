@@ -452,8 +452,10 @@ var verbWord = regexp.MustCompile(`^[a-z][a-z-]*$`)
 // fullSha is an object name git printed whole: SHA-1 or SHA-256.
 var fullSha = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
-// remoteTracking is a remote-tracking branch's full name, refs/remotes/<remote>/<branch>.
+// remoteTracking is a remote-tracking branch's full name, refs/remotes/<remote>/<branch>. A remote's own HEAD
+// (refs/remotes/<remote>/HEAD) is not a branch: a non-symbolic one can hold an unpublished commit, so remoteHead excludes it.
 var remoteTracking = regexp.MustCompile(`^refs/remotes/[^/]+/.+$`)
+var remoteHead = regexp.MustCompile(`^refs/remotes/[^/]+/HEAD$`)
 
 func gitLines(root string, args []string, nul bool) lines {
 	r := git(5*time.Second, nil, append([]string{"-C", root}, args...)...)
@@ -601,7 +603,7 @@ func sessionCommits(entries []any, root string, head any) commitList {
 		gitLines(root, []string{"symbolic-ref", "-q", "refs/remotes/origin/HEAD"}, false),
 	}
 	for _, name := range names {
-		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) {
+		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) || remoteHead.MatchString(name.list[0]) {
 			continue
 		}
 		if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", name.list[0] + "^{commit}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {

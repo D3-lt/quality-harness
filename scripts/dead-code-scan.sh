@@ -70,14 +70,15 @@ if command -v npx >/dev/null 2>&1; then
   printf '%s\n' '{ "name": "qh-dead-code-scan", "private": true, "type": "module" }' > "$scratch/package.json"
   # ignoreBinaries: OS tools a test spawns, never npm packages — mkfifo (chaos-315-fifo), perl
   # (chaos-315-mutate-catalogue bounds a child's lifetime with it), go (qh-core-parity builds the Go
-  # core, ADR-110) and jq (post-edit-check's jq-dependent tests ask for it by name to skip where it is
-  # absent, ADR-119 T4). knip reads an unlisted binary as a missing dependency; the repository has no
-  # package.json to list them in.
+  # core, ADR-110), gofmt (go-format asserts the Go core is gofmt-clean, BACKLOG §413) and jq
+  # (post-edit-check's jq-dependent tests ask for it by name to skip where it is absent, ADR-119 T4).
+  # knip reads an unlisted binary as a missing dependency; the repository has no package.json to list
+  # them in.
   printf '%s\n' '{
   "entry": ["scripts/*.mjs!", "plugin/scripts/*.mjs!", "plugin/workflows/*.js!", "tests/*.test.mjs", "tests/*.mjs"],
   "project": ["scripts/**/*.mjs!", "plugin/**/*.mjs!", "plugin/workflows/*.js!", "tests/*.mjs"],
   "ignoreExportsUsedInFile": true,
-  "ignoreBinaries": ["mkfifo", "perl", "go", "jq"],
+  "ignoreBinaries": ["mkfifo", "perl", "go", "gofmt", "jq"],
   "ignoreDependencies": ["internal"],
   "ignoreIssues": { "plugin/workflows/*.js": ["exports"] }
 }' > "$scratch/knip.json"

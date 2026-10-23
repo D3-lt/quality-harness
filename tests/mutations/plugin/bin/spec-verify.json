@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: spec-verify echoes a spec under the home directory with the home path",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "{home_shown(spec)} (mode: {mode})",
+      "to": "{spec} (mode: {mode})",
+      "only": "^(?:a verdict line shows an argument under the home directory as ~, and one outside it as given)$"
+    },
+    {
       "label": "the release review of 3.8.52: a no-op chain, a separator or a comment runs nothing either",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],

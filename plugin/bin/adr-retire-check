@@ -619,6 +619,20 @@ def reject_unknown_flags(known=()):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    try:
+        rel = given.relative_to(Path.home()) if given.is_absolute() else None
+    except (ValueError, RuntimeError, KeyError):
+        rel = None
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 
@@ -674,13 +688,13 @@ def main():
     if archive_readme.is_dir():
         # It takes the archive's README, the catalog it checks; a directory said "README not found:
         # <dir>", which two runners read as a finding about their corpus (BACKLOG §350 item 6). The
-        # argument is shown as given, so no resolved home path is printed for it.
+        # argument is shown as given, or under the home directory as `~` (BACKLOG §409).
         print(f"[FAIL] adr-retire-check expected the archive's README FILE, and was given a directory: "
-              f"{sys.argv[1]} — pass {Path(sys.argv[1]) / 'README.md'} · {gate_identity()}")
+              f"{home_shown(sys.argv[1])} — pass {home_shown(Path(sys.argv[1]) / 'README.md')} · {gate_identity()}")
         raise SystemExit(1)
     if not _present(archive_readme):
         # BACKLOG §143: the verdict names the binary that reached it.
-        print(f"[FAIL] archive README not found: {archive_readme} · {gate_identity()}")
+        print(f"[FAIL] archive README not found: {home_shown(archive_readme)} · {gate_identity()}")
         raise SystemExit(1)
     try:
         archive_text = read_regular(archive_readme)
@@ -706,7 +720,7 @@ def main():
     # unrelated readable tree.
     if errors:
         # BACKLOG §143: the verdict names the binary that reached it.
-        print(f"[FAIL] {archive_readme} · active corpus rejected before traversal · {gate_identity()}")
+        print(f"[FAIL] {home_shown(archive_readme)} · active corpus rejected before traversal · {gate_identity()}")
         for error in errors:
             print(f"  {error}")
         raise SystemExit(1)
@@ -829,7 +843,7 @@ def main():
             errors.append(f"{adr_id}: replacement {replacement} is not discoverable in the active catalog")
 
     label = "PASS" if not errors else "FAIL"
-    print(f"[{label}] {archive_readme} · {len(active_records)} active · "
+    print(f"[{label}] {home_shown(archive_readme)} · {len(active_records)} active · "
           f"{len(archive_records)} archived · {len(governing)} governing · {gate_identity()}")
     for error in errors:
         print(f"  {error}")

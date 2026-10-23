@@ -16,6 +16,7 @@ import { delimiter, dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { remove } from './helpers/remove.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -3590,6 +3591,45 @@ test('every gate that returns a verdict names the binary that reached it (BACKLO
     }
   } finally {
     rmSync(temp, { recursive: true, force: true })
+  }
+})
+
+// BACKLOG §409: on Windows the temp directory is under the profile, so a record a test (or a user) names there was echoed
+// with the username in the verdict line. An argument under the home directory is shown as `~/…`; one outside it as given.
+test('a verdict line shows an argument under the home directory as ~, and one outside it as given', () => {
+  const home = mkdtempSync(join(os.tmpdir(), 'qh-home-'))
+  const outside = mkdtempSync(join(os.tmpdir(), 'qh-outside-'))
+  try {
+    const body = ['# ADR-001: Probe', '', '**Status:** Accepted', '**Date:** 2026-09-06', '**Governs:** `nothing/**`', '',
+      '## Context', '', 'A probe.', '', '## Decision', '', 'Probe.', '', '## Consequences', '', 'None.', ''].join('\n')
+    for (const dir of [home, outside]) writeFileSync(join(dir, 'ADR-001-probe.md'), body)
+    mkdirSync(join(home, 'archive'))
+    const spawnEnv = { ...env, HOME: home, USERPROFILE: home }
+    const normalise = text => text.replace(/\\/g, '/')
+    const verdict = (gate, args) => {
+      const result = run(gate, args, home, undefined, spawnEnv)
+      const line = (result.stdout || '').split('\n').find(l => l.startsWith('['))
+      assert.ok(line, `${gate} printed no verdict line:\n${result.stdout}${result.stderr}`)
+      return normalise(line)
+    }
+    for (const gate of ['adr-lint', 'adr-judge']) {
+      const shown = verdict(gate, [join(home, 'ADR-001-probe.md')])
+      assert.match(shown, /\] ~\/ADR-001-probe\.md\b/, `${gate}: ${shown}`)
+      assert.ok(!shown.includes(normalise(home)), `${gate} printed the home directory: ${shown}`)
+      // DIRTY twin: a record outside the home directory is shown as given.
+      assert.ok(verdict(gate, [join(outside, 'ADR-001-probe.md')]).includes(normalise(join(outside, 'ADR-001-probe.md'))), gate)
+    }
+    // The gates whose verdict needs a document of their own kind print it over any markdown, a FAIL included.
+    writeFileSync(join(home, 'doc.md'), '# x\n')
+    for (const gate of ['arch-lint', 'spec-verify', 'postmortem-verify']) {
+      const shown = verdict(gate, [join(home, 'doc.md')])
+      assert.match(shown, /\] ~\/doc\.md /, `${gate}: ${shown}`)
+    }
+    const directory = verdict('adr-retire-check', [join(home, 'archive')])
+    assert.match(directory, /given a directory: ~\/archive — pass ~\/archive\/README\.md/, directory)
+  } finally {
+    remove(home)
+    remove(outside)
   }
 })
 

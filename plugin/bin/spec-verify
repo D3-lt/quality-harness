@@ -944,6 +944,20 @@ def check_spec(path, mode, root_override, collect):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    try:
+        rel = given.relative_to(Path.home()) if given.is_absolute() else None
+    except (ValueError, RuntimeError, KeyError):
+        rel = None
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 
@@ -1015,7 +1029,7 @@ def main():
         else:
             status = "PASS"
         # BACKLOG §143: the verdict names the binary that reached it.
-        print(f"[{status}] {spec} (mode: {mode}) · {gate_identity()}")
+        print(f"[{status}] {home_shown(spec)} (mode: {mode}) · {gate_identity()}")
         for e in errors:
             print(f"  STRUCT  {e}")
         for m in missing:

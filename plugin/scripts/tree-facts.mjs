@@ -39,6 +39,29 @@ export function underTempRoot(candidate, depth = 0) {
   return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
 }
 
+// A scratch path: under the OS temp root and outside `cwd`, the session's own directory. A project's records are never a
+// scratch corpus, and one that lives under the temp root keeps its records gated. Asking whether `cwd` itself is under the
+// temp root instead made every temp file the project's own once the checkout sat there: a Windows clone in a scratchpad
+// under %TEMP% (BACKLOG §409). A path is inside `cwd` when its spelling is or its real location is: a write through a link
+// in the project is the project's own, wherever the link points (the writes-and-stops golden's directory link).
+export function scratchOutside(file, cwd) {
+  if (!underTempRoot(file)) return false
+  const real = candidate => {
+    const absolute = path.resolve(candidate)
+    try { return realpathSync(absolute) } catch {
+      try {
+        const anchor = nearestExistingDirectory(absolute)
+        return anchor ? path.join(realpathSync(anchor), path.relative(anchor, absolute)) : absolute
+      } catch { return absolute }
+    }
+  }
+  const outside = (base, target) => {
+    const relative = path.relative(base, target)
+    return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
+  }
+  return outside(path.resolve(cwd), path.resolve(file)) && outside(real(cwd), real(file))
+}
+
 // ADR-095 T3. The identity of a repository (its toplevel, where its index and its objects are) cannot change inside one hook
 // process, and a Stop event asked for the toplevel six times. A successful answer is kept for the life of the process, by
 // directory and argument list. Nothing else about git is kept: what the tree holds, what the index holds and what HEAD is can

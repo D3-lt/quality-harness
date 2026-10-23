@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: adr-retire-check echoes a directory argument under the home directory with the home path",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "{home_shown(sys.argv[1])} — pass",
+      "to": "{sys.argv[1]} — pass",
+      "only": "^(?:a verdict line shows an argument under the home directory as ~, and one outside it as given)$"
+    },
+    {
+      "label": "BACKLOG §409: home_shown never shortens a path under the home directory",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        rel = given.relative_to(Path.home()) if given.is_absolute() else None",
+      "to": "        rel = None",
+      "only": "^(?:a verdict line shows an argument under the home directory as ~, and one outside it as given)$"
+    },
+    {
       "label": "evidence: the seal survives a CRLF checkout",
       "file": "plugin/bin/adr-retire-check",
       "tests": [

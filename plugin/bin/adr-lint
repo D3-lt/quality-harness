@@ -6697,6 +6697,20 @@ def adr_number(path, text):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
+def home_shown(path):
+    """`path` with the home directory written `~` when it lies under it, else as given. A verdict line is pasted into
+    reports, and an argument under the profile (a Windows %TEMP% is one) carried a username into them (BACKLOG §409; the
+    banner's own rule, §350 C4/F3)."""
+    given = Path(path)
+    try:
+        rel = given.relative_to(Path.home()) if given.is_absolute() else None
+    except (ValueError, RuntimeError, KeyError):
+        rel = None
+    if rel is None:
+        return str(path)
+    return "~" if not rel.parts else "~/" + rel.as_posix()
+
+
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root.
 
@@ -7109,7 +7123,7 @@ def main():
     # name printed lines this gate never wrote — "[PASS] forged.md: …" under a FAIL. So each line
     # is printed as one line, its controls written as escapes (`record.visible`). Only the print
     # changes: the finding recorded for ADR-037 keeps its own text.
-    print(visible(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}", keep=""))
+    print(visible(f"[{status}] {home_shown(adr)}" + (f" + {home_shown(tasks_dir)}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}", keep=""))
     for e in errors:
         print(visible(f"  {e}", keep=""))
     for u in errors.unproven:

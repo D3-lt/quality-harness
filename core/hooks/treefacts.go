@@ -55,6 +55,36 @@ func underTempRootAt(candidate string, depth int) bool {
 	return false
 }
 
+// scratchOutside: under the OS temp root and outside cwd, the session's own directory (tree-facts.mjs scratchOutside,
+// BACKLOG §409). Asking whether cwd itself is under the temp root made every temp file the project's own once the checkout
+// sat there. A path is inside cwd when its spelling is or its real location is: a write through a link in the project is
+// the project's own.
+func scratchOutside(file, cwd string) bool {
+	if !underTempRoot(file) {
+		return false
+	}
+	real := func(candidate string) string {
+		absolute := resolvePath(candidate)
+		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+			return resolved
+		}
+		if anchor := nearestExistingDirectory(absolute); anchor != "" {
+			if realAnchor, err := filepath.EvalSymlinks(anchor); err == nil {
+				return filepath.Join(realAnchor, relPath(anchor, absolute))
+			}
+		}
+		return absolute
+	}
+	outside := func(base, target string) bool {
+		relative, err := filepath.Rel(base, target)
+		if err != nil {
+			return true
+		}
+		return relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative)
+	}
+	return outside(resolvePath(cwd), resolvePath(file)) && outside(real(cwd), real(file))
+}
+
 // The identity of a repository cannot change inside one hook process (ADR-095 T3): a successful answer is kept, by the
 // directory as the file system resolves it and the argument list.
 var identityAnswers = map[string]runResult{}

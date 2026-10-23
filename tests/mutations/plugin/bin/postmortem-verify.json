@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: postmortem-verify echoes a document under the home directory with the home path",
+      "file": "plugin/bin/postmortem-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "] {home_shown(path)} · {gate_identity()}\")",
+      "to": "] {path} · {gate_identity()}\")",
+      "only": "^(?:a verdict line shows an argument under the home directory as ~, and one outside it as given)$"
+    },
+    {
       "label": "gates: postmortem dates are YYYY-MM-DD",
       "file": "plugin/bin/postmortem-verify",
       "tests": [

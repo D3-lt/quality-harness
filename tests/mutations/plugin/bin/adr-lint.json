@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: adr-lint echoes a record under the home directory with the home path",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "f\"[{status}] {home_shown(adr)}\"",
+      "to": "f\"[{status}] {adr}\"",
+      "only": "^(?:a verdict line shows an argument under the home directory as ~, and one outside it as given)$"
+    },
+    {
       "label": "ADR-120 T5: two check changes stay two advice lines",
       "file": "plugin/bin/adr-lint",
       "tests": [

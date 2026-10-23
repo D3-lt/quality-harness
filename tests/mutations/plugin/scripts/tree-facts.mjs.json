@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: a temp path is scratch only while the session's directory is outside the temp root",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  return outside(path.resolve(cwd), path.resolve(file)) && outside(real(cwd), real(file))",
+      "to": "  return !underTempRoot(cwd)",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
+      "label": "BACKLOG §409: a path spelled inside the session's directory, through a link out of it, is scratch",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  return outside(path.resolve(cwd), path.resolve(file)) && outside(real(cwd), real(file))",
+      "to": "  return outside(real(cwd), real(file))",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
+      "label": "BACKLOG §409: a path whose real location is inside the session's directory is scratch",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  return outside(path.resolve(cwd), path.resolve(file)) && outside(real(cwd), real(file))",
+      "to": "  return outside(path.resolve(cwd), path.resolve(file))",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
       "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [

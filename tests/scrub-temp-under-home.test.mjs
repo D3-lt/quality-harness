@@ -21,4 +21,9 @@ test('a temp root under the home, written from the home, is the temp root, and n
   assert.equal(scrub('/home/SOMEON~1/AppData/Local/Temp/../../x/private.md'), '<path>')
   assert.equal(scrub('/work/repo/../sibling/x.md'), '<path>')
   assert.equal(scrub('/work/repo/docs/..x/y.md'), './docs/..x/y.md')
+  // The verification review of 82289dc7: in the single-backslash spelling the patterns below know no root, so a climbing path
+  // is redacted where its prefix is found, for every known prefix.
+  assert.equal(scrub('\\home\\SOMEON~1\\AppData\\Local\\Temp\\..\\..\\..\\Projects\\private.md'), '<path>')
+  assert.equal(scrub('\\home\\someone\\..\\other\\x.md'), '<path>')
+  assert.equal(scrub('\\work\\repo\\..\\sibling\\x.md'), '<path>')
 })

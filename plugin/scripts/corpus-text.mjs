@@ -63,7 +63,8 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
   // A known prefix keeps the rest of its path in view, so a `..` segment there could climb out of it and name what lies
   // beside it: `~/AppData/Local/Temp/../../../Projects/private.md` printed as `<tmp>/../../../Projects/private.md` (the Codex
-  // review of 7df3a7e7). Such a path is not replaced here, and the redactions below take it whole.
+  // review of 7df3a7e7). Such a path is redacted whole here, not left to the patterns below, which do not know every spelling
+  // a known prefix has (a single-backslash POSIX root printed raw: the verification review of 82289dc7).
   const CLIMBS = /(?:^|[\\/])\.\.(?:[\\/]|$)/
   // A known prefix is replaced only where it starts a path token and ends at a
   // separator or the end of the token: `.split('/tmp')` turned `docs/tmp/x` into
@@ -73,10 +74,11 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   // check of cec6203c). That spelling is the temp root's, as resolved, since the gates name a resolved path.
   const tmpUnderHome = [tmp, tmpResolved].filter(Boolean).map(t => path.relative(home ?? '', t))
     .filter(rel => home && rel && !rel.startsWith('..') && !path.isAbsolute(rel)).map(rel => `~/${rel.replaceAll('\\', '/')}`)
-  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], ...tmpUnderHome.map(t => [t, '<tmp>']), [home, '<home>']]
+  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], ...tmpUnderHome.map(t => [t, '<tmp>', '~<path>']),
+    [home, '<home>']]
     .filter(([prefix]) => prefix)
-    .map(([prefix, placeholder]) => [
-      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)(${TAIL})`, 'g'), placeholder])
+    .map(([prefix, placeholder, climbed = '<path>']) => [
+      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)(${TAIL})`, 'g'), placeholder, climbed])
   // A quoted path is consumed to ITS closing delimiter, whatever other quote
   // characters it holds: `"D:\Projects\Example Person\x"` used to leave
   // ` Person\x"` behind, and `"/opt/Example's secret/x"` stopped at the
@@ -106,7 +108,9 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   const HOME_RELATIVE = new RegExp(`(?<![\\w.\\\\/-])~[\\\\/][^\\s'"\`)\\\\/]${TAIL}`, 'g')
   return text => {
     let out = String(text)
-    for (const [pattern, placeholder] of known) out = out.replace(pattern, (whole, rest) => (CLIMBS.test(rest) ? whole : placeholder + rest))
+    for (const [pattern, placeholder, climbed] of known) {
+      out = out.replace(pattern, (whole, rest) => (CLIMBS.test(rest) ? climbed : placeholder + rest))
+    }
     return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')
   }
 }

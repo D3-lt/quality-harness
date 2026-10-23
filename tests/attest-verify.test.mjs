@@ -167,8 +167,42 @@ test('a CRLF checkout of a filed attestation verifies, and a hand one counts by 
   // DIRTY twins: a short `at`, no `at`, a key the schema does not name,
   assert.equal(hand({ at: attestation.at.slice(0, 12) }).status, 1)
   assert.equal(hand({}).status, 1)
+  // The review of e2f6178d: `plugin` is bound to plugin.json at `at`, absent or wrong alike.
+  assert.equal(hand({ at: attestation.at, plugin: undefined }).status, 1)
+  assert.equal(hand({ at: attestation.at, plugin: '0.0.1' }).status, 1)
   assert.equal(hand({ at: attestation.at, secret: 'x' }).status, 1)
   // and a CRLF file holding a byte attest-import would not write.
   writeFileSync(path, readFileSync(path, 'utf8').replace('"passToFail": 0', '"passToFail": 0 '))
   assert.equal(run(repo, '--verify', path).status, 1)
+})
+
+// The review of e2f6178d: `{"kind":"hand","at":"<HEAD>"}` verified, and with no `plugin` release-evidence read it as predating
+// the question of what the run compared, so it attested a release on nothing. Asked through releaseOutsideRun, main's default.
+test('a hand attestation attests a release only as a filed one would, through the release question', async () => {
+  const { releaseOutsideRun } = await import('../scripts/release-evidence.mjs')
+  const repo = join(scratch, 'hand-release')
+  const write = (file, text) => { mkdirSync(dirname(join(repo, file)), { recursive: true }); writeFileSync(join(repo, file), text) }
+  write('plugin/scripts/corpus-probe.mjs', 'export const probe = 1\n')
+  write('plugin/lib/record.py', 'RECORD = 3\n')
+  write('plugin/bin/gate', '#!/usr/bin/env python3\nprint("gate")\n')
+  write('plugin/hooks/hooks.json', '{"hooks": {}}\n')
+  write('plugin/.claude-plugin/plugin.json', '{ "name": "qh", "version": "9.9.9" }\n')
+  const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', '-c', 'core.autocrlf=false', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+  git('init', '-q'); git('add', '-A'); git('commit', '-qm', 'readers'); git('tag', 'v0.0.1')
+  write('plugin/lib/record.py', 'RECORD = 4\n'); git('commit', '-qam', 'a reader changed')
+  const at = git('rev-parse', 'HEAD').stdout.trim()
+  write('README.md', 'not a reader\n'); git('add', '-A'); git('commit', '-qm', 'the bump')
+  const sha = git('rev-parse', 'HEAD').stdout.trim()
+  const reports = join(repo, 'docs', 'corpus-reports')
+  const asked = fields => {
+    mkdirSync(reports, { recursive: true })
+    writeFileSync(join(reports, 'hand.json'), `${JSON.stringify({ date: '2026-10-23', kind: 'hand', at, ...fields }, null, 2)}\n`)
+    return releaseOutsideRun(sha, repo)
+  }
+  const ran = { platform: 'Windows_NT 10.0.26200', look: 'ok', notCompared: 0, verdictChanges: { compared: 77, passToFail: 0, failToPass: 0 } }
+  assert.equal(asked({ plugin: '9.9.9', ...ran }).verdict, 'attested', 'a hand run that says what it compared attests')
+  // DIRTY twins: the review's bare shape, a plugin version plugin.json does not name, and one that compared nothing.
+  assert.notEqual(asked({}).verdict, 'attested')
+  assert.notEqual(asked({ plugin: '0.0.1', ...ran }).verdict, 'attested')
+  assert.notEqual(asked({ plugin: '9.9.9' }).verdict, 'attested')
 })

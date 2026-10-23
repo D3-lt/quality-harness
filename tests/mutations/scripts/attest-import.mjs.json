@@ -17,11 +17,19 @@
       "only": "^(?:a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit)$"
     },
     {
-      "label": "ultrareview of v3.8.53..main: a hand attestation counts whatever keys it carries",
+      "label": "the review of e2f6178d: a hand attestation verifies without the checks a filing runs",
       "file": "scripts/attest-import.mjs",
       "tests": ["tests/attest-verify.test.mjs"],
-      "from": "    if (unknown.length) return { refused:",
-      "to": "    if (false) return { refused:",
+      "from": "    const answer = check(text, root, { filed: path.basename(file), hand: true })\n    return answer.couldNotLook || answer.refused ? answer : { verified: true }\n",
+      "to": "    return { verified: true }\n",
+      "only": "^(?:a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit|a hand attestation attests a release only as a filed one would, through the release question)$"
+    },
+    {
+      "label": "the review of e2f6178d: a hand attestation is asked for the probe's digests",
+      "file": "scripts/attest-import.mjs",
+      "tests": ["tests/attest-verify.test.mjs"],
+      "from": "  const handRun = hand && attestation.kind === 'hand'",
+      "to": "  const handRun = false",
       "only": "^(?:a CRLF checkout of a filed attestation verifies, and a hand one counts by its keys and a full commit)$"
     },
     {
@@ -68,7 +76,7 @@
       "tests": [
         "tests/attest-import.test.mjs"
       ],
-      "from": "  if (attestation.readers !== readers) refused.push(",
+      "from": "  if (!handRun && attestation.readers !== readers) refused.push(",
       "to": "  if (false) refused.push(",
       "only": "an attestation is filed only when its digests are the ones its commit gives"
     },
@@ -78,7 +86,7 @@
       "tests": [
         "tests/attest-import.test.mjs"
       ],
-      "from": "  if (attestation.probeSha256 !== probeSha256) refused.push(",
+      "from": "  if (!handRun && attestation.probeSha256 !== probeSha256) refused.push(",
       "to": "  if (false) refused.push(",
       "only": "an attestation is filed only when its digests are the ones its commit gives"
     },

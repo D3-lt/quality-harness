@@ -113,7 +113,7 @@ function verdictChangesShape(value) {
 
 // `filed`: the name of the file under docs/corpus-reports that holds this very attestation (`--verify`), which is not
 // a duplicate of itself.
-export function check(text, root, { filed = null } = {}) {
+export function check(text, root, { filed = null, hand = false } = {}) {
   const candidates = jsonObjects(text).filter(o => o && typeof o === 'object' && !Array.isArray(o) && 'at' in o && 'kind' in o)
   if (candidates.length !== 1) {
     return { refused: [`1: the message holds ${candidates.length} attestations (an object with \`at\` and \`kind\`); exactly one is filed`] }
@@ -126,7 +126,10 @@ export function check(text, root, { filed = null } = {}) {
   if (unknown.length || corpusUnknown.length) {
     refused.push(`2: keys outside the attestation schema (${[...unknown, ...corpusUnknown.map(k => `corpus.${k}`)].join(', ')}): a report's content is never committed`)
   }
-  if (attestation.kind !== 'probe') refused.push(`3: kind is ${JSON.stringify(attestation.kind)}; only a probe attestation carries digests to check, and a hand one is filed by hand`)
+  // A hand attestation is checked by everything here but the probe's own digests (verifyFile, for a release); filing one is
+  // still refused, since it is written by hand (README).
+  const handRun = hand && attestation.kind === 'hand'
+  if (attestation.kind !== 'probe' && !handRun) refused.push(`3: kind is ${JSON.stringify(attestation.kind)}; only a probe attestation carries digests to check, and a hand one is filed by hand`)
   if ('verdictChanges' in attestation && !verdictChangesShape(attestation.verdictChanges)) {
     refused.push(`2: verdictChanges is ${JSON.stringify(attestation.verdictChanges)}; it is null, or exactly { compared, passToFail, failToPass }: `
       + 'non-negative integers with passToFail + failToPass <= compared (ADR-082)')
@@ -162,8 +165,8 @@ export function check(text, root, { filed = null } = {}) {
   const readers = readersAt(git, attestation.at)
   if (probe.status !== 0 || version.status !== 0 || readers === null) return { couldNotLook: `git could not read the readers at ${attestation.at}` }
   const probeSha256 = createHash('sha256').update(probe.stdout).digest('hex')
-  if (attestation.probeSha256 !== probeSha256) refused.push(`5: probeSha256 ${attestation.probeSha256} is not ${probeSha256}, the probe at ${attestation.at.slice(0, 7)}`)
-  if (attestation.readers !== readers) refused.push(`5: readers ${attestation.readers} is not ${readers}, the readers at ${attestation.at.slice(0, 7)}`)
+  if (!handRun && attestation.probeSha256 !== probeSha256) refused.push(`5: probeSha256 ${attestation.probeSha256} is not ${probeSha256}, the probe at ${attestation.at.slice(0, 7)}`)
+  if (!handRun && attestation.readers !== readers) refused.push(`5: readers ${attestation.readers} is not ${readers}, the readers at ${attestation.at.slice(0, 7)}`)
   let pluginVersion = null
   try { pluginVersion = JSON.parse(version.stdout.toString('utf8')).version } catch { /* compared below as null */ }
   if (attestation.plugin !== pluginVersion) refused.push(`5: plugin ${JSON.stringify(attestation.plugin)} is not ${JSON.stringify(pluginVersion)}, plugin.json at ${attestation.at.slice(0, 7)}`)
@@ -195,16 +198,15 @@ export function verifyFile(file, root) {
   try { text = readFileSync(file, 'utf8') } catch (error) { return { couldNotLook: `could not read ${file}: ${error.code ?? error.message}` } }
   // A Windows checkout writes the file with CRLF unless git is told otherwise; the bytes git holds are what was filed.
   text = text.replace(/\r\n/g, '\n')
-  // A hand attestation has no digest to check (§18's "the readers by hand"; README: written by hand), so it counts when it keeps
-  // to the schema's keys and names a full commit, which is what a release asks of it (ultrareview of v3.8.53..main).
+  // A hand attestation has no digest to check (§18's "the readers by hand"; README: written by hand), so it counts when every
+  // other check a filing runs passes: the schema's keys, a full `at` this clone holds, and `plugin` as plugin.json names it at
+  // that commit, which is what makes release-evidence ask what the run compared (ultrareview of v3.8.53..main, and the review
+  // of e2f6178d: one with no `plugin` read as predating that question). Its bytes are a person's, so they are not compared.
   let parsed = null
   try { parsed = JSON.parse(text) } catch { parsed = null }
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.kind === 'hand') {
-    const unknown = Object.keys(parsed).filter(key => !KEYS.includes(key))
-    if (unknown.length) return { refused: [`${file} is a hand attestation with keys the schema does not name: ${unknown.join(', ')}`] }
-    return typeof parsed.at === 'string' && /^[0-9a-f]{40,64}$/.test(parsed.at)
-      ? { verified: true }
-      : { refused: [`${file} is a hand attestation whose at is not a full commit`] }
+    const answer = check(text, root, { filed: path.basename(file), hand: true })
+    return answer.couldNotLook || answer.refused ? answer : { verified: true }
   }
   const answer = check(text, root, { filed: path.basename(file) })
   if (answer.couldNotLook || answer.refused) return answer

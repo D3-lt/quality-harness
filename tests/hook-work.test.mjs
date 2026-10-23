@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -371,7 +372,7 @@ test('historical archive discovery uses one scoped Git query and preserves neare
   run(['git', 'add', '.'], project)
   run(['git', '-c', 'user.name=Harness Test', '-c', 'user.email=harness@example.invalid',
     'commit', '-qm', 'archive fixture'], project)
-  rmSync(archive, { recursive: true })
+  remove(archive)
   const trace = path.join(root, 'git.trace')
   const check = (file, boundary) => {
     writeFileSync(trace, '')
@@ -486,7 +487,7 @@ test('the batch and the standalone dispatcher read the same history bases', t =>
     'commit', '-qm', 'two tracked scripts and an archive'], project)
   rmSync(path.join(docs, 'gone.mjs'))
   rmSync(path.join(docs, 'other.mjs'))
-  rmSync(archive, { recursive: true })
+  remove(archive)
   const gone = path.join(docs, 'gone.mjs')
   const record = path.join(archive, 'ADR-001-x.md')
   const standalone = (bases, file = gone) => run(['bash', path.join(scripts, 'facts-gate-dispatch.sh').replaceAll('\\', '/'),

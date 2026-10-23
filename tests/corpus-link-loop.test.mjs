@@ -8,6 +8,7 @@
 // injected (the `tracked` seam), and the link on disk is real: a junction on Windows.
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -94,7 +95,7 @@ test('a corpus directory that is a link to nothing is named, never read as no co
   mkdirSync(path.join(root, 'gone'), { recursive: true })
   mkdirSync(path.join(root, 'docs'), { recursive: true })
   linkDirectory(path.join(root, 'gone'), path.join(root, 'docs', 'adr'))
-  rmSync(path.join(root, 'gone'), { recursive: true, force: true })
+  remove(path.join(root, 'gone'))
   const state = observe(root, { spawn: () => ({ status: 3, stdout: '{}', stderr: '' }), listing: [] })
   assert.equal(state.look, 'PARTIAL', JSON.stringify(state))
   const named = state.partialBecause.map(entry => ({ file: path.relative(root, entry.file).split(path.sep).join('/'), reason: entry.reason }))

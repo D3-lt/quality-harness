@@ -38,12 +38,18 @@ function sweep(files, text, count, locked) {
 const lines = (text, pattern) => text.split('\n').filter(line => pattern.test(line))
 
 // §380's class: a test that starts a session, whose hook leaves detached children writing in its directory. A remove is
-// bare when it is recursive, its own (not inside a child's script, `x.rmSync(`) and retries nothing.
-const RECURSIVE_REMOVE = /(?<![.\w])rmSync\([^)]*recursive/
+// bare when it is recursive, its own (not inside a child's script, `x.rmSync(`) and retries nothing. BACKLOG §407 widened
+// it (2026-10-23) to every test that starts a child able to outlive it — a hook, a detached refresher, the Go core — and
+// the pattern reads past a nested call: `rmSync(join(top, 'docs'), { recursive… })` was invisible to `[^)]*`.
+const RECURSIVE_REMOVE = /(?<![.\w])rmSync\(.*\brecursive\b/
 const bareRemoves = text => lines(text, RECURSIVE_REMOVE).filter(line => !/maxRetries/.test(line)).length
-const removeClass = files => files.filter(file => /^tests\/[^/]+\.test\.mjs$/.test(file) && read(file).includes('SessionStart'))
+const STARTS_A_CHILD = /SessionStart|detached:\s*true|scripts\/(?:lifecycle|branch-state|run-shell-hook|on-[a-z-]+)\.mjs|'lifecycle\.mjs'|'branch-state\.mjs'|hook-golden\.mjs|runHook\(|core', 'bin'|qh-hook/
+// This file names the patterns, and quotes a remove in a comment, so it is not in its own class.
+const removeClass = files => files.filter(file => /^tests\/[^/]+\.test\.mjs$/.test(file) && file !== 'tests/test-hygiene.test.mjs'
+  && STARTS_A_CHILD.test(read(file)))
 // Measured 2026-10-20 at 95bb1ef9 with scripts/test-locks.py and record.extract_test_body: every site left is inside a
-// locked test body.
+// locked test body. The rows from advice-says-advice on were added 2026-10-23, when §407 widened the class: each site is
+// inside a body scripts/test-locks.py names, and every other site in the widened class goes through the helper.
 const LOCKED_REMOVES = {
   'tests/adopt-wording.test.mjs': 3,
   'tests/branch-state.test.mjs': 8,
@@ -54,6 +60,12 @@ const LOCKED_REMOVES = {
   'tests/probe-enobufs.test.mjs': 1,
   'tests/qh-core-parity.test.mjs': 3,
   'tests/qh-mcp-resources.test.mjs': 1,
+  'tests/advice-says-advice.test.mjs': 1,
+  'tests/artifact-pass-behind.test.mjs': 6,
+  'tests/gate-rules.test.mjs': 2,
+  'tests/lock-drift-commit.test.mjs': 2,
+  'tests/release-evidence.test.mjs': 3,
+  'tests/spec-ignore.test.mjs': 2,
 }
 
 test('no test outside the locked list removes its directory without the retrying helper', async () => {
@@ -75,6 +87,19 @@ test('no test outside the locked list removes its directory without the retrying
   const { remove } = await import('./helpers/remove.mjs')
   remove(dir)
   assert.throws(() => realpathSync(dir), /ENOENT/)
+})
+
+// BACKLOG §407: the pattern reads a remove whose path is itself a call, and the class holds a test that starts a child
+// without naming SessionStart. Both were invisible before 2026-10-23.
+test('a remove of a joined path counts, and a test that starts a child is in the class', () => {
+  const planted = {
+    'tests/nested.test.mjs': `${'rm'}Sync(join(top, 'docs'), { recursive: true, force: true })\n// spawns plugin/scripts/lifecycle.mjs`,
+    'tests/quiet.test.mjs': `${'rm'}Sync(join(top, 'docs'), { recursive: true, force: true })\n`,
+  }
+  assert.equal(bareRemoves(planted['tests/nested.test.mjs']), 1, 'a nested call before `recursive` is still a bare remove')
+  assert.ok(STARTS_A_CHILD.test(planted['tests/nested.test.mjs']), 'a test that starts the lifecycle hook is in the class')
+  assert.equal(STARTS_A_CHILD.test(planted['tests/quiet.test.mjs']), false, 'one that starts nothing is not')
+  assert.ok(!removeClass(listed()).includes('tests/test-hygiene.test.mjs'), 'the file that names the patterns is not its own member')
 })
 
 // BACKLOG §378: a bare `bash` on a Windows PATH can be WSL's, which runs no POSIX script of this repository's; testBash

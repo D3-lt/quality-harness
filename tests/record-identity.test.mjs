@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import test from 'node:test'
@@ -45,7 +46,7 @@ function scratch(prefix) {
   return dir
 }
 test.after(() => {
-  for (const dir of temps) rmSync(dir, { recursive: true, force: true })
+  for (const dir of temps) remove(dir)
 })
 
 function writeTree(root, files) {

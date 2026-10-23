@@ -17,7 +17,8 @@
 // gate at the boundary that is supposed to be authoritative. Nothing compared them.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -83,7 +84,7 @@ test('the bulk lookup and the per-file lookup name the same archive catalog', ()
       assert.equal(bulk.get(record), catalog,
         `the bulk lookup must name the same catalog for ${record.slice(repo.length + 1)}, or the two boundaries run different gates`)
     }
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { remove(repo) }
 })
 
 test('a base that could not be read leaves the bulk answer UNKNOWN, not "no catalog"', () => {
@@ -124,5 +125,5 @@ test('a base that could not be read leaves the bulk answer UNKNOWN, not "no cata
       ? { status: 128, stdout: Buffer.alloc(0), stderr: Buffer.from('fatal') }
       : spawnSync(command, args, options)
     assert.equal(lookup(failing).size, 0, 'absent means "look yourself"; an empty string means "I looked and there is none"')
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { remove(repo) }
 })

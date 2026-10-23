@@ -12,7 +12,8 @@
 // mutant that moves it survives the whole suite.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -46,7 +47,7 @@ test('could-not-look is on stderr, and a plain observation is on stdout', () => 
     // And per edit, a file that is not a record costs nothing and says nothing.
     const perEdit = run(notes, 'PostToolUse')
     assert.equal(`${perEdit.stdout}${perEdit.stderr}`, '')
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // BACKLOG §285: a tasks index titled `# ADR-007 tasks` matched the record-title
@@ -79,7 +80,7 @@ test('a tasks README is linted through its owning record, never as a record itse
     assert.match(both, /ADR-007-a-thing/, `the owning record must be what was linted:\n${both}`)
     assert.doesNotMatch(both, /not-recognised: .*README\.md/, both)
     assert.match(both, /ADR-007-a-thing\.md/, `the owning record must be what was linted:\n${both}`)
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // Codex review of 12a1341: the `tasks` directory was compared case-sensitively, and
@@ -102,7 +103,7 @@ test('a tasks README is routed to its owner in any case and from a relative path
       assert.doesNotMatch(both, /not-recognised/, `${file} was read as a record or not at all:\n${both}`)
       assert.match(both, /ADR-007-a-thing/, `${file}: the owning record must be what was linted:\n${both}`)
     }
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })
 
 // BACKLOG §378: every commit that deleted a script or a workflow said "UNPROVEN: could not classify" about it. Only a
@@ -120,7 +121,7 @@ test('a deleted file that cannot have been a record is passed in silence, and on
     for (const file of ['gone.mjs', 'evals.yml', 'ghost.md', 'GHOST.MD', 'decisions.v1/ADR-001-x.md']) writeFileSync(join(top, 'docs', file), '# x\n')
     git('add', '-A')
     assert.equal(git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'fixture').status, 0)
-    rmSync(join(top, 'docs'), { recursive: true, force: true })
+    remove(join(top, 'docs'))
     mkdirSync(join(top, 'docs'))
     // The path as the hook hands it over: on Windows, `C:/…` (`windowsPathForBash`), never `C:\…`, which bash
     // cannot read as absolute (a CI windows job of 4442eed7 said UNPROVEN for gone.mjs here).
@@ -134,5 +135,5 @@ test('a deleted file that cannot have been a record is passed in silence, and on
     for (const gone of ['ghost.md', 'GHOST.MD', 'decisions.v1', 'never-tracked.mjs']) {
       assert.match(run(gone).stderr, /UNPROVEN: could not classify /, gone)
     }
-  } finally { rmSync(top, { recursive: true, force: true }) }
+  } finally { remove(top) }
 })

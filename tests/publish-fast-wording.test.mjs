@@ -5,7 +5,8 @@
 // the sentence is unchanged.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -46,7 +47,7 @@ test('a refusal after a fast pass says the fast check passed and why it does not
     assert.match(refused.text, /a fast check \(`test -f notes\.txt`\) passed on its current tree/)
     assert.match(refused.text, /not proven to be one commit/)
     assert.doesNotMatch(refused.text, /no `qh-check` has passed/)
-  } finally { rmSync(fixture.top, { recursive: true, force: true }) }
+  } finally { remove(fixture.top) }
 })
 
 test('a refusal with no pass at all keeps saying no qh-check has passed', () => {
@@ -55,5 +56,5 @@ test('a refusal with no pass at all keeps saying no qh-check has passed', () => 
     const refused = reason(fixture, 'git commit -m x && echo done')
     assert.equal(refused.decision, 'deny', refused.text)
     assert.match(refused.text, /no `qh-check` has passed on its current tree/)
-  } finally { rmSync(fixture.top, { recursive: true, force: true }) }
+  } finally { remove(fixture.top) }
 })

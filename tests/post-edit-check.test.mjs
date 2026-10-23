@@ -9,7 +9,8 @@
 // the contract a hook has with the harness.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -21,7 +22,7 @@ const testDir = dirname(fileURLToPath(import.meta.url))
 const hook = resolve(testDir, '..', 'plugin', 'scripts', 'post-edit-check.sh')
 
 const temps = []
-test.after(() => { for (const t of temps) rmSync(t, { recursive: true, force: true }) })
+test.after(() => { for (const t of temps) remove(t) })
 const scratch = () => { const d = mkdtempSync(join(tmpdir(), 'qh-hook-')); temps.push(d); return d }
 
 // A fresh TMPDIR per run, or the script's own 5-second debounce makes a second

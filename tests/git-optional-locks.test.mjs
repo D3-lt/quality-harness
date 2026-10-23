@@ -9,7 +9,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -33,7 +34,7 @@ const indexDigest = dir => createHash('sha256').update(readFileSync(path.join(di
 // `git status` rewrites the index.
 function staleStatRepository(t) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-optlocks-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => remove(dir))
   git(dir, 'init', '-q')
   writeFileSync(path.join(dir, 'a.txt'), 'one\n')
   git(dir, 'add', 'a.txt')

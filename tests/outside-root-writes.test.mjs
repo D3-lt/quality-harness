@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,12 +26,12 @@ const symlinkSkip = (() => {
   const probe = mkdtempSync(path.join(os.tmpdir(), 'qh-symlink-probe-'))
   try { symlinkSync(path.join(probe, 'target'), path.join(probe, 'link')); return false }
   catch (error) { return error.code === 'EPERM' && 'this account cannot create symlinks (EPERM): Windows without Developer Mode or elevation' }
-  finally { rmSync(probe, { recursive: true, force: true }) }
+  finally { remove(probe) }
 })()
 
 function layout(t) {
   const base = mkdtempSync(path.join(os.tmpdir(), 'qh-outside-root-'))
-  t.after(() => rmSync(base, { recursive: true, force: true }))
+  t.after(() => remove(base))
   const root = path.join(base, 'repo')
   const elsewhere = path.join(base, 'scratchpad')
   mkdirSync(path.join(root, 'src'), { recursive: true })

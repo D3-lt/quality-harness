@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -348,6 +349,6 @@ test('a finding about bytes a later pass gated as different bytes is not said', 
       const out = hook(dir, prompt(session)).stdout
       // Dirty: a later verdict whose bytes are unknown proves nothing changed, so the finding is still said.
       assert.equal(/FAKE-STALE/.test(out), said, `later blob ${later}: ${out}`)
-    } finally { rmSync(dir, { recursive: true, force: true }) }
+    } finally { remove(dir) }
   }
 })

@@ -416,7 +416,8 @@ test('a task git lists but the disk does not hold is unproven, not counted', () 
       const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
       assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
     }
-    if (remove) rmSync(path.join(adr, 'ADR-007-x', 'tasks'), { recursive: true, force: true })
+    // The `remove` parameter shadows the helper here: the same retrying options, spelled out.
+    if (remove) rmSync(path.join(adr, 'ADR-007-x', 'tasks'), { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
     return Object.assign(observe(temp), { temp })
   }
   const absent = build(true)

@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { remove } from './helpers/remove.mjs'
 import { linkDirectory } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
@@ -28,7 +29,7 @@ process.env.TMPDIR = process.env.TMP = process.env.TEMP = sandbox
 // An inherited state-directory override would send the session logs this file writes outside the sandbox (the Codex
 // review of 26440a7d); nothing in selftest sets one.
 delete process.env.QUALITY_HARNESS_STATE_DIR
-process.on('exit', () => rmSync(sandbox, { recursive: true, force: true }))
+process.on('exit', () => remove(sandbox))
 const QH_STATUSLINE_ONE_LINER = 'node "$(qh-root)/scripts/statusline.mjs" <<< "$input"'
 
 function stripFenceTicks(line) {
@@ -120,7 +121,7 @@ test('the segment follows the log: a count, a passed check, nothing edited, unkn
     // And no session id at all is not an error.
     assert.equal(render(reading({ workspace: { current_dir: dir } }, { now: NOW })), '')
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    remove(dir)
   }
 })
 
@@ -152,7 +153,7 @@ test('an unchanged log is not read twice; a changed one is', () => {
     reading(input, { read, now: NOW })
     assert.equal(calls, 2, 'a changed mtime is a changed log')
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    remove(dir)
   }
 })
 
@@ -179,7 +180,7 @@ test('the CLI reads the statusLine JSON from stdin, prints the segment, and neve
     assert.equal(empty.status, 0)
     assert.equal(empty.stdout, '')
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    remove(dir)
   }
 })
 
@@ -221,7 +222,7 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
     writeFileSync(join(wt, '.git'), `gitdir: ${gitDir}\n`)
     write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] })
     assert.equal(renderCi(ciReading(wt, now)), 'CI ✓')
-    rmSync(wt, { recursive: true, force: true })
+    remove(wt)
     // A symlink INTO the repository still finds it (the walk starts from the realpath).
     const alias = join(tmpdir(), `qh-statusline-alias-${process.pid}`)
     try { unlinkSync(alias) } catch {}
@@ -236,11 +237,11 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
     assert.equal(findGitDir(bare), null, 'HEAD and objects alone are not Git metadata')
     mkdirSync(join(bare, 'refs'))
     assert.equal(findGitDir(bare), realpathSync(bare))
-    rmSync(bare, { recursive: true, force: true })
+    remove(bare)
     // No .git anywhere above: nothing.
     assert.equal(findGitDir(tmpdir()) === null || typeof findGitDir(tmpdir()) === 'string', true)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    remove(dir)
   }
 })
 
@@ -335,7 +336,7 @@ test('ahead and unreviewed come from the branch-state cache, and only while it i
     assert.equal(render({ kind: 'checked' }, { state: 'green' }, ['↑3 · !rev 2']), 'QH ✓ checked · CI ✓ · ↑3 · !rev 2')
     assert.equal(render(null, null, ['↑3']), '', 'no QH reading and no CI: the extras say nothing alone')
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    remove(dir)
   }
 })
 
@@ -366,8 +367,8 @@ test('a check or a campaign in flight for this checkout is shown from its lease,
     assert.equal(look(root), '', 'a dead or unknown run is not in flight')
     assert.deepEqual(readdirSync(leases).sort(), ['a.json', 'b.json', 'c.json'], 'a render never removes a lease')
   } finally {
-    rmSync(root, { recursive: true, force: true })
-    rmSync(leases, { recursive: true, force: true })
+    remove(root)
+    remove(leases)
   }
 })
 
@@ -388,9 +389,9 @@ test('a cwd that does not exist yet is matched by the part of it that does', () 
     lease(alias)
     assert.equal(look(join(real, 'not', 'yet')), '⧗ check 0s', 'and a lease named through the link matches the real path')
   } finally {
-    rmSync(links, { recursive: true, force: true })
-    rmSync(real, { recursive: true, force: true })
-    rmSync(leases, { recursive: true, force: true })
+    remove(links)
+    remove(real)
+    remove(leases)
   }
 })
 
@@ -412,9 +413,9 @@ test('a path through a link is resolved by the filesystem before its .. is', { s
       JSON.stringify({ pid: 1, command: 'qh-check: x', root: links, start: new Date(now).toISOString(), state: 'running' }))
     assert.equal(look(`${alias}${sep}..`), '', 'and the directory holding the link is another place')
   } finally {
-    rmSync(links, { recursive: true, force: true })
-    rmSync(real, { recursive: true, force: true })
-    rmSync(leases, { recursive: true, force: true })
+    remove(links)
+    remove(real)
+    remove(leases)
   }
 })
 
@@ -446,8 +447,8 @@ test('a linked worktree nested inside a checkout is its own checkout, not a subd
     assert.equal(look(join(other, 'sub')), '⧗ check 0s', "the nested worktree's own run is")
     assert.equal(look(root), '', "and the nested worktree's run is not the parent's")
   } finally {
-    rmSync(root, { recursive: true, force: true })
-    rmSync(leases, { recursive: true, force: true })
+    remove(root)
+    remove(leases)
   }
 })
 
@@ -478,7 +479,7 @@ test('the CLI selects every new piece: ahead and unreviewed from the cache, and 
     assert.equal(out.status, 0)
     assert.match(out.stdout.trim(), /^QH CI ✓ · ↑2 · !rev 1 · ⧗ check \d+s(?: · load \d+\.\d{2}×)?$/, out.stdout)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
-    rmSync(leases, { recursive: true, force: true })
+    remove(dir)
+    remove(leases)
   }
 })

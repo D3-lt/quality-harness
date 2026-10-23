@@ -69,12 +69,14 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
     'plugin/scripts/b.mjs': '// onlyInComment is named here too\nconst x = 1 // and onlyInComment again\nrun(x)\n',
     'plugin/bin/gate': 'PY_ONLY_COMMENT = 1\n# PY_ONLY_COMMENT is said in a comment\n',
     'plugin/scripts/c.sh': '#!/bin/sh\n# shellOnlyComment\ntrue # shellAfterCommand\necho "$(\n# shellInSubstitution\ntrue\n)"\n',
-    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\n',
+    // The review of 620c6160..13dfefe1: a backquoted substitution inside double quotes is shell code too.
+    'plugin/scripts/h.sh': 'echo "`\n# shellInBackquotes\ntrue\n`"\n',
+    'plugin/scripts/d.mjs': 'export function shellOnlyComment() {}\nexport function shellAfterCommand() {}\nexport function shellInSubstitution() {}\nexport function shellInBackquotes() {}\n',
   }
   const swept = sweep(defined)
   assert.ok(swept, 'the lexers ran')
   assert.deepEqual(swept.incomplete, [])
-  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellAfterCommand', 'shellInSubstitution', 'shellOnlyComment'])
+  assert.deepEqual(swept.orphans.map(o => o.name).sort(), ['PY_ONLY_COMMENT', 'onlyInComment', 'shellAfterCommand', 'shellInBackquotes', 'shellInSubstitution', 'shellOnlyComment'])
   // DIRTY twins: without the blanking every one reads as reached.
   assert.deepEqual(orphanDefinitions(defined).orphans, [])
   // A `/*` inside a regex literal opens no comment, a `#` inside a Python string or a quoted or here-document shell line is
@@ -82,8 +84,8 @@ test('a name mentioned only in a comment is an orphan, and code a comment strip 
   const kept = {
     'plugin/scripts/e.mjs': 'const UNDER = /^[\\w./*?-]*$/\nexport function usedAfterRegex() {}\nconst ok = UNDER.test(p) && usedAfterRegex()\nrun(ok)\n',
     'plugin/bin/gate': 'def _arm():\n    return 1\nTABLE = {"x": "_arm", "y": "# not a comment"}\nrun(TABLE)\n',
-    'plugin/scripts/f.sh': "node -e '\n#fn = worker.quotedUse\n'\ncat <<EOF\n# hereDocUse\nEOF\necho ${#count} $#\n",
-    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\n',
+    'plugin/scripts/f.sh': "node -e '\n#fn = worker.quotedUse\n'\ncat <<EOF\n# hereDocUse\nEOF\necho ${#count} $#\necho '`\n# quotedTickUse\n`'\n",
+    'plugin/scripts/g.mjs': 'export function quotedUse() {}\nexport function hereDocUse() {}\nexport function quotedTickUse() {}\n',
   }
   const keptSwept = sweep(kept)
   assert.deepEqual(keptSwept.incomplete, [])

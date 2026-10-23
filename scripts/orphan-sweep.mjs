@@ -127,9 +127,11 @@ WORD_BREAK = " \t\n;|&()<>"
 def shell_comments(text):
     """Comment spans, and whether the scan reached the end with no quote, parenthesis or here-document still open.
 
-    A stack of contexts: shell code, a single or a double quote, and a parenthesis (a subshell or a $( substitution). Inside
-    double quotes a $( is shell code again until its ), so a comment there is a comment (the verification review of the
-    fix round: a comment in "$(...)" counted as a use)."""
+    A stack of contexts: shell code, a single or a double quote, a parenthesis (a subshell or a $( substitution), and a
+    backquoted substitution. Inside double quotes a $( is shell code again until its ), and a backquote until the next one, so a
+    comment there is a comment (the verification review of the fix round: a comment in "$(...)" counted as a use; the review of
+    620c6160..13dfefe1: so did one in a backquoted substitution inside double quotes)."""
+    tick = "\x60"
     spans, pending, stack, i, n = [], [], ["code"], 0, len(text)
     while i < n:
         c, mode = text[i], stack[-1]
@@ -141,12 +143,18 @@ def shell_comments(text):
                 i += 1
             elif c == '"':
                 stack.pop()
+            elif c == tick:
+                stack.append(tick)
             elif text.startswith("$(", i):
                 stack.append("(")
                 i += 2
                 continue
         elif c == "\\":
             i += 1
+        elif c == tick and mode == tick:
+            stack.pop()
+        elif c == tick:
+            stack.append(tick)
         elif c in "'\"":
             stack.append(c)
         elif c == "(":
@@ -165,7 +173,7 @@ def shell_comments(text):
                 pending.append((found.group(3), found.group(1) == "-"))
                 i = found.end()
                 continue
-        if c == "\n" and pending and mode in ("code", "("):
+        if c == "\n" and pending and mode in ("code", "(", tick):
             i += 1
             while pending and i < n:
                 end = text.find("\n", i)

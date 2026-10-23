@@ -41,6 +41,14 @@
       "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
     },
     {
+      "label": "the review of 620c6160..13dfefe1: a backquote inside double quotes is read as string text",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "            elif c == tick:\n                stack.append(tick)\n            elif text.startswith",
+      "to": "            elif False:\n                stack.append(tick)\n            elif text.startswith",
+      "only": "^(?:a name mentioned only in a comment is an orphan, and code a comment strip would misread still counts)$"
+    },
+    {
       "label": "the Codex review of v3.8.53..42a903a8: a here-document body is read as shell",
       "file": "scripts/orphan-sweep.mjs",
       "tests": ["tests/orphan-sweep.test.mjs"],

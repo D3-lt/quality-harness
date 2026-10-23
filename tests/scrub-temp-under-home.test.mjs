@@ -22,7 +22,9 @@ test('a temp root under the home, written from the home, is the temp root, and n
     '"~/AppData/Local/Temp/../Example\'s private/x.md"', '`~/AppData/Local/Temp/..`', 'at ~/AppData/Local/Temp/.. then',
     // The verification review of 80e3060a: a sibling of the temp root whose name starts with it, past a space.
     '~/AppData/Local/Temp private/secret.md', '~\\AppData\\Local\\Temp private\\secret.md', '"~/AppData/Local/Temp private/x.md"',
-    '`~/AppData/Local/Temp private/x.md`', '~/AppData/Local/TempX/secret.md']) {
+    '`~/AppData/Local/Temp private/x.md`', '~/AppData/Local/TempX/secret.md',
+    // The verification review of 002c4b3e: the shorthand inside another home-relative path.
+    '~/private SECRET:~/AppData/Local/Temp', '"~/private SECRET:~/AppData/Local/Temp/x"', '~\\private SECRET:~\\AppData\\Local\\Temp']) {
     assert.equal(scrub(climbing), before(climbing), climbing)
     assert.doesNotMatch(scrub(climbing), /<tmp>/, climbing)
   }
@@ -56,7 +58,8 @@ test('nothing outside the temp root is shown that a scrubber without the shortha
       prefix += ['/', '\\'][draw(2)]
       parts.splice(draw(parts.length + 1), 0, ['/../SECRET', '\\..\\SECRET', '/x/../../SECRET', '/..', '\\..'][draw(5)])
     }
-    const input = ['', ' ', '"', "'", '`', 'at ', '(', ':'][draw(8)] + prefix + parts.join('') + ['', ' ', '"', "'", '`', ' then', ')'][draw(7)]
+    const input = ['', ' ', '"', "'", '`', 'at ', '(', ':', '~/private SECRET:', '~\\private SECRET:', '~/p SECRET/', '/x SECRET:'][draw(12)]
+      + prefix + parts.join('') + ['', ' ', '"', "'", '`', ' then', ')'][draw(7)]
     if (scrub(input) !== before(input)) differing++
     assert.ok(shown(scrub(input)) <= shown(before(input)), JSON.stringify({ input, now: scrub(input), before: before(input) }))
   }

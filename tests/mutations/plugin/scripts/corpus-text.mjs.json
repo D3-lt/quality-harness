@@ -4,24 +4,24 @@
       "label": "the Codex review of 7df3a7e7: a path that climbs out of the temp root's home shorthand is shown as the temp root's",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "(rest === '' || /^[\\\\/]/.test(rest)) && !CLIMBS.test(rest)",
-      "to": "(rest === '' || /^[\\\\/]/.test(rest))",
+      "from": "(rest === '' || /^[\\\\/]/.test(rest)) && !CLIMBS.test(rest)) return",
+      "to": "(rest === '' || /^[\\\\/]/.test(rest))) return",
       "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
     },
     {
       "label": "the verification review of 80e3060a: a sibling of the temp root, past a space, is shown as the temp root's",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "(rest === '' || /^[\\\\/]/.test(rest)) && !CLIMBS.test(rest)",
-      "to": "!CLIMBS.test(rest)",
+      "from": "(rest === '' || /^[\\\\/]/.test(rest)) && !CLIMBS.test(rest)) return",
+      "to": "!CLIMBS.test(rest)) return",
       "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
     },
     {
       "label": "the Windows check of cec6203c: a temp root under the home, written from the home, is redacted whole",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": ["tests/scrub-temp-under-home.test.mjs"],
-      "from": "    for (const pattern of shorthand) out = out.replace(pattern, (whole, rest) => (inside(rest) ? `<tmp>${rest}` : whole))\n",
-      "to": "",
+      "from": ".replace(HOME_RELATIVE, homeRelative)",
+      "to": ".replace(HOME_RELATIVE, '~<path>')",
       "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
     },
     {
@@ -78,8 +78,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
-      "to": "    return out.replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
+      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, homeRelative).replace(ABSOLUTE, '<path>')",
+      "to": "    return out.replace(HOME_RELATIVE, homeRelative).replace(ABSOLUTE, '<path>')",
       "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
     },
     {
@@ -247,7 +247,7 @@
       "tests": [
         "tests/named-not-dropped.test.mjs"
       ],
-      "from": ".replace(HOME_RELATIVE, '~<path>')",
+      "from": ".replace(HOME_RELATIVE, homeRelative)",
       "to": "",
       "only": "^(?:a path under the home directory is a placeholder in either separator)$"
     },

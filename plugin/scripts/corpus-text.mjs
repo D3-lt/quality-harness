@@ -75,14 +75,23 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
   // A temp root under the home directory (a Windows %TEMP%) reaches here written `~/…` as well: the gates write a path under
   // the home that way (BACKLOG §409), and HOME_RELATIVE then made the whole of it `~<path>`, file name included (the Windows
-  // check of cec6203c). That spelling is the temp root's, as resolved, since the gates name a resolved path. Only a path that
-  // stays inside it is shown so: one whose rest climbs with `..` is left exactly as it came, for HOME_RELATIVE to redact as it
-  // always has (the Codex review of 7df3a7e7; redacting it here instead leaked through two other spellings, 82289dc7 and
-  // 96fddfd5). The shorthand matches what HOME_RELATIVE would, to the same TAIL, so what follows a path is unchanged.
+  // check of cec6203c). That spelling is the temp root's, as resolved, since the gates name a resolved path. It changes only
+  // what replaces a HOME_RELATIVE match, never where a match starts or ends: a match that is the shorthand and a rest inside
+  // the temp root (empty, or on through a separator, with no `..` segment) shows as `<tmp>` and that rest, and every other match
+  // is `~<path>` as before. Rewriting the shorthand in its own pass let it choose its own extent, and four rounds each found
+  // text that pass showed and v3.8.53 hid (the Codex review of 7df3a7e7, and the verifications of 82289dc7, 96fddfd5, 80e3060a
+  // and 002c4b3e: a climb, two spellings, a sibling past a space, and a shorthand inside another path).
   const CLIMBS = /(?:^|[\\/])\.\.(?:[\\/]|$)/
   const shorthand = [tmp, tmpResolved].filter(Boolean).map(t => path.relative(home ?? '', t))
     .filter(rel => home && rel && !rel.startsWith('..') && !path.isAbsolute(rel)).map(rel => `~/${rel.replaceAll('\\', '/')}`)
-    .map(prefix => new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)(${TAIL})`, 'g'))
+    .flatMap(spellings)
+  const homeRelative = match => {
+    for (const prefix of shorthand) {
+      const rest = match.slice(prefix.length)
+      if (match.startsWith(prefix) && (rest === '' || /^[\\/]/.test(rest)) && !CLIMBS.test(rest)) return `<tmp>${rest}`
+    }
+    return '~<path>'
+  }
   // Any other absolute path — a drive letter, a UNC share in either spelling, a
   // file: URL, or a POSIX root — becomes `<path>`. Not preceded by a path
   // character or by one of this function's own placeholders, so `docs/var/x`,
@@ -108,11 +117,7 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   return text => {
     let out = String(text)
     for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
-    // Inside it means a rest that is empty or goes on through a separator: TAIL reads `Temp private/x` on past the space as one
-    // path, a sibling of the temp root (the verification review of 80e3060a).
-    const inside = rest => (rest === '' || /^[\\/]/.test(rest)) && !CLIMBS.test(rest)
-    for (const pattern of shorthand) out = out.replace(pattern, (whole, rest) => (inside(rest) ? `<tmp>${rest}` : whole))
-    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')
+    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, homeRelative).replace(ABSOLUTE, '<path>')
   }
 }
 

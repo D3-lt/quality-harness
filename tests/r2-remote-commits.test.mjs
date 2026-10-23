@@ -105,3 +105,29 @@ test('an origin/HEAD that is not a remote-tracking branch, or a local upstream, 
     assert.match(named, /unpublished one/, `${shape} hides nothing: ${named}`)
   }
 })
+
+// The third verification review: a branch may be named `topic/HEAD`, and an upstream there is a remote-tracking branch like
+// any other; rejecting every name ending in /HEAD named its landed commits as unchecked.
+test('an upstream on a branch named topic/HEAD leaves out what it holds', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'topic-head', DECLARED)
+  const hook = payload => runHook(box, repo, 'topic-head-1', payload)
+  hook({ hook_event_name: 'SessionStart', source: 'startup' })
+  const commit = (file, subject) => {
+    writeFileSync(path.join(repo, file), `export const x = '${subject}'\n`)
+    git(repo, box, 'add', '-A')
+    git(repo, box, 'commit', '-q', '-m', subject, '--no-gpg-sign')
+  }
+  const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
+  git(repo, box, 'remote', 'add', 'peer', 'https://example.invalid/topic-head.git')
+  git(repo, box, 'config', `branch.${branch}.remote`, 'peer')
+  git(repo, box, 'config', `branch.${branch}.merge`, 'refs/heads/topic/HEAD')
+  commit('src/b.js', 'landed one')
+  commit('src/c.js', 'landed two')
+  git(repo, box, 'update-ref', 'refs/remotes/peer/topic/HEAD', 'HEAD')
+  commit('src/d.js', 'local only')
+  commit('src/e.js', 'local tip')
+  const said_ = said(hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' }))
+  assert.match(said_, /local only/, said_)
+  assert.doesNotMatch(said_, /landed (one|two)/, said_)
+})

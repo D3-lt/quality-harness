@@ -601,7 +601,7 @@ func sessionCommits(entries []any, root string, head any) commitList {
 		gitLines(root, []string{"symbolic-ref", "-q", "refs/remotes/origin/HEAD"}, false),
 	}
 	for _, name := range names {
-		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) || strings.HasSuffix(name.list[0], "/HEAD") {
+		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) {
 			continue
 		}
 		if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", name.list[0] + "^{commit}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {

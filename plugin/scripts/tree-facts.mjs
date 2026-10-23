@@ -416,7 +416,8 @@ export function sessionCommits(log, root, head) {
   // landed commits again (the Codex reviews of v3.8.53..42a903a8 and its fix round). Each must name a remote-tracking branch
   // (refs/remotes/<remote>/<branch>): an upstream that is a local branch (remote "."), an origin/HEAD that is not symbolic, or
   // one aliased to a local branch held commits nothing published (the second verification review). Neither excludes nothing.
-  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/.test(name) && !name.endsWith('/HEAD')
+  // A branch may be named `topic/HEAD`; symbolic-ref already returns what origin/HEAD points at (the third verification review).
+  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/.test(name)
   const names = [
     gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}']),
     gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),

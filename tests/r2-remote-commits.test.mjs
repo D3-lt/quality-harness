@@ -134,10 +134,12 @@ test('an upstream on a branch named topic/HEAD leaves out what it holds', { skip
 
 // The fourth verification review: an upstream whose merge ref is refs/heads/HEAD resolves to refs/remotes/origin/HEAD, which
 // is the remote's own HEAD, not a branch. A non-symbolic one at a local commit published nothing, so it hides nothing. The
-// fifth: a remote's name may hold a slash, and team/peer's own HEAD reads as a branch `peer/HEAD` of a remote `team`.
+// fifth: a remote's name may hold a slash, and team/peer's own HEAD reads as a branch `peer/HEAD` of a remote `team`. The sixth:
+// a remote's name may end in a non-ASCII space (U+00A0), which a Unicode trim of git's output dropped, so that remote's HEAD read
+// as a branch of the remote `team` beside it.
 test('an upstream that resolves to a remote\'s own HEAD hides nothing', { skip }, t => {
   // One repository and session per remote: R2 names a commit once per context.
-  for (const [n, remote] of ['origin', 'team/peer'].entries()) {
+  for (const [n, [remote, ...beside]] of [['origin'], ['team/peer'], [`team/peer${String.fromCharCode(0xa0)}`, 'team']].entries()) {
     const box = sandbox(t)
     const repo = fixtureRepo(box, `remote-head-${n}`, DECLARED)
     const hook = payload => runHook(box, repo, `remote-head-${n}`, payload)
@@ -150,6 +152,8 @@ test('an upstream that resolves to a remote\'s own HEAD hides nothing', { skip }
     const branch = git(repo, box, 'symbolic-ref', '--short', 'HEAD')
     git(repo, box, 'remote', 'add', remote, 'https://example.invalid/remote-head.git')
     git(repo, box, 'config', `branch.${branch}.remote`, remote)
+    // `git remote add` refuses a remote that nests with another; configuration declares one all the same.
+    for (const other of beside) git(repo, box, 'config', `remote.${other}.url`, 'https://example.invalid/beside.git')
     git(repo, box, 'config', `branch.${branch}.merge`, 'refs/heads/HEAD')
     commit('src/b.js', 'unpublished one')
     git(repo, box, 'update-ref', `refs/remotes/${remote}/HEAD`, 'HEAD')

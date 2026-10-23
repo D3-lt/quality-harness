@@ -328,7 +328,9 @@ export function gitLines(root, args, { nul = false } = {}) {
     return mark([], false, why)
   }
   if (nul) return mark(run.stdout.split('\0').filter(Boolean), true)
-  return mark(run.stdout.split('\n').map(line => line.trimEnd()).filter(Boolean), true)
+  // ASCII whitespace only, as the Go core trims: a git name may end in other whitespace (a remote `team/peer` + U+00A0), and
+  // trimEnd() read that one as remote `team/peer` (the sixth verification review of R2).
+  return mark(run.stdout.split('\n').map(line => line.replace(/[ \t\r\n\v\f]+$/, '')).filter(Boolean), true)
 }
 
 // The harness's own bookkeeping is not the session's work. CLAUDE_PLUGIN_DATA is

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the sixth verification review: git's output lines lose trailing Unicode whitespace, so a remote ending in U+00A0 reads as another",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "  return mark(run.stdout.split('\\n').map(line => line.replace(/[ \\t\\r\\n\\v\\f]+$/, '')).filter(Boolean), true)",
+      "to": "  return mark(run.stdout.split('\\n').map(line => line.trimEnd()).filter(Boolean), true)",
+      "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
+    },
+    {
       "label": "the fourth verification review: an upstream at a remote's own HEAD hides commits from R2",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/r2-remote-commits.test.mjs"],

@@ -3755,7 +3755,7 @@ comment now reads as `home_shown`'s, and it is false there. The fix is one helpe
 gate, with the copies removed, placed above that comment block where a local definition must stay. It is deferred because it
 touches eleven gates and their goldens, and 3.8.54's change is the redaction itself. Open until there is one definition.
 
-## 420. R2 leaves out a commit this session pushed to its own upstream (open: the owner's decision)
+## 420. R2 leaves out a commit this session pushed to its own upstream (closed: the owner keeps it)
 
 Found 2026-10-23 by the ultrareview of v3.8.53..main. Since §411, sessionCommits passes `--not <upstream>`, so a commit the
 session made without a check and then pushed to its configured upstream is not named at Stop. §411 recorded that cost ("a
@@ -3765,3 +3765,5 @@ publish refusal (ADR-061) still stands in front of the push itself in an armed s
 through (`"publish": "warn"`, or a push it could not see). One candidate: leave out only what the upstream held when the
 session began, plus what a fetch brought, and keep naming what this session pushed. It is open because the owner chose the
 current reading on 2026-10-23 ("Skip remote commits"), and changing it is the owner's call.
+Closed 2026-10-23: the owner keeps the current reading ("skip what it holds"). What R2 adds over R1 is a commit below HEAD
+whose tree never passed; one already in the upstream is CI's to answer for, as far as the repository can tell.

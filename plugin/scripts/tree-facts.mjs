@@ -396,7 +396,10 @@ export function sessionCommits(log, root, head) {
   if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
   // Everything reachable from HEAD is new when the session began with nothing.
   const range = unborn ? [head] : [`${first}..${head}`]
-  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range])
+  // Not a commit a remote ref already reaches: landed or fetched work is published, and CI's to answer for. A fast-forward
+  // over landed commits named 277 of them as unchecked with HEAD's tree freshly checked (the owner, 2026-10-23); ADR-060's
+  // step 14 still holds, since a local commit no remote has is named whatever its descendants hold.
+  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range, '--not', '--remotes'])
   return mark(lines.map(line => {
     const [sha, tree, ...subject] = line.split('\t')
     return { sha, tree, subject: subject.join('\t') }

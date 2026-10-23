@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the owner, 2026-10-23: R2 names commits a remote ref already reaches",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "from": "['log', '--format=%H%x09%T%x09%s', ...range, '--not', '--remotes']",
+      "to": "['log', '--format=%H%x09%T%x09%s', ...range]",
+      "only": "^(?:a commit a remote ref reaches is not named by R2, and a local one is)$"
+    },
+    {
       "label": "BACKLOG §409: a temp path is scratch only while the session's directory is outside the temp root",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": ["tests/lifecycle.test.mjs"],

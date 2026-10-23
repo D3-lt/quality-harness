@@ -547,7 +547,8 @@ type commitList struct {
 	why    string
 }
 
-// sessionCommits are the commits reachable now that were not when the session started.
+// sessionCommits are the commits reachable now that were not when the session started, less those a remote ref already
+// reaches (tree-facts.mjs sessionCommits: landed or fetched work is published, and CI's to answer for).
 func sessionCommits(entries []any, root string, head any) commitList {
 	baseline := get(sessionBaseline(entries), "observation")
 	first := get(baseline, "head")
@@ -564,7 +565,7 @@ func sessionCommits(entries []any, root string, head any) commitList {
 	if !unborn {
 		rng = firstSha + ".." + headSha
 	}
-	ls := gitLines(root, []string{"log", "--format=%H%x09%T%x09%s", rng}, false)
+	ls := gitLines(root, []string{"log", "--format=%H%x09%T%x09%s", rng, "--not", "--remotes"}, false)
 	out := []*commit{}
 	for _, line := range ls.list {
 		parts := strings.Split(line, "\t")

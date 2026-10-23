@@ -3775,3 +3775,12 @@ session began, plus what a fetch brought, and keep naming what this session push
 current reading on 2026-10-23 ("Skip remote commits"), and changing it is the owner's call.
 Closed 2026-10-23: the owner keeps the current reading ("skip what it holds"). What R2 adds over R1 is a commit below HEAD
 whose tree never passed; one already in the upstream is CI's to answer for, as far as the repository can tell.
+
+## 421. ADR-104's exemption reads one bare commit; a staged-and-committed chain into another repository is refused
+
+Found 2026-10-23 seeding a second repository from this session: `cd <other repo> && git add -A && git commit -F -` and
+`git -C <other repo> commit -F - <<'EOF' …; echo $?; git -C <other repo> log` were both refused by the publish guard as this
+checkout's unchecked publish; the bare `git -C <other repo> commit -F - <<'EOF' … EOF` alone was advised (ADR-104). The
+refusal is the conservative side, and a trailing `echo` or `git log` cannot publish this checkout; `git add` before the commit
+cannot either. A widened exemption is a classifier change (CLAUDE.md §16): each new data row needs its code-again twin (a
+`cd` back, a second `git` that is a commit here). Open; bug-fix scope.

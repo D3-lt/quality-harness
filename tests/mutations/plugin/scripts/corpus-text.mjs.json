@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "the Windows check of cec6203c: a temp root under the home, written from the home, is redacted whole",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": ["tests/scrub-temp-under-home.test.mjs"],
+      "from": "[tmp, '<tmp>'], ...tmpUnderHome.map(t => [t, '<tmp>']), [home, '<home>']]",
+      "to": "[tmp, '<tmp>'], [home, '<home>']]",
+      "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
+    },
+    {
+      "label": "the Windows check of cec6203c: the temp root under the home is taken as given, never as resolved",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": ["tests/scrub-temp-under-home.test.mjs"],
+      "from": "const tmpUnderHome = [tmp, tmpResolved]",
+      "to": "const tmpUnderHome = [tmp]",
+      "only": "^(?:a temp root under the home, written from the home, is the temp root, and nothing else under the home is)$"
+    },
+    {
       "label": "lifecycle: a path in the ready line cannot break out of its code span (2.110.0-rc round 2 N4)",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": [

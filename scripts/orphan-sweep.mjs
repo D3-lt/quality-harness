@@ -225,7 +225,9 @@ def shell_comments(text):
     return spans, stack == ["code"] and not pending
 
 out, incomplete = {}, {}
-for path, text in json.load(sys.stdin).items():
+# As bytes: -I ignores PYTHONUTF8, and a Windows stdin decoded by the locale (cp1252) turned the UTF-8 the sweep sends into
+# surrogates (the Windows check of cec6203c).
+for path, text in json.loads(sys.stdin.buffer.read().decode("utf-8")).items():
     try:
         if path.endswith((".mjs", ".js")):
             _masked, kinds, complete = js_reading(text, path[path.rindex("."):])

@@ -66,7 +66,8 @@ func TestPassCandidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(scratch)
-	project := filepath.Join(string(filepath.Separator), "not-under-the-temp-root", "project")
+	// On the scratch directory's volume: a path with no drive is not absolute on Windows (the Windows check of cec6203c).
+	project := filepath.Join(filepath.VolumeName(scratch)+string(filepath.Separator), "not-under-the-temp-root", "project")
 	record := filepath.Join(project, "docs", "adr", "ADR-001-x.md")
 	answeredRecord := filepath.Join(project, "docs", "adr", "ADR-002-y.md")
 	corpus := filepath.Join(scratch, "ADR-003-z.md")

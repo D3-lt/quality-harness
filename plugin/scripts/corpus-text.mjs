@@ -2,8 +2,17 @@
 // front of the model: control characters and tag-like markers are rewritten, quoted text is bounded, and a code span adapts
 // its fence so nothing inside can close it. Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B2). It reads no
 // file, process, event or clock: `scrubber` takes the home and temp directories it should hide as arguments, and its
-// defaults are the only environment it touches. Its answers are held by tests/goldens/ and the tests that name these functions.
+// defaults are the only environment it touches (the temp root's resolved spelling among them). Its answers are held by
+// tests/goldens/ and the tests that name these functions.
+import { realpathSync } from 'node:fs'
 import os from 'node:os'
+import path from 'node:path'
+
+// The temp root as the file system spells it, or as given when that cannot be read: Windows can hand out an 8.3 %TEMP%
+// (C:\Users\RUNNER~1\…) while the home is spelled long, and the gates name the long path.
+const resolvedOr = directory => {
+  try { return realpathSync.native(directory) } catch { return directory }
+}
 
 // ⚠ CORPUS TEXT IS QUOTED, NEVER SPOKEN IN THE TOOL'S VOICE. A task's title and
 // Acceptance fence reach a session's context at startup, and a chaos round planted
@@ -45,13 +54,18 @@ export function corpusText(value, max = 160) {
  * and ate `docs/var/cache/tasks/T1.md` down to `docs<path>` (Codex review of
  * bdeba73, P1 and P2).
  */
-export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir() }) {
+export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir(), tmpResolved = resolvedOr(tmp) }) {
   const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])]
   // A known prefix is replaced only where it starts a path token and ends at a
   // separator or the end of the token: `.split('/tmp')` turned `docs/tmp/x` into
   // `docs<tmp>/x` on any Linux host (Codex review of 1032720, P2).
-  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], [home, '<home>']]
+  // A temp root under the home directory (a Windows %TEMP%) reaches here written `~/…` as well: the gates write a path under
+  // the home that way (BACKLOG §409), and HOME_RELATIVE then made the whole of it `~<path>`, file name included (the Windows
+  // check of cec6203c). That spelling is the temp root's, as resolved, since the gates name a resolved path.
+  const tmpUnderHome = [tmp, tmpResolved].filter(Boolean).map(t => path.relative(home ?? '', t))
+    .filter(rel => home && rel && !rel.startsWith('..') && !path.isAbsolute(rel)).map(rel => `~/${rel.replaceAll('\\', '/')}`)
+  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], ...tmpUnderHome.map(t => [t, '<tmp>']), [home, '<home>']]
     .filter(([prefix]) => prefix)
     .map(([prefix, placeholder]) => [
       new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)`, 'g'), placeholder])

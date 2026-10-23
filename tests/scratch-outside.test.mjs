@@ -17,7 +17,10 @@ test('a case alias of the project is the project where the file system folds cas
   const lookup = () => ({ ok: true, root: project })
   assert.equal(scratchOutside(record, project, { platform: 'darwin', lookup }), false, 'macOS folds case: the record is the project\'s')
   assert.equal(scratchOutside(record, project, { platform: 'win32', lookup }), false, 'so does Windows')
-  assert.equal(scratchOutside(record, project, { platform: 'linux', lookup }), true, 'Linux does not: another directory, so scratch')
+  // A win32 host cannot answer for Linux: Node's path.relative there folds case by itself (the Windows check of cec6203c).
+  if (process.platform !== 'win32') {
+    assert.equal(scratchOutside(record, project, { platform: 'linux', lookup }), true, 'Linux does not: another directory, so scratch')
+  }
 })
 
 test('a repository git could not answer about is gated, never narrowed to the session directory', () => {

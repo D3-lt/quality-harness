@@ -28,3 +28,40 @@ test('a temp root under the home, written from the home, is the temp root, and n
   }
   assert.equal(scrub('~/AppData/Local/Temp/qh-1/..x/y.md'), '<tmp>/qh-1/..x/y.md')
 })
+
+// Four review rounds each found one more input where the shorthand showed something v3.8.53 did not, and an open-ended
+// enumeration by a reviewer ran out of time, so the property is measured: a marker placed only outside the temp root (run on
+// from the bare prefix, a sibling, or after a `..` segment) is never shown more often than a scrubber with no shorthand, whose
+// known prefixes are v3.8.53's, shows it. Seeded, so a failure reproduces; 300000 draws found none on 2026-10-23.
+test('nothing outside the temp root is shown that a scrubber without the shorthand hides', () => {
+  const options = { root: '/work/repo', pluginRoot: '/opt/plugin', home: '/home/someone', tmp: '/home/SOMEON~1/AppData/Local/Temp' }
+  const scrub = scrubber({ ...options, tmpResolved: '/home/someone/AppData/Local/Temp' })
+  const before = scrubber({ ...options, tmp: '/elsewhere', tmpResolved: '/elsewhere' })
+  let seed = 0x9e3779b9
+  const draw = n => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) % n
+  }
+  const pieces = ['/', '\\', ' ', '\t', "'", '"', '`', ')', '(', 'x', '..', '.', '-', ':', '~', '<', '>', 'y z', '\n']
+  const shown = text => text.split('SECRET').length - 1
+  let differing = 0
+  for (let i = 0; i < 20000; i++) {
+    const parts = []
+    for (let j = draw(7); j > 0; j--) parts.push(pieces[draw(pieces.length)])
+    let prefix = ['~/AppData/Local/Temp', '~\\AppData\\Local\\Temp'][draw(2)]
+    if (draw(2) === 0) parts.unshift(['SECRET', ' SECRET', '\tSECRET', '-SECRET', '.SECRET'][draw(5)])
+    else {
+      prefix += ['/', '\\'][draw(2)]
+      parts.splice(draw(parts.length + 1), 0, ['/../SECRET', '\\..\\SECRET', '/x/../../SECRET', '/..', '\\..'][draw(5)])
+    }
+    const input = ['', ' ', '"', "'", '`', 'at ', '(', ':'][draw(8)] + prefix + parts.join('') + ['', ' ', '"', "'", '`', ' then', ')'][draw(7)]
+    if (scrub(input) !== before(input)) differing++
+    assert.ok(shown(scrub(input)) <= shown(before(input)), JSON.stringify({ input, now: scrub(input), before: before(input) }))
+  }
+  // DIRTY twin: the measure sees a marker the shorthand shows, so a clean run is not a blind one; and the draws reach inputs
+  // the shorthand does change.
+  assert.ok(shown(scrub('~/AppData/Local/Temp/SECRET')) > shown(before('~/AppData/Local/Temp/SECRET')))
+  assert.ok(differing > 1000, `only ${differing} draws reached the shorthand`)
+})

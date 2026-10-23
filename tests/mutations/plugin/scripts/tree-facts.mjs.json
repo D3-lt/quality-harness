@@ -9,6 +9,38 @@
       "only": "^(?:a commit a remote ref reaches is not named by R2, and a local one is)$"
     },
     {
+      "label": "BACKLOG §409: a temp path is scratch only while the session's directory is outside the temp root",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  if (!underTempRoot(cwd)) return true\n  const directory = nearestExistingDirectory(path.resolve(cwd))",
+      "to": "  return !underTempRoot(cwd)\n  const directory = nearestExistingDirectory(path.resolve(cwd))",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
+      "label": "BACKLOG §409: a path spelled inside the session's directory, through a link out of it, is scratch",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  return outside(spelled, path.resolve(file)) && outside(real(base), real(file))",
+      "to": "  return outside(real(base), real(file))",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
+      "label": "BACKLOG §409: a path whose real location is inside the session's directory is scratch",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  return outside(spelled, path.resolve(file)) && outside(real(base), real(file))",
+      "to": "  return outside(spelled, path.resolve(file))",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
+      "label": "BACKLOG §409: a session in a subdirectory owns only that subdirectory",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "  const base = (directory && gitRepositoryRoot(directory)) || path.resolve(cwd)",
+      "to": "  const base = path.resolve(cwd)",
+      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
+    },
+    {
       "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [

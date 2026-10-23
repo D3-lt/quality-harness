@@ -55,6 +55,46 @@ func underTempRootAt(candidate string, depth int) bool {
 	return false
 }
 
+// scratchOutside is tree-facts.mjs's: a temp file that is not the project's own. Outside the temp root a project is judged as
+// it always was (every temp file is scratch); a project under it (BACKLOG §409) owns what lies inside its repository, or cwd
+// outside one, by spelling or by real location.
+func scratchOutside(file, cwd string) bool {
+	if !underTempRoot(file) {
+		return false
+	}
+	if !underTempRoot(cwd) {
+		return true
+	}
+	base := resolvePath(cwd)
+	if directory := nearestExistingDirectory(base); directory != "" {
+		if root := gitRepositoryRoot(directory); root != "" {
+			base = root
+		}
+	}
+	real := func(candidate string) string {
+		absolute := resolvePath(candidate)
+		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+			return resolved
+		}
+		if anchor := nearestExistingDirectory(absolute); anchor != "" {
+			if realAnchor, err := filepath.EvalSymlinks(anchor); err == nil {
+				return filepath.Join(realAnchor, relPath(anchor, absolute))
+			}
+		}
+		return absolute
+	}
+	outside := func(from, target string) bool {
+		relative, err := filepath.Rel(from, target)
+		if err != nil {
+			return true
+		}
+		return relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative)
+	}
+	// The root in cwd's own spelling: git names it resolved (macOS's /private/var), and the file is spelled as cwd is.
+	spelled := filepath.Join(resolvePath(cwd), relPath(real(cwd), real(base)))
+	return outside(spelled, resolvePath(file)) && outside(real(base), real(file))
+}
+
 // The identity of a repository cannot change inside one hook process (ADR-095 T3): a successful answer is kept, by the
 // directory as the file system resolves it and the argument list.
 var identityAnswers = map[string]runResult{}

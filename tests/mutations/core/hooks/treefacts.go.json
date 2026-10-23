@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §409: the Go core treats a temp path as scratch only while cwd is outside the temp root",
+      "file": "core/hooks/treefacts.go",
+      "tests": ["tests/lifecycle.test.mjs"],
+      "from": "\treturn outside(spelled, resolvePath(file)) && outside(real(base), real(file))",
+      "to": "\treturn !underTempRoot(cwd)",
+      "only": "^(?:the Go core's scratch rule answers as the Node one does)$"
+    },
+    {
       "label": "ADR-120 T9: the Go index's code tree is the working tree's",
       "file": "core/hooks/treefacts.go",
       "tests": ["tests/prose-pass.test.mjs"],

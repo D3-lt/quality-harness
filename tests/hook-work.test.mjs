@@ -107,8 +107,9 @@ test('artifact passes check equivalent ADR inputs once and check fresh changes o
   writeFileSync(second, readFileSync(second, 'utf8').replace('## Missing acceptance', '## Acceptance'))
   assert.equal(check([first, second]).finding, null)
 
-  // Equal basenames in different directories are different gate inputs.
-  const other = path.join(root, 'other project')
+  // Equal basenames in different directories are different gate inputs. The other project sits inside this one: a temp
+  // path outside the session's directory is a scratch corpus and is not gated at all (BACKLOG §409).
+  const other = path.join(project, 'other project')
   cpSync(fixture, other, { recursive: true })
   const distinct = check([first, path.join(other, 'tasks', 'T1-fixture.md')])
   assert.equal(distinct.finding, null, distinct.finding)

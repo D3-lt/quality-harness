@@ -39,6 +39,34 @@ export function underTempRoot(candidate, depth = 0) {
   return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
 }
 
+// A scratch path: a file under the OS temp root that is not the project's own. A project outside the temp root is judged as it
+// always was: every temp file is scratch. A project that itself sits under the temp root (a Windows clone in a scratchpad under
+// %TEMP%, BACKLOG §409) keeps its own records gated, and a temp file outside it is scratch. Its own means inside its repository
+// (or `cwd`, outside one) by spelling or by real location: a write through a link in the project is the project's, wherever the
+// link points (the writes-and-stops golden's directory link), and a session started in a subdirectory owns the whole repository.
+export function scratchOutside(file, cwd) {
+  if (!underTempRoot(file)) return false
+  if (!underTempRoot(cwd)) return true
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  const base = (directory && gitRepositoryRoot(directory)) || path.resolve(cwd)
+  const real = candidate => {
+    const absolute = path.resolve(candidate)
+    try { return realpathSync(absolute) } catch {
+      try {
+        const anchor = nearestExistingDirectory(absolute)
+        return anchor ? path.join(realpathSync(anchor), path.relative(anchor, absolute)) : absolute
+      } catch { return absolute }
+    }
+  }
+  const outside = (from, target) => {
+    const relative = path.relative(from, target)
+    return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
+  }
+  // The root in cwd's own spelling: git names it resolved (macOS's /private/var), and the file is spelled as cwd is.
+  const spelled = path.resolve(cwd, path.relative(real(cwd), real(base)))
+  return outside(spelled, path.resolve(file)) && outside(real(base), real(file))
+}
+
 // ADR-095 T3. The identity of a repository (its toplevel, where its index and its objects are) cannot change inside one hook
 // process, and a Stop event asked for the toplevel six times. A successful answer is kept for the life of the process, by
 // directory and argument list. Nothing else about git is kept: what the tree holds, what the index holds and what HEAD is can

@@ -749,9 +749,22 @@ test('a reader that decides to stay silent is not drowned out by its own childre
 // A due brief starts a detached refresher whose cwd is the repository, and Windows
 // will not delete a directory that is some process's cwd — a Windows outside run of
 // 3.0.0 (2026-09-26) failed cleanup with EPERM. Wait for the refresher, then retry.
+// BACKLOG §407: it failed again on a contended Windows peer (2026-10-22) after the whole
+// linear backoff (about 52 s), so something held the directory long after the lock was
+// released. A failure now says what was running, so the next one names the holder.
 function removeRepository(dir) {
-  waitForNoRefresher(path.join(dir, '.git'))
-  rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
+  const released = waitForNoRefresher(path.join(dir, '.git'))
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
+  } catch (error) {
+    const listing = process.platform === 'win32'
+      ? spawnSync('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "branch-state|\\bgh(\\.exe)?\\b|\\bgit(\\.exe)?\\b" } | Format-List ProcessId,ParentProcessId,CreationDate,CommandLine'],
+        { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+      : spawnSync('ps', ['-Ao', 'pid,ppid,etime,command'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+    error.message += `\nthe refresher's lock ${released ? 'was released' : 'was still held after 20 s'}; running at the failure:\n`
+      + `${listing.stdout || listing.stderr || listing.error?.message || 'nothing could be listed'}`
+    throw error
+  }
 }
 
 function keyedRepository(t, prefix) {

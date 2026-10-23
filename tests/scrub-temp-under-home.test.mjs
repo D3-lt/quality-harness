@@ -24,7 +24,9 @@ test('a temp root under the home, written from the home, is the temp root, and n
     '~/AppData/Local/Temp private/secret.md', '~\\AppData\\Local\\Temp private\\secret.md', '"~/AppData/Local/Temp private/x.md"',
     '`~/AppData/Local/Temp private/x.md`', '~/AppData/Local/TempX/secret.md',
     // The verification review of 002c4b3e: the shorthand inside another home-relative path.
-    '~/private SECRET:~/AppData/Local/Temp', '"~/private SECRET:~/AppData/Local/Temp/x"', '~\\private SECRET:~\\AppData\\Local\\Temp']) {
+    '~/private SECRET:~/AppData/Local/Temp', '"~/private SECRET:~/AppData/Local/Temp/x"', '~\\private SECRET:~\\AppData\\Local\\Temp',
+    // The verification review of 86c98a1e: a rest that carries a second path past a space, or a drive past a colon.
+    '~/AppData/Local/Temp/x ~\\Projects\\SECRET.md', '~/AppData/Local/Temp/x:C:\\Users\\x\\SECRET', '~/AppData/Local/Temp/x~/SECRET']) {
     assert.equal(scrub(climbing), before(climbing), climbing)
     assert.doesNotMatch(scrub(climbing), /<tmp>/, climbing)
   }
@@ -56,7 +58,8 @@ test('nothing outside the temp root is shown that a scrubber without the shortha
     if (draw(2) === 0) parts.unshift(['SECRET', ' SECRET', '\tSECRET', '-SECRET', '.SECRET'][draw(5)])
     else {
       prefix += ['/', '\\'][draw(2)]
-      parts.splice(draw(parts.length + 1), 0, ['/../SECRET', '\\..\\SECRET', '/x/../../SECRET', '/..', '\\..'][draw(5)])
+      parts.splice(draw(parts.length + 1), 0, ['/../SECRET', '\\..\\SECRET', '/x/../../SECRET', '/..', '\\..', ' ~\\Projects\\SECRET',
+        ' ~/SECRET', ':C:\\SECRET', ' /home/x/SECRET', 'x ~\\SECRET', '~/SECRET', ' \\\\host\\SECRET'][draw(12)])
     }
     const input = ['', ' ', '"', "'", '`', 'at ', '(', ':', '~/private SECRET:', '~\\private SECRET:', '~/p SECRET/', '/x SECRET:'][draw(12)]
       + prefix + parts.join('') + ['', ' ', '"', "'", '`', ' then', ')'][draw(7)]

@@ -88,7 +88,10 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   const homeRelative = match => {
     for (const prefix of shorthand) {
       const rest = match.slice(prefix.length)
-      if (match.startsWith(prefix) && (rest === '' || /^[\\/]/.test(rest)) && !CLIMBS.test(rest)) return `<tmp>${rest}`
+      // An allowlist, not a pattern for what may not follow: one name of word characters, dots, dashes and separators. A rest
+      // past a space carried a second path (`<tmp>/x ~\Projects\SECRET.md`, the verification review of 86c98a1e), and a rest
+      // holding a colon could carry a drive; a name with any other character in it stays hidden, which is the safe side.
+      if (match.startsWith(prefix) && /^(?:[\\/][\w.\\/-]*)?$/.test(rest) && !CLIMBS.test(rest)) return `<tmp>${rest}`
     }
     return '~<path>'
   }

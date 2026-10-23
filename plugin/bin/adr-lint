@@ -1171,7 +1171,8 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     # 2026-10-23 (ADR-127, ADR-128) a new record's missing row was caught only by the full check at release time. Said where
     # the record is linted, as advice. A README beside the record is a catalog only when a table row of it starts with a link
     # to a record (a link in prose is a reference, not an index), and it links this record when any link's destination,
-    # its fragment dropped, resolves to this file, as adr-retire-check resolves them (the Codex review of d21fa2cc).
+    # its fragment dropped, resolves to this file, by adr-retire-check's own `links_in` rule, character for character (the
+    # Codex review of d21fa2cc, and its verification: a padded destination is trimmed, and a query is part of the name).
     catalog = Path(adr_path).parent / "README.md"
     if status_value is not None and status_kind(status_value) == "governing" and catalog.is_file():
         try:
@@ -1181,9 +1182,9 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
         if listing is not None and re.search(r"^\|\s*\[ADR-\d+[^\]]*\]\([^)]+\.md(?:#[^)]*)?\)", listing, re.M):
             own = Path(adr_path).resolve()
             linked = False
-            for destination in re.findall(r"\]\(([^)\s]+)\)", listing):
-                local = destination.split("#", 1)[0].split("?", 1)[0]
-                if local and not re.match(r"^[a-z][a-z0-9+.-]*:", local, re.I):
+            for destination in re.findall(r"\[[^]]+\]\(([^)]+)\)", listing):
+                local = destination.split("#", 1)[0].strip()
+                if local and not re.match(r"^[a-z]+://", local, re.I):
                     try:
                         linked = linked or (catalog.parent / local).resolve() == own
                     except (OSError, ValueError):

@@ -9,10 +9,18 @@
       "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
     },
     {
+      "label": "the verification of c53d8a55: a link's query is dropped, so a link to another name reads as this record",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-catalog-link.test.mjs"],
+      "from": "                local = destination.split(\"#\", 1)[0].strip()",
+      "to": "                local = destination.split(\"#\", 1)[0].split(\"?\", 1)[0].strip()",
+      "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
+    },
+    {
       "label": "the Codex review of d21fa2cc: a link's fragment is kept, so a record linked with #section reads as unlinked",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-catalog-link.test.mjs"],
-      "from": "                local = destination.split(\"#\", 1)[0].split(\"?\", 1)[0]",
+      "from": "                local = destination.split(\"#\", 1)[0].strip()",
       "to": "                local = destination",
       "only": "^(?:an Accepted record the catalog beside it does not link is advised, and nothing else is)$"
     },

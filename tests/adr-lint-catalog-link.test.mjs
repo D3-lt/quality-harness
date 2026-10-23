@@ -43,6 +43,12 @@ test('an Accepted record the catalog beside it does not link is advised, and not
   assert.doesNotMatch(said(lint()), advised)
   catalog('# Reading notes\n\nFor the earlier design, see [Other](ADR-099-other.md).\n')
   assert.doesNotMatch(said(lint()), advised)
+  // Its verification: a destination padded with spaces links the record, as links_in trims it; a query is part of the name
+  // links_in resolves, so that link is not this record and the advice stands.
+  catalog('| [ADR-099](ADR-099-other.md) | another |\n| [ADR-001]( ADR-001-selftest.md ) | this |\n')
+  assert.doesNotMatch(said(lint()), advised)
+  catalog('| [ADR-099](ADR-099-other.md) | another |\n| [ADR-001](ADR-001-selftest.md?view=1) | this |\n')
+  assert.match(said(lint()), advised)
   catalog('| [ADR-099](ADR-099-other.md) | another |\n')
   writeFileSync(record, readFileSync(record, 'utf8').replace('**Status:** Accepted', '**Status:** Proposed'))
   assert.doesNotMatch(said(lint()), advised)

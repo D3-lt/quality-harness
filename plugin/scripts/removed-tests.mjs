@@ -51,7 +51,9 @@ export const isTestFile = file => goTest(file) || TEST_FILE.some(pattern => patt
 // with `test('…'` is read as a definition (CLAUDE.md §16).
 const JS_DEFINITION = /^[ \t]*(?:await[ \t]+)?(?:test|it)(\.skip|\.todo|\.only)?[ \t]*\([ \t\r\n]*(?:'((?:\\.|[^'\\\r\n])*)'|"((?:\\.|[^"\\\r\n])*)"|`((?:\\.|[^`\\$])*)`)[ \t\r\n]*(,[ \t\r\n]*\{[^{}]*\})?/gm
 // A hook (`test.after(`, `it.beforeEach(`, `test.mock`) defines no test, so it is no call this has to name.
-const JS_CALL = /(?<![\w$.'"`])(?:test|it)(?![ \t]*\.[ \t]*(?:after|afterEach|before|beforeEach|mock)\b)(?:[ \t]*\.[ \t]*\w+)*\(/g
+// The parenthesis may follow on a later line (`test\n('b')`, the review of fa59d357): such a call has no definition here, so its
+// file is unread rather than read without it. A space alone before it is not a call, so `it (` in prose is not one.
+const JS_CALL = /(?<![\w$.'"`])(?:test|it)(?![ \t]*\.[ \t]*(?:after|afterEach|before|beforeEach|mock)\b)(?:[ \t]*\.[ \t]*\w+)*(?:[ \t]*\r?\n[ \t\r\n]*)?\(/g
 // A `skip` property, after the brace or a comma: `{ label: 'skip: true,' }` holds the words in a string and is no skip.
 const JS_SKIP_OPTION = /[{,][ \t\r\n]*skip[ \t]*:[ \t]*(?:true|'[^'\r\n]+'|"[^"\r\n]+")[ \t\r\n]*[,}]/
 const PY_DEF = /^[ \t]*(?:async[ \t]+)?def[ \t]+(test\w*)[ \t]*\(/
@@ -120,6 +122,8 @@ export function testNames(file, text) {
     const calls = new Set([...code.matchAll(JS_CALL)].map(match => match.index))
     if (definitions.length !== calls.size || definitions.some(match => !calls.has(at(match)))) return null
     for (const match of definitions) {
+      // Options whose skip this cannot know make the file unread: a spread may override it, and a repeated key does.
+      if (match[5] && (match[5].includes('...') || (match[5].match(/[{,][ \t\r\n]*skip[ \t]*:/g) ?? []).length > 1)) return null
       const name = unescaped(match[2] ?? match[3] ?? match[4])
       ;(match[1] === '.skip' || (match[5] && JS_SKIP_OPTION.test(match[5])) ? skip : run).push(name)
     }
@@ -128,6 +132,10 @@ export function testNames(file, text) {
   if (file.endsWith('.py')) {
     let skipped = false
     let quoted = null
+    // The `def`s and `class`es enclosing the line, by indent. pytest collects a test function at the top level or in a class
+    // named `Test…`; one inside another function, or in another class, is not collected, and this cannot tell what is: the file
+    // is unread (the review of fa59d357: a nested `def test_helper` read as a test).
+    const enclosing = []
     for (const line of text.split('\n')) {
       // A line inside a triple-quoted string is text, and is not read. A comment is dropped before its quote marks are counted,
       // and a definition is read before the marks on its own line open a string (`def test_a(): """Doc."""`). A `#` beside an odd
@@ -137,12 +145,19 @@ export function testNames(file, text) {
         for (const mark of quotes) quoted = quoted === null ? mark : quoted === mark ? null : quoted
         continue
       }
-      if (/^[ \t]*#/.test(line)) continue
+      if (/^[ \t]*(?:#|$)/.test(line)) continue
       if (quotes.length % 2 && line.includes('#')) return null
+      const indent = /^[ \t]*/.exec(line)[0].length
+      while (enclosing.length && enclosing.at(-1).indent >= indent) enclosing.pop()
       if (PY_SKIP.test(line)) skipped = true
       const def = PY_DEF.exec(line)
-      if (def) (skipped ? skip : run).push(def[1])
-      if (def || /^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]/.test(line)) skipped = false
+      if (def) {
+        if (enclosing.some(scope => scope.kind === 'def' || !/^Test/.test(scope.name))) return null
+        ;(skipped ? skip : run).push(def[1])
+      }
+      const scope = /^[ \t]*(?:async[ \t]+)?(def|class)[ \t]+(\w+)/.exec(line)
+      if (scope) enclosing.push({ indent, kind: scope[1], name: scope[2] })
+      if (def || scope) skipped = false
       for (const mark of quotes) quoted = quoted === null ? mark : quoted === mark ? null : quoted
     }
     return { run, skip }

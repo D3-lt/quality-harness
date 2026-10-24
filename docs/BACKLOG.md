@@ -3868,3 +3868,7 @@ definition, string and template examples, a method named `it`, a hook, a reforma
 beside code, and a Go multi-line signature. Seeds 1 to 3 made about 8,500 edits: 0 were read wrongly and about 24% read as
 unread. The same fuzz against eb770db0 made 262 wrong reads at seed 1, so it can fail. 312 of 326 files read whole; the replay
 gives the same 14 flags. Mutants 33/33.
+The review of v3.8.56..fa59d357, the fourth round, found three more inputs, each fixed as unread: a newline between `test` and
+`(`; a `def test_…` nested in another function or in a class pytest does not collect; and skip options with a spread or a
+repeated `skip` key. The fuzz gained the two JS edit classes: seeds 1 to 3, about 11,400 edits, 0 read wrongly. 311 of 326 files
+read whole; the replay gives the same 14 flags. Mutants 36/36.

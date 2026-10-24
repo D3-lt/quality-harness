@@ -270,6 +270,13 @@ test('test names: a file is read whole or not at all, and a name is the one the 
   }
   assert.deepEqual(testNames('a.test.mjs', "const glob = 'migrations/*.sql'\ntest('a', f) // see a/*b\ntest('b', f)\n"), { run: ['a', 'b'], skip: [] },
     'a /* inside a string or after // is read as a block comment')
+  // The review of fa59d357: what this cannot be sure of makes the file unread, never a file read without it.
+  for (const text of ["test('a', f)\ntest\n('b', f)\n", "test('a', { skip: true, ...options }, f)\n", "test('a', { skip: true, skip: false }, f)\n"]) {
+    assert.equal(testNames('a.test.mjs', text), null, text)
+  }
+  assert.equal(testNames('test_x.py', 'def test_outer():\n    def test_helper(): pass\n    test_helper()\n'), null, 'a nested def read as a test')
+  assert.equal(testNames('test_x.py', 'class Helper:\n    def test_x(self): pass\n'), null, 'a method of a class pytest does not collect read as a test')
+  assert.deepEqual(testNames('test_x.py', 'class TestK:\n    def test_a(self): pass\n\ndef test_b(): pass\n'), { run: ['test_a', 'test_b'], skip: [] })
   assert.deepEqual(testNames('test_x.py', '# Example delimiter: """\ndef test_a(): pass\ndef test_b(): """Doc."""\n'), { run: ['test_a', 'test_b'], skip: [] })
   assert.equal(testNames('test_x.py', 'x = 1  # """\ndef test_a(): pass\n'), null)
   assert.deepEqual(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc TestB(\n\tt *testing.T,\n) {}\nfunc Test(t *testing.T) {}\nfunc TestMain(m *testing.M) {}\nfunc BenchmarkB(b *testing.B) {}\n// func TestC(t *testing.T) {}\n'),

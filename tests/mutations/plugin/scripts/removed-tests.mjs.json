@@ -177,7 +177,7 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "      if (/^[ \\t]*#/.test(line)) continue\n      if (quotes.length % 2",
+      "from": "      if (/^[ \\t]*(?:#|$)/.test(line)) continue\n      if (quotes.length % 2",
       "to": "      if (quotes.length % 2"
     },
     {
@@ -213,8 +213,8 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "/[{,][ \\t\\r\\n]*skip[ \\t]*:",
-      "to": "/\\bskip[ \\t]*:"
+      "from": "/[{,][ \\t\\r\\n]*skip[ \\t]*:[ \\t]*(?:true",
+      "to": "/\\bskip[ \\t]*:[ \\t]*(?:true"
     },
     {
       "label": "removed tests: a skipped twin of a running test reads as that test skipped",
@@ -277,6 +277,33 @@
         "tests/removed-tests.test.mjs"
       ],
       "from": "else if (char === '/' && line[at + 1] === '/') return -1",
+      "to": ""
+    },
+    {
+      "label": "removed tests: a newline before the parenthesis hides a call",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(?:[ \\t]*\\r?\\n[ \\t\\r\\n]*)?\\(/g",
+      "to": "\\(/g"
+    },
+    {
+      "label": "removed tests: a spread or repeated skip option is read",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "      if (match[5] && (match[5].includes('...') || (match[5].match(/[{,][ \\t\\r\\n]*skip[ \\t]*:/g) ?? []).length > 1)) return null\n",
+      "to": ""
+    },
+    {
+      "label": "removed tests: a nested or uncollected Python def is read as a test",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "        if (enclosing.some(scope => scope.kind === 'def' || !/^Test/.test(scope.name))) return null\n",
       "to": ""
     }
   ]

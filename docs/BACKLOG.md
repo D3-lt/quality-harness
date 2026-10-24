@@ -3858,3 +3858,13 @@ definitions and calls admitted two different sets (`test ('a')` beside `{ test('
 definition is read before its line's marks open a string, and a `#` beside an odd number of marks makes the file unread. Each
 definition must start where a call starts, and each call where a definition does. Mutants 29/29; same 312 of 326 whole; the
 replay gives the same 14 flags. Left as a boundary, in both versions: `', skip: true,'` inside an option's string.
+The review of v3.8.56..4ff15e21 confirmed both closed, and found two more false-advice regressions of 9cac4e63. (1) A line
+that closes a block comment was dropped whole, code after `*/` with it. (2) A test moved into a file the reader cannot read whole
+was named gone. Now a block comment opening or closing beside code makes the file unread, and a `/*` inside a quote or after `//`
+opens nothing. While any changed or new test file cannot be read whole, no test is named gone. That was the third round finding
+inputs to one reader, so it was measured rather than reviewed again. A differential fuzz applied name-preserving edits at
+top-level statement starts in this repository's own test files: CRLF, line, block, one-line and JSDoc comments holding a
+definition, string and template examples, a method named `it`, a hook, a reformat, a trailing comment, a block comment closing
+beside code, and a Go multi-line signature. Seeds 1 to 3 made about 8,500 edits: 0 were read wrongly and about 24% read as
+unread. The same fuzz against eb770db0 made 262 wrong reads at seed 1, so it can fail. 312 of 326 files read whole; the replay
+gives the same 14 flags. Mutants 33/33.

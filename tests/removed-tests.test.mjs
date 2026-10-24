@@ -265,6 +265,11 @@ test('test names: a file is read whole or not at all, and a name is the one the 
     "describe('g', () => { test('a', f) })\n"]) assert.equal(testNames('a.test.mjs', text), null, text)
   assert.deepEqual(testNames('a.test.mjs', "test.after(() => {})\nit.beforeEach(() => {})\ntest('a', f)\n"), { run: ['a'], skip: [] })
   assert.equal(testNames('a.test.mjs', "test ('a', f)\n{ test('b', f) }\n"), null, 'a definition and a call that are not the same one read the file in part')
+  for (const text of ["test('a', f)\n/* explanation\nends here */ test('b', f)\n", "test('a', f) /* opens\ntest('b', f)\n*/\n", "test('a', f)\n/* never closed\n"]) {
+    assert.equal(testNames('a.test.mjs', text), null, `a block comment beside code, or one never closed, is cut cleanly: ${text}`)
+  }
+  assert.deepEqual(testNames('a.test.mjs', "const glob = 'migrations/*.sql'\ntest('a', f) // see a/*b\ntest('b', f)\n"), { run: ['a', 'b'], skip: [] },
+    'a /* inside a string or after // is read as a block comment')
   assert.deepEqual(testNames('test_x.py', '# Example delimiter: """\ndef test_a(): pass\ndef test_b(): """Doc."""\n'), { run: ['test_a', 'test_b'], skip: [] })
   assert.equal(testNames('test_x.py', 'x = 1  # """\ndef test_a(): pass\n'), null)
   assert.deepEqual(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc TestB(\n\tt *testing.T,\n) {}\nfunc Test(t *testing.T) {}\nfunc TestMain(m *testing.M) {}\nfunc BenchmarkB(b *testing.B) {}\n// func TestC(t *testing.T) {}\n'),
@@ -294,4 +299,21 @@ test('an edit that keeps every test says nothing: a reformat, an example, a loop
   writeFileSync(path.join(dir, 'x.test.mjs'), js("test('a', () => {})", "test.skip('b', () => {})"))
   const next = await run(dir)
   assert.ok(next.said.includes(TESTS_GONE) && next.said.includes("`it's`"), next.said)
+})
+
+test('a test moved into a file that cannot be read whole is not named gone', async () => {
+  const dir = repo('into-unread')
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('a', () => {})", "test('b', () => {})"))
+  writeFileSync(path.join(dir, 'y.test.mjs'), js("for (const n of ['c']) test(n, () => {})"))
+  await run(dir)
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('b', () => {})"))
+  writeFileSync(path.join(dir, 'y.test.mjs'), js("for (const n of ['c']) test(n, () => {})", "test('a', () => {})"))
+  const moved = await run(dir)
+  assert.ok(!moved.said.includes(TESTS_GONE), `a move into an unread file is read as a removal: ${moved.said}`)
+  // With the unread file unchanged, a removal is still named.
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('b', () => {})", "test('d', () => {})"))
+  await run(dir)
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('b', () => {})"))
+  const removed = await run(dir)
+  assert.ok(removed.said.includes(TESTS_GONE) && removed.said.includes('`d`'), removed.said)
 })

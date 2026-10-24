@@ -64,16 +64,46 @@ const unescaped = text => text.replace(/\\(?:u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4
   (_, braced, four, two, other) => braced || four || two ? String.fromCodePoint(Number.parseInt(braced || four || two, 16))
     : other === '\n' || other === '\r\n' ? '' : ESCAPES[other] ?? other)
 
-// The lines of `text` that are code: not a whole-line comment, and not inside a block comment opened at the start of a line.
+// Where a block comment opens on `line`, or -1: the first `/*` that is not inside a quote on that line and not after a `//`
+// that began a comment already. A glob in a string (`'migrations/*.sql'`) is no comment: read as one, it made this repository's
+// lifecycle tests unread (measured 2026-10-24, 292 of 326 files read whole, 312 with this).
+function commentOpen(line) {
+  let quote = null
+  for (let at = 0; at < line.length - 1; at++) {
+    const char = line[at]
+    if (quote) { if (char === '\\') at++; else if (char === quote) quote = null; continue }
+    if (char === "'" || char === '"' || char === '`') quote = char
+    else if (char === '/' && line[at + 1] === '/') return -1
+    else if (char === '/' && line[at + 1] === '*') return at
+  }
+  return -1
+}
+
+// The lines of `text` that are code: not a whole-line comment, and not inside a block comment. A line a block comment opens or
+// closes with code beside it, outside the comment, cannot be cut cleanly here (`ends here */ test('b')`, the review of
+// 4ff15e21), so the file is unread: null. A comment that opens and closes inside a code line is left in it, where a definition's
+// start cannot hide behind it: `/* x */ test('b')` is a call no definition matches, so that file is unread too.
 function codeLines(text, comment) {
   const kept = []
   let inBlock = false
   for (const line of text.split('\n')) {
-    if (inBlock) { if (line.includes('*/')) inBlock = false; continue }
-    if (/^[ \t]*\/\*/.test(line)) { inBlock = !line.includes('*/', line.indexOf('/*') + 2); continue }
-    if (!comment.test(line)) kept.push(line)
+    if (inBlock) {
+      const end = line.indexOf('*/')
+      if (end < 0) continue
+      inBlock = false
+      if (line.slice(end + 2).trim()) return null
+      continue
+    }
+    if (comment.test(line)) continue
+    const open = commentOpen(line)
+    if (open >= 0 && line.indexOf('*/', open + 2) < 0) {
+      if (line.slice(0, open).trim()) return null
+      inBlock = true
+      continue
+    }
+    kept.push(line)
   }
-  return kept.join('\n')
+  return inBlock ? null : kept.join('\n')
 }
 
 /** The names a test file defines, `{ run, skip }`, or null when its runner was not measured or the file cannot be read whole. */
@@ -82,6 +112,7 @@ export function testNames(file, text) {
   const skip = []
   if (/\.[cm]?[jt]sx?$/.test(file)) {
     const code = codeLines(text, /^[ \t]*(?:\/\/|\*)/)
+    if (code === null) return null
     const definitions = [...code.matchAll(JS_DEFINITION)]
     // Each definition must be a call and each call a definition, by where it starts: equal counts of two different sets read a
     // file in part (the verification review of 9cac4e63: `test ('a')` beside `{ test('b') }`).
@@ -118,6 +149,7 @@ export function testNames(file, text) {
   }
   if (file.endsWith('.go')) {
     const code = codeLines(text, /^[ \t]*\/\//)
+    if (code === null) return null
     const candidates = [...code.matchAll(GO_CANDIDATE)].filter(match => match[1] !== 'TestMain')
     const tests = [...code.matchAll(GO_TEST)]
     if (tests.length !== candidates.length) return null
@@ -138,6 +170,8 @@ function testFiles(root) {
   const files = {}
   const tests = {}
   const unread = new Set()
+  // A file whose runner was measured and whose names could not be read whole: a test may have moved into it, unseen.
+  const unnamed = new Set()
   for (const file of new Set(listed.stdout.split('\0').filter(Boolean))) {
     if (!isTestFile(file)) continue
     let bytes
@@ -148,8 +182,9 @@ function testFiles(root) {
     files[file] = createHash('sha256').update(bytes).digest('hex')
     const names = testNames(file, bytes.toString('utf8'))
     if (names) tests[file] = names
+    else if (/\.(?:[cm]?[jt]sx?|py|go)$/.test(file)) unnamed.add(file)
   }
-  return { files, tests, unread }
+  return { files, tests, unread, unnamed }
 }
 
 // Whether a path the last pass had is gone from the disk: true when nothing is there, false when something is (a file now
@@ -200,12 +235,15 @@ function testLines(last, now) {
   const before = last.tests
   const all = found => [...found.run, ...found.skip]
   const movedTo = new Set(Object.entries(now.tests).flatMap(([file, found]) => minus(all(found), before[file] ? all(before[file]) : [])))
+  const movedBlind = [...now.unnamed].some(file => last.files[file] !== now.files[file])
   const fewer = []
   const skipped = []
   for (const [file, found] of Object.entries(now.tests)) {
     const was = before[file]
     if (!was || last.files[file] === now.files[file]) continue
-    if (all(found).length < all(was).length) {
+    // "Did not move" needs every place a test could have moved to read: a changed or new file that could not be read whole may
+    // hold it (the review of 4ff15e21), so no test is named gone while one exists.
+    if (!movedBlind && all(found).length < all(was).length) {
       const gone = minus(all(was), all(found)).filter(name => !movedTo.has(name))
       if (gone.length) fewer.push(`\`${file}\` (${all(was).length - all(found).length} fewer; not there now: ${named(gone)})`)
     }

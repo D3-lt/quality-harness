@@ -96,8 +96,8 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "if (all(found).length < all(was).length) {",
-      "to": "if (true) {"
+      "from": "&& all(found).length < all(was).length) {",
+      "to": "&& true) {"
     },
     {
       "label": "removed tests: a test moved to another file reads as removed",
@@ -141,8 +141,8 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "if (!comment.test(line)) kept.push(line)",
-      "to": "kept.push(line)"
+      "from": "    if (comment.test(line)) continue\n",
+      "to": ""
     },
     {
       "label": "removed tests: an entry from before test names is unreadable",
@@ -242,6 +242,42 @@
       ],
       "from": "      if (quoted) {",
       "to": "if (false) {"
+    },
+    {
+      "label": "removed tests: code after a block comment's end is dropped with it",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "      if (line.slice(end + 2).trim()) return null\n",
+      "to": ""
+    },
+    {
+      "label": "removed tests: a move into an unread file reads as a removal",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (!movedBlind && all(found).length",
+      "to": "if (all(found).length"
+    },
+    {
+      "label": "removed tests: a glob in a string opens a block comment",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (char === \"'\" || char === '\"' || char === '`') quote = char",
+      "to": "if (false) quote = char"
+    },
+    {
+      "label": "removed tests: a /* after // opens a block comment",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "else if (char === '/' && line[at + 1] === '/') return -1",
+      "to": ""
     }
   ]
 }

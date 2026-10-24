@@ -1,0 +1,40 @@
+{
+  "mutations": [
+    {
+      "label": "removed tests: a moved test file is read as removed",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "!(name in now) && !hashes.has(last.files[name])",
+      "to": "!(name in now)"
+    },
+    {
+      "label": "removed tests: a pass on another branch is compared",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "asked.status === 1 ? false : null",
+      "to": "asked.status === 1 ? true : null"
+    },
+    {
+      "label": "removed tests: an unreadable record is not said",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (unread) {",
+      "to": "if (false) {"
+    },
+    {
+      "label": "removed tests: a pytest test_ file is not a test file",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "/(?:^|\\/)test_[^/]*\\.py$/,",
+      "to": "/(?:^|\\/)test_[^/]*\\.pyc$/,"
+    }
+  ]
+}

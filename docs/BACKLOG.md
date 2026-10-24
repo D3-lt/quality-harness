@@ -3791,3 +3791,19 @@ checkout's unchecked publish; the bare `git -C <other repo> commit -F - <<'EOF' 
 refusal is the conservative side, and a trailing `echo` or `git log` cannot publish this checkout; `git add` before the commit
 cannot either. A widened exemption is a classifier change (CLAUDE.md §16): each new data row needs its code-again twin (a
 `cd` back, a second `git` that is a commit here). Open; bug-fix scope.
+
+## 422. A test file that passed could be deleted, and the next pass said nothing; advised now
+
+Asked 2026-10-24 by a reader of the 3.8.55 announcement: "does it flag when the test count drops compared to the last run?" A run
+that scored no tests was already a failure (`adr-verify`, `completion-rules.mjs` `reportsZeroTestWork`), and a test a task locked
+could not vanish before done (`plugin/lib/record.py` `lock_findings`). A test that no task locked could be deleted, and the next
+pass said nothing. The owner chose (2026-10-24) to nudge from the ledger here and to send the count to qh-core.
+The ledger's trees cannot be read back: `observe` writes their objects to a scratch directory it removes (`tree-facts.mjs`). So
+each bound pass keeps its test files, by path and content hash, in `passed-tests.json`, keyed by ledger and command
+(`plugin/scripts/removed-tests.mjs`). The next pass names each file that is gone and whose bytes are at no new path, with the new
+test files beside it. It says nothing on a failed run, on a first pass, or when the last pass's HEAD is not history of this one,
+and it is could-not-look when the record or git cannot be read. Advice only; the exit is the check's.
+The class is "a test that passed is gone, unremarked". Members not covered: a test removed from a file that stays, a test
+skipped in place (`.skip`, `xit`, `@pytest.mark.skip`), a directory dropped from the runner's configuration, and a file named
+outside the default patterns. Each needs a reader of test definitions or of runner output. That is the qh-core idea sent
+2026-10-24: a count per run from each runner's machine format. Open here only if one is reported.

@@ -155,7 +155,7 @@ export function ledgersWarn(cwd) {
 }
 
 export const ledgerRefusal = file => `quality-harness ledger guard: ${file} is in this repository's state directory, where the `
-  + 'evidence is written only by its tools: qh-check writes checks.jsonl, fast-checks.jsonl, baseline.jsonl, skips.jsonl and outputs/<run id>.log, '
+  + 'evidence is written only by its tools: qh-check writes checks.jsonl, fast-checks.jsonl, baseline.jsonl, skips.jsonl, passed-tests.json and outputs/<run id>.log, '
   + 'adr-verify the receipts, the review launcher reviews.jsonl, and the hooks their session logs. Run the tool; a row written by '
   + 'hand is not evidence (ADR-117). A project that needs this write sets '
   + '"ledgers": "warn" in .quality-harness.json.'

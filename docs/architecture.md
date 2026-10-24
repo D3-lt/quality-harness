@@ -151,6 +151,7 @@ repository keeps a hashed subdirectory under it); `corpus-probe` uses that to wr
 | `fast-checks.jsonl` | `qh-check --fast` (`check-record.mjs`) | `check-ledger.mjs` (`latestFastPass`); no reader of a full pass opens it (ADR-081) |
 | `baseline.jsonl` | `qh-check --baseline` (`check-record.mjs`) | the turn end only (ADR-111) |
 | `skips.jsonl` | `qh-check` when it reuses a pass on the same tree (`check-record.mjs`) | `ledger-report.mjs` |
+| `passed-tests.json` | `qh-check`, after each pass: its test files by path and content, per ledger and command (`removed-tests.mjs`) | `qh-check`'s next pass, which names a test file gone and not moved |
 | `receipts.jsonl` | `adr-verify`, one row per log row it writes (`plugin/lib/record.py`, `RECEIPTS_NAME`) | `adr-lint` (ADR-117 T2) |
 | `reviews.jsonl` | `host-review.mjs` (`REVIEWS_FILE`), one row per review it launched | `release-evidence.mjs` (ADR-100) |
 | `sessions/<session>.jsonl` | every hook (`appendEvent`, `sessionLogFile`); check events imported from `checks.jsonl` | the rules, `ledger-report.mjs`, the publish verdict |

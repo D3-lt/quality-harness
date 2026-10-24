@@ -315,6 +315,24 @@
       "from": "const KEEP_OUTPUT_BYTES = 256 * 1024",
       "to": "const KEEP_OUTPUT_BYTES = 1024 * 1024",
       "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
+    },
+    {
+      "label": "removed tests: a failed run is compared with the last pass's test files",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (git === true && checkEventName(record) === 'check.passed') {",
+      "to": "if (git === true) {"
+    },
+    {
+      "label": "removed tests: the line is never said",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (removed) stderr.write(`qh-check: ${removed}\\n`)",
+      "to": "if (false) stderr.write(`qh-check: ${removed}\\n`)"
     }
   ]
 }

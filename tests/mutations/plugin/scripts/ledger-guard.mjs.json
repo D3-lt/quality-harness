@@ -216,8 +216,8 @@
       "tests": [
         "tests/check-output.test.mjs"
       ],
-      "from": "skips.jsonl and outputs/<run id>.log",
-      "to": "skips.jsonl",
+      "from": "passed-tests.json and outputs/<run id>.log",
+      "to": "passed-tests.json",
       "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
     }
   ]

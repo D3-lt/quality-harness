@@ -22,7 +22,7 @@ import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 import { PROSE_HINT, onlyTextChangedSince, previousPassHead, proseHintMs } from './prose-hint.mjs'
 import { fastCheckHint } from './fast-check-hint.mjs'
-import { UNREAD, removedTestsLine } from './removed-tests.mjs'
+import { UNREAD, removedTestsLine, testCounter } from './removed-tests.mjs'
 import { checkTimeoutMs, runLaunched } from './check-child.mjs'
 import { takeTurn } from './check-lease.mjs'
 import { classifyRun, recordBaseline, recordRun, recordSkip, reuseByProse, runRecord } from './check-record.mjs'
@@ -120,8 +120,11 @@ const loadOptions = (loadavg, cores) => ({ ...(loadavg !== undefined ? { loadavg
 function tailKeeper() {
   let kept = Buffer.alloc(0)
   let cut = false
+  // Every chunk also passes a test counter, which reads the runners' summaries from the whole output, not from this tail.
+  const counter = testCounter()
   return {
     keep: chunk => {
+      counter.feed(chunk)
       kept = Buffer.concat([kept, chunk])
       if (kept.length > KEEP_OUTPUT_BYTES) {
         kept = kept.subarray(kept.length - KEEP_OUTPUT_BYTES)
@@ -130,6 +133,7 @@ function tailKeeper() {
     },
     kept: () => kept.subarray(Math.max(0, kept.length - KEEP_BYTES)),
     output: () => ({ bytes: kept, cut }),
+    counted: () => counter.result(),
   }
 }
 
@@ -196,7 +200,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   // advice: nothing it meets may change the check's exit (CLAUDE.md §3).
   if (git === true && checkEventName(record) === 'check.passed') {
     let removed
-    try { removed = removedTestsLine({ root, fast, command, record }) } catch (failure) { removed = `${UNREAD}: ${failure.message}` }
+    try { removed = removedTestsLine({ root, fast, command, record, counted: tail.counted() }) } catch (failure) { removed = `${UNREAD}: ${failure.message}` }
     if (removed) stderr.write(`qh-check: ${removed}\n`)
   }
   if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)

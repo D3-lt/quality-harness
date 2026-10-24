@@ -3882,3 +3882,22 @@ what cannot be parsed as no verdict is the could-not-look direction and is corre
 again with the contract asking for a plain line. A fix would accept Markdown emphasis around the line and the token. That is a
 classifier change (CLAUDE.md §16): `**APPROVE**` is APPROVE, while text after the token must still not be read as a verdict.
 Open; bug-fix scope.
+
+## 425. A full check that ran fewer tests than the last said nothing; advised now
+
+The owner, 2026-10-24: "So lets track". It is the question that started §422: "does it flag when the test count drops compared to
+the last run?". This is the runner-output reader §422 and §423 left for qh-core, built here at the owner's explicit request.
+`testCounter` reads each runner's own summary from the whole output as it streams past. This repository's summary comes after
+about 300 KB, past the 64 KB tail qh-check keeps. Measured 2026-10-24, one fixture per runner:
+- node:test v24.22.1, spec and TAP reporters;
+- pytest 9.0.3, default, -q and -v;
+- unittest, Python 3.15;
+- go1.27.3, -v and -json.
+node's dot reporter and plain `go test` print no count, and a run with no summary has no count, never zero. Every summary in the
+output is added. This repository's own full output holds no other line of those shapes, and the counter reads it as 2781 passed
+and 3 skipped, its summary.
+A full pass keeps `count: {passed, skipped}`. The next full pass of the same command says the drop, with any rise in skips, only
+when no removal above already named one: a test directory dropped from the runner's configuration, or a name the source reader
+cannot read, is exactly the drop names cannot see. A fast check may select its tests, so it keeps no count. Mutants 47/47.
+Left: a runner whose summary is not measured here (jest, vitest, phpunit, rspec, cargo); and a check whose test selection
+varies from run to run while it is declared as the full check.

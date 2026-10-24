@@ -305,6 +305,87 @@
       ],
       "from": "        if (enclosing.some(scope => scope.kind === 'def' || !/^Test/.test(scope.name))) return null\n",
       "to": ""
+    },
+    {
+      "label": "removed tests: a count split across chunks is lost",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "      carry = lines.pop()\n",
+      "to": "      lines.pop()\n"
+    },
+    {
+      "label": "removed tests: a multi-byte character split across chunks is misread",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(carry + decoder.write(chunk))",
+      "to": "(carry + chunk.toString('utf8'))"
+    },
+    {
+      "label": "removed tests: node skips are counted as passes",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (word === 'pass' || word === 'passed') passed += n",
+      "to": "if (word === 'pass' || word === 'passed' || word === 'skipped') passed += n"
+    },
+    {
+      "label": "removed tests: pytest summaries are not read",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if ((match = /^=*[ \\t]*((?:\\d+ [a-z]+(?:, )?)+) in \\d+(?:\\.\\d+)?s\\b/.exec(line))) {",
+      "to": "if (false) {"
+    },
+    {
+      "label": "removed tests: unittest skips are counted as passes",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "add('passed', ran - said('skipped') - said('expected failures'))",
+      "to": "add('passed', ran)"
+    },
+    {
+      "label": "removed tests: a go subtest is counted",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": " && !match[2].includes('/')) add(match[1], 1)",
+      "to": ") add(match[1], 1)"
+    },
+    {
+      "label": "removed tests: a fast check is counted",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "...(!fast && counted ? { count: counted } : {})",
+      "to": "...(counted ? { count: counted } : {})"
+    },
+    {
+      "label": "removed tests: the count speaks beside a named removal",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (!line && counted && last.count",
+      "to": "if (counted && last.count"
+    },
+    {
+      "label": "removed tests: a drop in the count is not said",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "counted.passed < last.count.passed",
+      "to": "false"
     }
   ]
 }

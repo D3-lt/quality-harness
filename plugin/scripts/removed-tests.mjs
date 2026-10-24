@@ -2,11 +2,13 @@
 // that passed is removed with its reason, never unremarked (the owner, 2026-10-24). The check ledger keeps no tree an old pass
 // can be read back from (`observe` writes its objects to a scratch directory it removes), so each pass leaves its test files
 // here, by path and content, in `passed-tests.json`. It reads git and the working tree, writes only that file, and never
-// changes the check's exit (CLAUDE.md §3). A count of tests, which no runner's prose reliably gives, is not attempted.
+// changes the check's exit (CLAUDE.md §3). A full check's count of passed tests, read from its runners' own summaries as the
+// output streams past, is kept beside them, and a pass that ran fewer than the last one says so (the owner, 2026-10-24).
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
 import { stateDir } from './event-log.mjs'
 
 const STATE = 'passed-tests.json'
@@ -15,6 +17,7 @@ export const GONE = 'test file(s) the last pass of this check ran with are gone,
 export const UNREAD = 'whether a test file was removed since the last pass is not known'
 export const TESTS_GONE = 'fewer tests than at the last pass of this check, and the missing ones did not move'
 export const SKIPPED = 'tests the last pass of this check ran are skipped in place now'
+export const COUNT_DROP = 'fewer tests passed than at the last pass of this check, and no removal above accounts for it'
 const REASON = 'A test that passed is removed only with its reason: say why in the commit message, or restore it.'
 
 // A test file by the name its runner collects by default, as each runner documents it: jest, vitest and node --test
@@ -228,6 +231,61 @@ const names = value => Array.isArray(value) && value.every(name => typeof name =
 const written = entry => plain(entry) && (entry.head === null || (typeof entry.head === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(entry.head)))
   && plain(entry.files) && Object.entries(entry.files).every(([name, hash]) => name !== '' && !name.includes('\0') && typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash))
   && (entry.tests === undefined || (plain(entry.tests) && Object.values(entry.tests).every(found => plain(found) && names(found.run) && names(found.skip))))
+  && (entry.count === undefined || (plain(entry.count) && [entry.count.passed, entry.count.skipped].every(n => Number.isSafeInteger(n) && n >= 0)))
+
+// The tests a run reports it passed and skipped, read from each runner's own summary as the output streams past: the whole run,
+// not the tail qh-check keeps, since this repository's summary comes after about 300 KB of output. Measured 2026-10-24, one
+// fixture each:
+// - node:test v24.22.1, spec and TAP reporters: `ℹ pass N` / `# pass N`, and `skipped N`;
+// - pytest 9.0.3, default, -q and -v: `N passed, M skipped … in Xs`;
+// - unittest on Python 3.15: `Ran N tests`, then `OK` or `OK (skipped=M)`;
+// - go test (go1.27.3) -v: `--- PASS:` and `--- SKIP:` at the start of a line (a subtest is indented);
+// - go test -json: the pass or skip event of a top-level test.
+// node's dot reporter and plain `go test` print no count, so a run whose output holds no summary has no count, never zero
+// (ADR-005). Every summary the output holds is added, so a check that runs several suites is counted whole. This repository's own
+// full output held no other line of these shapes (measured the same day).
+const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g
+export function testCounter() {
+  const decoder = new StringDecoder('utf8')
+  let carry = ''
+  let passed = 0
+  let skipped = 0
+  let counted = false
+  let ran = null
+  const add = (word, n) => { counted = true; if (word === 'pass' || word === 'passed') passed += n; else if (word === 'skip' || word === 'skipped') skipped += n }
+  const read = raw => {
+    const line = raw.replace(ANSI, '').replace(/\r$/, '')
+    let match
+    if ((match = /^(?:ℹ|#) (pass|skipped) (\d+)$/.exec(line))) return add(match[1], Number(match[2]))
+    if ((match = /^=*[ \t]*((?:\d+ [a-z]+(?:, )?)+) in \d+(?:\.\d+)?s\b/.exec(line))) {
+      counted = true
+      for (const [, n, word] of match[1].matchAll(/(\d+) ([a-z]+)/g)) add(word, Number(n))
+      return
+    }
+    if ((match = /^Ran (\d+) tests? in /.exec(line))) { ran = Number(match[1]); return }
+    if (ran !== null && (match = /^OK(?: \((.*)\))?$/.exec(line))) {
+      const said = name => Number(new RegExp(`${name}=(\\d+)`).exec(match[1] ?? '')?.[1] ?? 0)
+      add('passed', ran - said('skipped') - said('expected failures'))
+      add('skipped', said('skipped'))
+      ran = null
+      return
+    }
+    if ((match = /^--- (PASS|SKIP): /.exec(line))) return add(match[1].toLowerCase(), 1)
+    if ((match = /"Action":"(pass|skip)".*"Test":"([^"]*)"/.exec(line)) && !match[2].includes('/')) add(match[1], 1)
+  }
+  return {
+    feed: chunk => {
+      const lines = (carry + decoder.write(chunk)).split('\n')
+      carry = lines.pop()
+      for (const line of lines) read(line)
+    },
+    result: () => {
+      read(carry + decoder.end())
+      carry = ''
+      return counted ? { passed, skipped } : null
+    },
+  }
+}
 
 // `from` less `less`, counting repeats: a name twice in a file is two tests.
 function minus(from, less) {
@@ -286,7 +344,7 @@ function testLines(last, now) {
  * sentence names the new test files so that reads as what it is. A path the last pass had that is still on the disk but not
  * listed, or not readable, keeps its last hash, so it is judged again when it does go.
  */
-export function removedTestsLine({ root, fast, command, record }) {
+export function removedTestsLine({ root, fast, command, record, counted = null }) {
   const file = path.join(stateDir(root), STATE)
   const key = `${fast ? 'fast' : 'full'} ${command}`
   let state = {}
@@ -325,6 +383,13 @@ export function removedTestsLine({ root, fast, command, record }) {
       }
       const inFiles = last.tests ? testLines(last, now) : []
       if (inFiles.length) line = [line, ...inFiles].filter(Boolean).join(' ')
+      // The count speaks only where nothing above already named a removal: a test directory dropped from the runner's
+      // configuration, or a name this cannot read, is the drop the names cannot see. A fast check may select its tests, so
+      // only a full one is counted.
+      if (!line && counted && last.count && counted.passed < last.count.passed) {
+        line = `${COUNT_DROP}: ${counted.passed} passed, against ${last.count.passed} at that pass`
+          + (counted.skipped > last.count.skipped ? `, and ${counted.skipped - last.count.skipped} more skipped` : '') + `. ${REASON}`
+      }
       if (unsure) line = `${line ? `${line} ` : ''}${UNREAD} for ${unsure} test file(s) the disk could not be asked about.`
     }
   }
@@ -337,7 +402,7 @@ export function removedTestsLine({ root, fast, command, record }) {
       try { const fresh = JSON.parse(readFileSync(file, 'utf8')); if (plain(fresh)) base = fresh } catch { /* the state read above stands */ }
     }
     const temporary = `${file}.${process.pid}.tmp`
-    writeFileSync(temporary, `${JSON.stringify({ ...base, [key]: { id: record.id, at: record.after?.at, head, files: kept, tests: keptTests } })}\n`, 'utf8')
+    writeFileSync(temporary, `${JSON.stringify({ ...base, [key]: { id: record.id, at: record.after?.at, head, files: kept, tests: keptTests, ...(!fast && counted ? { count: counted } : {}) } })}\n`, 'utf8')
     renameSync(temporary, file)
   } catch (failure) {
     line = `${line ? `${line} ` : ''}This pass's test files could not be kept (${failure.code ?? failure.message}).`

@@ -333,6 +333,24 @@
       ],
       "from": "if (removed) stderr.write(`qh-check: ${removed}\\n`)",
       "to": "if (false) stderr.write(`qh-check: ${removed}\\n`)"
+    },
+    {
+      "label": "removed tests: the count reaches the reader from nowhere",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "removedTestsLine({ root, fast, command, record, counted: tail.counted() })",
+      "to": "removedTestsLine({ root, fast, command, record })"
+    },
+    {
+      "label": "removed tests: the counter sees no output",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "      counter.feed(chunk)\n",
+      "to": ""
     }
   ]
 }

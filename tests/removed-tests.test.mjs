@@ -9,7 +9,7 @@ import { after, test } from 'node:test'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { ledgerRefusal } from '../plugin/scripts/ledger-guard.mjs'
 import { runCheck } from '../plugin/scripts/qh-check.mjs'
-import { GONE, SKIPPED, TESTS_GONE, UNREAD, isTestFile, removedTestsLine, testNames } from '../plugin/scripts/removed-tests.mjs'
+import { COUNT_DROP, GONE, SKIPPED, TESTS_GONE, UNREAD, isTestFile, removedTestsLine, testCounter, testNames } from '../plugin/scripts/removed-tests.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-removed-tests-')))
@@ -323,4 +323,77 @@ test('a test moved into a file that cannot be read whole is not named gone', asy
   writeFileSync(path.join(dir, 'x.test.mjs'), js("test('b', () => {})"))
   const removed = await run(dir)
   assert.ok(removed.said.includes(TESTS_GONE) && removed.said.includes('`d`'), removed.said)
+})
+
+// Each runner's summary as it printed it on 2026-10-24 (node v24.22.1, pytest 9.0.3, Python 3.15 unittest, go1.27.3).
+const counted = (text, chunk = 1) => {
+  const counter = testCounter()
+  const bytes = Buffer.from(text)
+  for (let at = 0; at < bytes.length; at += chunk) counter.feed(bytes.subarray(at, at + chunk))
+  return counter.result()
+}
+test('test counts are read from each measured runner summary, whole or split at any byte, and a run with none has no count', () => {
+  const node = 'ℹ tests 10\nℹ suites 0\nℹ pass 5\nℹ fail 0\nℹ cancelled 0\nℹ skipped 4\nℹ todo 1\nℹ duration_ms 36.8\n'
+  assert.deepEqual(counted(node), { passed: 5, skipped: 4 }, 'node spec, fed one byte at a time')
+  assert.deepEqual(counted(node.replaceAll('ℹ', '#'), 7), { passed: 5, skipped: 4 }, 'node TAP')
+  assert.deepEqual(counted(`${node}${node}`, 3), { passed: 10, skipped: 8 }, 'two suites in one check add up')
+  assert.deepEqual(counted('\x1b[34mℹ pass 5\x1b[39m\r\n'), { passed: 5, skipped: 0 }, 'colour and CRLF')
+  assert.deepEqual(counted('=================== 2 passed, 3 skipped, 1 xfailed in 0.01s ====================\n'), { passed: 2, skipped: 3 })
+  assert.deepEqual(counted('2 passed, 3 skipped, 1 xfailed in 0.01s'), { passed: 2, skipped: 3 }, 'pytest -q, with no last newline')
+  assert.deepEqual(counted('Ran 2 tests in 0.000s\n\nOK (skipped=1)\n'), { passed: 1, skipped: 1 })
+  assert.deepEqual(counted('=== RUN   TestPlain\n--- PASS: TestPlain (0.00s)\n--- SKIP: TestSkip (0.00s)\n    --- PASS: TestPlain/sub (0.00s)\n--- PASS: Test_under (0.00s)\nPASS\nok  \tm\t0.004s\n'),
+    { passed: 2, skipped: 1 }, 'go -v counts top-level tests, not subtests')
+  assert.deepEqual(counted('{"Time":"t","Action":"pass","Package":"m","Test":"TestPlain","Elapsed":0}\n{"Time":"t","Action":"pass","Package":"m","Test":"TestPlain/sub"}\n{"Time":"t","Action":"skip","Package":"m","Test":"TestSkip"}\n{"Time":"t","Action":"pass","Package":"m","Elapsed":0}\n'),
+    { passed: 1, skipped: 1 }, 'go -json counts top-level test events, not subtests or the package')
+  for (const text of ['...........\n', 'ok  \tm\t0.005s\n', 'no tests ran in 0.01s\n', 'Ran 2 tests in 0.000s\n\nFAILED (failures=1)\n', '']) {
+    assert.equal(counted(text), null, `a run whose output holds no summary was counted: ${JSON.stringify(text)}`)
+  }
+})
+
+// A repository whose check prints a node:test summary of `count.txt` passed tests.
+function counting(name, config = {}) {
+  const dir = repo(name)
+  writeFileSync(path.join(dir, 'check.mjs'), "import { readFileSync } from 'node:fs'\nconsole.log(`ℹ tests 9\\nℹ pass ${readFileSync('count.txt', 'utf8').trim()}\\nℹ skipped 0`)\n")
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'node check.mjs', ...config }))
+  return dir
+}
+test('a full pass that ran fewer tests than the last says so, unless a removal above already accounts for it', async () => {
+  const dir = counting('count')
+  writeFileSync(path.join(dir, 'count.txt'), '9')
+  await run(dir)
+  writeFileSync(path.join(dir, 'count.txt'), '9')
+  const same = await run(dir)
+  assert.ok(!same.said.includes(COUNT_DROP), same.said)
+  writeFileSync(path.join(dir, 'count.txt'), '7')
+  const fewer = await run(dir)
+  assert.ok(fewer.said.includes(`${COUNT_DROP}: 7 passed, against 9 at that pass.`), `a drop in the count is not said: ${fewer.said}`)
+  writeFileSync(path.join(dir, 'count.txt'), '8')
+  const more = await run(dir)
+  assert.ok(!more.said.includes(COUNT_DROP), `a rise is read as a drop: ${more.said}`)
+
+  // A test file removed is named by the file-level sentence, and the count says nothing more.
+  rmSync(path.join(dir, 'a.test.mjs'))
+  writeFileSync(path.join(dir, 'count.txt'), '6')
+  const named = await run(dir)
+  assert.ok(named.said.includes(GONE) && !named.said.includes(COUNT_DROP), named.said)
+})
+
+test('a fast check is not counted, and a pass with no summary keeps no count to compare with', async () => {
+  const dir = counting('count-fast', { fastCheck: 'node check.mjs' })
+  writeFileSync(path.join(dir, 'count.txt'), '9')
+  const fast = async () => {
+    writeFileSync(path.join(dir, 'note.txt'), `${edits++}\n`)
+    const err = sink()
+    await runCheck({ cwd: dir, stdout: sink(), stderr: err, fast: true, env: { ...process.env, QUALITY_HARNESS_WAIT: '0' } })
+    return err.text()
+  }
+  await fast()
+  writeFileSync(path.join(dir, 'count.txt'), '3')
+  assert.ok(!(await fast()).includes(COUNT_DROP), 'a fast check that selects its tests is compared')
+
+  const quiet = repo('count-none')
+  await run(quiet)
+  await run(quiet)
+  const state = JSON.parse(readFileSync(path.join(stateDir(quiet), 'passed-tests.json'), 'utf8'))
+  assert.equal(Object.values(state)[0].count, undefined, 'a run with no summary kept a count')
 })

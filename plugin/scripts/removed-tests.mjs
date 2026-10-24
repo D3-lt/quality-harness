@@ -251,18 +251,27 @@ export function testCounter() {
   let passed = 0
   let skipped = 0
   let counted = false
+  // A run whose output reports any failure has no count. A retried suite (`runner || runner`) prints the passes of the attempt
+  // that failed beside those of the one that passed, and the total is no count of the suite (the review of 0d412bff).
+  let failed = false
+  let broken = false
   let ran = null
-  const add = (word, n) => { counted = true; if (word === 'pass' || word === 'passed') passed += n; else if (word === 'skip' || word === 'skipped') skipped += n }
+  // A count is made by a number of passed tests, never by a skipped one or an unknown word alone: `ℹ skipped 0`, or
+  // `10 files in 0.01s`, is no summary of a run.
+  const add = (word, n) => {
+    if (word === 'pass' || word === 'passed') { counted = true; passed += n } else if (word === 'skip' || word === 'skipped') skipped += n
+    else if (/^(?:fail|failed|errors?|cancelled)$/.test(word) && n > 0) failed = true
+  }
   const read = raw => {
     const line = raw.replace(ANSI, '').replace(/\r$/, '')
     let match
-    if ((match = /^(?:ℹ|#) (pass|skipped) (\d+)$/.exec(line))) return add(match[1], Number(match[2]))
+    if ((match = /^(?:ℹ|#) (pass|skipped|fail|cancelled) (\d+)$/.exec(line))) return add(match[1], Number(match[2]))
     if ((match = /^=*[ \t]*((?:\d+ [a-z]+(?:, )?)+) in \d+(?:\.\d+)?s\b/.exec(line))) {
-      counted = true
       for (const [, n, word] of match[1].matchAll(/(\d+) ([a-z]+)/g)) add(word, Number(n))
       return
     }
     if ((match = /^Ran (\d+) tests? in /.exec(line))) { ran = Number(match[1]); return }
+    if (ran !== null && /^FAILED \(/.test(line)) { failed = true; ran = null; return }
     if (ran !== null && (match = /^OK(?: \((.*)\))?$/.exec(line))) {
       const said = name => Number(new RegExp(`${name}=(\\d+)`).exec(match[1] ?? '')?.[1] ?? 0)
       add('passed', ran - said('skipped') - said('expected failures'))
@@ -270,19 +279,26 @@ export function testCounter() {
       ran = null
       return
     }
-    if ((match = /^--- (PASS|SKIP): /.exec(line))) return add(match[1].toLowerCase(), 1)
-    if ((match = /"Action":"(pass|skip)".*"Test":"([^"]*)"/.exec(line)) && !match[2].includes('/')) add(match[1], 1)
+    if ((match = /^--- (PASS|SKIP|FAIL): /.exec(line))) return add(match[1] === 'FAIL' ? 'fail' : match[1].toLowerCase(), 1)
+    if ((match = /"Action":"(pass|skip|fail)".*"Test":"([^"]*)"/.exec(line)) && !match[2].includes('/')) add(match[1], 1)
   }
   return {
+    // It reads the output of a check as that output arrives, inside the child's data handler: nothing it meets may throw there,
+    // and a line with no end in sight is dropped rather than held (a summary is a short line).
     feed: chunk => {
-      const lines = (carry + decoder.write(chunk)).split('\n')
-      carry = lines.pop()
-      for (const line of lines) read(line)
+      if (broken) return
+      try {
+        const lines = (carry + decoder.write(chunk)).split('\n')
+        carry = lines.pop()
+        if (carry.length > 64 * 1024) carry = ''
+        for (const line of lines) read(line)
+      } catch { broken = true }
     },
     result: () => {
-      read(carry + decoder.end())
+      if (broken) return null
+      try { read(carry + decoder.end()) } catch { return null }
       carry = ''
-      return counted ? { passed, skipped } : null
+      return counted && !failed ? { passed, skipped } : null
     },
   }
 }

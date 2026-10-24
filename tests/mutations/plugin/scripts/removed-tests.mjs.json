@@ -330,8 +330,8 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "if (word === 'pass' || word === 'passed') passed += n",
-      "to": "if (word === 'pass' || word === 'passed' || word === 'skipped') passed += n"
+      "from": "if (word === 'pass' || word === 'passed') { counted = true; passed += n }",
+      "to": "if (word === 'pass' || word === 'passed' || word === 'skipped') { counted = true; passed += n }"
     },
     {
       "label": "removed tests: pytest summaries are not read",
@@ -386,6 +386,33 @@
       ],
       "from": "counted.passed < last.count.passed",
       "to": "false"
+    },
+    {
+      "label": "removed tests: a run that reported a failure is counted",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "return counted && !failed ? { passed, skipped } : null",
+      "to": "return counted ? { passed, skipped } : null"
+    },
+    {
+      "label": "removed tests: a summary with no passes makes a count",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "  const add = (word, n) => {\n",
+      "to": "  const add = (word, n) => {\n    counted = true\n"
+    },
+    {
+      "label": "removed tests: a unittest failure is not read",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (ran !== null && /^FAILED \\(/.test(line)) { failed = true; ran = null; return }",
+      "to": ""
     }
   ]
 }

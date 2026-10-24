@@ -3901,3 +3901,9 @@ when no removal above already named one: a test directory dropped from the runne
 cannot read, is exactly the drop names cannot see. A fast check may select its tests, so it keeps no count. Mutants 47/47.
 Left: a runner whose summary is not measured here (jest, vitest, phpunit, rspec, cargo); and a check whose test selection
 varies from run to run while it is declared as the full check.
+The Codex review of v3.8.57..0d412bff asked for changes, with one finding: a check that retries a flaky suite (`runner ||
+runner`) printed the failed attempt's passes beside the retry's. That inflated total read the next clean run as a drop. A
+run whose output reports any failure (node `fail`/`cancelled` above 0, pytest `failed`/`error`, unittest `FAILED`, go `--- FAIL`
+or a fail event) now has no count. Three of its residuals were closed with it. Only a number of passed tests makes a count, so
+`ℹ skipped 0` and `10 files in 0.01s` make none. Nothing the counter meets in the child's data handler may throw. A line with no
+end in sight is dropped past 64 KB. The real full output still counts 2784 and 3. Mutants 50/50.

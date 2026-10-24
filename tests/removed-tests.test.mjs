@@ -348,6 +348,11 @@ test('test counts are read from each measured runner summary, whole or split at 
   for (const text of ['...........\n', 'ok  \tm\t0.005s\n', 'no tests ran in 0.01s\n', 'Ran 2 tests in 0.000s\n\nFAILED (failures=1)\n', '']) {
     assert.equal(counted(text), null, `a run whose output holds no summary was counted: ${JSON.stringify(text)}`)
   }
+  // The review of 0d412bff: a retried suite prints the passes of its failed attempt too, and that total counts no suite.
+  for (const text of ['ℹ pass 1\nℹ fail 1\nℹ pass 2\nℹ fail 0\n', '1 failed, 2 passed in 0.10s\n3 passed in 0.10s\n', '--- FAIL: TestA (0.00s)\n--- PASS: TestA (0.00s)\n',
+    'Ran 2 tests in 0.0s\n\nFAILED (failures=1)\nRan 2 tests in 0.0s\n\nOK\n', '{"Action":"fail","Package":"m","Test":"TestA"}\n{"Action":"pass","Package":"m","Test":"TestA"}\n',
+    'ℹ skipped 0\n', '10 files in 0.01s\n']) assert.equal(counted(text), null, `a failed, retried or passless run was counted: ${JSON.stringify(text)}`)
+  assert.deepEqual(counted(`${'x'.repeat(200_000)}\nℹ pass 4\n`, 8192), { passed: 4, skipped: 0 }, 'a summary after a line with no end in sight')
 })
 
 // A repository whose check prints a node:test summary of `count.txt` passed tests.
@@ -396,4 +401,20 @@ test('a fast check is not counted, and a pass with no summary keeps no count to 
   await run(quiet)
   const state = JSON.parse(readFileSync(path.join(stateDir(quiet), 'passed-tests.json'), 'utf8'))
   assert.equal(Object.values(state)[0].count, undefined, 'a run with no summary kept a count')
+})
+
+test('a check that retried a failed attempt keeps no count, so the clean run after it says nothing', async () => {
+  const dir = counting('count-retry')
+  writeFileSync(path.join(dir, 'count.txt'), '2')
+  await run(dir)
+  // The same two tests, the first attempt failing one of them: its passes are printed beside the retry's.
+  writeFileSync(path.join(dir, 'check.mjs'), "console.log('ℹ tests 2\\nℹ pass 1\\nℹ fail 1\\nℹ tests 2\\nℹ pass 2\\nℹ fail 0')\n")
+  const retried = await run(dir)
+  assert.equal(retried.exit, 0)
+  writeFileSync(path.join(dir, 'check.mjs'), "console.log('ℹ tests 2\\nℹ pass 2\\nℹ fail 0')\n")
+  const clean = await run(dir)
+  assert.ok(!clean.said.includes(COUNT_DROP), `a retried run's total was compared: ${clean.said}`)
+  writeFileSync(path.join(dir, 'check.mjs'), "console.log('ℹ tests 1\\nℹ pass 1\\nℹ fail 0')\n")
+  const fewer = await run(dir)
+  assert.ok(fewer.said.includes(`${COUNT_DROP}: 1 passed, against 2 at that pass.`), fewer.said)
 })

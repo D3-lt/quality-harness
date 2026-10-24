@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-24",
+  "at": "c94a9420a078aea5be56ae2772fb2821c6f10186",
+  "plugin": "3.8.56",
+  "kind": "probe",
+  "probeSha256": "a07089753b4bdd0bf580fe366e6cc49f9c54b5e3e51e08e10d32209254efc200",
+  "readers": "02ea9c62085382d18cb1ecc2314f567dd4fbd7744583247aed0223dc0f845a96",
+  "platform": "Darwin 27.0.0",
+  "node": "24.22.1",
+  "python": "3.15.0",
+  "corpus": {
+    "records": 97,
+    "undecided": 2,
+    "tasks": 294,
+    "taskDirectories": 45
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 99,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "laravel-react-monorepo",
+  "found": ""
+}

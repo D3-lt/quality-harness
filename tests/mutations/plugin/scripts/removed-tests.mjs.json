@@ -89,6 +89,69 @@
       ],
       "from": "try { statSync(path.join(root, file)); return false }",
       "to": "try { statSync(path.join(root, path.dirname(file))); return false }"
+    },
+    {
+      "label": "removed tests: a rename in place reads as a removal",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (all(found).length < all(was).length) {",
+      "to": "if (true) {"
+    },
+    {
+      "label": "removed tests: a test moved to another file reads as removed",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "minus(all(was), all(found)).filter(name => !movedTo.has(name))",
+      "to": "minus(all(was), all(found))"
+    },
+    {
+      "label": "removed tests: a skip option is not read",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(match[5] && JS_SKIP_OPTION.test(match[5]))",
+      "to": "false"
+    },
+    {
+      "label": "removed tests: a conditional skip option reads as a skip",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(?:true|'[^'\\n]+'|\"[^\"\\n]+\")[ \\t\\n]*[,}]/",
+      "to": "[^,}]+[,}]/"
+    },
+    {
+      "label": "removed tests: pytest skipif reads as a skip",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "@pytest\\.mark\\.skip\\b/",
+      "to": "@pytest\\.mark\\.skip/"
+    },
+    {
+      "label": "removed tests: a JS test commented out is still read",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "const code = text.split('\\n').filter(line => !/^[ \\t]*(?:\\/\\/|\\/\\*|\\*)/.test(line)).join('\\n')",
+      "to": "const code = text"
+    },
+    {
+      "label": "removed tests: an entry from before test names is unreadable",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(entry.tests === undefined || (plain(entry.tests)",
+      "to": "((plain(entry.tests)"
     }
   ]
 }

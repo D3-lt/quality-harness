@@ -9,7 +9,7 @@ import { after, test } from 'node:test'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { ledgerRefusal } from '../plugin/scripts/ledger-guard.mjs'
 import { runCheck } from '../plugin/scripts/qh-check.mjs'
-import { GONE, UNREAD, isTestFile, removedTestsLine } from '../plugin/scripts/removed-tests.mjs'
+import { GONE, SKIPPED, TESTS_GONE, UNREAD, isTestFile, removedTestsLine, testNames } from '../plugin/scripts/removed-tests.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-removed-tests-')))
@@ -186,4 +186,80 @@ test('the ledger guard names passed-tests.json among the files only qh-check wri
   assert.match(ledgerRefusal('x'), /passed-tests\.json/)
   const go = readFileSync(path.join(import.meta.dirname, '..', 'core', 'hooks', 'ledger_guard.go'), 'utf8')
   assert.match(go.slice(go.indexOf('func ledgerRefusal'), go.indexOf('func ledgerWarning')), /passed-tests\.json/)
+})
+
+const js = (...lines) => `import { test } from 'node:test'\n${lines.join('\n')}\n`
+
+test('a test removed from a file that stays is named; a rename in place, a move, a reformat or an untouched file says nothing', async () => {
+  const dir = repo('in-file')
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('one', () => {})", "test('two', () => {})", "test('three', () => {})"))
+  writeFileSync(path.join(dir, 'y.test.mjs'), js("test('other', () => {})"))
+  await run(dir)
+
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('one', () => {})", "test('three', () => {})"))
+  const removed = await run(dir)
+  assert.ok(removed.said.includes(TESTS_GONE) && removed.said.includes('`x.test.mjs` (1 fewer; not there now: `two`)'), `a removed test is not named: ${removed.said}`)
+  assert.ok(!removed.said.includes('`one`') && !removed.said.includes('`three`') && !removed.said.includes(GONE), removed.said)
+
+  const quiet = async (label, files) => {
+    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(dir, name), text)
+    const { said } = await run(dir)
+    assert.ok(!said.includes(TESTS_GONE) && !said.includes(SKIPPED) && !said.includes(UNREAD), `${label} is read as a removal: ${said}`)
+  }
+  await quiet('a rename in place', { 'x.test.mjs': js("test('uno', () => {})", "test('three', () => {})") })
+  await quiet('a move to another file', { 'x.test.mjs': js("test('uno', () => {})"), 'y.test.mjs': js("test('other', () => {})", "test('three', () => {})") })
+  await quiet('a name moved to the next line', { 'x.test.mjs': js('test(', "  'uno',", '  () => {})') })
+
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("// test('uno', () => {})"))
+  const commented = await run(dir)
+  assert.ok(commented.said.includes(TESTS_GONE) && commented.said.includes('`uno`'), `a test commented out is not named: ${commented.said}`)
+})
+
+test('a test the last pass ran that is skipped now is named; a conditional skip, a todo, or a skip already there is not', async () => {
+  const dir = repo('skipped')
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('a', () => {})", "test('b', () => {})", "test('c', () => {})", "test('d', () => {})", "test.skip('e', () => {})"))
+  await run(dir)
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test.skip('a', () => {})", "test('b', { skip: 'not on this branch' }, () => {})",
+    "test('c', { skip: process.env.CI === '1' }, () => {})", "test.todo('d', () => {})", "test.skip('e', () => {})"))
+  const { said } = await run(dir)
+  assert.ok(said.includes(`${SKIPPED}: \`x.test.mjs\`: \`a\`, \`b\`. `), `a test skipped in place is not named, or a conditional one is: ${said}`)
+  assert.ok(!said.includes(TESTS_GONE), said)
+})
+
+test('pytest and go test names are read as their runners collect them', async () => {
+  const dir = repo('py-go')
+  writeFileSync(path.join(dir, 'test_x.py'), 'import pytest\ndef test_one(): pass\ndef test_two(): pass\ndef test_three(): pass\n')
+  writeFileSync(path.join(dir, 'x_test.go'), 'package x\nimport "testing"\nfunc TestA(t *testing.T) {}\nfunc TestB(t *testing.T) {}\n')
+  await run(dir)
+  writeFileSync(path.join(dir, 'test_x.py'), 'import pytest\n@pytest.mark.skipif(True, reason="r")\ndef test_one(): pass\n@pytest.mark.skip(reason="r")\ndef test_three(): pass\n')
+  writeFileSync(path.join(dir, 'x_test.go'), 'package x\nimport "testing"\nfunc TestA(t *testing.T) { t.Skip("x") }\n')
+  const { said } = await run(dir)
+  assert.ok(said.includes('`test_x.py` (1 fewer; not there now: `test_two`)') && said.includes('`x_test.go` (1 fewer; not there now: `TestB`)'), said)
+  assert.ok(said.includes(`${SKIPPED}: \`test_x.py\`: \`test_three\``) && !said.includes('`test_one`') && !said.includes('`TestA`'), said)
+})
+
+test('an entry written before test names were kept is still read, and compares names from the next pass on', async () => {
+  const dir = repo('old-entry')
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('one', () => {})", "test('two', () => {})", "test('three', () => {})"))
+  await run(dir)
+  const state = path.join(stateDir(dir), 'passed-tests.json')
+  const entries = JSON.parse(readFileSync(state, 'utf8'))
+  for (const entry of Object.values(entries)) delete entry.tests
+  writeFileSync(state, JSON.stringify(entries))
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('one', () => {})", "test('three', () => {})"))
+  const first = await run(dir)
+  assert.ok(!first.said.includes(UNREAD) && !first.said.includes(TESTS_GONE), `an entry from 3.8.56 is not read as one: ${first.said}`)
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('one', () => {})"))
+  const next = await run(dir)
+  assert.ok(next.said.includes(TESTS_GONE) && next.said.includes('`three`'), next.said)
+})
+
+test('test names: a string name is read, and a computed name, another call or a Go non-test is not', () => {
+  assert.deepEqual(testNames('a.test.mjs', "test('a', f)\nit(\"b\", f)\ntest(`c`, f)\ntest(`d ${x}`, f)\ntest(name, f)\nsubmit('e')\nt.test('f', f)\n"),
+    { run: ['a', 'b', 'c', 'f'], skip: [] })
+  assert.deepEqual(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc Testlower(t *testing.T) {}\nfunc Test(t *testing.T) {}\nfunc BenchmarkB(b *testing.B) {}\n// func TestC(t *testing.T) {}\n'),
+    { run: ['TestA', 'Test'], skip: [] })
+  assert.deepEqual(testNames('test_x.py', '@pytest.mark.skip\ndef test_a(): pass\nclass TestK:\n    async def test_b(self): pass\n# def test_c(): pass\ndef helper(): pass\n'),
+    { run: ['test_b'], skip: ['test_a'] })
+  assert.equal(testNames('CartTest.php', 'function testA() {}'), null)
 })

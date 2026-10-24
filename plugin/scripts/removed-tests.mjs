@@ -13,6 +13,9 @@ const STATE = 'passed-tests.json'
 const SHOWN = 10
 export const GONE = 'test file(s) the last pass of this check ran with are gone, and none moved'
 export const UNREAD = 'whether a test file was removed since the last pass is not known'
+export const TESTS_GONE = 'fewer tests than at the last pass of this check, and the missing ones did not move'
+export const SKIPPED = 'tests the last pass of this check ran are skipped in place now'
+const REASON = 'A test that passed is removed only with its reason: say why in the commit message, or restore it.'
 
 // A test file by the name its runner collects by default, as each runner documents it: jest, vitest and node --test
 // (`*.test.*`, `*.spec.*`), go test (`*_test.go`, outside `testdata` and any name starting with `.` or `_`, which
@@ -29,23 +32,75 @@ const TEST_FILE = [
 const goTest = file => file.endsWith('_test.go') && file.split('/').every(part => part !== 'testdata' && !/^[._]/.test(part))
 export const isTestFile = file => goTest(file) || TEST_FILE.some(pattern => pattern.test(file))
 
+// The tests a file defines, by name, as each runner was measured to collect them (2026-10-24, one fixture per runner):
+// - node:test (node v24.22.1) runs `test(` and `it(` whose first argument is a string literal (quoted, or a template literal
+//   with no `${`), the name on the call's line or the next; it skips `.skip(`, `{ skip: true }` and `{ skip: '<reason>' }`,
+//   and `.todo` still runs. jest and vitest use the same calls and were not run here.
+// - pytest 9.0.3 (Python 3.14) runs `def test_*` and `async def test_*`, top level or in a class, and skips one under
+//   `@pytest.mark.skip`; `skipif` depends on its condition and is not read as a skip.
+// - go test (go1.27.3) runs `func Test<not a lowercase letter>…(t *testing.T)`. A Go skip is `t.Skip` in the body, behind any
+//   condition, so none is read.
+// PHP and Ruby had no runner here, so their names are not read; the file-level check still covers them. A name read wrongly is
+// read the same way at both passes, so it costs advice only where the text around it changed (CLAUDE.md §16). A line that is
+// a comment is not read: a test commented out is a test the runner no longer runs.
+const JS_TEST = /\b(?:test|it)(\.skip|\.todo|\.only)?[ \t]*\([ \t\n]*(?:'((?:\\.|[^'\\\n])*)'|"((?:\\.|[^"\\\n])*)"|`((?:\\.|[^`\\$])*)`)[ \t\n]*(,[ \t\n]*\{[^{}]*\})?/g
+const JS_SKIP_OPTION = /\bskip[ \t]*:[ \t]*(?:true|'[^'\n]+'|"[^"\n]+")[ \t\n]*[,}]/
+const PY_DEF = /^[ \t]*(?:async[ \t]+)?def[ \t]+(test\w*)[ \t]*\(/
+const PY_SKIP = /^[ \t]*@pytest\.mark\.skip\b/
+const GO_TEST = /^func[ \t]+(Test(?:[^a-z\s(]\w*)?)[ \t]*\([ \t]*\w+[ \t]+\*testing\.T[ \t]*\)/gm
+export function testNames(file, text) {
+  const run = []
+  const skip = []
+  if (/\.[cm]?[jt]sx?$/.test(file)) {
+    const code = text.split('\n').filter(line => !/^[ \t]*(?:\/\/|\/\*|\*)/.test(line)).join('\n')
+    for (const match of code.matchAll(JS_TEST)) {
+      const name = match[2] ?? match[3] ?? match[4]
+      ;(match[1] === '.skip' || (match[5] && JS_SKIP_OPTION.test(match[5])) ? skip : run).push(name)
+    }
+    return { run, skip }
+  }
+  if (file.endsWith('.py')) {
+    let skipped = false
+    for (const line of text.split('\n')) {
+      if (/^[ \t]*#/.test(line)) continue
+      if (PY_SKIP.test(line)) skipped = true
+      const def = PY_DEF.exec(line)
+      if (def) (skipped ? skip : run).push(def[1])
+      if (def || /^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]/.test(line)) skipped = false
+    }
+    return { run, skip }
+  }
+  if (file.endsWith('.go')) {
+    const code = text.split('\n').filter(line => !/^[ \t]*\/\//.test(line)).join('\n')
+    for (const match of code.matchAll(GO_TEST)) run.push(match[1])
+    return { run, skip }
+  }
+  return null
+}
+
 const gitIn = (root, args) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
 
 // The test files in the working tree as the check's tree holds them (tracked or untracked, not ignored), each by a hash of its
-// bytes, or null when git could not list them. An index entry whose file is gone from the disk is not in the tree; a listed file
-// that is there and cannot be read is `unread`, which is not gone.
+// bytes and, where its runner was measured, the names of its tests; or null when git could not list them. An index entry whose
+// file is gone from the disk is not in the tree; a listed file that is there and cannot be read is `unread`, which is not gone.
 function testFiles(root) {
   const listed = gitIn(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard'])
   if (listed.error || listed.status !== 0) return null
   const files = {}
+  const tests = {}
   const unread = new Set()
   for (const file of new Set(listed.stdout.split('\0').filter(Boolean))) {
     if (!isTestFile(file)) continue
-    try { files[file] = createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex') } catch (failure) {
+    let bytes
+    try { bytes = readFileSync(path.join(root, file)) } catch (failure) {
       if (failure?.code !== 'ENOENT' && failure?.code !== 'ENOTDIR') unread.add(file)
+      continue
     }
+    files[file] = createHash('sha256').update(bytes).digest('hex')
+    const names = testNames(file, bytes.toString('utf8'))
+    if (names) tests[file] = names
   }
-  return { files, unread }
+  return { files, tests, unread }
 }
 
 // Whether a path the last pass had is gone from the disk: true when nothing is there, false when something is (a file now
@@ -66,13 +121,53 @@ function onHistory(root, before, head) {
   return asked.error ? null : asked.status === 0 ? true : asked.status === 1 ? false : null
 }
 
-// The entry as this module writes it, or not one at all: a HEAD that is a full sha or null, and a map of paths to sha-256s.
-// Anything else is a record this cannot read, never a record of no test files (ADR-005).
+// The entry as this module writes it, or not one at all: a HEAD that is a full sha or null, a map of paths to sha-256s, and,
+// from 3.8.57, a map of paths to the names of their tests. An entry written before that has no `tests` and is read as one with
+// no names to compare. Anything else is a record this cannot read, never a record of no test files (ADR-005).
 const plain = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+const names = value => Array.isArray(value) && value.every(name => typeof name === 'string')
 const written = entry => plain(entry) && (entry.head === null || (typeof entry.head === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(entry.head)))
   && plain(entry.files) && Object.entries(entry.files).every(([name, hash]) => name !== '' && !name.includes('\0') && typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash))
+  && (entry.tests === undefined || (plain(entry.tests) && Object.values(entry.tests).every(found => plain(found) && names(found.run) && names(found.skip))))
+
+// `from` less `less`, counting repeats: a name twice in a file is two tests.
+function minus(from, less) {
+  const left = new Map()
+  for (const name of less) left.set(name, (left.get(name) ?? 0) + 1)
+  return from.filter(name => {
+    const count = left.get(name) ?? 0
+    if (count) left.set(name, count - 1)
+    return !count
+  })
+}
 
 const shown = files => files.slice(0, SHOWN).map(file => `\`${file}\``).join(', ') + (files.length > SHOWN ? `, +${files.length - SHOWN} more` : '')
+const named = list => list.slice(0, SHOWN).map(name => `\`${name}\``).join(', ') + (list.length > SHOWN ? `, +${list.length - SHOWN} more` : '')
+
+// Within the files both passes had and whose bytes changed: the tests gone from a file that now has fewer, less any name that
+// is new somewhere in the tree (a test moved to another file is not gone, and a rename in place keeps the count), and the tests
+// the last pass ran that are skipped now. Said beside the file-level sentence, never in place of it.
+function testLines(last, now) {
+  const before = last.tests
+  const all = found => [...found.run, ...found.skip]
+  const movedTo = new Set(Object.entries(now.tests).flatMap(([file, found]) => minus(all(found), before[file] ? all(before[file]) : [])))
+  const fewer = []
+  const skipped = []
+  for (const [file, found] of Object.entries(now.tests)) {
+    const was = before[file]
+    if (!was || last.files[file] === now.files[file]) continue
+    if (all(found).length < all(was).length) {
+      const gone = minus(all(was), all(found)).filter(name => !movedTo.has(name))
+      if (gone.length) fewer.push(`\`${file}\` (${all(was).length - all(found).length} fewer; not there now: ${named(gone)})`)
+    }
+    const nowSkipped = minus(found.skip, was.skip).filter(name => was.run.includes(name))
+    if (nowSkipped.length) skipped.push(`\`${file}\`: ${named(nowSkipped)}`)
+  }
+  const lines = []
+  if (fewer.length) lines.push(`${TESTS_GONE}: ${fewer.slice(0, SHOWN).join('; ')}${fewer.length > SHOWN ? `; +${fewer.length - SHOWN} more file(s)` : ''}. ${REASON}`)
+  if (skipped.length) lines.push(`${SKIPPED}: ${skipped.slice(0, SHOWN).join('; ')}${skipped.length > SHOWN ? `; +${skipped.length - SHOWN} more file(s)` : ''}. ${REASON}`)
+  return lines
+}
 
 /**
  * After a pass of `command` (`record` is its row, `fast` which ledger it is in): the sentence to say, or null, and this pass's
@@ -95,6 +190,7 @@ export function removedTestsLine({ root, fast, command, record }) {
   if (now === null) return `${UNREAD}: git could not list the working tree's files, so this pass's test files are not kept either.`
   const head = record.after?.head ?? null
   const kept = { ...now.files }
+  const keptTests = { ...now.tests }
   let line = null
   if (unread) {
     state = {}
@@ -111,20 +207,28 @@ export function removedTestsLine({ root, fast, command, record }) {
       for (const name of Object.keys(last.files).filter(name => !(name in now.files)).sort()) {
         const absent = now.unread.has(name) ? null : goneFromDisk(root, name)
         if (absent === true && !movedTo.has(last.files[name])) gone.push(name)
-        if (absent !== true) kept[name] = last.files[name]
+        if (absent !== true) { kept[name] = last.files[name]; if (last.tests?.[name]) keptTests[name] = last.tests[name] }
         if (absent === null) unsure += 1
       }
       if (gone.length) {
-        line = `${gone.length} ${GONE}: ${shown(gone)}. A test that passed is removed only with its reason: say why in the commit `
-          + 'message, or restore it.' + (added.length ? ` New test files since that pass: ${shown(added)}; one that is a moved file with edits loses nothing.` : '')
+        line = `${gone.length} ${GONE}: ${shown(gone)}. ${REASON}`
+          + (added.length ? ` New test files since that pass: ${shown(added)}; one that is a moved file with edits loses nothing.` : '')
       }
+      const inFiles = last.tests ? testLines(last, now) : []
+      if (inFiles.length) line = [line, ...inFiles].filter(Boolean).join(' ')
       if (unsure) line = `${line ? `${line} ` : ''}${UNREAD} for ${unsure} test file(s) the disk could not be asked about.`
     }
   }
   try {
     mkdirSync(path.dirname(file), { recursive: true })
+    // Read again just before the write, so a pass of another command that finished meanwhile keeps its entry: only this
+    // command's is replaced. What cannot be read now is what was read before.
+    let base = state
+    if (!unread) {
+      try { const fresh = JSON.parse(readFileSync(file, 'utf8')); if (plain(fresh)) base = fresh } catch { /* the state read above stands */ }
+    }
     const temporary = `${file}.${process.pid}.tmp`
-    writeFileSync(temporary, `${JSON.stringify({ ...state, [key]: { id: record.id, at: record.after?.at, head, files: kept } })}\n`, 'utf8')
+    writeFileSync(temporary, `${JSON.stringify({ ...base, [key]: { id: record.id, at: record.after?.at, head, files: kept, tests: keptTests } })}\n`, 'utf8')
     renameSync(temporary, file)
   } catch (failure) {
     line = `${line ? `${line} ` : ''}This pass's test files could not be kept (${failure.code ?? failure.message}).`

@@ -3818,3 +3818,24 @@ directly. Left, as the review named it: two qh-check runs writing `passed-tests.
 an older one, which costs advice and nothing else. The catch around the call has no test, since no input reaches it now.
 The verification review of 975ce16d found one regression, a fail-open: a test file that is a link whose target was deleted
 passed `lstat`, so it was kept as present and never named. The disk check follows the link now (`statSync`), with a test.
+
+## 423. A test removed from a file that stays, or skipped in place, was not said; advised now
+
+The owner asked on 2026-10-24 ("fill the gaps?") for §422's open members. This repository is bug-fix only, and qh-core is its
+successor, so this is a reader change made here at the owner's explicit request. Two of the four members are fillable from source.
+Each pass now also keeps the test names of a file whose runner was measured on 2026-10-24, one fixture per runner:
+- node:test, node v24.22.1: `test(` and `it(` with a string-literal name; the skip forms are `.skip(`, `{ skip: true }` and
+  `{ skip: '<reason>' }`.
+- pytest 9.0.3 on Python 3.14: `def test_*` and `async def test_*`; the skip form is `@pytest.mark.skip`, never `skipif`.
+- go test, go1.27.3: `func Test…(t *testing.T)`; no skip is read, since `t.Skip` sits behind a condition.
+PHP and Ruby had no runner here and are not read.
+The rules: a file whose bytes changed and that now holds fewer tests names the missing ones that are new nowhere in the tree. A test
+the last pass ran that carries an unconditional skip now is named. A rename in place keeps the count and says nothing. A commented
+line is not read.
+An entry written by 3.8.56 has no names and is read as one with nothing to compare. The write re-reads the state first, so two
+commands passing at once no longer drop each other's entry (§422's first residual).
+Replayed over the last 600 commits of this repository, 388 of them changing a test file: 14 flags, every one a deliberate removal
+its commit explains (ADR-099 T1/T2 at d97f86d5, ADR-097 T1 at dbf53131, the §409 revert at 238611f9), and none from a rename, a
+move or a reformat. No skip was flagged: this repository's skips are conditional.
+Left: a directory dropped from the runner's configuration and a file named outside the default patterns. Both need the runner's
+own output, which is the qh-core idea sent on 2026-10-24.

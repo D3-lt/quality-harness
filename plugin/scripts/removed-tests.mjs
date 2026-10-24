@@ -83,7 +83,11 @@ export function testNames(file, text) {
   if (/\.[cm]?[jt]sx?$/.test(file)) {
     const code = codeLines(text, /^[ \t]*(?:\/\/|\*)/)
     const definitions = [...code.matchAll(JS_DEFINITION)]
-    if (definitions.length !== [...code.matchAll(JS_CALL)].length) return null
+    // Each definition must be a call and each call a definition, by where it starts: equal counts of two different sets read a
+    // file in part (the verification review of 9cac4e63: `test ('a')` beside `{ test('b') }`).
+    const at = match => match.index + match[0].length - match[0].replace(/^[ \t]*(?:await[ \t]+)?/, '').length
+    const calls = new Set([...code.matchAll(JS_CALL)].map(match => match.index))
+    if (definitions.length !== calls.size || definitions.some(match => !calls.has(at(match)))) return null
     for (const match of definitions) {
       const name = unescaped(match[2] ?? match[3] ?? match[4])
       ;(match[1] === '.skip' || (match[5] && JS_SKIP_OPTION.test(match[5])) ? skip : run).push(name)
@@ -94,17 +98,21 @@ export function testNames(file, text) {
     let skipped = false
     let quoted = null
     for (const line of text.split('\n')) {
-      // A line inside a triple-quoted string is text; a line that opens or closes one is not read either.
+      // A line inside a triple-quoted string is text, and is not read. A comment is dropped before its quote marks are counted,
+      // and a definition is read before the marks on its own line open a string (`def test_a(): """Doc."""`). A `#` beside an odd
+      // number of marks is a comment holding them or a string holding the `#`, which this cannot tell apart: the file is unread.
       const quotes = [...line.matchAll(/"""|'''/g)].map(match => match[0])
-      if (quoted || quotes.length) {
+      if (quoted) {
         for (const mark of quotes) quoted = quoted === null ? mark : quoted === mark ? null : quoted
         continue
       }
       if (/^[ \t]*#/.test(line)) continue
+      if (quotes.length % 2 && line.includes('#')) return null
       if (PY_SKIP.test(line)) skipped = true
       const def = PY_DEF.exec(line)
       if (def) (skipped ? skip : run).push(def[1])
       if (def || /^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]/.test(line)) skipped = false
+      for (const mark of quotes) quoted = quoted === null ? mark : quoted === mark ? null : quoted
     }
     return { run, skip }
   }

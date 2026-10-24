@@ -264,6 +264,9 @@ test('test names: a file is read whole or not at all, and a name is the one the 
   for (const text of ["test('a', f)\nfor (const n of ['b']) test(n, f)\n", "test.each([1])('a %s', f)\n", 'test(`d ${x}`, f)\n',
     "describe('g', () => { test('a', f) })\n"]) assert.equal(testNames('a.test.mjs', text), null, text)
   assert.deepEqual(testNames('a.test.mjs', "test.after(() => {})\nit.beforeEach(() => {})\ntest('a', f)\n"), { run: ['a'], skip: [] })
+  assert.equal(testNames('a.test.mjs', "test ('a', f)\n{ test('b', f) }\n"), null, 'a definition and a call that are not the same one read the file in part')
+  assert.deepEqual(testNames('test_x.py', '# Example delimiter: """\ndef test_a(): pass\ndef test_b(): """Doc."""\n'), { run: ['test_a', 'test_b'], skip: [] })
+  assert.equal(testNames('test_x.py', 'x = 1  # """\ndef test_a(): pass\n'), null)
   assert.deepEqual(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc TestB(\n\tt *testing.T,\n) {}\nfunc Test(t *testing.T) {}\nfunc TestMain(m *testing.M) {}\nfunc BenchmarkB(b *testing.B) {}\n// func TestC(t *testing.T) {}\n'),
     { run: ['TestA', 'TestB', 'Test'], skip: [] })
   assert.equal(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc TestTable(t *testing.T, extra int) {}\n'), null)

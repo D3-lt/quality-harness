@@ -3852,3 +3852,9 @@ Measured at 225aa0f2+: 312 of this repository's 326 test files read whole; the r
 with a conditional call. The replay over 600 commits gives the same 14 flags and no others. Mutants 27/27.
 Left as boundaries: a line inside a multi-line template literal that starts with `test('…'`; a class-level pytest skip (its
 methods read as running); `pytest.mark.parametrize`, read as one name.
+The verification review of 9cac4e63 confirmed all six closed and found two regressions of the restructure. (1) Python quote marks
+were counted before a comment was dropped, and a definition with a one-line docstring was hidden. (2) Equal counts of JS
+definitions and calls admitted two different sets (`test ('a')` beside `{ test('b') }`). Now a comment is dropped first, a
+definition is read before its line's marks open a string, and a `#` beside an odd number of marks makes the file unread. Each
+definition must start where a call starts, and each call where a definition does. Mutants 29/29; same 312 of 326 whole; the
+replay gives the same 14 flags. Left as a boundary, in both versions: `', skip: true,'` inside an option's string.

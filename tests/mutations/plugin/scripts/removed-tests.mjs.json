@@ -159,8 +159,26 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "if (definitions.length !== [...code.matchAll(JS_CALL)].length) return null",
+      "from": "if (definitions.length !== calls.size || definitions.some(match => !calls.has(at(match)))) return null",
       "to": ""
+    },
+    {
+      "label": "removed tests: a definition need not be the call at its position",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": " || definitions.some(match => !calls.has(at(match)))",
+      "to": ""
+    },
+    {
+      "label": "removed tests: quote marks in a comment open a Python string",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "      if (/^[ \\t]*#/.test(line)) continue\n      if (quotes.length % 2",
+      "to": "      if (quotes.length % 2"
     },
     {
       "label": "removed tests: a call after a quote counts as a call",
@@ -204,8 +222,8 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "const nowSkipped = minus(found.skip, was.skip).filter(name => {",
-      "to": "const nowSkipped = minus(found.skip, was.skip).filter(name => was.run.includes(name) || {"
+      "from": "      return at >= 0\n",
+      "to": "      return at >= 0 || was.run.includes(name)\n"
     },
     {
       "label": "removed tests: a Go parameter list over several lines is not read",
@@ -222,7 +240,7 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "if (quoted || quotes.length) {",
+      "from": "      if (quoted) {",
       "to": "if (false) {"
     }
   ]

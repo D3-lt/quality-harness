@@ -80,6 +80,15 @@
       ],
       "from": "/(?:^|\\/)test_[^/]*\\.py$/,",
       "to": "/(?:^|\\/)test_[^/]*\\.pyc$/,"
+    },
+    {
+      "label": "removed tests: a test link whose target is gone is still present",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "try { statSync(path.join(root, file)); return false }",
+      "to": "try { statSync(path.join(root, path.dirname(file))); return false }"
     }
   ]
 }

@@ -5,7 +5,7 @@
 // changes the check's exit (CLAUDE.md §3). A count of tests, which no runner's prose reliably gives, is not attempted.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { stateDir } from './event-log.mjs'
 
@@ -49,9 +49,10 @@ function testFiles(root) {
 }
 
 // Whether a path the last pass had is gone from the disk: true when nothing is there, false when something is (a file now
-// ignored, so git no longer lists it, is still there and still runnable), null when the disk cannot say.
+// ignored, so git no longer lists it, is still there and still runnable), null when the disk cannot say. A link is followed: one
+// whose target is gone is no test anybody can run (the verification review of 975ce16d).
 function goneFromDisk(root, file) {
-  try { lstatSync(path.join(root, file)); return false } catch (failure) {
+  try { statSync(path.join(root, file)); return false } catch (failure) {
     return failure?.code === 'ENOENT' || failure?.code === 'ENOTDIR' ? true : null
   }
 }

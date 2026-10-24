@@ -3816,3 +3816,5 @@ one. (4) `*_test.go` under `testdata` or a `.`/`_` name is no test (`go help pac
 observation, so the unreadable case is reached only between that observation and this read, and its test calls the module
 directly. Left, as the review named it: two qh-check runs writing `passed-tests.json` at once can lose one command's entry or keep
 an older one, which costs advice and nothing else. The catch around the call has no test, since no input reaches it now.
+The verification review of 975ce16d found one regression, a fail-open: a test file that is a link whose target was deleted
+passed `lstat`, so it was kept as present and never named. The disk check follows the link now (`statSync`), with a test.

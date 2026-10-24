@@ -2,7 +2,7 @@
 // passed is not removed unremarked. Advice only, said once, at the first pass without it; the check's exit is its own.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -130,6 +130,16 @@ test('a file with the same bytes as one that stays is no move, and a file now ig
   rmSync(path.join(dir, 'b'), { recursive: true })
   const later = await run(dir)
   assert.ok(later.said.includes(GONE) && later.said.includes('b/a.test.mjs'), `an ignored file removed later is not named: ${later.said}`)
+})
+
+test('a test file that is a link whose target is gone is gone', { skip: process.platform === 'win32' ? 'a symbolic link needs a privilege a Windows runner may not have (CLAUDE.md §7)' : false }, async () => {
+  const dir = repo('dangling')
+  writeFileSync(path.join(dir, 'target.mjs'), '// the linked test\n')
+  symlinkSync('target.mjs', path.join(dir, 'linked.test.mjs'))
+  await run(dir)
+  rmSync(path.join(dir, 'target.mjs'))
+  const dangling = await run(dir)
+  assert.ok(dangling.said.includes(GONE) && dangling.said.includes('linked.test.mjs'), `a dangling test link is kept as present: ${dangling.said}`)
 })
 
 // A file `git add -A` cannot read fails the check's observation, so no pass reaches this through qh-check: it is a file that

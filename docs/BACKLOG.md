@@ -3907,3 +3907,6 @@ run whose output reports any failure (node `fail`/`cancelled` above 0, pytest `f
 or a fail event) now has no count. Three of its residuals were closed with it. Only a number of passed tests makes a count, so
 `ℹ skipped 0` and `10 files in 0.01s` make none. Nothing the counter meets in the child's data handler may throw. A line with no
 end in sight is dropped past 64 KB. The real full output still counts 2784 and 3. Mutants 50/50.
+The final review of v3.8.57..cf286c2c approved (owner's bound: one more review, then bound). One residual it named, left open as
+bug-fix work: a Go package-level failure, a `"Action":"fail"` event with no `Test` or a `FAIL\t<pkg>` line, is not read as a
+failure. A retry after one can still inflate the count.

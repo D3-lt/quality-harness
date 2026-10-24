@@ -3807,3 +3807,12 @@ The class is "a test that passed is gone, unremarked". Members not covered: a te
 skipped in place (`.skip`, `xit`, `@pytest.mark.skip`), a directory dropped from the runner's configuration, and a file named
 outside the default patterns. Each needs a reader of test definitions or of runner output. That is the qh-core idea sent
 2026-10-24: a count per run from each runner's machine format. Open here only if one is reported.
+Codex review of v3.8.55..f56e7cb6 (high), REQUEST CHANGES, four findings confirmed against source and fixed in one round. (1) An
+entry of a shape qh-check does not write (a NUL `head`, `files` that is not a path-to-sha256 map) could throw out of a passing
+check or read as no test files. It is now could-not-look, and qh-check contains anything the advice throws. (2) A file git no
+longer lists counted as gone. It is gone now only when nothing is at its path; a file now ignored, or one that cannot be read,
+keeps its last hash. (3) Bytes that matched a file that stayed counted as a move; only a path the last pass did not have can be
+one. (4) `*_test.go` under `testdata` or a `.`/`_` name is no test (`go help packages`). A mode-000 file fails the check's own
+observation, so the unreadable case is reached only between that observation and this read, and its test calls the module
+directly. Left, as the review named it: two qh-check runs writing `passed-tests.json` at once can lose one command's entry or keep
+an older one, which costs advice and nothing else. The catch around the call has no test, since no input reaches it now.

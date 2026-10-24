@@ -22,7 +22,7 @@ import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 import { PROSE_HINT, onlyTextChangedSince, previousPassHead, proseHintMs } from './prose-hint.mjs'
 import { fastCheckHint } from './fast-check-hint.mjs'
-import { removedTestsLine } from './removed-tests.mjs'
+import { UNREAD, removedTestsLine } from './removed-tests.mjs'
 import { checkTimeoutMs, runLaunched } from './check-child.mjs'
 import { takeTurn } from './check-lease.mjs'
 import { classifyRun, recordBaseline, recordRun, recordSkip, reuseByProse, runRecord } from './check-record.mjs'
@@ -192,9 +192,11 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const record = runRecord({ id: randomUUID(), git, command, origin, before, after, run: { exit, signal, verdict }, cores: loadAtStart.cores,
     contended, beside, besideAtEnd, waitedMs, prose })
   recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr, output: tail.output() })
-  // A test file the last pass of this command ran with, gone and not moved, is named once, at the first pass without it.
+  // A test file the last pass of this command ran with, gone and not moved, is named once, at the first pass without it. It is
+  // advice: nothing it meets may change the check's exit (CLAUDE.md §3).
   if (git === true && checkEventName(record) === 'check.passed') {
-    const removed = removedTestsLine({ root, fast, command, record })
+    let removed
+    try { removed = removedTestsLine({ root, fast, command, record }) } catch (failure) { removed = `${UNREAD}: ${failure.message}` }
     if (removed) stderr.write(`qh-check: ${removed}\n`)
   }
   if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)

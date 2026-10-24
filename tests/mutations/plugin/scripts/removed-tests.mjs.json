@@ -6,8 +6,53 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "!(name in now) && !hashes.has(last.files[name])",
-      "to": "!(name in now)"
+      "from": "if (absent === true && !movedTo.has(last.files[name])) gone.push(name)",
+      "to": "if (absent === true) gone.push(name)"
+    },
+    {
+      "label": "removed tests: bytes at a path the last pass had read as a move",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "const movedTo = new Set(added.map(name => now.files[name]))",
+      "to": "const movedTo = new Set(Object.values(now.files))"
+    },
+    {
+      "label": "removed tests: a file git no longer lists is gone whatever the disk holds",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "const absent = now.unread.has(name) ? null : goneFromDisk(root, name)",
+      "to": "const absent = now.unread.has(name) ? null : true"
+    },
+    {
+      "label": "removed tests: a listed file that cannot be read is gone",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "const absent = now.unread.has(name) ? null : goneFromDisk",
+      "to": "const absent = now.unread.has(name) ? true : goneFromDisk"
+    },
+    {
+      "label": "removed tests: an entry qh-check did not write is compared",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (!unread && last !== undefined && !written(last))",
+      "to": "if (false)"
+    },
+    {
+      "label": "removed tests: a Go file under testdata is a test file",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "part !== 'testdata' && ",
+      "to": ""
     },
     {
       "label": "removed tests: a pass on another branch is compared",

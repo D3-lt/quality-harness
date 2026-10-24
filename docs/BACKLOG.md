@@ -3872,3 +3872,13 @@ The review of v3.8.56..fa59d357, the fourth round, found three more inputs, each
 `(`; a `def test_…` nested in another function or in a class pytest does not collect; and skip options with a spread or a
 repeated `skip` key. The fuzz gained the two JS edit classes: seeds 1 to 3, about 11,400 edits, 0 read wrongly. 311 of 326 files
 read whole; the replay gives the same 14 flags. Mutants 36/36.
+
+## 424. The review launcher reads an emphasised verdict as unparsed (open)
+
+Found 2026-10-24 releasing 3.8.57. Codex approved v3.8.56..03ec08b8 with the first line `VERDICT: **APPROVE**`.
+`host-review.mjs`'s `VERDICT_LINE` (`^VERDICT:\s*(APPROVE|…)`) recorded the run as `"status":"unparsed"`, so `release-evidence`
+named 03ec08b8 as reviewed by nobody. An earlier round wrote `**VERDICT: REQUEST CHANGES**` and was unparsed the same way. Reading
+what cannot be parsed as no verdict is the could-not-look direction and is correct. The cost is a lost review, which was run
+again with the contract asking for a plain line. A fix would accept Markdown emphasis around the line and the token. That is a
+classifier change (CLAUDE.md §16): `**APPROVE**` is APPROVE, while text after the token must still not be read as a verdict.
+Open; bug-fix scope.

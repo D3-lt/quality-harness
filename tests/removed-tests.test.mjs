@@ -254,12 +254,41 @@ test('an entry written before test names were kept is still read, and compares n
   assert.ok(next.said.includes(TESTS_GONE) && next.said.includes('`three`'), next.said)
 })
 
-test('test names: a string name is read, and a computed name, another call or a Go non-test is not', () => {
-  assert.deepEqual(testNames('a.test.mjs', "test('a', f)\nit(\"b\", f)\ntest(`c`, f)\ntest(`d ${x}`, f)\ntest(name, f)\nsubmit('e')\nt.test('f', f)\n"),
-    { run: ['a', 'b', 'c', 'f'], skip: [] })
-  assert.deepEqual(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc Testlower(t *testing.T) {}\nfunc Test(t *testing.T) {}\nfunc BenchmarkB(b *testing.B) {}\n// func TestC(t *testing.T) {}\n'),
-    { run: ['TestA', 'Test'], skip: [] })
-  assert.deepEqual(testNames('test_x.py', '@pytest.mark.skip\ndef test_a(): pass\nclass TestK:\n    async def test_b(self): pass\n# def test_c(): pass\ndef helper(): pass\n'),
+test('test names: a file is read whole or not at all, and a name is the one the runtime sees', () => {
+  assert.deepEqual(testNames('a.test.mjs', "test('a', f)\nit(\"b\", f)\ntest(`c`, f)\nawait test('it\\'s', f)\nconst e = \"test('e', f)\"\nv.it('f')\nsubmit('g')\n"),
+    { run: ['a', 'b', 'c', "it's"], skip: [] })
+  assert.deepEqual(testNames('a.test.mjs', "test(\r\n  'a',\r\n  f)\r\ntest('b', { label: 'skip: true,' }, f)\r\ntest('c', { timeout: 1, skip: 'why' }, f)\r\n"),
+    { run: ['a', 'b'], skip: ['c'] })
+  assert.deepEqual(testNames('a.test.mjs', "/*\ntest('commented', f)\n*/\ntest('a', f)\n"), { run: ['a'], skip: [] })
+  // Any call this cannot name makes the file unread: a loop, test.each, a template with ${}, a call that does not start a line.
+  for (const text of ["test('a', f)\nfor (const n of ['b']) test(n, f)\n", "test.each([1])('a %s', f)\n", 'test(`d ${x}`, f)\n',
+    "describe('g', () => { test('a', f) })\n"]) assert.equal(testNames('a.test.mjs', text), null, text)
+  assert.deepEqual(testNames('a.test.mjs', "test.after(() => {})\nit.beforeEach(() => {})\ntest('a', f)\n"), { run: ['a'], skip: [] })
+  assert.deepEqual(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc TestB(\n\tt *testing.T,\n) {}\nfunc Test(t *testing.T) {}\nfunc TestMain(m *testing.M) {}\nfunc BenchmarkB(b *testing.B) {}\n// func TestC(t *testing.T) {}\n'),
+    { run: ['TestA', 'TestB', 'Test'], skip: [] })
+  assert.equal(testNames('x_test.go', 'func TestA(t *testing.T) {}\nfunc TestTable(t *testing.T, extra int) {}\n'), null)
+  assert.deepEqual(testNames('test_x.py', '@pytest.mark.skip\ndef test_a(): pass\nclass TestK:\n    async def test_b(self): pass\n# def test_c(): pass\n"""\ndef test_d(): pass\n"""\ndef helper(): pass\n'),
     { run: ['test_b'], skip: ['test_a'] })
   assert.equal(testNames('CartTest.php', 'function testA() {}'), null)
+})
+
+test('an edit that keeps every test says nothing: a reformat, an example, a loop, a skipped twin or a requoted name', async () => {
+  const dir = repo('keeps')
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('a', () => {})", "test('b', () => {})", "test('it\\'s', () => {})",
+    "const example = \"test('ghost', () => {})\"", "validator.it('ghost2')", '/*', "test('ghost3', () => {})", '*/'))
+  writeFileSync(path.join(dir, 'loop.test.mjs'), js("test('one', () => {})", "test('two', () => {})"))
+  writeFileSync(path.join(dir, 'x_test.go'), 'package x\nimport "testing"\nfunc TestA(t *testing.T) {}\n')
+  await run(dir)
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test(\r\n  'a',\r\n  () => {})", "test('b', { label: 'skip: true,' }, () => {})",
+    "test.skip('b', () => {})", 'test("it\'s", () => {})'))
+  writeFileSync(path.join(dir, 'loop.test.mjs'), js("for (const name of ['one', 'two']) test(name, () => {})"))
+  writeFileSync(path.join(dir, 'x_test.go'), 'package x\nimport "testing"\nfunc TestA(\n\tt *testing.T,\n) {}\n')
+  const { said } = await run(dir)
+  assert.ok(!said.includes(TESTS_GONE) && !said.includes(SKIPPED) && !said.includes(UNREAD) && !said.includes(GONE), `an edit that keeps every test is read as a removal: ${said}`)
+  // The reader still sees through the same file once it is whole again: the next removal is named.
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('a', () => {})", "test.skip('b', () => {})", 'test("it\'s", () => {})'))
+  await run(dir)
+  writeFileSync(path.join(dir, 'x.test.mjs'), js("test('a', () => {})", "test.skip('b', () => {})"))
+  const next = await run(dir)
+  assert.ok(next.said.includes(TESTS_GONE) && next.said.includes("`it's`"), next.said)
 })

@@ -38,30 +38,68 @@ export const isTestFile = file => goTest(file) || TEST_FILE.some(pattern => patt
 //   and `.todo` still runs. jest and vitest use the same calls and were not run here.
 // - pytest 9.0.3 (Python 3.14) runs `def test_*` and `async def test_*`, top level or in a class, and skips one under
 //   `@pytest.mark.skip`; `skipif` depends on its condition and is not read as a skip.
-// - go test (go1.27.3) runs `func Test<not a lowercase letter>…(t *testing.T)`. A Go skip is `t.Skip` in the body, behind any
-//   condition, so none is read.
-// PHP and Ruby had no runner here, so their names are not read; the file-level check still covers them. A name read wrongly is
-// read the same way at both passes, so it costs advice only where the text around it changed (CLAUDE.md §16). A line that is
-// a comment is not read: a test commented out is a test the runner no longer runs.
-const JS_TEST = /\b(?:test|it)(\.skip|\.todo|\.only)?[ \t]*\([ \t\n]*(?:'((?:\\.|[^'\\\n])*)'|"((?:\\.|[^"\\\n])*)"|`((?:\\.|[^`\\$])*)`)[ \t\n]*(,[ \t\n]*\{[^{}]*\})?/g
-const JS_SKIP_OPTION = /\bskip[ \t]*:[ \t]*(?:true|'[^'\n]+'|"[^"\n]+")[ \t\n]*[,}]/
+// - go test (go1.27.3) runs `func Test<not a lowercase letter>…(t *testing.T)`, the parameter list on one line or several. A Go
+//   skip is `t.Skip` in the body, behind any condition, so none is read.
+// PHP and Ruby had no runner here, so their names are not read; the file-level check still covers them.
+// ⚠ A FILE IS READ WHOLE OR NOT AT ALL (the Codex review of 225aa0f2, six inputs where a name read wrongly gave false advice). A
+// JS file's names count only when every `test(`/`it(` call in it, with any member after it, is a definition this recognises: a
+// call at the start of a line whose name is a literal. A name built in a loop, `test.each`, a call inside a one-line `describe`
+// or a template with `${}` makes the file unread, and an unread file is compared with nothing, at either pass. A `test(` after a
+// quote, a dot or a word character is no call: a code example in a string, `validator.it(`. Lines in a comment (`//`, a block
+// comment opened at the start of a line) or a Python triple-quoted string are not read: a test commented out is a test the
+// runner no longer runs. What is left is a boundary, not a promise: a line inside a multi-line template literal that starts
+// with `test('…'` is read as a definition (CLAUDE.md §16).
+const JS_DEFINITION = /^[ \t]*(?:await[ \t]+)?(?:test|it)(\.skip|\.todo|\.only)?[ \t]*\([ \t\r\n]*(?:'((?:\\.|[^'\\\r\n])*)'|"((?:\\.|[^"\\\r\n])*)"|`((?:\\.|[^`\\$])*)`)[ \t\r\n]*(,[ \t\r\n]*\{[^{}]*\})?/gm
+// A hook (`test.after(`, `it.beforeEach(`, `test.mock`) defines no test, so it is no call this has to name.
+const JS_CALL = /(?<![\w$.'"`])(?:test|it)(?![ \t]*\.[ \t]*(?:after|afterEach|before|beforeEach|mock)\b)(?:[ \t]*\.[ \t]*\w+)*\(/g
+// A `skip` property, after the brace or a comma: `{ label: 'skip: true,' }` holds the words in a string and is no skip.
+const JS_SKIP_OPTION = /[{,][ \t\r\n]*skip[ \t]*:[ \t]*(?:true|'[^'\r\n]+'|"[^"\r\n]+")[ \t\r\n]*[,}]/
 const PY_DEF = /^[ \t]*(?:async[ \t]+)?def[ \t]+(test\w*)[ \t]*\(/
 const PY_SKIP = /^[ \t]*@pytest\.mark\.skip\b/
-const GO_TEST = /^func[ \t]+(Test(?:[^a-z\s(]\w*)?)[ \t]*\([ \t]*\w+[ \t]+\*testing\.T[ \t]*\)/gm
+const GO_TEST = /^func[ \t]+(Test(?:[^a-z\s(]\w*)?)[ \t]*\([ \t\r\n]*\w+[ \t]+\*testing\.T[ \t\r\n]*,?[ \t\r\n]*\)/gm
+const GO_CANDIDATE = /^func[ \t]+(Test(?:[^a-z\s(]\w*)?)[ \t]*\(/gm
+// A literal's characters as the runtime sees them, so `'it\'s'` and `"it's"` are one name. Nothing is evaluated.
+const ESCAPES = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', 0: '\0' }
+const unescaped = text => text.replace(/\\(?:u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|(\r\n|[\s\S]))/g,
+  (_, braced, four, two, other) => braced || four || two ? String.fromCodePoint(Number.parseInt(braced || four || two, 16))
+    : other === '\n' || other === '\r\n' ? '' : ESCAPES[other] ?? other)
+
+// The lines of `text` that are code: not a whole-line comment, and not inside a block comment opened at the start of a line.
+function codeLines(text, comment) {
+  const kept = []
+  let inBlock = false
+  for (const line of text.split('\n')) {
+    if (inBlock) { if (line.includes('*/')) inBlock = false; continue }
+    if (/^[ \t]*\/\*/.test(line)) { inBlock = !line.includes('*/', line.indexOf('/*') + 2); continue }
+    if (!comment.test(line)) kept.push(line)
+  }
+  return kept.join('\n')
+}
+
+/** The names a test file defines, `{ run, skip }`, or null when its runner was not measured or the file cannot be read whole. */
 export function testNames(file, text) {
   const run = []
   const skip = []
   if (/\.[cm]?[jt]sx?$/.test(file)) {
-    const code = text.split('\n').filter(line => !/^[ \t]*(?:\/\/|\/\*|\*)/.test(line)).join('\n')
-    for (const match of code.matchAll(JS_TEST)) {
-      const name = match[2] ?? match[3] ?? match[4]
+    const code = codeLines(text, /^[ \t]*(?:\/\/|\*)/)
+    const definitions = [...code.matchAll(JS_DEFINITION)]
+    if (definitions.length !== [...code.matchAll(JS_CALL)].length) return null
+    for (const match of definitions) {
+      const name = unescaped(match[2] ?? match[3] ?? match[4])
       ;(match[1] === '.skip' || (match[5] && JS_SKIP_OPTION.test(match[5])) ? skip : run).push(name)
     }
     return { run, skip }
   }
   if (file.endsWith('.py')) {
     let skipped = false
+    let quoted = null
     for (const line of text.split('\n')) {
+      // A line inside a triple-quoted string is text; a line that opens or closes one is not read either.
+      const quotes = [...line.matchAll(/"""|'''/g)].map(match => match[0])
+      if (quoted || quotes.length) {
+        for (const mark of quotes) quoted = quoted === null ? mark : quoted === mark ? null : quoted
+        continue
+      }
       if (/^[ \t]*#/.test(line)) continue
       if (PY_SKIP.test(line)) skipped = true
       const def = PY_DEF.exec(line)
@@ -71,8 +109,11 @@ export function testNames(file, text) {
     return { run, skip }
   }
   if (file.endsWith('.go')) {
-    const code = text.split('\n').filter(line => !/^[ \t]*\/\//.test(line)).join('\n')
-    for (const match of code.matchAll(GO_TEST)) run.push(match[1])
+    const code = codeLines(text, /^[ \t]*\/\//)
+    const candidates = [...code.matchAll(GO_CANDIDATE)].filter(match => match[1] !== 'TestMain')
+    const tests = [...code.matchAll(GO_TEST)]
+    if (tests.length !== candidates.length) return null
+    for (const match of tests) run.push(match[1])
     return { run, skip }
   }
   return null
@@ -160,7 +201,14 @@ function testLines(last, now) {
       const gone = minus(all(was), all(found)).filter(name => !movedTo.has(name))
       if (gone.length) fewer.push(`\`${file}\` (${all(was).length - all(found).length} fewer; not there now: ${named(gone)})`)
     }
-    const nowSkipped = minus(found.skip, was.skip).filter(name => was.run.includes(name))
+    // A skip now is the last pass's running test only where as many fewer of that name run: `test.skip('same')` added beside a
+    // `test('same')` that still runs is a new skipped test, not a running one skipped.
+    const stoppedRunning = minus(was.run, found.run)
+    const nowSkipped = minus(found.skip, was.skip).filter(name => {
+      const at = stoppedRunning.indexOf(name)
+      if (at >= 0) stoppedRunning.splice(at, 1)
+      return at >= 0
+    })
     if (nowSkipped.length) skipped.push(`\`${file}\`: ${named(nowSkipped)}`)
   }
   const lines = []

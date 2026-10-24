@@ -123,7 +123,7 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "(?:true|'[^'\\n]+'|\"[^\"\\n]+\")[ \\t\\n]*[,}]/",
+      "from": "(?:true|'[^'\\r\\n]+'|\"[^\"\\r\\n]+\")[ \\t\\r\\n]*[,}]/",
       "to": "[^,}]+[,}]/"
     },
     {
@@ -141,8 +141,8 @@
       "tests": [
         "tests/removed-tests.test.mjs"
       ],
-      "from": "const code = text.split('\\n').filter(line => !/^[ \\t]*(?:\\/\\/|\\/\\*|\\*)/.test(line)).join('\\n')",
-      "to": "const code = text"
+      "from": "if (!comment.test(line)) kept.push(line)",
+      "to": "kept.push(line)"
     },
     {
       "label": "removed tests: an entry from before test names is unreadable",
@@ -152,6 +152,78 @@
       ],
       "from": "(entry.tests === undefined || (plain(entry.tests)",
       "to": "((plain(entry.tests)"
+    },
+    {
+      "label": "removed tests: a JS file with a call it cannot name is still compared",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (definitions.length !== [...code.matchAll(JS_CALL)].length) return null",
+      "to": ""
+    },
+    {
+      "label": "removed tests: a call after a quote counts as a call",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(?<![\\w$.'\"`])(?:test|it)",
+      "to": "(?<![\\w$])(?:test|it)"
+    },
+    {
+      "label": "removed tests: a hook counts as a call",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "(?![ \\t]*\\.[ \\t]*(?:after|afterEach|before|beforeEach|mock)\\b)",
+      "to": ""
+    },
+    {
+      "label": "removed tests: an escaped name is kept as written",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "const name = unescaped(match[2] ?? match[3] ?? match[4])",
+      "to": "const name = match[2] ?? match[3] ?? match[4]"
+    },
+    {
+      "label": "removed tests: a skip property inside a string is a skip",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "/[{,][ \\t\\r\\n]*skip[ \\t]*:",
+      "to": "/\\bskip[ \\t]*:"
+    },
+    {
+      "label": "removed tests: a skipped twin of a running test reads as that test skipped",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "const nowSkipped = minus(found.skip, was.skip).filter(name => {",
+      "to": "const nowSkipped = minus(found.skip, was.skip).filter(name => was.run.includes(name) || {"
+    },
+    {
+      "label": "removed tests: a Go parameter list over several lines is not read",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "[ \\t\\r\\n]*,?[ \\t\\r\\n]*\\)/gm",
+      "to": "[ \\t]*\\)/gm"
+    },
+    {
+      "label": "removed tests: a Python triple-quoted string is read as code",
+      "file": "plugin/scripts/removed-tests.mjs",
+      "tests": [
+        "tests/removed-tests.test.mjs"
+      ],
+      "from": "if (quoted || quotes.length) {",
+      "to": "if (false) {"
     }
   ]
 }

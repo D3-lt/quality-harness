@@ -3839,3 +3839,16 @@ its commit explains (ADR-099 T1/T2 at d97f86d5, ADR-097 T1 at dbf53131, the §40
 move or a reformat. No skip was flagged: this repository's skips are conditional.
 Left: a directory dropped from the runner's configuration and a file named outside the default patterns. Both need the runner's
 own output, which is the qh-core idea sent on 2026-10-24.
+The Codex review of v3.8.56..225aa0f2 (high) asked for changes, with six inputs where the name reader gave false advice on a
+correct edit: a CRLF or Go multi-line reformat; a `test(` in a string, on another object or in a block comment; `skip:` inside an
+option's string; a skipped twin added beside a running test; names built in a loop or by `test.each`; and one name spelled with
+two escapes. Rather than patch six inputs (see the memory "stop patching after two rounds"), the reader was restructured: a JS
+or Go file is read whole or not at all. Its names count only when every call is a definition it recognises: at the start of a
+line, with a literal name, and with no space before the parenthesis. Hooks (`test.after`, `it.beforeEach`) are not calls. Any
+other call makes the file unread, and an unread file is compared with nothing. On top of that, CRLF and Go multi-line signatures
+are read, escapes are decoded, block comments and Python triple-quoted strings are skipped, a skip must be a `skip` property,
+and a new skip names a test only where as many fewer of that name run.
+Measured at 225aa0f2+: 312 of this repository's 326 test files read whole; the rest are fixtures in an unread language or files
+with a conditional call. The replay over 600 commits gives the same 14 flags and no others. Mutants 27/27.
+Left as boundaries: a line inside a multi-line template literal that starts with `test('…'`; a class-level pytest skip (its
+methods read as running); `pytest.mark.parametrize`, read as one name.

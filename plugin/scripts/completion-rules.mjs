@@ -137,7 +137,7 @@ function reportsZeroTestWork(text, command) {
     // is not one (a filter that matched nothing passes the package too). Read from
     // a real `go test -json` run, not the docs (Codex review of 6331340).
     const packageRan = text.split('\n').some(line => {
-      if (/^ok\s+\S/.test(line)) return !/\[no tests to run\]/.test(line)
+      // A plain `ok  <package>  <duration>` line is read below, whatever the command (qh-core, 2026-10-27); here only -json.
       if (!line.startsWith('{')) return false
       if (/"Action":"pass"/.test(line) && /"Test":"/.test(line)) return true
       const output = /"Output":"((?:[^"\\]|\\.)*)"/.exec(line)?.[1]

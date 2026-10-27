@@ -145,6 +145,9 @@ test('a code change, a changed prose list or an unseen write ends the carry-over
     const proseEnd = proseCommit.hook(stop)
     assert.doesNotMatch(said(proseEnd), R2, `${name}: a historical prose-only commit stands on the pass`)
     assert.doesNotMatch(said(proseEnd), R1, `${name}: and so does the tree after it`)
+    // The claim reads HEAD's commit through its own code tree: X's code plus a prose edit stands on X's pass (ADR-120 T9).
+    const proseClaims = readFileSync(path.join(proseCommit.box.data, 'claims.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    assert.equal(proseClaims.at(-1)?.evidence, 'verified', `${name}: the claim reads the prose-only commit verified`)
 
     // A staged index whose code is X's code with a prose edit staged stands; one holding other code does not.
     const staged = begin(t, implementation)

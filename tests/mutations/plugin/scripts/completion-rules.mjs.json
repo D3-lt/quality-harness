@@ -461,16 +461,6 @@
       "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say|a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
     },
     {
-      "label": "qh-check: a green go test with one testless package is work, not zero work (§273)",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "      if (/^ok\\s+\\S/.test(line)) return !/\\[no tests to run\\]/.test(line)",
-      "to": "      if (/^ok\\s+\\S/.test(line)) return false",
-      "only": "^(?:a green `go test \\./\\.\\.\\.` with one testless package is `passed`; all testless is `no-work`)$"
-    },
-    {
       "label": "qh-check: under go test -json a test-level pass or an ok Output line is work (§273 round 2)",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [

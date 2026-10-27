@@ -1,0 +1,12 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/carry-and-probe-fixes.test.mjs	a declared check with a command-local assignment can start, and a plain missing program cannot	3a91eec604ecb7c701feb6b9362a3c372889e9ca20d5b7bee3f61ef6af1b3577
+body	tests/carry-and-probe-fixes.test.mjs	a write another session made after the pass ends the carry-over, and one made before it does not	06785521b51137dbddb75134fdf34ee2205372e332a92b30db3a76a14cdd65c3
+body	tests/carry-and-probe-fixes.test.mjs	the Go core's foreign-write veto and assignment probe hold	97f9b8843d93acaea66f28cb8d4f9535344ca1a001d7cd58f8c2e027f0eaa60a
+body	tests/prose-pass.test.mjs	a check event names its code tree and list only as the ledger record holds them	41192b06c1ecfd1d6333c5616929a9dbebc8e8fa3a94b3879e7d5003c3f960df
+body	tests/prose-pass.test.mjs	a code change, a changed prose list or an unseen write ends the carry-over	f31129c6eae72acb9bf6b5d3577957d1c4ba24c36a4214cf11a0d637a0b12564
+body	tests/prose-pass.test.mjs	a pass stands across a prose-only change for every reader	ee4bb04cc425ad7255993a7bfbcde816c99fb7513160ad4722155933aa56c00e
+body	tests/prose-pass.test.mjs	a prose-only unchecked diff with no prose declared names the setting once	be3d6e4d55adfedcecd1f0dab654b22385db99e114b37631f113a93a2bf9f3de
+body	tests/prose-pass.test.mjs	the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar	6082269597d22a61dddb8fa64551aaf3c1b90bfa31d4f22604d1c35dce422bc3
+body	tests/prose-pass.test.mjs	the compaction note says a pass that stands for the tree passed on the changed paths, in Node and Go	a4b554316c53d0117518b8dfc8f4816677d8cf3fd4407099559a241ea1e5d5d6
+body	tests/prose-pass.test.mjs	the previous session's notice is silent on a tree a pass stands for, and speaks on one it does not	a867adfea50c4a9cfd014a3b72db0bdd77cc82e5ddfb13c460c4c395d8de5fde
+body	tests/prose-pass.test.mjs	the status line reads a pass carried to a prose-only tree, and not to one with other code	c2f8ab9ef1b2d060dd83473dc9aaf8e322c31509ee815d4a50abdf753fb3292d

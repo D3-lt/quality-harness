@@ -1327,14 +1327,23 @@ test('the fresh-repository rows commit where the classifier says they do', { ski
     assert.match(head(path.join(where, made[0])), /^[0-9a-f]{40,64}$/, `no commit in the directory mktemp made: ${command}`)
   }
   // The measured fail-open, replayed: where mktemp fails, `;` carries on, `cd "$R"`
-  // stays here, and the commit lands in the session repository.
+  // stays here, and the commit lands in the session repository. Where `cd "$R"` lands
+  // with R empty is the shell's: bash 5.2 stays put, and the ubuntu-26.04 runner's bash
+  // 5.3.9 did not commit (land/91afb926, 2026-10-27). So the same bash is asked first,
+  // and the replay is held to what it does; the classifier refuses it either way.
   const session = repository()
   writeFileSync(path.join(session, 'a.md'), 'changed\n')
-  const replay = `R=$(mktemp -d ${slashed(path.join(hookTmp, 'fresh-missing'))}/x.XXXX); cd "$R" && git init -q && git add -A && git commit -qm f`
+  const missing = `R=$(mktemp -d ${slashed(path.join(hookTmp, 'fresh-missing'))}/x.XXXX); cd "$R"`
+  const replay = `${missing} && git init -q && git add -A && git commit -qm f`
   assert.equal(freshRepositoryCommit(replay), false)
+  const stays = bash(session, `${missing} && pwd -P`)
   const before = head(session)
   bash(session, replay)
-  assert.notEqual(head(session), before, 'the replay row did not commit into the session repository')
+  if (stays.status === 0 && stays.stdout.trim() === realpathSync.native(session)) {
+    assert.notEqual(head(session), before, 'the replay row did not commit into the session repository')
+  } else {
+    assert.equal(head(session), before, `this bash left the session repository, so nothing may land in it: ${stays.stderr}`)
+  }
 })
 
 // ── Codex re-review of a14a751, 2026-10-06: F is freshRepositoryCommit, the unarmed

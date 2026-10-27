@@ -1,0 +1,7 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/corpus-lint.test.mjs	every record this repository tracks passes its own adr-lint	5e445e5ab6df955d02de504ad36f3f6be54a8b4a5e57627777f2c7aa18a854a6
+body	tests/corpus-lint.test.mjs	the archive, where there is one, passes adr-retire-check	e7675f0edba229173bfc31efbedc69776d0853eeaa8d49b0ac5dd2860d6a2149
+body	tests/corpus-lint.test.mjs	this repository's own deferral pointers all resolve under adr-debt	fb4a564fa9cc373d537f17165b8770d4a6a2f08aa46a32d9c8af16561c0373c4
+body	tests/lock-sidecar.test.mjs	a relock after a sidecar first red keeps its check	44b79c392e684278463ee90349fc034ef464f3e0c31c0bc1f36dae51f5a98515
+body	tests/lock-sidecar.test.mjs	a sidecar lock reads as its inline twin, and names a moved test	a63664714d3bd02e255e416768ddb2411b71f9a8b7e5b31cf3c104f26200f873
+body	tests/lock-sidecar.test.mjs	a sidecar that is missing, ignored, outside, altered or unreadable is UNPROVEN, and an untracked one is read	41941bcf60f6d0006cb72bd152d8558ceb73501cfce1cbd5d704eda46273ad77

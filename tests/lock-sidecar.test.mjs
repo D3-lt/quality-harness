@@ -52,6 +52,10 @@ elif case == "altered":
     put(payload.replace(b"\n", b"\r\n") if b"\n" in payload else payload + b"\r\n")
 elif case == "outside":
     lock_row = row(1, f"test-lock-file:../{digest}.lock")
+elif case == "rawpercent":
+    rel = f"design%20records/locks/{digest}.lock"
+    put(payload)
+    lock_row = row(1, f"test-lock-file:{rel}")
 elif case == "symlink":
     outside = os.path.join(os.path.dirname(root), f"outside-{digest[:8]}.lock")
     with open(outside, "wb") as f: f.write(payload)
@@ -80,6 +84,7 @@ function reads(t, which) {
 
 test('a sidecar lock reads as its inline twin, and names a moved test', t => {
   const same = reads(t, 'same')
+  assert.equal(reads(t, 'rawpercent').same, true, 'a raw path holding a literal % is still read')
   assert.equal(same.same, true, 'the sidecar map is the inline map')
   assert.ok(same.blocks.some(line => /locked test `tests\/a\.test\.mjs`::x hash moved/.test(line)), JSON.stringify(same.blocks))
 })

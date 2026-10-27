@@ -4132,7 +4132,8 @@ def _lock_from_row(line, digest, root):
     named = _LOCK_FILE.search(line)
     if not named:
         return None, None, False
-    rel = urllib.parse.unquote(named.group(1)).replace("\\", "/")
+    raw = named.group(1).replace("\\", "/")
+    rel = urllib.parse.unquote(raw)
     if root is None:
         return None, f"its lock file `{rel}` cannot be resolved without the repository", False
 
@@ -4146,6 +4147,11 @@ def _lock_from_row(line, digest, root):
     known = listed("--cached", "--others", "--exclude-standard")
     if known is None:
         return None, f"git could not list its lock file `{rel}`", False
+    # A path is percent-encoded since f95be254; a raw one with a literal `%` is tried when the decoded one is not there, under
+    # the same listing and hash checks (the verification review of f95be254).
+    if known is False and rel != raw:
+        rel = raw
+        known = listed("--cached", "--others", "--exclude-standard")
     if not known:
         return None, f"its lock file `{rel}` is not in the repository (absent, or ignored)", False
     # The file read must be the one git lists: a tracked link carries the link, not the bytes it points at, so a link, or

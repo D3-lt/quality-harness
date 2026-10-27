@@ -4126,6 +4126,10 @@ def _lock_from_row(line, digest, root):
     against git (CLAUDE.md §8), and its raw bytes, read before any decoding, must hash to the row's sha; anything that
     cannot be shown is a lock that could not be read (ADR-005). An untracked file is read: it is every fresh lock's state
     before its commit, and the caller says to commit it."""
+    # Only the row's trailing lock fields: a recorded command may itself hold `test-lock-b64:` or ` · test-lock-file:` text,
+    # and a whole-row search read that instead (the verification review of 51d63c95, as `_row_lock_sha` already says).
+    tail = _row_lock_sha(line.strip())
+    line = line.strip()[tail.start():] if tail else ""
     inline = _LOCK_B64.search(line)
     if inline:
         # Bound by the row's sha like a sidecar: an inline payload edited by hand was otherwise read as the lock (found

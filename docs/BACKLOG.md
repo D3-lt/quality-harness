@@ -3956,3 +3956,7 @@ hashing it, while a sidecar's raw bytes must match `test-lock-sha256:`. A payloa
 reader already bound it. Measured that day: all 532 inline rows under `docs/adr/` hash to their sha. Closed the same day: an
 inline payload that does not hash to its row is a lock that could not be read (UNPROVEN), in `tests/lock-inline-bound.test.mjs`
 with its clean twin; mutant RED.
+The verification review of 51d63c95 found the check could falsely refuse: the payload was searched across the whole row, so
+a `test-lock-b64:` inside the recorded command was hashed instead of the trailing field. Both lock fields are now read only
+from the row's trailing lock suffix (`_row_lock_sha`), tested with a command that holds lock text; mutant RED. All 119 records
+under `docs/adr/` lint exit 0 after it, with no lock-file, inline-payload or `Consumes` finding.

@@ -25,10 +25,14 @@ with open(os.path.join(root, "tests", "a.test.mjs"), "w") as f:
     f.write("import test from 'node:test'\ntest('x', () => { return 1 })\n")
 snap = {"check": None, "bodies": {("tests/a.test.mjs", "x"): "0" * 64}, "unproven": set(), "hasher": 1}
 digest, token = record.encode_lock(snap)
+forged = dict(snap, bodies={("tests/a.test.mjs", "x"): "1" * 64})
 if case == "forged":
-    forged = dict(snap, bodies={("tests/a.test.mjs", "x"): "1" * 64})
     token = record.encode_lock(forged)[1]
-row = (f"- 2026-10-27 · abcdef0 · exit 1 · ` + "`node --test`" + String.raw` · acceptance-sha256:{'a' * 64} · ms:1"
+command = "node --test"
+if case == "command":
+    # A command whose text holds lock fields of its own, before the row's real, trailing ones.
+    command = f"node --test # test-lock-b64:{record.encode_lock(forged)[1]} · test-lock-file:nowhere.lock"
+row = (f"- 2026-10-27 · abcdef0 · exit 1 · ` + "`{command}`" + String.raw` · acceptance-sha256:{'a' * 64} · ms:1"
        f" · test-lock-sha256:{digest} · test-lock-b64:{token}")
 _date, read = record._recorded_lock([row], record.object_format(root), root=root)
 blocks, _advice = record.lock_findings([row], root=root, tests=[("x", "tests/a.test.mjs")])
@@ -52,4 +56,10 @@ test('an inline lock payload that does not hash to its row is UNPROVEN, and one 
   const same = reads(t, 'same')
   assert.equal(same.read, true)
   assert.equal(same.problem, null)
+})
+
+test('the lock fields are read from the end of the row, not from the recorded command', t => {
+  const said = reads(t, 'command')
+  assert.equal(said.read, true, `a command holding lock text is not the lock: ${said.problem}`)
+  assert.equal(said.problem, null)
 })

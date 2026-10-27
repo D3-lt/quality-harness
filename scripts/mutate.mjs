@@ -31,7 +31,7 @@
 //       1 = a mutation left its suite GREEN, or no longer describes the code
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -700,7 +700,27 @@ function runChild(root, args, timeoutMs) {
   const scratch = mkdtempSync(path.join(tmpdir(), 'qh-mutate-run-'))
   try {
     return spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv(process.env, scratch) })
-  } finally { rmSync(scratch, { recursive: true, force: true }) }
+  } finally { removeScratch(scratch) }
+}
+
+/**
+ * Remove a child's scratch directory, and say so when it cannot be: a cleanup is not a verdict, and it must not end the
+ * campaign. A child killed at its timeout can leave a directory it made unwritable, and the plain removal then threw EACCES
+ * and took every verdict of the shard with it (land/2ca24f01, mutations 25/48, the mutant that makes an unknown option run
+ * a whole campaign). Write permission is restored down the tree and the removal tried again; what still stands is named.
+ */
+export function removeScratch(dir, say = line => process.stderr.write(`${line}\n`)) {
+  try { return rmSync(dir, { recursive: true, force: true }) } catch { /* restored and tried again below */ }
+  const writable = at => {
+    try { chmodSync(at, 0o700) } catch { return }
+    let entries = []
+    try { entries = readdirSync(at, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) if (entry.isDirectory()) writable(path.join(at, entry.name))
+  }
+  writable(dir)
+  try { rmSync(dir, { recursive: true, force: true }) } catch (error) {
+    say(`mutate: could not remove the child's scratch directory ${dir} (${error.code ?? error.message}); it is left behind`)
+  }
 }
 /**
  * The test names that failed in a mutated run, read from the reporter's own

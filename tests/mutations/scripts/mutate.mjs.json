@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "land/2ca24f01 mutations 25/48: an unwritable scratch directory is removed without restoring write permission",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-scratch.test.mjs"],
+      "from": "  writable(dir)\n  try { rmSync(dir, { recursive: true, force: true }) } catch (error) {",
+      "to": "  try { rmSync(dir, { recursive: true, force: true }) } catch (error) {",
+      "only": "^an unwritable scratch directory is removed, and the cleanup does not throw$"
+    },
+    {
       "label": "ADR-126 T3: a campaign's children get the suite's observe budget",
       "file": "scripts/mutate.mjs",
       "tests": ["tests/suite-budgets.test.mjs"],
@@ -434,7 +442,7 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  } finally { rmSync(scratch, { recursive: true, force: true }) }",
+      "from": "  } finally { removeScratch(scratch) }",
       "to": "  } finally { void scratch }",
       "only": "leaves nothing in the temp directory"
     },

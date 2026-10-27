@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MAX_RULES, normalize, globToRegExp, parseRulePaths, loadRules,
+  normalize, globToRegExp, parseRulePaths, loadRules,
   candidatePaths, resolveAgainstGit, matchRules, decide, run, isMatchAll,
 } from '../scripts/rules-inject.mjs'
 
@@ -34,9 +34,9 @@ const gitStub = (tracked, root = '/repo') => (args) => {
 }
 
 const RULES = [
-  { name: '01.md', patterns: ['plugin/**', '.gitattributes'], body: 'ONE' },
-  { name: '02.md', patterns: ['scripts/**'], body: 'TWO' },
-  { name: '03.md', patterns: ['**'], body: 'THREE' },
+  { name: '01.md', patterns: ['plugin/**', '.gitattributes'], body: 'ONE', title: 'ONE' },
+  { name: '02.md', patterns: ['scripts/**'], body: 'TWO', title: 'TWO' },
+  { name: '03.md', patterns: ['**'], body: 'THREE', title: 'THREE' },
 ]
 
 test('a glob is anchored at both ends, so a suffix match is not a match', () => {
@@ -138,7 +138,7 @@ test('only the rules whose globs match are delivered', () => {
   assert.deepEqual(matchRules(['docs/x.md'], RULES).map((r) => r.name), ['03.md'])
 })
 
-test('a delivery carries the rule bodies, and a repeat carries nothing', () => {
+test('a delivery points to each governing rule by path, and a repeat carries nothing', () => {
   const payload = {
     tool_name: 'Bash',
     tool_input: { command: 'cat .gitattributes' },
@@ -146,8 +146,8 @@ test('a delivery carries the rule bodies, and a repeat carries nothing', () => {
   }
   const git = gitStub(['.gitattributes'])
   const first = decide(payload, RULES, new Set(), { cwd: '/repo', runGit: git })
-  assert.ok(first.text.includes('ONE'))
-  assert.ok(first.text.includes('THREE'))
+  assert.ok(first.text.includes('.claude/rules/01.md: ONE'))
+  assert.ok(first.text.includes('.claude/rules/03.md: THREE'))
   assert.deepEqual(first.names, ['01.md', '03.md'])
   // Dedup: the harness does not re-send a rule it already delivered, and neither
   // does this. Without it, every `cat` in a session re-pays the rule's cost.
@@ -155,22 +155,25 @@ test('a delivery carries the rule bodies, and a repeat carries nothing', () => {
   assert.equal(second, null)
 })
 
-test('a call that would deliver more than the cap NAMES what it withheld', () => {
-  const many = Array.from({ length: MAX_RULES + 2 }, (_, i) => ({
-    name: `${String(i).padStart(2, '0')}.md`, patterns: ['**'], body: `BODY${i}`,
+test('a pointer carries the title, never the body (the owner, 2026-10-27)', () => {
+  const deep = [{ name: '04.md', patterns: ['.gitattributes'], body: '# Why §4: evidence is tool-written\n\nTHE EVIDENCE PARAGRAPH' }]
+  const outcome = decide({ tool_name: 'Bash', tool_input: { command: 'cat .gitattributes' }, cwd: '/repo' },
+    deep.map((rule) => ({ ...rule, title: 'Why §4: evidence is tool-written' })), new Set(), { cwd: '/repo', runGit: gitStub(['.gitattributes']) })
+  assert.match(outcome.text, /\.claude\/rules\/04\.md: Why §4: evidence is tool-written/)
+  assert.doesNotMatch(outcome.text, /THE EVIDENCE PARAGRAPH/)
+})
+
+test('every governing rule is named, however many', () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({
+    name: `${String(i).padStart(2, '0')}.md`, patterns: ['**'], body: `BODY${i}`, title: `BODY${i}`,
   }))
   const git = gitStub(['a.md'])
   const outcome = decide(
     { tool_name: 'Bash', tool_input: { command: 'cat a.md' }, cwd: '/repo' },
     many, new Set(), { cwd: '/repo', runGit: git },
   )
-  assert.equal(outcome.names.length, MAX_RULES)
-  // A silent truncation would read as "here is everything that governs this"
-  // — CLAUDE.md §3. The withheld ones must be named.
-  assert.match(outcome.text, /not delivered here/)
-  assert.ok(outcome.text.includes(`${String(MAX_RULES + 1).padStart(2, '0')}.md`))
-  // And the ones under the cap really are delivered, not merely counted.
-  assert.ok(outcome.text.includes('BODY0'))
+  assert.equal(outcome.names.length, 12)
+  for (const rule of many) assert.ok(outcome.text.includes(`.claude/rules/${rule.name}`), rule.name)
 })
 
 test('garbage in means nothing out, never a throw', () => {

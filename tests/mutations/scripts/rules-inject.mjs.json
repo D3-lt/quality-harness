@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the owner, 2026-10-27: a delivery sends the rule's body, not a pointer to it",
+      "file": "scripts/rules-inject.mjs",
+      "tests": ["tests/rules-inject.test.mjs"],
+      "from": "  const lines = governing.map((rule) => `- .claude/rules/${rule.name}: ${rule.title}`)",
+      "to": "  const lines = governing.map((rule) => `- .claude/rules/${rule.name}: ${rule.body}`)",
+      "only": "^a pointer carries the title, never the body \\(the owner, 2026-10-27\\)$"
+    },
+    {
       "label": "2026-10-09: a rule that matches every path is not delivered again",
       "file": "scripts/rules-inject.mjs",
       "tests": [

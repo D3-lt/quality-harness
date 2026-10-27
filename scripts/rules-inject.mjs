@@ -42,6 +42,10 @@
 // "deliver nothing" and say nothing. The cost of that silence is the status quo
 // ante; the cost of throwing is the user's turn.
 //
+// ⚠ IT SENDS A POINTER, NEVER A BODY (the owner, 2026-10-27). Measured that day over one session's transcript: the bodies
+// this hook injected were about 70k characters, 3.9% of the context, more than everything the plugin itself said (0.2%).
+// One line per governing rule, its path and its title, tells the reader which rule to open; the evidence stays in the file.
+//
 // Wired from .claude/settings.json. Reads a PostToolUse payload on stdin and
 // writes a hookSpecificOutput document on stdout.
 //
@@ -56,19 +60,6 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
-// A single call may deliver at most this many rules. The bound exists because one
-// Bash command can legitimately name many files; past it the delivery is no longer
-// targeted and the honest thing is to say which rules were withheld, so a reader
-// knows to go and look rather than believing they saw everything.
-//
-// ⚠ IT MUST NOT BITE ON ONE FILE. Set to 4 first, and that was measured wrong the
-// same hour: `scripts/rules-inject.mjs` is governed by every rule that globs
-// `scripts/**`, which is six of them, and the harness delivered all six on a Read.
-// A cap under that would have made this hook quieter than the thing it exists to
-// match — a fix that silently under-delivers is the defect it was written against.
-// The bound is for a command that names MANY files, so it sits above what any one
-// file can pull.
-export const MAX_RULES = 8
 
 /** Normalize a path for structural comparison: both separators, no leading
  * `./`, no drive prefix. CLAUDE.md §7 — never write a separator into a literal
@@ -127,10 +118,10 @@ export function parseRulePaths(text) {
   return patterns
 }
 
-/** Load every rule file, with its patterns and its body.
+/** Load every rule file, with its patterns, its body and its title.
  *
- * The body is what gets delivered, so the frontmatter is stripped: it is
- * machinery for the loader and carries nothing a reader needs. */
+ * The title is what gets delivered: the body's first line, its heading marks
+ * stripped. The frontmatter is machinery for the loader. */
 export function loadRules(rulesDir) {
   let names
   try {
@@ -146,7 +137,8 @@ export function loadRules(rulesDir) {
     if (!patterns.length) continue
     const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim()
     if (!body) continue
-    rules.push({ name, patterns, body })
+    const title = body.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, '').trim().slice(0, 160) ?? name
+    rules.push({ name, patterns, body, title })
   }
   return rules
 }
@@ -271,7 +263,8 @@ function remember(sessionId, names) {
  *
  * Returns the text to deliver and the rule names it covers, or null for
  * "deliver nothing" — which is the answer for most tool calls and must stay
- * indistinguishable in cost from the hook not being installed. */
+ * indistinguishable in cost from the hook not being installed. Every governing
+ * rule is named, one line each, so nothing is withheld and no cap is needed. */
 export function decide(payload, rules, sent, options = {}) {
   const { cwd = payload?.cwd ?? process.cwd(), runGit = defaultGit } = options
   const candidates = candidatePaths(payload?.tool_name, payload?.tool_input)
@@ -281,18 +274,11 @@ export function decide(payload, rules, sent, options = {}) {
   const governing = matchRules(paths, rules).filter((rule) => !sent.has(rule.name))
   if (!governing.length) return null
 
-  const delivered = governing.slice(0, MAX_RULES)
-  const withheld = governing.slice(MAX_RULES)
-  const parts = delivered.map((rule) => `Contents of .claude/rules/${rule.name}:\n\n${rule.body}`)
-  if (withheld.length) {
-    // Naming what was withheld is the difference between a bounded delivery and
-    // a silent truncation. CLAUDE.md §3: a check never reports an observation it
-    // did not make, and "here is everything" would be exactly that.
-    parts.push(`Also governing these files, not delivered here: ${
-      withheld.map((r) => `.claude/rules/${r.name}`).join(', ')
-    }. Read them if this change touches what they cover.`)
+  const lines = governing.map((rule) => `- .claude/rules/${rule.name}: ${rule.title}`)
+  return {
+    text: `Rules governing the files this call touched; read the one that covers your change:\n${lines.join('\n')}`,
+    names: governing.map((rule) => rule.name),
   }
-  return { text: parts.join('\n\n'), names: delivered.map((r) => r.name) }
 }
 
 /** Whether a glob matches every path. The host loads such a rule at SessionStart, so

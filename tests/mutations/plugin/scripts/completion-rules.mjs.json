@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the review of f2d2f739: a no-work run in a torn log is counted, not listed",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/no-work-one-line.test.mjs"],
+      "from": "checkEvent === 'check.no-work' && !logTorn && !orderUnknown && !couldNotLook",
+      "to": "checkEvent === 'check.no-work'",
+      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+    },
+    {
       "label": "BACKLOG §428: a no-work run on this tree still lists every changed path",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/no-work-one-line.test.mjs"],

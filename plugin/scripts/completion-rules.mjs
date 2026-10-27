@@ -496,7 +496,7 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   // BACKLOG §428: after a no-work run on this tree the list says nothing that run did not already show, and it was repeated
   // turn after turn; the count stays.
-  const listed = paths.length && checkEvent === 'check.no-work'
+  const listed = paths.length && checkEvent === 'check.no-work' && !logTorn && !orderUnknown && !couldNotLook
     ? `${paths.length} changed path${paths.length === 1 ? '' : 's'}.`
     : paths.length
     ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`

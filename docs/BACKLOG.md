@@ -3948,3 +3948,11 @@ one line rather than the full list. Unmeasured beyond that session.
 Closed 2026-10-27: when the latest check on this tree was no-work, R1 opens "ran no tests (no-work), so nothing verified it"
 and gives the count of changed paths, not the list; any other verdict keeps the list. Node and Go
 (`tests/no-work-one-line.test.mjs` drives both; its four mutants RED).
+
+## 429. An inline test-lock payload was read without checking it against its row's sha; fixed
+
+Found 2026-10-27 while answering qh-core's port of ADR-129: `_lock_from_row` decoded `test-lock-b64:` as the lock without
+hashing it, while a sidecar's raw bytes must match `test-lock-sha256:`. A payload edited by hand was read as the lock. qh-core's
+reader already bound it. Measured that day: all 532 inline rows under `docs/adr/` hash to their sha. Closed the same day: an
+inline payload that does not hash to its row is a lock that could not be read (UNPROVEN), in `tests/lock-inline-bound.test.mjs`
+with its clean twin; mutant RED.

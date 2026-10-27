@@ -2,12 +2,13 @@
 // hook runs in a temp repository (tests/hook-golden.mjs), through the Node path and the Go core built from this tree.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { fixtureRepo, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
+import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
 import { required } from './helpers/require.mjs'
 import { remove } from './helpers/remove.mjs'
 
@@ -28,7 +29,7 @@ function goCore() {
 }
 
 // A turn that wrote ten files, ran the declared check once, and ended: what the Stop hook said about it.
-function turnEnd(t, implementation, script) {
+function turnEnd(t, implementation, script, { torn = false } = {}) {
   const box = sandbox(t)
   const repo = fixtureRepo(box, 'turn', { '.quality-harness.json': `${JSON.stringify({ check: 'sh check.sh' })}\n`, 'check.sh': script, 'src/a.js': 'export const a = 1\n' })
   const hook = payload => runHook(box, repo, `no-work-${implementation.impl}`, payload, {}, implementation)
@@ -40,6 +41,8 @@ function turnEnd(t, implementation, script) {
     hook({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: file, content: 'x\n' }, tool_response: { filePath: file, success: true } })
   }
   runQhCheck(box, repo)
+  // A torn last line: the no-work run survives, but which run was last can no longer be shown.
+  if (torn) appendFileSync(sessionLogFile(repo, `no-work-${implementation.impl}`), '{"event":"check.failed","rec')
   const stop = hook({ hook_event_name: 'Stop', last_assistant_message: 'Done.' })
   assert.equal(stop.exit, 0, stop.stderr)
   return JSON.stringify(stop.stdout)
@@ -54,5 +57,9 @@ test('a no-work run on this tree is said in one line, not with the path list', {
     const red = turnEnd(t, implementation, 'exit 1\n')
     assert.match(red, /Changed paths: .*src\/new\/f0\.js.*, and \d+ more\./, implementation.impl)
     assert.doesNotMatch(red, /no-work/, implementation.impl)
+    // And a no-work run in a log torn after it is not an established verdict: the paths are listed (the review of f2d2f739).
+    const unknown = turnEnd(t, implementation, "echo 'tests 0'\n", { torn: true })
+    assert.match(unknown, /check state is unknown/, implementation.impl)
+    assert.match(unknown, /Changed paths: .*src\/new\/f0\.js/, implementation.impl)
   }
 })

@@ -4128,7 +4128,16 @@ def _lock_from_row(line, digest, root):
     before its commit, and the caller says to commit it."""
     inline = _LOCK_B64.search(line)
     if inline:
-        return decode_lock(inline.group(1)), None, False
+        # Bound by the row's sha like a sidecar: an inline payload edited by hand was otherwise read as the lock (found
+        # answering qh-core's port of ADR-129, 2026-10-27; every inline row in this corpus hashed to its sha that day).
+        token = inline.group(1)
+        try:
+            raw = base64.urlsafe_b64decode(token + "=" * ((4 - len(token) % 4) % 4))
+        except ValueError:
+            return None, "its inline payload is not base64", False
+        if hashlib.sha256(raw).hexdigest() != digest:
+            return None, "its inline payload does not hash to the row's test-lock-sha256", False
+        return decode_lock(token), None, False
     named = _LOCK_FILE.search(line)
     if not named:
         return None, None, False

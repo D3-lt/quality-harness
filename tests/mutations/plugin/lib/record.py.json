@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "qh-core's port of ADR-129, 2026-10-27: an inline lock payload is read whatever its row's sha",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-inline-bound.test.mjs"],
+      "from": "        if hashlib.sha256(raw).hexdigest() != digest:\n            return None, \"its inline payload does not hash",
+      "to": "        if False:\n            return None, \"its inline payload does not hash",
+      "only": "^an inline lock payload that does not hash to its row is UNPROVEN, and one that does is read$"
+    },
+    {
       "label": "the verification review of f95be254: a raw sidecar path holding a literal % is not tried",
       "file": "plugin/lib/record.py",
       "tests": ["tests/lock-sidecar.test.mjs"],

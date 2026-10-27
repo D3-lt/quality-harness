@@ -334,7 +334,7 @@ func uncheckedWorkReason(sentence string, paths []string, outside int, commits [
 	heldText := strings.Join(held, ", ")
 	listed := ""
 	switch {
-	case len(paths) > 0 && fl.checkEvent == "check.no-work":
+	case len(paths) > 0 && fl.checkEvent == "check.no-work" && !fl.logTorn && !fl.orderUnknown && !fl.couldNotLook:
 		// BACKLOG §428: after a no-work run on this tree the list was repeated turn after turn; the count stays.
 		listed = fmt.Sprintf("%d changed paths.", len(paths))
 		if len(paths) == 1 {

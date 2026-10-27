@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §428: the Go turn end still lists every changed path after a no-work run",
+      "file": "core/hooks/turnend.go",
+      "tests": ["tests/no-work-one-line.test.mjs"],
+      "from": "\tcase len(paths) > 0 && fl.checkEvent == \"check.no-work\":",
+      "to": "\tcase false:",
+      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+    },
+    {
+      "label": "BACKLOG §428: the Go turn end says a no-work run as no check at all",
+      "file": "core/hooks/turnend.go",
+      "tests": ["tests/no-work-one-line.test.mjs"],
+      "from": "\tcase fl.checkEvent == \"check.no-work\" && len(paths) > 0:",
+      "to": "\tcase false:",
+      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+    },
+    {
       "label": "ADR-120 T9: the Go claim asks HEAD's commit with its own code tree, not the working tree's",
       "file": "core/hooks/turnend.go",
       "tests": ["tests/prose-pass.test.mjs"],

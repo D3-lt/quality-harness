@@ -251,26 +251,32 @@ json.dump({"code": out, "incomplete": incomplete}, sys.stdout)
 
 /**
  * `files` with every comment blanked, as `{ code, incomplete }` (`incomplete` names each file a lexer could not read to its
- * end, with why), or null when the lexers could not be asked.
+ * end, with why), or `{ failure }` saying why the lexers could not be asked. A bare "could not be run" twice under load
+ * left the cause unknown (BACKLOG §427): a timeout, a signal and a crash of the child are told apart here.
  */
 export function withoutComments(files, python = process.env.QUALITY_HARNESS_PYTHON || 'python3') {
   const run = spawnSync(python, ['-I', '-c', BLANK_COMMENTS, PLUGIN_LIB], {
     input: JSON.stringify(files), encoding: 'utf8', maxBuffer: 1 << 28, timeout: 300_000, windowsHide: true,
   })
-  if (run.error || run.status !== 0) return null
+  if (run.error) return { failure: `${python} could not be run or was stopped (${run.error.code || run.error.message})` }
+  if (run.status !== 0) {
+    const said = (run.stderr || '').trim().split('\n').at(-1)
+    return { failure: `${python} ${run.signal ? `was killed by ${run.signal}` : `exited ${run.status}`}${said ? `: ${said}` : ''}` }
+  }
   try {
     const answer = JSON.parse(run.stdout)
-    return answer && typeof answer.code === 'object' && typeof answer.incomplete === 'object' ? answer : null
-  } catch { return null }
+    if (answer && typeof answer.code === 'object' && typeof answer.incomplete === 'object') return answer
+  } catch { /* said below */ }
+  return { failure: `${python} exited 0 without the expected JSON answer` }
 }
 
 /**
- * The sweep the CLI runs, over `files`: `{ orphans, defined, incomplete }` read from the blanked text, or null when the
- * lexers could not be asked. A non-empty `incomplete` means the sweep could not look at those files.
+ * The sweep the CLI runs, over `files`: `{ orphans, defined, incomplete }` read from the blanked text, or `{ failure }`
+ * when the lexers could not be asked. A non-empty `incomplete` means the sweep could not look at those files.
  */
 export function sweep(files) {
   const blanked = withoutComments(files)
-  if (blanked === null) return null
+  if (blanked.failure) return blanked
   return { ...orphanDefinitions(blanked.code), incomplete: Object.entries(blanked.incomplete) }
 }
 
@@ -314,8 +320,8 @@ function main(argv) {
     return 2
   }
   const swept = sweep(files)
-  if (swept === null) {
-    console.error(`orphan-sweep: the comment lexers (python3 with plugin/lib/record.py) could not be run over ${rev} — could not look`)
+  if (swept.failure) {
+    console.error(`orphan-sweep: the comment lexers (python3 with plugin/lib/record.py) could not be run over ${rev}: ${swept.failure} — could not look`)
     return 2
   }
   if (swept.incomplete.length) {

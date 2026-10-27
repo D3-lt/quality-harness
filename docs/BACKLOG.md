@@ -3916,7 +3916,7 @@ The final review of v3.8.57..cf286c2c approved (owner's bound: one more review, 
 bug-fix work: a Go package-level failure, a `"Action":"fail"` event with no `Test` or a `FAIL\t<pkg>` line, is not read as a
 failure. A retry after one can still inflate the count.
 
-## 426. adr-next reads a task id written in prose under `Consumes:` as a dependency (open)
+## 426. adr-next reads a task id written in prose under `Consumes:` as a dependency; flagged
 
 Found 2026-10-27 by the qh-core session (record ADR-009 T1 there): a header `**Consumes:** \`taskproof\` T5 selection profile, …`
 was reported `blocked … (waiting on T5 (no such task in this record))`, and rewording it to name the profile without `T5`
@@ -3924,18 +3924,27 @@ cleared it. adr-lint passed both versions. adr-next builds ordering edges from C
 (plugin/bin/adr-next, the edge builder's docstring: "Ordering edges from Depends-on plus Consumes/Produces contract
 tokens"), so a bare `T5` in prose binds as a task id. Confirmed by mechanism, not reproduced here. Open: whether a Consumes
 token naming no task in the record should be dropped as prose, or flagged by adr-lint (it passed both versions today).
+Closed 2026-10-27: adr-lint now advises on a `Consumes` id naming no task in the record ("adr-next reports this task blocked
+on it"), and says how to write another record's task (`tests/consumes-missing-task.test.mjs`, its mutant RED). adr-next still
+reads the token as an edge; the advice is what makes it visible at authoring. The corpus here had no such header.
 
-## 427. orphan-sweep's comment lexers report could-not-look under load (open)
+## 427. orphan-sweep's comment lexers report could-not-look under load; the cause is now said
 
 Seen twice on 2026-10-27 in this repository: once inside the gate (`the shipped tree defines nothing it does not reach` hit
 its 300 s budget, "the comment lexers could not be run"), once in a standalone `node scripts/orphan-sweep.mjs` ("the comment
 lexers (python3 with plugin/lib/record.py) could not be run over HEAD — could not look"). Alone, minutes later, the same
 sweep took 1.3 s and found 0 orphans. The direction is right (could-not-look, never clean), but a gate that goes red on the
 machine's load is unattributable. Not investigated: which child timed out, and its budget.
+Closed 2026-10-27, as far as this turn can: the cause was not reproduced. `withoutComments` now returns `{ failure }` naming
+it (a spawn error such as ETIMEDOUT or EPIPE, a signal, an exit status with the child's last stderr line, or a missing JSON
+answer), and both the CLI and the gate's test say it. Still could-not-look, never clean. A next occurrence is attributable.
 
-## 428. A no-work verdict on an unchanged tree repeats R1's full path list (open)
+## 428. A no-work verdict on an unchanged tree repeats R1's full path list; fixed
 
 From the qh-core session, 2026-10-27: while every green `make check` was misgraded no-work (fixed in ed77be5e and
 f95be254), each turn end repeated R1's path list ("and 3xx more") about six times. With the misgrade gone the repeat goes
 too; the suggestion stands as a second guard: when the latest run on this tree exited 0 with verdict no-work, say that in
 one line rather than the full list. Unmeasured beyond that session.
+Closed 2026-10-27: when the latest check on this tree was no-work, R1 opens "ran no tests (no-work), so nothing verified it"
+and gives the count of changed paths, not the list; any other verdict keeps the list. Node and Go
+(`tests/no-work-one-line.test.mjs` drives both; its four mutants RED).

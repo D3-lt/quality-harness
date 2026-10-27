@@ -334,6 +334,12 @@ func uncheckedWorkReason(sentence string, paths []string, outside int, commits [
 	heldText := strings.Join(held, ", ")
 	listed := ""
 	switch {
+	case len(paths) > 0 && fl.checkEvent == "check.no-work":
+		// BACKLOG §428: after a no-work run on this tree the list was repeated turn after turn; the count stays.
+		listed = fmt.Sprintf("%d changed paths.", len(paths))
+		if len(paths) == 1 {
+			listed = "1 changed path."
+		}
 	case len(paths) > 0:
 		listed = "Changed paths: " + strings.Join(shown, ", ")
 		if len(paths) > len(shown) {
@@ -376,6 +382,8 @@ func uncheckedWorkReason(sentence string, paths []string, outside int, commits [
 		case "failed":
 			opening += " It was already red on the tree this session began with, so this red says nothing about the change; compare what fails, or declare a check that is green here."
 		}
+	case fl.checkEvent == "check.no-work" && len(paths) > 0:
+		opening = "the latest `qh-check` on this turn's work ran no tests (no-work), so nothing verified it."
 	case len(paths) > 0 || heldText == "":
 		opening = "this turn ends with work no `qh-check` has passed on."
 	default:

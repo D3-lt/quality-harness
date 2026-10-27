@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §428: a no-work run on this tree still lists every changed path",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/no-work-one-line.test.mjs"],
+      "from": "  const listed = paths.length && checkEvent === 'check.no-work'",
+      "to": "  const listed = false",
+      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+    },
+    {
+      "label": "BACKLOG §428: a no-work run on this tree is said as no check at all",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/no-work-one-line.test.mjs"],
+      "from": "      : checkEvent === 'check.no-work' && paths.length",
+      "to": "      : false",
+      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+    },
+    {
       "label": "qh-core, 2026-10-27: a Go summary under a wrapper is not read, so make check is no-work",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/validation-verdict.test.mjs"],

@@ -167,6 +167,14 @@
       "from": "  if (unreadable.length) {",
       "to": "  if (false) {",
       "only": "^orphan-sweep: a listed file whose blob cannot be read is could-not-look, whatever else is readable$"
+    },
+    {
+      "label": "BACKLOG §427: a lexer child that exits nonzero is not told apart from one that answered nothing",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": ["tests/orphan-sweep.test.mjs"],
+      "from": "  if (run.status !== 0) {",
+      "to": "  if (false) {",
+      "only": "^a lexer child that cannot answer says why$"
     }
   ]
 }

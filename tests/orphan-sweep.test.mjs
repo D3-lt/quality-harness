@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { orphanDefinitions, SHIPPED, sweep } from '../scripts/orphan-sweep.mjs'
+import { orphanDefinitions, SHIPPED, sweep, withoutComments } from '../scripts/orphan-sweep.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const git = (...args) => execFileSync('git', args, {
@@ -54,7 +54,7 @@ function shippedInTree() {
 test('the shipped tree defines nothing it does not reach', () => {
   // Counted as the CLI counts (`sweep`): over the text with its comments blanked, every file read to its end.
   const swept = sweep(shippedInTree())
-  assert.ok(swept, 'the comment lexers could not be run, so this sweep could not look')
+  assert.ok(!swept.failure, `the comment lexers could not be run (${swept.failure}), so this sweep could not look`)
   assert.deepEqual(swept.incomplete, [], 'a file a lexer could not finish is a file this sweep did not read')
   assert.deepEqual(swept.orphans, [],
     'these are defined in the plugin and called from nothing a user downloads')
@@ -193,4 +193,13 @@ test('an empty universe is not a clean one', () => {
   const { orphans, defined } = orphanDefinitions({})
   assert.deepEqual(orphans, [])
   assert.equal(defined, 0, 'zero definitions is "could not look", and the CLI must exit 2')
+})
+// BACKLOG §427: twice under load the lexers "could not be run" and nothing said why. Each failure names its cause; the
+// clean twin is the real python3 answering.
+test('a lexer child that cannot answer says why', () => {
+  const files = { 'plugin/scripts/a.mjs': 'export function f() {}\n' }
+  assert.equal(withoutComments(files).failure, undefined)
+  assert.match(withoutComments(files, 'qh-no-such-python').failure, /^qh-no-such-python could not be run or was stopped \(ENOENT\)$/)
+  // node refuses python's -I flag and exits 9, saying so on stderr.
+  assert.match(withoutComments(files, process.execPath).failure, / exited 9: .*-I/)
 })

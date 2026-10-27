@@ -1960,6 +1960,15 @@ def check_task(path, all_stems, errors, root, tracked):
             errors.append(f"{path.name}: Depends-on '{d}' names no record in this corpus, or a "
                           f"record with no such task — a cross-record dependency must resolve, "
                           f"for the same reason a cited ADR must")
+    # BACKLOG §426: adr-next and this gate both read a T-id in Consumes as an edge, and one naming no task here makes
+    # adr-next report the task blocked on it while this gate said nothing (qh-core, 2026-10-27: a prose `T5 selection
+    # profile`). Prose producers are real in this corpus ("from T1"), so the id stays an edge; the author is told.
+    _consumed_qualified, consumed_local = split_dependencies(header_val(text, "Consumes") or "")
+    if not (header_val(text, "Consumes") or "").lower().startswith("none"):
+        for d in dict.fromkeys(re.findall(r"(?<!\w)T\d+(?!\w)", " ".join(consumed_local).upper())):
+            if not any(id_matches(d, s) for s in all_stems):
+                errors.advise(f"{path.name}: Consumes names `{d}`, which is no task in this record, so adr-next reports "
+                              f"this task blocked on it: write `ADR-NNN-{d}` for another record's task, or reword the prose")
     # Entries are the section's top-level rows. A fenced block inside it is the
     # quoted output of a red run, and a fence that prints `  - x` is not three
     # off-grammar entries (record.unfenced_lines; reported 2026-09-23).

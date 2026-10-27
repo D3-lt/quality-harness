@@ -494,7 +494,11 @@ function unseenPathNote(count) {
 function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false, checkEvent = null, baselineVerdict = null, treeMoved = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
-  const listed = paths.length
+  // BACKLOG §428: after a no-work run on this tree the list says nothing that run did not already show, and it was repeated
+  // turn after turn; the count stays.
+  const listed = paths.length && checkEvent === 'check.no-work'
+    ? `${paths.length} changed path${paths.length === 1 ? '' : 's'}.`
+    : paths.length
     ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`
     : held
       ? (logTorn
@@ -529,6 +533,8 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
           + (baselineVerdict === 'passed' ? ' It passed on the tree this session began with and fails now: this change broke it.'
             : baselineVerdict === 'failed' ? ' It was already red on the tree this session began with, so this red says nothing about the change; compare what fails, or declare a check that is green here.'
               : '')
+      : checkEvent === 'check.no-work' && paths.length
+        ? 'the latest `qh-check` on this turn\'s work ran no tests (no-work), so nothing verified it.'
       : paths.length || !held
         ? 'this turn ends with work no `qh-check` has passed on.'
         : 'this turn ends on an unchecked tree.'

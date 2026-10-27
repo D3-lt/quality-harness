@@ -40,7 +40,7 @@ Go core reads no lock. qh-core's own reader (another repository) parses `test-lo
 ## Decision
 
 1. **T1, the readers take a sidecar.** A row whose lock field is `test-lock-file:<path>` is read from that file: `<path>` is
-   relative to the task file, and the file's raw bytes, read before any text decoding, must hash to the row's
+   relative to the repository root (the readers are handed the root, not the task file: found executing T1), and the file's raw bytes, read before any text decoding, must hash to the row's
    `test-lock-sha256:`. A file that is absent, that git ignores, that resolves outside the repository, that is unreadable,
    or whose sha differs (a CRLF rewrite included) is a lock that could not be read: UNPROVEN, `done` withheld, as an
    unreadable inline payload is today (ADR-005). A file git lists only as untracked (`--others --exclude-standard`, the
@@ -53,7 +53,9 @@ Go core reads no lock. qh-core's own reader (another repository) parses `test-lo
    `--relock` and `--replace-hashes`. The file is written before the row, so a row never names a file that was never
    written. Content-addressed: the same payload is one file, whichever task takes it. The writer also writes
    `locks/.gitattributes` (`* text eol=lf`) when it is absent, so the bytes stay LF in whatever corpus the directory is
-   in, and a checkout that rewrites them anyway reads as UNPROVEN, never as a pass.
+   in, and a checkout that rewrites them anyway reads as UNPROVEN, never as a pass. In a directory git does not hold the row
+   keeps its inline payload: a file there can be neither listed nor carried by a clone (found executing T2). A record whose
+   corpus directory is above the repository root puts its locks at the root.
 3. **Nothing written is rewritten.** The 525 rows with a payload stay as they are: a Verification Log is never edited
    (CLAUDE.md §4), and archived records' digests are frozen.
 

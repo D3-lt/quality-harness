@@ -2762,6 +2762,18 @@ def lock_repository(task):
     """
     return git_root(task.parent) or task.parent
 
+
+def lock_corpus(task):
+    """The corpus a task's lock file goes into: the directory holding its record (`<corpus>/<record>/tasks/<task>.md`),
+    or the repository root when that directory is above it (a record whose tasks sit at `<root>/tasks/`): a lock outside
+    the repository is one no clone carries, and no reader can list. None in a directory git does not hold: there the row
+    keeps its inline payload, since a file there can be neither listed nor carried (ADR-129)."""
+    if git_root(task.parent) is None:
+        return None
+    root = Path(lock_repository(task)).resolve()
+    corpus = task.parent.parent.parent.resolve()
+    return corpus if corpus == root or root in corpus.parents else root
+
 def claims_in(task):
     """The distinct digests this task file records an exit-0 entry for.
 
@@ -3090,7 +3102,12 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
         entry += f" · steps:{steps}"
     # ADR-050. First TDD-red, or a recovery lock when the log still has none. Keyed from the record's repository, not --cwd:
     # adr-lint and adr-next read the lock back from there, and a lock --cwd keyed elsewhere met neither (BACKLOG §388).
-    entry += lock_suffix_for_run(text, lock_repository(task), code)
+    # ADR-129 T2: the lock's payload is a file in the record's corpus, written before the row; a corpus that cannot take
+    # it is a run this tool refuses to record, so no row names a file that was not written.
+    try:
+        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))
+    except OSError as exc:
+        fail(f"the lock file could not be written into {lock_corpus(task) / 'locks'} ({os_reason(exc)}); no row was recorded")
     refuse_unreadable(entry, sha)
 
     block = entry
@@ -3313,7 +3330,10 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
              else "adr-verify --relock")
     digest = acceptance_digest(cmd)
     started = time.monotonic()
-    suffix = lock_snapshot_suffix(snap, kind)
+    try:
+        suffix = lock_snapshot_suffix(snap, kind, root=lock_root, corpus=lock_corpus(task))
+    except OSError as exc:
+        fail(f"the lock file could not be written into {lock_corpus(task) / 'locks'} ({os_reason(exc)}); no row was recorded")
     elapsed_ms = max(0, int((time.monotonic() - started) * 1000))
     sha = git_sha(cwd)
     entry = (f"- {today} · {sha} · exit 0 · `{first}` · "

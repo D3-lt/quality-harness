@@ -81,3 +81,4 @@ Stop and ask if `adr-lint` over this repository's corpus reports any moved lock.
 - 2026-10-02 · c454442* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:efeb98b0262421bda5bbe4bb7c28b42f6db8604523fcee53cb44ffddc6543498 · ms:45699
 - 2026-10-02 · c454442* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:efeb98b0262421bda5bbe4bb7c28b42f6db8604523fcee53cb44ffddc6543498 · ms:44278
 - 2026-10-02 · c454442* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:efeb98b0262421bda5bbe4bb7c28b42f6db8604523fcee53cb44ffddc6543498 · ms:51360
+- 2026-10-27 · bc5618cd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:efeb98b0262421bda5bbe4bb7c28b42f6db8604523fcee53cb44ffddc6543498 · ms:0 · test-lock-sha256:095f33b4348304ef8d2e5ab82858c04c4f74f07c35c2448b7d6dcc4a451b48b0 · test-lock-file:docs/adr/locks/095f33b4348304ef8d2e5ab82858c04c4f74f07c35c2448b7d6dcc4a451b48b0.lock · test-lock-kind:replace

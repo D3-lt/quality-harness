@@ -50,6 +50,7 @@ node --test --test-reporter=tap tests/lock-sidecar-write.test.mjs
 | `the locks directory is held at LF in any corpus` | `tests/lock-sidecar-write.test.mjs` | `locks/.gitattributes` | — | S4 |
 
 ## Mutation Log
+- 2026-10-27 · bc5618cd* · mutant killed · exit 1 · `plugin/lib/record.py` · the locks directory gets no LF attribute, so a Windows checkout could rewrite the bytes the sha is over · acceptance-sha256:e0a26571bc68fb46f410ca938f249dd422fc83ffdac19cca2aebcd90d36c2cb1
 
 ## Invariants
 
@@ -68,3 +69,19 @@ The corpus root cannot be told from the record's path: stop and ask.
 - Migrating existing rows (permanent: boundary: a Verification Log is never edited, CLAUDE.md §4).
 
 ## Verification Log
+- 2026-10-27 · bc5618cd* · exit 1 · `node --test --test-reporter=tap tests/lock-sidecar-write.test.mjs` · acceptance-sha256:e0a26571bc68fb46f410ca938f249dd422fc83ffdac19cca2aebcd90d36c2cb1 · ms:941 · test-lock-sha256:627ed74e59c5ef1712c5d068a7aeee845dee3e7e5280b5d7f91921e0627dad33 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbG9jay1zaWRlY2FyLXdyaXRlLnRlc3QubWpzCWEgcmVjb3ZlcnkgbG9jayBhbmQgYSByZWxvY2sgd3JpdGUgdGhlIHNhbWUgZm9ybSwgYSBzaGFyZWQgcGF5bG9hZCBpcyBvbmUgZmlsZSwgYW5kIGFuIHVud3JpdGFibGUgZGlyZWN0b3J5IGxlYXZlcyBubyByb3cJOTFhMTg2YzI0ZTU5MzU3ZDRhYTgyMWU5MTQyMTY4ZTI5MjVkYzRkOTNjMTQzYjI5N2YwNTk4NDgyMDY1ZGIxYQpib2R5CXRlc3RzL2xvY2stc2lkZWNhci13cml0ZS50ZXN0Lm1qcwlhZHItdmVyaWZ5IHdyaXRlcyBhIGZpcnN0IHJlZCdzIGxvY2sgdG8gYSBzaWRlY2FyLCBhbmQgYWRyLWxpbnQgcmVhZHMgaXQJMzkzYTZmODExZWExMWY0ZWQxZmQ0NjM0NjQzNTE5ZWIwYTU1YWNmZGEwODA1NGFkNzBiMDJlMTRjMjk3NDQzNApib2R5CXRlc3RzL2xvY2stc2lkZWNhci13cml0ZS50ZXN0Lm1qcwl0aGUgbG9ja3MgZGlyZWN0b3J5IGlzIGhlbGQgYXQgTEYgaW4gYW55IGNvcnB1cwkxNzdiZDhkYTQwMmM2OTYxMjdjNWEyNTI1MjlhM2IyNWZlYmQyMDE0ZGE3MmRkNmQ2YjI5ZWQ5Y2ZjNGVjODEw
+  ```
+  --- last 10 line(s) of stdout (of 78 after folding 78 raw)
+    ...
+  1..3
+  # tests 3
+  # suites 0
+  # pass 0
+  # fail 3
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 835.493542
+  ```
+- 2026-10-27 · bc5618cd* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar-write.test.mjs` · acceptance-sha256:e0a26571bc68fb46f410ca938f249dd422fc83ffdac19cca2aebcd90d36c2cb1 · ms:1333
+- 2026-10-27 · bc5618cd* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar-write.test.mjs` · acceptance-sha256:e0a26571bc68fb46f410ca938f249dd422fc83ffdac19cca2aebcd90d36c2cb1 · ms:1508

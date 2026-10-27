@@ -91,3 +91,4 @@ Stop and ask if a hasher-1 lock whose bodies match under hasher 1 cannot be relo
   ```
 - 2026-10-01 · 101082e* · exit 0 · `set -o pipefail …` · acceptance-sha256:89154de82d9c2ba9df5883db53ec65d7fb28569ec7489503e8000c8e2410226c · ms:37449
 - 2026-10-01 · 101082e* · exit 0 · `set -o pipefail …` · acceptance-sha256:89154de82d9c2ba9df5883db53ec65d7fb28569ec7489503e8000c8e2410226c · ms:33437
+- 2026-10-27 · bc5618cd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:89154de82d9c2ba9df5883db53ec65d7fb28569ec7489503e8000c8e2410226c · ms:0 · test-lock-sha256:095f33b4348304ef8d2e5ab82858c04c4f74f07c35c2448b7d6dcc4a451b48b0 · test-lock-file:docs/adr/locks/095f33b4348304ef8d2e5ab82858c04c4f74f07c35c2448b7d6dcc4a451b48b0.lock · test-lock-kind:replace

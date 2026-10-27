@@ -96,3 +96,4 @@ Stop and ask if any existing test-lock test changes result.
 - 2026-10-02 · c454442* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:f3d588cb6e09a4e5d73e1b44113e122eee0711fda340f9197535a8ec05551c56 · ms:43304
 - 2026-10-02 · c454442* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:f3d588cb6e09a4e5d73e1b44113e122eee0711fda340f9197535a8ec05551c56 · ms:42444
 - 2026-10-02 · c454442* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:f3d588cb6e09a4e5d73e1b44113e122eee0711fda340f9197535a8ec05551c56 · ms:46845
+- 2026-10-27 · bc5618cd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f3d588cb6e09a4e5d73e1b44113e122eee0711fda340f9197535a8ec05551c56 · ms:0 · test-lock-sha256:095f33b4348304ef8d2e5ab82858c04c4f74f07c35c2448b7d6dcc4a451b48b0 · test-lock-file:docs/adr/locks/095f33b4348304ef8d2e5ab82858c04c4f74f07c35c2448b7d6dcc4a451b48b0.lock · test-lock-kind:replace

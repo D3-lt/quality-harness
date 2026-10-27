@@ -1,0 +1,170 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/leftovers-after-adr053.test.mjs	C-escaping Go backticks leaves later tests UNPROVEN; JS templates still escape	aca55931a334011ae5b436bd16aadb82e2ba816b51721f94fb776a47db12b431
+body	tests/leftovers-after-adr053.test.mjs	JS NUL does not collapse onto a shorter name	8cbd2f02678db55829ca9cc8fbb47c64de36451e1f225d3f6fe13d922d0f7d1d
+body	tests/leftovers-after-adr053.test.mjs	JS control escapes do not collapse onto a shorter name	448c07bb20a79ef6350438c6a9164b08d43112d45c924bd98318ee6b47cf95e5
+body	tests/leftovers-after-adr053.test.mjs	JS line continuation does not leave an escaped name UNPROVEN	3b8db8ddf1e98c86d05ea89e3531ff8cf2851e6322e01b16b34294a0deaca54f
+body	tests/leftovers-after-adr053.test.mjs	PHP double-quoted known control escapes do not collide with single-quoted unknown	a214bdd3b78eb4242ff331e0aca89767c52382d44bbe0e762027b7436ef53cc6
+body	tests/leftovers-after-adr053.test.mjs	PHP double-quoted unknown escapes keep their backslash	e0fecc744fb5cd2c056f0f4764c249cf5fd017902107330b0932b27f60d80a6b
+body	tests/leftovers-after-adr053.test.mjs	a BDD name may wrap after the opening paren	0e2a14fbea584e5cafd6a7833ddbe9ef686bbc46ee880edcf2622c1f5b5343e3
+body	tests/leftovers-after-adr053.test.mjs	a Go raw string ending in backslash does not keep the hash after the assertion moves	84ef5e8da9380342ac11848da2ad134f0025ee3de13cd1bbd35c1d9e7508fd6e
+body	tests/leftovers-after-adr053.test.mjs	a Go raw string ending in backslash still hashes later tests	4abcfbc0cea005818a413d196d3e36851d36a4715d7c8d99a5fde8fade4da86f
+body	tests/leftovers-after-adr053.test.mjs	a PHP #expect comment is not a fail word	5b7480b739d9f21cbc9219b6e0d245fbe1f4d116fdff6cc873ee9878a8e07ba0
+body	tests/leftovers-after-adr053.test.mjs	an options object before the callback is not the body the can-fail check reads	7aa0f8706c9027fd003ee342011b267a8534134a3d113f48253bef08f111644e
+body	tests/leftovers-after-adr053.test.mjs	decoded lock delimiters in a BDD name stay unhashed	72ce44338c2e924ac590308a9d42f851ff10385b3a7751843fe7a0a5ca0234f1
+body	tests/leftovers-after-adr053.test.mjs	escaped same-quote BDD names are discovered and extracted	2d0a46d66f88a5366a0329006359f70c1de180138d7cf21f034a10f94e1a1eda
+body	tests/leftovers-after-adr053.test.mjs	interpolated BDD names stay undiscoverable	84afb321fb8a6d5f3cf43bfa205e60256819bf0600404099243208c3306867b6
+body	tests/test-lock.test.mjs	Swift test names are the @Test funcs and argument-less XCTest methods only	ddfdaa188d49eeea9ef7cb7c78ce223aa44f080e8eeccb06ae2260abf673708b
+body	tests/test-lock.test.mjs	a "((" inside a string does not stop a later heredoc from being seen	c366edf403a1c2d463443e7c243b393ca40c9efa9c48c74f22d9beec861fcb2f
+body	tests/test-lock.test.mjs	a < in JSX text that opens nothing is a stop	74e0a2a49d49556a47fad00aab6dc7efb1b85528123fbc49343c5efeb83d9eaa
+body	tests/test-lock.test.mjs	a Go Testfoo (lowercase after Test) stays unproven	08fdf42a82d0a569234ede0e8099ccb5b6d7befac20c3f9b54d7bfe7d1fccd4f
+body	tests/test-lock.test.mjs	a Go func Fuzz target is hashed, and rewriting its body refuses done	ea14d25037870e472ff72a946b2ad7938b6e271e20d93fe67daa16ed25258caa
+body	tests/test-lock.test.mjs	a Go func Test is hashed, and rewriting the assertion refuses done	675d7c203a71dcfcff9264507d22ecbba0bebd9cf60e45066941f44d375a49d9
+body	tests/test-lock.test.mjs	a Go method Test is hashed, and rewriting the assertion refuses done	8684f48c312f1c34df2880375604c2ebcd5d6718dfa8256d6a9052400be586ec
+body	tests/test-lock.test.mjs	a Go signature comment does not keep the first-red hash after the assertion moves	7957dc4c255a6adb5b3dd30a7981965757f398c39c93e3757cbddfbeb44edb6d
+body	tests/test-lock.test.mjs	a Go t.Run name is hashed, and rewriting the assertion refuses done	a531bc8d3344bda3f8df782a960c3e4a26599dca7d81a593e64004e617c1f398
+body	tests/test-lock.test.mjs	a Go t.Run that names a helper is not the next callback	2b1368ec24531ad0f3b15243dfc26e46c1c458c5966d45e6faae8348c6cbafc4
+body	tests/test-lock.test.mjs	a Go t.Run that names a helper stays unproven	3570e03714474e0c3bdca01e95179140dbcaa40aa3c61c4459e39c17513a8e64
+body	tests/test-lock.test.mjs	a PHP 8/"1/2" quote does not keep the first-red hash after the assertion moves	05c69200f2d4c889dd4bcab20cafdf96be31fd198341c868c7c8c01485d6445d
+body	tests/test-lock.test.mjs	a PHP file-level function test* stays unproven	4358f6a17aff5e4468fbe05552571c1e18097bb724030486e5ea552c46ac5973
+body	tests/test-lock.test.mjs	a PHP heredoc URL does not keep the first-red hash after its content moves	9cf55f098b9997561c7d5397f283d8e4d98cf9bd9f813194cdfc94718a7d99ff
+body	tests/test-lock.test.mjs	a PHP preg_match pattern string does not keep the first-red hash after the pattern moves	adf552ba3937dd02534607c1f9986b035df11e6e476d9b2177df2bb236379b82
+body	tests/test-lock.test.mjs	a PHP preg_match quote is a string, and rewriting the assertion refuses done	4b0efd93692ff0ff7214a61d97b6e3840107fff69c33325a0458ad812c38babf
+body	tests/test-lock.test.mjs	a PHPUnit #[Test] method is hashed, and rewriting the assertion refuses done	dfa56d2be495d63a3e78ce08b229a9962b9f027b6d18d37923e8e593df6578f6
+body	tests/test-lock.test.mjs	a PHPUnit @test docblock method is hashed, and rewriting the assertion refuses done	d3c851628b5dad57ffce6dc436e8dcf84b0ae59cb0ccf0b34f4c779a710de7a9
+body	tests/test-lock.test.mjs	a PHPUnit function test is hashed, and rewriting the assertion refuses done	02f9644b568ef3e201473fee379ddd91dabb9333935e17af45db92aa99882266
+body	tests/test-lock.test.mjs	a Pest arrow test does not borrow the next test body	262f6bf1402185e24a3b7b72a8c0f27da9057739bd3564927b507cb4beed27ea
+body	tests/test-lock.test.mjs	a Pest test() in a .php file is still hashed	84c173464cac9c18d364bb2117927364b721904d6e43c11304df53aa87a6bce1
+body	tests/test-lock.test.mjs	a Rust #[test] fn is hashed, and rewriting the assertion refuses done	9c6f06f2277dc150e7ee9177092b3de55c325356eaa273d548bcdba0777e9d5f
+body	tests/test-lock.test.mjs	a Rust hex or unicode char escape beside a quote char literal does not swallow the next test	a31f2fdc3de0a9eef63aa4c20c9f1c2e1ec5f679b86f6aa74de3a73aeeaf3522
+body	tests/test-lock.test.mjs	a Rust lifetime does not swallow every test after it	c11d3205cd441ceef86083b9b9bd7f8110ad4e4f710a9b7d9dbfa0fa5cf2dcb2
+body	tests/test-lock.test.mjs	a Rust loop label does not cut the body before its assertion	0b8db1e677a7c332c4cf92b591696711d0960e130ab6b871f9b9f2183067d1da
+body	tests/test-lock.test.mjs	a Rust nested comment does not keep the first-red hash after the assertion moves	60251646e7c81db3d0a279d89e29cc23c38ed3fe19197313250f805070fdf2d7
+body	tests/test-lock.test.mjs	a Rust raw string does not swallow a same-line assertion	73e62eb2cf5812cab10ae2dc240f849a358acb803ec68068e598ca36b1ce43a3
+body	tests/test-lock.test.mjs	a Swift Testing @Test func is hashed, and rewriting the assertion refuses done	238e928817f8ebce5d3d3f3e4a40115b52b83f4d5ea562a97888a98afdefad9a
+body	tests/test-lock.test.mjs	a Swift body that might hold a bare regex literal is UNPROVEN, not a possibly truncated hash	f9d0710d6da62ac7d91b7cd214a788973195cd5ae38bc77a8888ba058e128182
+body	tests/test-lock.test.mjs	a Swift nested block comment does not keep the first-red hash after the assertion moves	ce8b9cf5fa22d65dbfb8ad0abcf50af1cdf7bea3e802813aeff284684707be16
+body	tests/test-lock.test.mjs	a Swift regex literal holding // does not strip a same-line assertion from the digest	11de2a2e7ff31052d996b5c4f75a7f947a6e696dab894e7210ecc5744d3a5e64
+body	tests/test-lock.test.mjs	a Swift test name declared in two suites locks every declaration	8cfdae64b8c12c6748f5b570f4ead7180c27147fb3eed5f7496f13f60e17de3f
+body	tests/test-lock.test.mjs	a Swift test with a backticked name is hashed	6cd4fec17ca81676fa3a87727ed25c613fe460b7af9862fb27c06e7141efe156
+body	tests/test-lock.test.mjs	a Unicode line terminator or space is read as JavaScript reads it	8616959d85a562e919215eb2d1a42507460ca1eb1428a909f751cbabd4b67a69
+body	tests/test-lock.test.mjs	a backticked XCTest method sharing a name with a plain one locks both bodies	15f91c73b315a66aa09b26e2c16e53f212a11f6a335ba7ec5285b08d5c071b78
+body	tests/test-lock.test.mjs	a bare regex inside an interpolation, or outside the test, makes the Swift file UNPROVEN	59cc04c294b7d8be116f7599f6807057d8729d2ade4ed2f9468da0759254f454
+body	tests/test-lock.test.mjs	a brace inside a Rust raw string does not keep the first-red hash after the assertion moves	f098bac1cec51955f80ed830e5faea6c39557bcd74f5b303c5b2e51f0928c8e7
+body	tests/test-lock.test.mjs	a brace inside a Swift multi-line, raw or interpolated string does not keep the first-red hash after the assertion moves	362ce3a068bd27c928d157c5b29f6a2f7b58351db2d2971d8d03e55873aff769
+body	tests/test-lock.test.mjs	a brace inside a string does not keep the first-red hash after the assertion moves	cee7f6c3fe8cae0549d596dd8e7686efdcab5ace83f619da6cae7b064cc621e8
+body	tests/test-lock.test.mjs	a caller that discards advice does not pay for the hasher-2 reading	266ae5dc6801206c496ed5311d2805e5faba29dedf6ba849850eca4d254112a7
+body	tests/test-lock.test.mjs	a comment before a division does not make it a regex	d9d9fd40e6d393ea68b750feb68e1786bc18322ea51955515c66e2ab7998e518
+body	tests/test-lock.test.mjs	a comment inside a Swift interpolation does not end the interpolation	1c1687aa47481dd7d813f61785697070782fce9e789ea0de78104aa8c8bca492
+body	tests/test-lock.test.mjs	a comment on a heredoc opener line is still a comment	279511062c3ba9829c6b2bd2a44c5dc9b5dc9744438977c1670714cb786339b9
+body	tests/test-lock.test.mjs	a comment-only or whitespace-only edit does not refuse done	c247419d062d5141bdc4059feed12fa3676544c954f0d0e376044b02e20a518b
+body	tests/test-lock.test.mjs	a comparison is not an element	020c9924ce11b4f745206831e6360f88cca9eeaa98157c3a6c57641a79018595
+body	tests/test-lock.test.mjs	a declared check string unchanged at done is allowed	3883788f92258ce80473f84eceb5f63cc06011e9f9994076ed16d058e169806e
+body	tests/test-lock.test.mjs	a division after a postfix increment is not a regex, and the lock keeps the assertion	17958dc45752ed7027228991abb04f78e4207d2ac900f14cb3ef95c72f11b6ad
+body	tests/test-lock.test.mjs	a division after a regex literal is not a regex, and the lock keeps the assertion	41c3a079214ffd14994433d1d17661bcc73a93a33710b99efa8a71423faf27d3
+body	tests/test-lock.test.mjs	a division is never read as a regex that swallows a block	d8521e1ffc4595c6d381e78e9945cd638b465a43e43c27f8bd1741bba465babc
+body	tests/test-lock.test.mjs	a file ending in a template after an element closed stops at the template	b5bcadf5ef858d5c6242ae6bbb71d11997aa988638f1af670a047e4481e6fe44
+body	tests/test-lock.test.mjs	a green-only log is told a red run is required, not another adr-verify	bc73a73e86506b65159e76c1d40eadb8aa1133d73d7e0e0175005f624e6c9f06
+body	tests/test-lock.test.mjs	a hasher-1 lock that hasher 2 reads differently is advised, naming the relock	dc833510435ef0cd48e33a7ec59ceeee4b3311dc6946ac0720ad6f42d9bee040
+body	tests/test-lock.test.mjs	a hasher-2 lock over a file JSX now reads is advised to relock	21f26394637137dab7b41aa9e7d59278f1718cfce39447ac2662cf0afd8c6660
+body	tests/test-lock.test.mjs	a heredoc inside a command substitution inside arithmetic is still a heredoc	2d3b6303708ed44fdbc15b78acb91dd493a35eb2fc2c66a3456fafca9338c9f6
+body	tests/test-lock.test.mjs	a later green attaches a recovery lock when the log still has none	fe58ca436403e1dabf1dc16deb62e7722748c7e37b39ca50239d04d032090f59
+body	tests/test-lock.test.mjs	a later red carrying a different lock hash refuses done	f5e7edb22ce11e19f986fb9e70f1e709f6d921aa2c76a3af17480373c2c917b8
+body	tests/test-lock.test.mjs	a later red with a different sha and no kind still conflicts after relock	15d73eb77ad2eb0c7d4f2fc26990b04563f5576c46aa20ecc5234cc4f68ac1b6
+body	tests/test-lock.test.mjs	a later row can recover a lock the first red never carried	ef0bff778c991bde7da92c52ab015ced851996dc9168f4b8581c904e3055e046
+body	tests/test-lock.test.mjs	a later-red lock printed inside a fenced excerpt does not refuse done	2ed87949b862f8abe7b34d3c973b7c84274e611a0fbf200b83fe86a991681341
+body	tests/test-lock.test.mjs	a literal opening an arrow expression body is inside its lock	c4a0597ba062719350129c2570e3ebda974795daad72e441191e5ce5166e5f26
+body	tests/test-lock.test.mjs	a lock map with no check record is unreadable, not an empty lock	92e2dc51a06483f4ce908a2ee75a5d2d6434ba5bc6425be44f50f81ea158b561
+body	tests/test-lock.test.mjs	a lock naming a hasher this reader does not know is unproven	d2746551364a8df27de1a43c29565544e514055ac8eb62d9f1cb9c267866ae54
+body	tests/test-lock.test.mjs	a lock over a JSX file is taken by hasher 3, and every other lock by hasher 2	1f1a0b19e4117895064e0e84c0ed5f3bd7798650128a88a6e8f1e62cee8a66d5
+body	tests/test-lock.test.mjs	a lock over a test file it cannot decode says unproven, and does not crash	56a2944cde251138d9969866c1d6f02637e51b0df86baf9d3bc81566dc96d6a5
+body	tests/test-lock.test.mjs	a lock taken before regex masking is told apart from a test that changed	1f567350f0e80d93aa392c65012c5d47c69ae7268b5de65cae38590f536f5784
+body	tests/test-lock.test.mjs	a lock taken before the lexer is read as it was taken	7d357b3d1d5cdf00b6d74ca7b67af5519fcdb7c879962938b311146d612d35f9
+body	tests/test-lock.test.mjs	a lock taken by hasher 2 cannot be read by the 3.3.0 reader	b78567b276a0a8646ec381959034de0b68f731e27ce088d4a5641cc0c82bfde3
+body	tests/test-lock.test.mjs	a lock that hashed no bodies is advice when the hasher can now see them	2d89cc1059b2e8d808c30faae8679dbab1c61b52b9ce9bdcbf5c6a2db60c6624
+body	tests/test-lock.test.mjs	a moved body under a frozen hasher-1 lock refuses done	b3d2f0f44e9ac6664c07b4f52932eb92f99cd7787c40354070313449fad0e738
+body	tests/test-lock.test.mjs	a multi-line XCTest signature and a qualified @Testing.Test are locked beside a same-named test	99508e356442532c94634499288ef37aee68b24723ffd2b1b446564842f4910a
+body	tests/test-lock.test.mjs	a new test name in the same file does not refuse done	abffbd995a27b69ac386411d3c0ccd006fce8cfb357a4a6343509ea7355b467a
+body	tests/test-lock.test.mjs	a quote inside a JS regex does not keep the first-red hash after the assertion moves	c6cd6cdfed0501e301aa9e7ca7e4c3c7f313e3665526059a0893321356a65949
+body	tests/test-lock.test.mjs	a quote or a paren inside a JS regex literal does not cost a test its locked body	b681e44d21d3fa86dbe73886c6c8429ee6829331aef865f5ab8ff8c3563c790f
+body	tests/test-lock.test.mjs	a red run with --cwd elsewhere keys its first-red lock from the record	655eeeb17c077d608c134a09e926b18e3fb8324e61b07445fa0c9d2db1a7a751
+body	tests/test-lock.test.mjs	a regex after debugger or a for-await header is data, never a test	898614bb942dbcf2f39d788790de2da5676f101491823633ecb171f0accb3a33
+body	tests/test-lock.test.mjs	a regex literal that closes the call is UNPROVEN, not a truncated hash	b708976f0bc65d564761161fd9813d3070b29f3ca79d3ce370bbb6cb403f50c0
+body	tests/test-lock.test.mjs	a relock of a frozen hasher-1 lock refuses a moved body	27304aee9891b41238e894e26dc46060489d329777499bc80b1846b6f0f0a8f3
+body	tests/test-lock.test.mjs	a relock row does not make is_done without a passing Acceptance run	5c7fad57118dff826d871b7ece254be78d1640b79ed75343e2c78b99b03950d0
+body	tests/test-lock.test.mjs	a relock row is the done map and is weaker than first-red	edd536050567387a734f37fe7eafaaaa6835bf4174194b1dad47d651e348c027
+body	tests/test-lock.test.mjs	a relock that moved the check binding passes done and names the move	b0fbdf2be6b97513889deb7e4dabe48496f24f7b80fca4af84ab925b822d0ec5
+body	tests/test-lock.test.mjs	a relock with --cwd elsewhere keys the lock from the record, so the readers can read it back	82e8734db2e978773a5703fda503d548022022a244afb4b2cbd9e6a27a32794f
+body	tests/test-lock.test.mjs	a shell URL does not keep the first-red hash after the assertion moves	2a0e63d92da7bdf7ce3f501687fd7556ce0d597f0eb44e0ba807c8bdff02ffc7
+body	tests/test-lock.test.mjs	a shell heredoc does not keep the first-red hash after the assertion moves	29507a1a378b6b42cb37bd0449c993b131e5711ce8b0c54d785c10c27d1ac9c1
+body	tests/test-lock.test.mjs	a shell heredoc line beginning with # is not a comment in the digest	036827b8874805a71b539061c2998769d7ac8bfb6e45e3cfcabb87a7597ad126
+body	tests/test-lock.test.mjs	a shell test_* function is hashed, and rewriting the assertion refuses done	a2bfb432b1cf40dd04f3738a00648f5c16cf02c5fc3f9c90cb8fe1661bad8e2b
+body	tests/test-lock.test.mjs	a shift, a tsx generic arrow, a generic component and a comment in a tag are read	59844d65f5f90310c1962f5b0c922028abcc9bbe2c8cd235e12b7b7bbf567781
+body	tests/test-lock.test.mjs	a slash after of, yield or await is never guessed	324f22dcee4fc30262480e43136c5db823188f2a4200886f912feddb8905885e
+body	tests/test-lock.test.mjs	a slash hasher 2 cannot place leaves the tests it reaches unproven	a3ed5b043e9346bf307cbdc1a403aa8c1f458133757add0a7feff717777466ca
+body	tests/test-lock.test.mjs	a task directory linked into the repository is locked from the repository it is listed in	a5956eb54a8a6dbf29ca9951cbd0595254451b110b4b2118e36273c7347be348
+body	tests/test-lock.test.mjs	a task file's own done claim is read by the filter and Produces checks too	0acf631eb66fda71c2e5570d89b74e7a8233e8b9e86446eeaf35791bc438bd77
+body	tests/test-lock.test.mjs	a task file's own done claim keeps its locks, whatever the README says	7a2f75a2f04f15b4caf53c912564c0ae994577d9311e56f1fd6e46bbd94b62bb
+body	tests/test-lock.test.mjs	a test file named by several tasks is read once, on its text	99854a6d184f69d533a2653269738896915206dcf9fea808c19c2e702181170d
+body	tests/test-lock.test.mjs	a trailing comment after inline Swift division keeps a proven hash	7b238cc771f5cbe09d23fca27e52108331ad0a217c4fc1d72e50b9b1515ab2c9
+body	tests/test-lock.test.mjs	a versioned lock that cannot be read, or reads two ways, is never read as hasher 1	12fdb353dd90e30fe77ee43ce4017a517eecc62d2f7e114687c9986eb515029a
+body	tests/test-lock.test.mjs	adr-next names a moved test lock, not a changed fence, when the digest still matches	01ac7013d9f0128023cef22a2d0667198b9924616f61d2e3a5e5b8cdc9d1da45
+body	tests/test-lock.test.mjs	adr-verify --relock --replace-hashes lets a stub-red become done with weaker advice	1dcd1a74af28a2edb2974d93b631787fd71d8d308fcc3d31a451d3fe1b78bcfb
+body	tests/test-lock.test.mjs	adr-verify --relock cannot combine with --mutant	401fbb15516199cd70619a09914fec6f16a15e8b7ec92aca8d010208c09fcf83
+body	tests/test-lock.test.mjs	adr-verify --relock cannot combine with --sweep	495fed2ec1c2206d704bce39d34f46f6ddcf34ff63e95e27cfb581506af0a11b
+body	tests/test-lock.test.mjs	adr-verify --relock fills unproven the hasher can now see	9f219b11be3664d70a2c232d2f8304e746f768908a36921462c6a228ca94dbc3
+body	tests/test-lock.test.mjs	adr-verify --relock refuses when a hashed body moved	734d3f33e1f96a135b339f7e49a4fd18bca517cacbb58d414ad20590abfe3759
+body	tests/test-lock.test.mjs	adr-verify --relock with an empty log is refused	9b74251d077ae7f63da3bbd30b89cb7ec440af3a9ca0ea959e859c0c9e5da8bf
+body	tests/test-lock.test.mjs	adr-verify --replace-hashes without --relock is refused	b7ab24a7c519ce8a234deb95f2647ce877a63b5bd4967b2a8b18cb9209d52f0b
+body	tests/test-lock.test.mjs	an XCTest method declared inline on its class line is hashed	d42d7fff90043a7319e1953443143b9ffc4edd79c0d5580ce6ee1120c4863555
+body	tests/test-lock.test.mjs	an XCTest test method is hashed, and rewriting the assertion refuses done	46d84f17d72aaaaafbc48e152051ca49207908081c6bb8c4e21767d83630c5d3
+body	tests/test-lock.test.mjs	an apostrophe inside a possible Swift regex refuses the file	aa0eeca4811a26c4b71d089143d82397346f594f11b631aa51bbd6854af1d142
+body	tests/test-lock.test.mjs	an assertion edit still refuses done	31a9ebb5668a3abe46c272692d6703c143463cb8ca355638032f41f19f8ff3a2
+body	tests/test-lock.test.mjs	an element the lexer cannot read is a stop, never a guess	8df5dc2ce9074b52f08dc8c0573c0b0e03f538e5597d439b55fe19fafc543b90
+body	tests/test-lock.test.mjs	an escaped delimiter inside an extended Swift regex does not end it early	49d67c2fbc99145e78e7c52d5360914a4aa445c92ed3d1e9bbcadfc6c3afb058
+body	tests/test-lock.test.mjs	an escaped shell separator does not keep the first-red hash after the assertion moves	d3c0efc6ff3366ba65411cc1eaf6ffc0df22d6d0262e00a912ea11850bf29cf4
+body	tests/test-lock.test.mjs	an interpolation still open at the end of the file leaves its tests unproven	43d3dfd7a436510f3cb3b3a986568fbbddd3b0d712157309ad271aac19cc6da8
+body	tests/test-lock.test.mjs	an options object before the callback is not the body the lock covers	c6f8a53778bc558ed19af396d3cef760d9f411fd6e6e307df29e1dc6cf7ae30c
+body	tests/test-lock.test.mjs	an unterminated literal leaves the tests after it unproven under hasher 2	b7f026a0f31a0ef9d649b2e85196cdb29c53e17c64b9d0dad5d1093c8916e9a1
+body	tests/test-lock.test.mjs	code after a heredoc marker on its opener line stays in the digest	00bacdac7979be572e4dea9d4c02ba83b430de88b803d9ab37cbe3d32961a883
+body	tests/test-lock.test.mjs	compact division, a trailing comment after division and a URL string keep a proven Swift hash	4c2b5906bc26aa1f7983df5430edfbb334723b46ab5a4bde4271a0d808e37854
+body	tests/test-lock.test.mjs	division with no closing slash on its line keeps a proven Swift hash, a quote inside a possible regex refuses	e00b9bcc65978e8ec88af330c9080a2fd320798ed7616be09965ba26faf05cf2
+body	tests/test-lock.test.mjs	first TDD-red row carries a tool-written hash for each named test	e74047d6b5edcbe3740881a959a7a64d9bb8a151352982be803143145a214bb7
+body	tests/test-lock.test.mjs	first-red hashes still match at done	d0e2ec2a85fc00cd8fa1e4595e4464b2b56425cd8cf0bc22b5011240ee593087
+body	tests/test-lock.test.mjs	hasher 1 still keeps the whitespace inside a string in its digest	45b9aa9f4b2f452ab3ffe9d5314f615e12e8cbc617212a76d76847da49f4750d
+body	tests/test-lock.test.mjs	hasher 1 still masks a regex literal holding a quote or a paren	70ca959de2166a0100562e5bea00fb0f988ca268c7bfdb66801ba93a78973963
+body	tests/test-lock.test.mjs	hasher 1 still reads a division after a postfix increment, a comment or a regex literal	5ee65fef55f93440eafa2b70784190b93efef83e6032f1a00d16c999f04a2bb3
+body	tests/test-lock.test.mjs	hasher 1 still reads a quote inside a regex without keeping a proven hash	ab49ab7d79251bdf56248c7cadad826eee01e243490534d56716f7433a4bc9d2
+body	tests/test-lock.test.mjs	hasher 2 counts a test only where its call is code	f853f63b031e0add9760993f6c014cb65005b9b2e63bc5511b831afa875a6536
+body	tests/test-lock.test.mjs	hasher 2 reads a JSX file exactly as it did	f8bea2ebaf1306f256c420521d91bd94089714ab536e7b8ff2e676f725ecb94d
+body	tests/test-lock.test.mjs	hasher 2 reads a non-JavaScript test file exactly as hasher 1 does	72d64e5bd5512203b162fa4bca47448566eca6e487480fb573954f4a94ff3596
+body	tests/test-lock.test.mjs	hasher 2 reads a regex literal as a regex and a division as a division	f71824083bca68a2d7722b8a566147d5baca85d8c8eda28c4fc62aa0c96154fa
+body	tests/test-lock.test.mjs	hasher 2 reads a template's interpolation as code	1c6a2d78e1aaa39cd5a959431dc35d014e5bbf820459ec9276e70432a0703a21
+body	tests/test-lock.test.mjs	introducing check after first-red refuses done	54d56764a980d1682e304509c9b01fb35a1328b0f761f66b03a99852bd75be52
+body	tests/test-lock.test.mjs	is_done refuses when a locked hash moved	50ff2b6911f21a8aeb3343fbdee8d24d987675fa2bc73e45362da9eb6a7492c7
+body	tests/test-lock.test.mjs	missing or unreadable named test refuses done as UNPROVEN	a7b6ded38e0d187cd935e320382e62dbee7e01d066ff169c2712fa96ee41c293
+body	tests/test-lock.test.mjs	one check change relocked across tasks is advised once, naming them	ca61d3d1d5ff77c7990cf709636b688e4712ae362d33b9bd9b9c22b6bfd25f95
+body	tests/test-lock.test.mjs	one test file is masked once, however many of its tests are hashed	c705ab3ecf4518cd07fd34fae7c3b5232661f9054b55c1efead68ac91678e914
+body	tests/test-lock.test.mjs	only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element	29aecec40c4d737b3fcd0a3f3fc1de8a5803b6c63d4955f1a70c93f114fcee4d
+body	tests/test-lock.test.mjs	post-cutover done without first-red hashes is refused	544ecf4dec53f0cb13a7b75b163cb65a1130a3626d4b3851d5d41f0c9960675c
+body	tests/test-lock.test.mjs	pre-cutover done without hashes is advised	3ae9a2d53ce20bd8d837caba7159c82a49521e8234fa8e6f17f90de69e7dff49
+body	tests/test-lock.test.mjs	relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1	111f85606605d79f8db51fae90d2754252b2311e21d17b9efd831f2ef949db94
+body	tests/test-lock.test.mjs	rewording a Swift comment inside a locked test does not move its hash	584f8a8d7c38654d096a107af207371cbe0b76579481b1d78d0dbb1cbe16ce12
+body	tests/test-lock.test.mjs	rewording a comment inside a Swift interpolation does not move the hash	f0223402267ca9832effcab4707c86afe8ad8b0c379b4fc208759c6d0acf69ec
+body	tests/test-lock.test.mjs	rewriting a locked assertion refuses done	86f3fa77f716fa752c304858b971e49eb32c2011e5a76ebdb54bb29fbb4b6647
+body	tests/test-lock.test.mjs	rewriting a sibling not listed in the Tests table refuses done	a86977f0f98ef06da070a1fcdebcd5701b1a9d08f1409ee589474413093a17f7
+body	tests/test-lock.test.mjs	rewriting or deleting check refuses done	157cfda37b513fbebd5c22add73de5e15c33879b98d81576ffefa43f05464d9c
+body	tests/test-lock.test.mjs	spaced and compact Swift division keep a proven hash that moves with the assertion	740d2b78154dd110390b43f34737fff385c7da625fc5160d7dc00edc1967f4c5
+body	tests/test-lock.test.mjs	spaced and intervening qualified attributes lock a same-named Swift test, an unrecognised one refuses	5aacdb611235027e2a0d2b22e0162dc08f2b55ad4e4cd66905e0656dc38c1dd5
+body	tests/test-lock.test.mjs	still-absent check at done is allowed	d0e2ec2a85fc00cd8fa1e4595e4464b2b56425cd8cf0bc22b5011240ee593087
+body	tests/test-lock.test.mjs	still-unhashable names stay UNPROVEN after --relock	da1fd15cf598d308e6d158faa4fb8699be4705cee8efdf17942e884b81d6ef47
+body	tests/test-lock.test.mjs	the hasher survives seeded stress against bash and a generator oracle	d381a1fd5b86cb5867a9b89dce6f41d954053f3b2d4435f03c57d4fc24274a4b
+body	tests/test-lock.test.mjs	the lexer reads JSX: elements, fragments, attributes, expressions and text	0f929b738a7a89e5421d5a3a3849df65184ddfcab4f09772e087455b627a7a9d
+body	tests/test-lock.test.mjs	the pre-cutover advice says it is about the entry, not about today	5a2b0b1585b912543a7e9aa7ad69043610a5a733815011f58443ed5138dee6ec
+body	tests/test-lock.test.mjs	the same relock advice across tasks is one line naming them, and a different kind is its own	d0af7166daa55c76a1e7ff3186c443bf9315ce9ff9c0a77119b5b4d34e8498ee
+body	tests/test-lock.test.mjs	two check changes are advised once each	942525eaf016d238496819ee9be13cc8ae971252776447d657de56b2168ea73f
+body	tests/test-lock.test.mjs	under hasher 2 a change after a nested template moves the lock	0c9c8786525568bf7c61f9ae3ef17e2a939beed8c2bc5c9f076a4a9eb10fe82e
+body	tests/test-lock.test.mjs	unknown keys in quality-harness json are not a lock	8ee55f038d71c265a0059f77c7e618a07a87a3e6d6de6fcb24a4c8e1eef37eec
+body	tests/test-lock.test.mjs	whitespace inside a JS string literal is part of the locked body	a27371ad34394a3947b29d2a4c0c42c01bfe4f9baa1b2c9ad16e3fc4e6eba0fa
+body	tests/test-lock.test.mjs	whitespace inside a Swift string literal is part of the locked body	7e15aa343f980ba2b38b56086ad15beae39d9fa0f90fb63b54df244d720ceacc
+body	tests/test-lock.test.mjs	whitespace inside a possible bare Swift regex literal is part of the locked body	76b5305c8bd1a35c6831d2ef5d9956f65e394e2526ee1c24b47aed83f9dfd150
+body	tests/test-lock.test.mjs	writer, done, and is_done agree on the same hashes	13e0eeaf31177b783d29671e82764d6eed1801f92c10bce3e14f801298b9e641

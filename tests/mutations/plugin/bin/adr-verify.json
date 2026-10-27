@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-129 T2: adr-verify writes a run's lock inline",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/lock-sidecar-write.test.mjs"],
+      "from": "        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))",
+      "to": "        entry += lock_suffix_for_run(text, lock_repository(task), code)",
+      "only": "^adr-verify writes a first red's lock to a sidecar, and adr-lint reads it$"
+    },
+    {
       "label": "BACKLOG §409 sibling: adr-verify prints t with the home directory",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -96,8 +104,8 @@
       "label": "BACKLOG §388: a first red keys its lock from the record's repository, whatever --cwd is",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],
-      "from": "    entry += lock_suffix_for_run(text, lock_repository(task), code)",
-      "to": "    entry += lock_suffix_for_run(text, cwd, code)",
+      "from": "        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))",
+      "to": "        entry += lock_suffix_for_run(text, cwd, code, corpus=lock_corpus(task))",
       "only": "^(?:a red run with --cwd elsewhere keys its first-red lock from the record)$"
     },
     {
@@ -1132,8 +1140,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    entry += lock_suffix_for_run(text, lock_repository(task), code)",
-      "to": "    entry += \"\"",
+      "from": "        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))",
+      "to": "        entry += \"\"",
       "only": "first TDD-red row carries a tool-written hash for each named test"
     },
     {

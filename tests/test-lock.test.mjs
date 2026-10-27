@@ -1802,7 +1802,8 @@ test('first TDD-red row carries a tool-written hash for each named test', () => 
       'from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding="utf-8"))',
       task], { cwd: repoRoot, env: pyEnv, encoding: 'utf8', timeout: 10_000 })
     assert.match(logged.stdout, /test-lock-sha256:[0-9a-f]{64}/, logged.stdout)
-    assert.match(logged.stdout, /test-lock-b64:[A-Za-z0-9_-]+/, logged.stdout)
+    // ADR-129 T2: in a git repository the per-test hashes live in a committed sidecar the row names; outside one, inline.
+    assert.match(logged.stdout, /test-lock-(?:b64:[A-Za-z0-9_-]+|file:\S+\.lock)/, logged.stdout)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

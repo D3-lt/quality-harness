@@ -1316,15 +1316,19 @@ TEST_HASH_REQUIRED_FROM = "2026-09-13"
 TEST_LOCK_FIELD = (
     r"(?: · test-lock-sha256:(?P<test_lock>[0-9a-f]{64}))?"
     r"(?: · test-lock-b64:(?P<test_lock_b64>[A-Za-z0-9_-]+))?"
+    r"(?: · test-lock-file:(?P<test_lock_file>[^\s·]+))?"
     r"(?: · test-lock-kind:(?P<test_lock_kind>relock|replace))?"
 )
 TEST_LOCK_FIELD_ANON = (
     r"(?: · test-lock-sha256:[0-9a-f]{64})?"
     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?"
+    r"(?: · test-lock-file:[^\s·]+)?"
     r"(?: · test-lock-kind:(?:relock|replace))?"
 )
 _LOCK_SHA = re.compile(r"test-lock-sha256:([0-9a-f]{64})")
 _LOCK_B64 = re.compile(r"test-lock-b64:([A-Za-z0-9_-]+)")
+# ADR-129: a lock whose payload is a committed file, named repository-relative beside the row's sha.
+_LOCK_FILE = re.compile(r" · test-lock-file:([^\s·]+)")
 # The sha field of a tool-written row, in ONE place (ADR-088 T1). It was a literal copy in
 # adr-lint, adr-verify, adr-next (twice) and here, and adr-next's copies still read 7 to 40 when the
 # others read 4 to 64, so one task was `done` to adr-lint and `READY` to adr-next. git honours
@@ -3928,6 +3932,11 @@ def decode_lock(token):
         text = raw.decode("utf-8")
     except (ValueError, UnicodeError):
         return None
+    return _decode_payload(text)
+
+
+def _decode_payload(text):
+    """The lock map a canonical payload holds, or None (`encode_lock`'s inverse, from its text)."""
     check, bodies, unproven, hasher, checks = None, {}, set(), 1, 0
     for line in text.split("\n"):
         parts = line.split("\t")
@@ -3949,26 +3958,57 @@ def decode_lock(token):
     return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
 
 
-def first_red_lock_suffix(text, root):
-    """Suffix for the first TDD-red row, or empty when a lock already exists."""
+def write_lock_sidecar(root, corpus, digest, payload):
+    """Write a lock's payload to `<corpus>/locks/<digest>.lock` and return its repository-relative path (ADR-129 T2).
+
+    Before the row: a row never names a file that was not written. Content-addressed, so a payload two tasks share is
+    one file. `locks/.gitattributes` holds the bytes at LF in any corpus, since the sha is over them. Raises OSError when
+    the directory cannot be written; the caller then records no row."""
+    locks = Path(corpus) / "locks"
+    locks.mkdir(parents=True, exist_ok=True)
+    attributes = locks / ".gitattributes"
+    if not attributes.exists():
+        attributes.write_bytes(b"* text eol=lf\n")
+    target = locks / f"{digest}.lock"
+    if not target.exists() or target.read_bytes() != payload:
+        partial = locks / f".{digest}.{os.getpid()}.part"
+        partial.write_bytes(payload)
+        os.replace(partial, target)
+    return Path(os.path.relpath(target.resolve(), Path(root).resolve())).as_posix()
+
+
+def lock_sidecar_suffix(snap, root, corpus):
+    """The row's lock field for a sidecar lock: the sha and the file it names, the file written first."""
+    digest, token = encode_lock(snap)
+    payload = base64.urlsafe_b64decode(token + "=" * ((4 - len(token) % 4) % 4))
+    return f" · test-lock-sha256:{digest} · test-lock-file:{write_lock_sidecar(root, corpus, digest, payload)}"
+
+
+def first_red_lock_suffix(text, root, corpus=None):
+    """Suffix for the first TDD-red row, or empty when a lock already exists. With `corpus`, the lock is a sidecar."""
     if vlog_has_test_lock(text, object_format(root)):
         return ""
-    digest, token = encode_lock(snapshot_lock(root, tests_table_rows(text)))
+    snap = snapshot_lock(root, tests_table_rows(text))
+    if corpus is not None:
+        return lock_sidecar_suffix(snap, root, corpus)
+    digest, token = encode_lock(snap)
     return f" · test-lock-sha256:{digest} · test-lock-b64:{token}"
 
 
-def lock_suffix_for_run(text, root, code):
+def lock_suffix_for_run(text, root, code, corpus=None):
     """First-red lock, or a recovery lock on a later row when the log still has none.
 
     A first-ever green (empty log, exit 0) is not first-red and must not lock.
     """
     if code != 0 or vlog_has_red(text, object_format(root)):
-        return first_red_lock_suffix(text, root)
+        return first_red_lock_suffix(text, root, corpus)
     return ""
 
 
-def lock_snapshot_suffix(snap, kind):
-    """Current snapshot plus a trailing test-lock-kind (ADR-052)."""
+def lock_snapshot_suffix(snap, kind, root=None, corpus=None):
+    """Current snapshot plus a trailing test-lock-kind (ADR-052). With `corpus`, the lock is a sidecar (ADR-129)."""
+    if corpus is not None:
+        return f"{lock_sidecar_suffix(snap, root, corpus)} · test-lock-kind:{kind}"
     digest, token = encode_lock(snap)
     return f" · test-lock-sha256:{digest} · test-lock-b64:{token} · test-lock-kind:{kind}"
 
@@ -3979,7 +4019,7 @@ def moved_lock_bodies(vlog, *, current, root=None):
     Its one caller, `adr-verify --relock`, refuses first when a Tests-row file is there and could
     not be read, so no body here is "moved" for want of a read (BACKLOG §350 item 1). The lock is
     read from rows whose sha fits `root`'s object format, as `lock_findings` reads it (ADR-088)."""
-    _date, recorded = _recorded_lock(vlog, object_format(root))
+    _date, recorded = _recorded_lock(vlog, object_format(root), root=root)
     if not recorded or not recorded.get("map"):
         return []
     moved = []
@@ -4004,7 +4044,7 @@ def lock_hasher(vlog, root=None):
     is checked the way it was taken before a hasher-2 lock replaces it (F-8). The
     lock is read from rows whose sha fits `root`'s object format (ADR-088).
     """
-    _date, recorded = _recorded_lock(vlog, object_format(root))
+    _date, recorded = _recorded_lock(vlog, object_format(root), root=root)
     if recorded is not None and recorded.get("map") is None:
         return None
     return ((recorded or {}).get("map") or {}).get("hasher", 1)
@@ -4046,6 +4086,7 @@ def _row_lock_sha(line):
     """
     return re.search(r" · test-lock-sha256:([0-9a-f]{64})"
                      r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?"
+                     r"(?: · test-lock-file:[^\s·]+)?"
                      r"(?: · test-lock-kind:(relock|replace))?"
                      r"[ \t]*$", line)
 
@@ -4074,7 +4115,50 @@ def vlog_row_is_lock_snapshot(line):
     return bool(sha and sha.group(2))
 
 
-def _recorded_lock(vlog, sha_format=None):
+
+def _lock_from_row(line, digest, root):
+    """The lock map a row carries, why it could not be read, and whether its file is untracked: (map, problem, untracked).
+
+    ADR-129 T1: an inline `test-lock-b64:` decodes as before. A `test-lock-file:<path>` is repository-relative, listed
+    against git (CLAUDE.md §8), and its raw bytes, read before any decoding, must hash to the row's sha; anything that
+    cannot be shown is a lock that could not be read (ADR-005). An untracked file is read: it is every fresh lock's state
+    before its commit, and the caller says to commit it."""
+    inline = _LOCK_B64.search(line)
+    if inline:
+        return decode_lock(inline.group(1)), None, False
+    named = _LOCK_FILE.search(line)
+    if not named:
+        return None, None, False
+    rel = named.group(1).replace("\\", "/")
+    if root is None:
+        return None, f"its lock file `{rel}` cannot be resolved without the repository", False
+
+    def listed(*flags):
+        try:
+            run = subprocess.run(["git", "-C", str(root), "ls-files", "-z", *flags, "--", rel], capture_output=True,
+                                 timeout=30, env=git_read_env(), **NO_WINDOW)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return rel.encode("utf-8") in run.stdout.split(b"\0") if run.returncode == 0 else None
+    known = listed("--cached", "--others", "--exclude-standard")
+    if known is None:
+        return None, f"git could not list its lock file `{rel}`", False
+    if not known:
+        return None, f"its lock file `{rel}` is not in the repository (absent, or ignored)", False
+    try:
+        data = (Path(root) / rel).read_bytes()
+    except OSError as exc:
+        return None, f"its lock file `{rel}` could not be read ({os_reason(exc)})", False
+    if hashlib.sha256(data).hexdigest() != digest:
+        return None, (f"its lock file `{rel}` does not hash to the row's test-lock-sha256 "
+                      "(rewritten, line endings included)"), False
+    try:
+        text = data.decode("utf-8")
+    except UnicodeError:
+        return None, f"its lock file `{rel}` is not UTF-8", False
+    return _decode_payload(text), None, listed("--cached") is False
+
+def _recorded_lock(vlog, sha_format=None, root=None):
     """Lock parsed from the first TDD-red row, a recovery lock, or a later relock."""
     first_date = None
     first_red = None
@@ -4120,8 +4204,7 @@ def _recorded_lock(vlog, sha_format=None):
                     break
             if not sha:
                 return first_date, None
-    b64 = _LOCK_B64.search(lock_line) if sha else None
-    parsed = decode_lock(b64.group(1)) if b64 else None
+    parsed, problem, untracked = _lock_from_row(lock_line, sha.group(1), root) if sha else (None, None, False)
     # ADR-050: "done is refused … when a later red presents a different hash."
     # Kind rows are the done map (ADR-052), not a later-red conflict. A later
     # red with a different sha and no kind still conflicts.
@@ -4134,8 +4217,8 @@ def _recorded_lock(vlog, sha_format=None):
         for line, _m in _vlog_machine_rows(vlog, sha_format):
             first = _row_lock_sha(line)
             if first and not first.group(2):
-                first_b64 = _LOCK_B64.search(line)
-                first_map = decode_lock(first_b64.group(1)) if first_b64 else None
+                # The first lock may be a sidecar too: through the one resolver (the cold review of ADR-129).
+                first_map, _problem, _untracked = _lock_from_row(line, first.group(1), root)
                 first_check = first_map.get("check") if first_map else None
                 break
     return first_date, {
@@ -4145,6 +4228,8 @@ def _recorded_lock(vlog, sha_format=None):
         "recovered": recovered,
         "kind": kind,
         "first_check": first_check,
+        "problem": problem,
+        "untracked": untracked,
     }
 
 
@@ -4170,7 +4255,7 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
     prefix = f"{label}: " if label else ""
     # ADR-088 T1: the rows a lock is read from take the repository's sha width, as every row reader does.
     sha_format = object_format(root)
-    date, recorded = _recorded_lock(vlog, sha_format)
+    date, recorded = _recorded_lock(vlog, sha_format, root=root)
     if recorded is None:
         missing = (
             f"{prefix}marked done but has no first-red test-lock-sha256 — "
@@ -4202,8 +4287,9 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
                 f"{recorded['digest'][:12]}…) — done is refused"], []
 
     if recorded["map"] is None:
+        why = f": {recorded['problem']}" if recorded.get("problem") else ""
         return [f"{prefix}first-red test-lock-sha256 is present but the lock map "
-                "could not be read — UNPROVEN"], []
+                f"could not be read{why} — UNPROVEN"], []
     hasher = recorded["map"].get("hasher", 1)
     if hasher not in LOCK_HASHERS:
         return [f"{prefix}the lock map was taken by hasher {hasher}, which this reader "
@@ -4214,6 +4300,9 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
     recorded_map = recorded["map"]
     blocks = []
     advice = []
+    if recorded.get("untracked"):
+        advice.append(f"{prefix}its lock file is not committed yet: commit it with the row, or a clone cannot read this "
+                      "lock (ADR-129)")
     if advise and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
         newer = snapshot_lock(root, tests)
         if newer["hasher"] > hasher and (newer["bodies"], newer["unproven"]) != (current["bodies"], current["unproven"]):

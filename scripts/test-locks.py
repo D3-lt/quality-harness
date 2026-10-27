@@ -37,7 +37,7 @@ def locks(target, needle=None, root=HERE):
     found = []
     for rel in listing.stdout.splitlines():
         text = (Path(root) / rel).read_text(encoding="utf-8", errors="replace")
-        _date, lock = record._recorded_lock(record.sections_of(text).get("Verification Log", []))
+        _date, lock = record._recorded_lock(record.sections_of(text).get("Verification Log", []), root=str(root))
         if not lock or not lock["map"]:
             continue
         for test_file, name in sorted(lock["map"]["bodies"]):

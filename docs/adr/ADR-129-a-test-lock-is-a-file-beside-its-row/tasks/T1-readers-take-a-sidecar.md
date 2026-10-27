@@ -50,6 +50,7 @@ node --test --test-reporter=tap tests/lock-sidecar.test.mjs
 | `every record this repository tracks passes its own adr-lint` | `tests/corpus-lint.test.mjs` | no corpus finding changes | — | S4 |
 
 ## Mutation Log
+- 2026-10-27 · bc5618cd* · mutant killed · exit 1 · `plugin/lib/record.py` · a sidecar whose bytes do not hash to the row's sha is read as the lock · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d
 
 ## Invariants
 
@@ -68,3 +69,19 @@ A reader outside record.py parses the lock field itself: stop and route it throu
 - Writing sidecar rows (deferred: T2).
 
 ## Verification Log
+- 2026-10-27 · bc5618cd* · exit 1 · `node --test --test-reporter=tap tests/lock-sidecar.test.mjs` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:393 · test-lock-sha256:eac6586fa07f4715df18dab07d75b40b125e8a260b8d1e887799d72226dcd351 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY29ycHVzLWxpbnQudGVzdC5tanMJZXZlcnkgcmVjb3JkIHRoaXMgcmVwb3NpdG9yeSB0cmFja3MgcGFzc2VzIGl0cyBvd24gYWRyLWxpbnQJNWU0NDVlNWFiNmRmOTU1ZDAyZGU1MDRhZDM2ZjNmNmJlNTRhOGI0YTVlNTc2Mjc3NzdmMmM3YWExOGE4NTRhNgpib2R5CXRlc3RzL2NvcnB1cy1saW50LnRlc3QubWpzCXRoZSBhcmNoaXZlLCB3aGVyZSB0aGVyZSBpcyBvbmUsIHBhc3NlcyBhZHItcmV0aXJlLWNoZWNrCWU3Njc1ZjBlZGJhMjI5MTczYmZjMzFlZmJlZGM2OTc3NmQwODUzZWVhYThkNDliMGFjNWRkMjg2MGQ2YTIxNDkKYm9keQl0ZXN0cy9jb3JwdXMtbGludC50ZXN0Lm1qcwl0aGlzIHJlcG9zaXRvcnkncyBvd24gZGVmZXJyYWwgcG9pbnRlcnMgYWxsIHJlc29sdmUgdW5kZXIgYWRyLWRlYnQJZmI0YTU2NGZhOWNjMzczZDUzN2YxNzE2NWI4NzcwZDRhNmEyZjA4YWE0NmEzMmQ5YzhhZjE2NTYxYzAzNzNjNApib2R5CXRlc3RzL2xvY2stc2lkZWNhci50ZXN0Lm1qcwlhIHJlbG9jayBhZnRlciBhIHNpZGVjYXIgZmlyc3QgcmVkIGtlZXBzIGl0cyBjaGVjawk0NGI3OWMzOTJlNjg0Mjc4NDYzZWU5MDM0OWZjMDM0ZWY0NjRmM2UwYzMxYzBiYzFmMzZkYWU1MWY1YTk4NTE1CmJvZHkJdGVzdHMvbG9jay1zaWRlY2FyLnRlc3QubWpzCWEgc2lkZWNhciBsb2NrIHJlYWRzIGFzIGl0cyBpbmxpbmUgdHdpbiwgYW5kIG5hbWVzIGEgbW92ZWQgdGVzdAliY2MwODY5MWVjYWJiY2E0ZTAwOTYzOGIwYjE5ZWMzYjc3ZmI0ZDQ1ODE5ZjEwOGU1ZTY5N2I1MDYzMDA0YmNjCmJvZHkJdGVzdHMvbG9jay1zaWRlY2FyLnRlc3QubWpzCWEgc2lkZWNhciB0aGF0IGlzIG1pc3NpbmcsIGlnbm9yZWQsIG91dHNpZGUsIGFsdGVyZWQgb3IgdW5yZWFkYWJsZSBpcyBVTlBST1ZFTiwgYW5kIGFuIHVudHJhY2tlZCBvbmUgaXMgcmVhZAljYTMyZmUwMTIxMGFkNDU0NmE2OWFjZTdjY2E0ZDcwMmRjNjc4ZmM3YmZjMTMxZmI4M2ZmODM0NjUyZDJiNzRh
+  ```
+  --- last 10 line(s) of stdout (of 101 after folding 104 raw)
+    ...
+  1..3
+  # tests 3
+  # suites 0
+  # pass 0
+  # fail 3
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 281.491
+  ```
+- 2026-10-27 · bc5618cd* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar.test.mjs` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:657
+- 2026-10-27 · bc5618cd* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar.test.mjs` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:783

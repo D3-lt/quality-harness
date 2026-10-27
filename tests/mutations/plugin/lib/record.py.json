@@ -1,6 +1,70 @@
 {
   "mutations": [
     {
+      "label": "ADR-129 T2: a first red's lock stays inline when a corpus is given",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar-write.test.mjs"],
+      "from": "    snap = snapshot_lock(root, tests_table_rows(text))\n    if corpus is not None:",
+      "to": "    snap = snapshot_lock(root, tests_table_rows(text))\n    if False:",
+      "only": "^adr-verify writes a first red's lock to a sidecar, and adr-lint reads it$"
+    },
+    {
+      "label": "ADR-129 T2: a relock stays inline when a corpus is given",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar-write.test.mjs"],
+      "from": "    if corpus is not None:\n        return f\"{lock_sidecar_suffix(snap, root, corpus)} · test-lock-kind:{kind}\"",
+      "to": "    if False:\n        return f\"{lock_sidecar_suffix(snap, root, corpus)} · test-lock-kind:{kind}\"",
+      "only": "^a recovery lock and a relock write the same form, a shared payload is one file, and an unwritable directory leaves no row$"
+    },
+    {
+      "label": "ADR-129 T2: the locks directory is not held at LF",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar-write.test.mjs"],
+      "from": "        attributes.write_bytes(b\"* text eol=lf\\n\")",
+      "to": "        pass",
+      "only": "^the locks directory is held at LF in any corpus$"
+    },
+    {
+      "label": "ADR-129 T1: a sidecar whose bytes do not hash to the row's sha is read",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar.test.mjs"],
+      "from": "    if hashlib.sha256(data).hexdigest() != digest:",
+      "to": "    if False:",
+      "only": "^a sidecar that is missing, ignored, outside, altered or unreadable is UNPROVEN, and an untracked one is read$"
+    },
+    {
+      "label": "ADR-129 T1: a sidecar git does not list (ignored) is read",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar.test.mjs"],
+      "from": "    if not known:",
+      "to": "    if False:",
+      "only": "^a sidecar that is missing, ignored, outside, altered or unreadable is UNPROVEN, and an untracked one is read$"
+    },
+    {
+      "label": "ADR-129 T1: the historical first-red decode skips the sidecar",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar.test.mjs"],
+      "from": "                first_map, _problem, _untracked = _lock_from_row(line, first.group(1), root)",
+      "to": "                first_map, _problem, _untracked = _lock_from_row(line, first.group(1), None)",
+      "only": "^a relock after a sidecar first red keeps its check$"
+    },
+    {
+      "label": "ADR-129 T1: an untracked sidecar is not advised",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar.test.mjs"],
+      "from": "    return _decode_payload(text), None, listed(\"--cached\") is False",
+      "to": "    return _decode_payload(text), None, False",
+      "only": "^a sidecar that is missing, ignored, outside, altered or unreadable is UNPROVEN, and an untracked one is read$"
+    },
+    {
+      "label": "ADR-129 T1: the main lock read skips the sidecar",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar.test.mjs"],
+      "from": "    parsed, problem, untracked = _lock_from_row(lock_line, sha.group(1), root) if sha else (None, None, False)",
+      "to": "    parsed, problem, untracked = _lock_from_row(lock_line, sha.group(1), None) if sha else (None, None, False)",
+      "only": "^a sidecar lock reads as its inline twin, and names a moved test$"
+    },
+    {
       "label": "the owner, 2026-10-27: a finding several tasks raise is printed once per task",
       "file": "plugin/lib/record.py",
       "tests": ["tests/lint-grouping.test.mjs"],
@@ -575,7 +639,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    return re.search(r\" · test-lock-sha256:([0-9a-f]{64})\"\n                     r\"(?: · test-lock-b64:[A-Za-z0-9_-]+)?\"\n                     r\"(?: · test-lock-kind:(relock|replace))?\"\n                     r\"[ \\t]*$\", line)",
+      "from": "    return re.search(r\" · test-lock-sha256:([0-9a-f]{64})\"\n                     r\"(?: · test-lock-b64:[A-Za-z0-9_-]+)?\"\n                     r\"(?: · test-lock-file:[^\\s·]+)?\"\n                     r\"(?: · test-lock-kind:(relock|replace))?\"\n                     r\"[ \\t]*$\", line)",
       "to": "    return _LOCK_SHA.search(line)",
       "only": "a later red carrying a different lock hash"
     },
@@ -2448,8 +2512,8 @@
       "tests": [
         "tests/vlog-sha-width.test.mjs"
       ],
-      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root))\n    if recorded is not None",
-      "to": "    _date, recorded = _recorded_lock(vlog)\n    if recorded is not None",
+      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root), root=root)\n    if recorded is not None",
+      "to": "    _date, recorded = _recorded_lock(vlog, root=root)\n    if recorded is not None",
       "only": "^(?:relock reads the hasher from the rows whose sha fits)$"
     },
     {
@@ -2458,8 +2522,8 @@
       "tests": [
         "tests/vlog-sha-width.test.mjs"
       ],
-      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root))\n    if not recorded or",
-      "to": "    _date, recorded = _recorded_lock(vlog)\n    if not recorded or",
+      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root), root=root)\n    if not recorded or",
+      "to": "    _date, recorded = _recorded_lock(vlog, root=root)\n    if not recorded or",
       "only": "^(?:relock compares bodies with the lock whose sha fits)$"
     },
     {

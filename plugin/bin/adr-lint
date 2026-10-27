@@ -126,6 +126,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501,F401
 from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E402
 from record import git_read_env  # noqa: E402
+from record import grouped_task_findings  # noqa: E402
 from record import signoff_binding, signoff_digest, receipt_digest, receipt_digests  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
@@ -7167,13 +7168,14 @@ def main():
     # is printed as one line, its controls written as escapes (`record.visible`). Only the print
     # changes: the finding recorded for ADR-037 keeps its own text.
     print(visible(f"[{status}] {home_shown(adr)}" + (f" + {home_shown(tasks_dir)}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}", keep=""))
-    for e in errors:
+    # A finding several tasks raise is printed once, naming them (record.grouped_task_findings); `errors` is unchanged.
+    for e in grouped_task_findings(errors):
         print(visible(f"  {e}", keep=""))
-    for u in errors.unproven:
+    for u in grouped_task_findings(errors.unproven):
         print(visible(f"  unproven: {u}", keep=""))
     # Advice is printed on a PASS too: a record that is acceptable and a record
     # that is finished are different things, and the reader deserves both.
-    for a in errors.advice:
+    for a in grouped_task_findings(errors.advice):
         print(visible(f"  advice: {a}", keep=""))
     for name in sorted(withheld):
         print(visible(f"  advice withheld: {name} declares **Status:** `{withdrawn_tasks[name]}`, so "

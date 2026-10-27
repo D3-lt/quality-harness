@@ -515,6 +515,33 @@ def visible(text, keep="\t"):
     return _INVISIBLE.sub(lambda m: m.group(0) if m.group(0) in keep else "\\u{%x}" % ord(m.group(0)), text)
 
 
+# A finding a task raises begins `<task file>: <Tn>: `. Several tasks of one record can raise the same one: every task that
+# locks a test says when that lock moved, and a reader paid each copy (the owner, 2026-10-27, after fourteen such lines).
+_TASK_FINDING = re.compile(r"(?P<file>[^\s:]+\.md): (?P<task>T\d+): (?P<rest>.+)", re.S)
+
+
+def grouped_task_findings(messages):
+    """`messages` as printed: a finding several tasks raise said once, `T1, T2: <finding>`, where it first came.
+
+    Only the printed form changes; the findings stay one per task for every other reader. A message no task raised, and
+    one only one task raised, is printed as it is.
+    """
+    order, groups = [], {}
+    for message in messages:
+        match = _TASK_FINDING.fullmatch(message)
+        if not match:
+            order.append(message)
+            continue
+        group = groups.get(match["rest"])
+        if group is None:
+            group = groups[match["rest"]] = {"first": message, "tasks": [], "rest": match["rest"]}
+            order.append(group)
+        if match["task"] not in group["tasks"]:
+            group["tasks"].append(match["task"])
+    return [entry if isinstance(entry, str)
+            else entry["first"] if len(entry["tasks"]) == 1
+            else f"{', '.join(entry['tasks'])}: {entry['rest']}" for entry in order]
+
 def _as_lines(section):
     return section if isinstance(section, list) else [ln for ln, _s, _e in split_lines(section)]
 

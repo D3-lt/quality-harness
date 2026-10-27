@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "the owner, 2026-10-27: adr-lint prints every task's copy of a shared finding",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/lint-grouping.test.mjs"],
+      "from": "    for e in grouped_task_findings(errors):",
+      "to": "    for e in errors:",
+      "only": "^adr-lint prints a lock finding its tasks share once, through the gate itself$"
+    },
+    {
       "label": "2026-10-23: an Accepted record the catalog beside it does not link draws no advice",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-catalog-link.test.mjs"],
@@ -678,7 +686,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    for a in errors.advice:\n        print(visible(f\"  advice: {a}\", keep=\"\"))",
+      "from": "    for a in grouped_task_findings(errors.advice):\n        print(visible(f\"  advice: {a}\", keep=\"\"))",
       "to": "    pass",
       "only": "^(?:a form finding is reported to the reader without failing the record|an inline task claiming done is told nothing can prove it|a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a cited tracker id or section number is not reported as a missing file|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|an evidenced task whose Affected Files git ignores is reported, with the pattern|a task whose archived path would exceed the Windows ceiling is advised, one under it is not|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|an unreadable or unusable strictFrom changes nothing, and says so|adr-lint cross-checks every ordered step against an explicit proof|a parallelised acceptance fence that never collects its children is reported|a step whose proof is a named test has a run that names it|a path::name pointer at a production function does not resolve as a test)$"
     },

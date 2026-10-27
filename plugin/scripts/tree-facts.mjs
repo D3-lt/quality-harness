@@ -395,10 +395,10 @@ export function statusPaths(root) {
   return answer
 }
 
-// Commits reachable now that were not reachable when the session started. NOT
-// "authored here": a fetch, a merge or a checkout makes commits reachable too,
-// and this says only that no check has passed on their trees.
-export function sessionCommits(log, root, head) {
+// The commit at HEAD, when it was not reachable as the session started (ADR-128 T1: R2 is retired, and only HEAD is asked
+// about). NOT "authored here": a fetch, a merge or a checkout moves HEAD too. R1 names it as what the tree at HEAD was
+// committed as, and the claim's evidence asks whether a check passed on its tree.
+export function headCommit(log, root, head) {
   const baseline = sessionBaseline(log)?.observation
   const first = baseline?.head
   if (!root || typeof head !== 'string') return mark([], true)
@@ -406,51 +406,12 @@ export function sessionCommits(log, root, head) {
   // repository with no commits as `{ ok: true, head: null }` — looked at, and
   // positively empty. Requiring a STRING baseline here collapsed that into "no
   // information", so a session that started in a fresh repository and then gained
-  // its whole history reported NO new commits: R2 silent in the one case where
-  // every commit is new. `git init` then work is how a project starts, and a
-  // scaffold that commits as it goes reaches it every time.
+  // its whole history reported no commit at all. `git init` then work is how a
+  // project starts, and a scaffold that commits as it goes reaches it every time.
   const unborn = baseline?.ok === true && first === null
   if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
-  // Everything reachable from HEAD is new when the session began with nothing.
-  const range = unborn ? [head] : [`${first}..${head}`]
-  // Not a commit the branch's upstream already reaches: landed or fetched work is published there, and CI's to answer for. A
-  // fast-forward over landed commits named 277 of them as unchecked with HEAD's tree freshly checked (the owner, 2026-10-23);
-  // ADR-060's step 14 still holds, since a commit the upstream does not hold is named whatever its descendants hold. Only the
-  // upstream, or without one the default branch origin names (refs/remotes/origin/HEAD): any remote-tracking ref also hid a
-  // commit a fork's remote or a stale ref happened to hold, and those carry no CI evidence; a branch with no upstream named the
-  // landed commits again (the Codex reviews of v3.8.53..42a903a8 and its fix round). Each must name a remote-tracking branch
-  // (refs/remotes/<remote>/<branch>): an upstream that is a local branch (remote "."), an origin/HEAD that is not symbolic, or
-  // one aliased to a local branch held commits nothing published (the second verification review). Neither excludes nothing.
-  // A branch may be named `topic/HEAD`; symbolic-ref already returns what origin/HEAD points at (the third verification review).
-  // A remote's own HEAD (refs/remotes/<remote>/HEAD) is not a branch: a non-symbolic one can hold an unpublished commit. A
-  // remote's name may hold a slash (`team/peer`, whose HEAD reads as branch `peer/HEAD`), so a name ending in /HEAD counts only
-  // when a configured remote proves it a branch under that remote (the fourth and fifth verification reviews).
-  const remoteHead = name => {
-    if (!name.endsWith('/HEAD')) return false
-    const remotes = gitLines(root, ['remote'])
-    const owners = (remotes.ok ? remotes : []).filter(remote => name.startsWith(`refs/remotes/${remote}/`))
-    return owners.length === 0 || owners.some(remote => name === `refs/remotes/${remote}/HEAD`)
-  }
-  // Dot-all: git permits U+2028 and U+2029 in a branch name, and the Go core's `.` matches them (part 2 of the review of
-  // 6619eba1..7816aaf7); a ref name cannot hold a newline.
-  const tracking = name => /^refs\/remotes\/[^/]+\/.+$/s.test(name) && !remoteHead(name)
-  // Origin's default branch stands in only for a branch with no upstream configured. One configured and refused (a local
-  // branch, a remote's own HEAD) excludes nothing, since a stale origin/HEAD can hold exactly the commits it has not
-  // published (the same review). A detached HEAD, or a configuration git cannot read, gets no stand-in either. Absent is
-  // asked of the configured key NAMES: a value can be empty, and an empty value printed what an absent key prints (the
-  // verification review of 7976d523).
-  const branch = gitLines(root, ['symbolic-ref', '-q', 'HEAD'])
-  const merge = branch.ok && branch.length === 1 && branch[0].startsWith('refs/heads/') ? `branch.${branch[0].slice('refs/heads/'.length)}.merge` : null
-  const keys = merge ? gitLines(root, ['config', '-z', '--name-only', '--list'], { nul: true }) : null
-  const names = [gitLines(root, ['rev-parse', '--symbolic-full-name', '@{upstream}'])]
-  if (keys?.ok && !keys.includes(merge)) names.push(gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']))
-  let published = []
-  for (const name of names) {
-    if (!name.ok || !tracking(name[0] ?? '')) continue
-    const answer = gitLines(root, ['rev-parse', '--verify', '--quiet', `${name[0]}^{commit}`])
-    if (answer.ok && /^[0-9a-f]{40,64}$/.test(answer[0] ?? '')) { published = ['--not', answer[0]]; break }
-  }
-  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range, ...published])
+  // The newest commit of the range is HEAD; a HEAD the session start already reached (a reset back) leaves the range empty.
+  const lines = gitLines(root, ['log', '-1', '--format=%H%x09%T%x09%s', unborn ? head : `${first}..${head}`])
   return mark(lines.map(line => {
     const [sha, tree, ...subject] = line.split('\t')
     return { sha, tree, subject: subject.join('\t') }

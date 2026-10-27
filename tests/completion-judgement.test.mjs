@@ -84,7 +84,7 @@ const PROPERTIES = {
     return r.actions.length ? 'nagged a verified state' : null
   },
   'a cut log is never accused of "no qh-check has passed"': (s, r) => (!s.whole && r.actions.some(action => /no `qh-check` has passed/.test(action.text)) ? 'accused over a cut log' : null),
-  'every finding has a rule, a key and words': (s, r) => (r.actions.some(action => action.rule !== undefined && (!['R1', 'R2', 'R4', 'R5'].includes(action.rule) || !action.key || !action.text)) ? 'a finding without a rule, key or text' : null),
+  'every finding has a rule, a key and words': (s, r) => (r.actions.some(action => action.rule !== undefined && (!['R1', 'R4', 'R5'].includes(action.rule) || !action.key || !action.text)) ? 'a finding without a rule, key or text' : null),
   'a write git could not see is reported': (s, r) => (s.check && s.writes.length && !r.actions.some(action => action.rule === 'R1') && !(s.message === messages.question) ? 'an unseen write went unsaid' : null),
 }
 

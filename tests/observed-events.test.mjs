@@ -197,11 +197,11 @@ test('one hook delivers every action it records', () => {
   const stop = { hook_event_name: 'Stop', session_id: sessionId('deliver'), cwd: dir }
   const both = lifecycle.deliver([
     { rule: 'R1', key: 'k1', text: RULE_ONE_TEXT },
-    { rule: 'R2', key: 'k2', text: RULE_TWO_TEXT },
+    { rule: 'R4', key: 'k2', text: RULE_TWO_TEXT },
   ], stop)
   assert.ok(String(both.output?.systemMessage).includes(RULE_ONE_TEXT))
   assert.ok(String(both.output?.systemMessage).includes(RULE_TWO_TEXT))
-  assert.deepEqual(named(eventsIn(lifecycle.stateDir(dir), stop.session_id), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
+  assert.deepEqual(named(eventsIn(lifecycle.stateDir(dir), stop.session_id), 'action.emitted').map(entry => entry.rule), ['R1', 'R4'])
 
   const pre = { hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: sessionId('deny'), cwd: dir }
   const denied = lifecycle.deliver([
@@ -454,14 +454,14 @@ const SCENARIO = [
   ['8 compact SessionStart; Stop', []],
   ['9 write b.md; sh check.sh; PreToolUse commit two', ['P']],
   ["9' run it; Stop", []],
-  // ADR-122 T3: commit two was warned about by P before this compaction; the context that heard it is gone, so R2 names it.
-  ['10 write c.md; compact SessionStart; Stop', ['R1', 'R2']],
+  // ADR-122 T3, then ADR-128 T1: commit two was warned about by P before this compaction; R2 is retired, so nothing names it.
+  ['10 write c.md; compact SessionStart; Stop', ['R1']],
   ['11 edit a.md; PreToolUse bash -c commit three', ['P']],
   ["11' run it; Stop", []],
   ['12 edit a.md; PreToolUse git --git-dir commit -am four', ['P']],
   ["12' run it; Stop", []],
   ['13 qh-check passes; Stop', []],
-  ['14 commit five then six; Stop', ['R2']],
+  ['14 commit five then six; Stop', []],
   ['15 qh-check fails; Stop', ['R1']],
 ]
 const LEDGER_VERSION = 'events/1'
@@ -605,10 +605,10 @@ test('the scripted session advises as its step table lists', () => {
   // a passing qh-check is not.
   assert.equal(run.steps[4].said.includes('"permissionDecision":"deny"'), false, run.steps[4].said)
   assert.match(run.steps[8].said, /"permissionDecision":"deny"/, run.steps[8].said)
-  // Step 14 names the commit whose tree nothing checked, and not the one whose
-  // tree is the checked working tree.
+  // Step 14 named commit five, whose tree nothing checked, until ADR-128 T1 retired
+  // R2: neither commit below the checked working tree is named now.
   const fourteen = run.steps[16]
-  assert.ok(fourteen.said.includes('five'), fourteen.said)
+  assert.equal(fourteen.said.includes('five'), false, fourteen.said)
   assert.equal(fourteen.said.includes('six'), false, fourteen.said)
 
   // ADR-035: one row per completion event, its evidence computed from the tree,
@@ -621,9 +621,9 @@ test('the scripted session advises as its step table lists', () => {
   // must not read as verified.
   assert.equal(run.steps[9].rows.at(-1)?.evidence, 'unverified')
   assert.equal(run.steps[3].rows.at(-1)?.evidence, 'verified')
-  // Step 14: the tree is the checked one, and a commit nothing checked is
-  // reachable — the ledger speaks for the commits too, not only for the tree.
-  assert.equal(run.steps[16].rows.at(-1)?.evidence, 'unverified')
+  // Step 14: the tree at HEAD is the checked one. A commit below it that nothing
+  // checked no longer counts against the claim: only HEAD is asked about (ADR-128 T1).
+  assert.equal(run.steps[16].rows.at(-1)?.evidence, 'verified')
 
   // `tally` still reads these rows, beside a row written before the version field.
   const older = JSON.stringify({
@@ -651,6 +651,8 @@ test('a repository without a check hears no completion advisory', () => {
   assert.deepEqual([...new Set(rows.map(row => row.evidence))], ['no-check'])
 })
 
+// ADR-128 T1 retired R2. The title is the one ADR-060's Tests tables name, and those records are history: read it as "an
+// unchecked commit whose tree equals the session start is named by nothing". R1 still speaks for the tree.
 test('an unchecked commit is named even when its tree equals the session start', () => {
   const dir = repository('t5s-')
   projectWithCheck(dir)
@@ -664,8 +666,9 @@ test('an unchecked commit is named even when its tree equals the session start',
   git(dir, 'commit', '-q', '-m', 'pinned')
   writeFileSync(path.join(dir, 'later.md'), 'later\n')
   const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
-  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
-  assert.ok(ended.stdout.includes('pinned'), ended.stdout)
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1'])
+  assert.equal(ended.stdout.includes('pinned'), false, ended.stdout)
+  assert.doesNotMatch(ended.stdout, /newly reachable commit/, ended.stdout)
 })
 
 // Found by the T5 mutation pass: the scripted session could not tell the ledger
@@ -692,8 +695,8 @@ test('a tree the publish warning named still records unverified', () => {
 })
 
 // A fetch, a merge or a branch switch makes many commits newly reachable at
-// once. One finding names them, because a message per commit would be dozens of
-// joined advisories in a single hook — and each one asks git for the check.
+// once. ADR-128 T1 retired R2, so none of them is named; the title is the one
+// ADR-060's Tests tables name, read as history. R1 speaks for the tree, once.
 test('many unchecked commits are one finding', () => {
   const dir = repository('t5m-')
   projectWithCheck(dir)
@@ -709,20 +712,18 @@ test('many unchecked commits are one finding', () => {
   }
   writeFileSync(path.join(dir, 'later.md'), 'later\n')
   const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
-  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
-  assert.ok(ended.stdout.includes('7 newly reachable commits'), ended.stdout)
-  assert.ok(ended.stdout.includes('and 2 more'), ended.stdout)
-  assert.equal(ended.stdout.includes('commit 1'), false, 'only the newest five are named')
-  assert.ok(ended.stdout.includes('commit 7'), ended.stdout)
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1'])
+  assert.doesNotMatch(ended.stdout, /newly reachable commit/, ended.stdout)
+  assert.equal(ended.stdout.includes('commit 7'), false, ended.stdout)
 
-  // Every one of them has been said, so the same state says nothing again.
+  // The same state says nothing again.
   hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
-  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1'])
 })
 
-// ADR-105 T1: a commit made the sanctioned way, `qh-check --fast` then `git commit`, was named at turn end as unchecked,
-// because R2 read full passes only (2026-10-16, four commits of this repository). Its fast record now speaks for it; every
-// other unchecked commit is still named, and the claim's evidence still reads full passes only.
+// ADR-105 T1: a commit made the sanctioned way, `qh-check --fast` then `git commit`, was named at turn end as unchecked.
+// ADR-128 T1 retired R2 and invalidated ADR-105, so no commit below HEAD is named, fast-checked or not; the title is the one
+// ADR-105's Tests table names, read as history. The claim's evidence still reads full passes only.
 test('a commit its fast check passed on is not named at turn end, and every other commit still is', () => {
   const dir = repository('t105-')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', fastCheck: 'sh check.sh' }))
@@ -748,11 +749,8 @@ test('a commit its fast check passed on is not named at turn end, and every othe
   // The fast check ran on fd.md and fe.md; the commit records fd.md alone, a tree nothing checked.
   commit('partial stage', ['fd.md', 'fe.md'], 'pass', ['fd.md'])
   const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
-  const r2 = named(eventsIn(state, session), 'action.emitted').filter(entry => entry.rule === 'R2')
-  assert.equal(r2.length, 1, ended.stdout)
-  assert.ok(ended.stdout.includes('3 newly reachable commits'), ended.stdout)
-  for (const subject of ['no fast record', 'fast failed', 'partial stage']) assert.ok(ended.stdout.includes(subject), `${subject}: ${ended.stdout}`)
-  assert.equal(ended.stdout.includes('fast passed'), false, ended.stdout)
+  assert.equal(named(eventsIn(state, session), 'action.emitted').some(entry => entry.rule === 'R2'), false, ended.stdout)
+  for (const subject of ['fast passed', 'no fast record', 'fast failed', 'partial stage']) assert.equal(ended.stdout.includes(subject), false, `${subject}: ${ended.stdout}`)
   // The claim's evidence reads full passes only (ADR-035): no full check ran, so it is unverified.
   assert.equal(claimRows(session).at(-1)?.evidence, 'unverified')
 })
@@ -1434,8 +1432,9 @@ test('a session that began before the first commit still sees the commits it gai
   // `sessionCommits` returned early, and the artifact candidates skipped their
   // `git diff --name-only <first>` entirely. So a session that started in a fresh
   // repository and gained commits before the next boundary reported NO new
-  // commits and NO artifacts to gate — the whole point of R2, silent, in the one
-  // case where everything is new.
+  // commits and NO artifacts to gate, in the one case where everything is new.
+  // ADR-128 T1 retired R2 and `sessionCommits`: the tree at HEAD is R1's to speak
+  // for, and the title is the one ADR-060's Tests tables name, read as history.
   //
   // `git init` then work is the ordinary start of a project, and a scaffold that
   // commits as it goes is the ordinary way to reach this. Found by a
@@ -1454,10 +1453,6 @@ test('a session that began before the first commit still sees the commits it gai
   assert.equal(started?.observation?.head, null, 'and its HEAD must be unborn')
 
   // Now the repository gains its history, as a scaffold or a script would do.
-  // TWO commits, deliberately: R2 defers to R1 for a commit whose tree IS the
-  // working tree ("the observed working tree is R1's to speak for"), so a
-  // single-commit fixture would be silent for a legitimate reason and prove
-  // nothing about this defect.
   writeFileSync(path.join(dir, 'docs.md'), 'first\n')
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', 'the first commit, which nothing has checked')
@@ -1467,9 +1462,10 @@ test('a session that began before the first commit still sees the commits it gai
   const run = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
   const said = `${run.stdout}${run.stderr}`
 
-  assert.match(said, /commit/i, `a commit nothing checked must be reported: ${said}`)
+  assert.match(said, /commit/i, `the unchecked tree at HEAD must be reported: ${said}`)
   const rules = named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
-  assert.ok(rules.includes('R2'), `R2 must fire for the commits gained since an unborn HEAD: ${rules}`)
+  assert.ok(rules.includes('R1'), `R1 must speak for the tree gained since an unborn HEAD: ${rules}`)
+  assert.equal(rules.includes('R2'), false, `and no commit below HEAD is named: ${rules}`)
 })
 
 test('content that returns to a blob already gated complete is that answer again', () => {

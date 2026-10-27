@@ -3679,6 +3679,8 @@ must still be named, so it was reverted. The owner then chose (2026-10-23) to le
 (`--not --remotes`, in `tree-facts.mjs` and its Go mirror, 5f86118d). The cost: a commit this session pushed is no longer named
 at Stop after the push. `tests/r2-remote-commits.test.mjs` runs in the go core job too. Go mutants are not run by `mutate.mjs`,
 so the Go mirror is held by that test alone.
+Closed 2026-10-27 by ADR-128 T1: R2 is retired, and `sessionCommits` and its upstream exclusion with it. Only the commit at HEAD
+is asked about now, for R1's "committed as" and for the claim's evidence (`headCommit`, Node and Go).
 
 ## 412. orphan-sweep counted a comment as a use, which hid two orphans; fixed
 
@@ -3729,6 +3731,8 @@ repository can tell, and CI answers for it as much as for any fetched one. So a 
 config value that `git remote add` or `git branch -u` would refuse, is outside what R2 can tell apart. It is not a defect
 (CLAUDE.md §16: the input space is open; the owner, 2026-10-07: no endless review loop). A reviewer's fail-open that
 needs such a setup is answered by this entry. One that does not, found through git's own commands, is a new finding.
+Closed 2026-10-27 by ADR-128 T1: the exclusion this boundary describes is deleted with R2, and `tests/r2-remote-commits.test.mjs`
+with it.
 
 ## 417. orphan-sweep's shell lexer reads the shell this plugin ships; a construct it does not contain is a lead (permanent: boundary)
 
@@ -3782,6 +3786,7 @@ session began, plus what a fetch brought, and keep naming what this session push
 current reading on 2026-10-23 ("Skip remote commits"), and changing it is the owner's call.
 Closed 2026-10-23: the owner keeps the current reading ("skip what it holds"). What R2 adds over R1 is a commit below HEAD
 whose tree never passed; one already in the upstream is CI's to answer for, as far as the repository can tell.
+Closed again 2026-10-27 by ADR-128 T1: R2 is retired, so no commit below HEAD is named at Stop, pushed or not.
 
 ## 421. ADR-104's exemption reads one bare commit; a staged-and-committed chain into another repository is refused
 

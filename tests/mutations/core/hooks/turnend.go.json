@@ -1,11 +1,11 @@
 {
   "mutations": [
     {
-      "label": "ADR-120 T9: the Go turn end asks a commit with the working tree's code tree",
+      "label": "ADR-120 T9: the Go claim asks HEAD's commit with its own code tree, not the working tree's",
       "file": "core/hooks/turnend.go",
       "tests": ["tests/prose-pass.test.mjs"],
-      "from": "checkStanding(log, c.tree, f.carryOf(c.codeTree)) == \"passed\"",
-      "to": "checkStanding(log, c.tree, treeCarry) == \"passed\"",
+      "from": "checkStanding(f.log, c.tree, f.carryOf(c.codeTree)) != \"passed\"",
+      "to": "checkStanding(f.log, c.tree, f.carryOf(get(observation, \"codeTree\"))) != \"passed\"",
       "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
     },
     {

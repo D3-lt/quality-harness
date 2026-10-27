@@ -1,6 +1,6 @@
-// ADR-120 T6: a Stop continues a turn to run the check only when the project declared it. R1 (an unchecked tree) and R2
-// (unchecked commits) tell the agent to run the check; on a check the plugin inferred from a manifest the agent may have no way
-// to act, so they are said to the user alone, once. Every other rule keeps ADR-096's delivery.
+// ADR-120 T6: a Stop continues a turn to run the check only when the project declared it. R1 (an unchecked tree) tells the agent
+// to run the check; on a check the plugin inferred from a manifest the agent may have no way to act, so it is said to the user
+// alone, once. Every other rule keeps ADR-096's delivery. R2 is retired (ADR-128 T1): no turn end names a commit below HEAD.
 import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -40,7 +40,7 @@ function session(t, name, files, { commit = false } = {}) {
 test('a declared check with unchecked work continues the turn', { skip }, t => {
   const { hook } = session(t, 'declared', DECLARED, { commit: true })
   const said = hook(stop())
-  assert.match(context(said), /newly reachable commit/, 'R2 reaches the agent')
+  assert.doesNotMatch(context(said), /newly reachable commit/, 'no commit below HEAD is named (ADR-128 T1)')
   assert.match(context(said), /work no `qh-check` has passed on/, 'R1 reaches the agent')
   assert.match(message(said), /qh-check/, 'and the user is shown it')
   assert.equal(context(hook(stop())), '', 'not handed over again on the same tree')
@@ -50,7 +50,7 @@ test('an inferred check with unchecked work is said to the user once and does no
   const { hook, write } = session(t, 'inferred', INFERRED, { commit: true })
   const said = hook(stop())
   assert.equal(said.stdout?.hookSpecificOutput, undefined, `nothing continues the turn: ${JSON.stringify(said.stdout)}`)
-  assert.match(message(said), /newly reachable commit/, 'R2 is said to the user')
+  assert.doesNotMatch(message(said), /newly reachable commit/, 'no commit below HEAD is named (ADR-128 T1)')
   assert.match(message(said), /work no `qh-check` has passed on/, 'and R1')
   assert.match(message(said), /\.quality-harness\.json/, 'with how to declare the check')
   const again = hook(stop())
@@ -93,11 +93,11 @@ test('an inferred finding is recorded as delivered to the user alone, a declared
   const inferred = session(t, 'rows-inferred', INFERRED, { commit: true })
   inferred.hook(stop())
   const said = rows(inferred.repo)
-  assert.deepEqual(said.map(row => row.rule).sort(), ['R1', 'R2'])
-  assert.deepEqual(said.map(row => row.channel), ['user', 'user'])
+  assert.deepEqual(said.map(row => row.rule).sort(), ['R1'])
+  assert.deepEqual(said.map(row => row.channel), ['user'])
   const declared = session(t, 'rows-declared', DECLARED, { commit: true })
   declared.hook(stop())
-  assert.deepEqual(rows(declared.repo).map(row => row.channel), ['both', 'both'])
+  assert.deepEqual(rows(declared.repo).map(row => row.channel), ['both'])
 })
 
 // ADR-120 T11: a declared check whose program cannot be found here is no more one the agent can run than an inferred one is. It is
@@ -114,7 +114,7 @@ test('a declared check that cannot start continues no turn and is said to the us
     const { repo, hook, write } = session(t, `unstartable-${UNSTARTABLE.findIndex(entry => entry[0] === check)}`, declaring(check), { commit: true })
     const said = hook(stop())
     assert.equal(said.stdout?.hookSpecificOutput, undefined, `${check}: nothing continues the turn: ${JSON.stringify(said.stdout)}`)
-    assert.match(message(said), /newly reachable commit/, `${check}: R2 is said to the user`)
+    assert.doesNotMatch(message(said), /newly reachable commit/, `${check}: no commit below HEAD is named (ADR-128 T1)`)
     assert.match(message(said), /work no `qh-check` has passed on/, `${check}: and R1`)
     assert.match(message(said), program, `${check}: naming the program`)
     const again = hook(stop())
@@ -132,10 +132,10 @@ test('a declared check that can start continues as before', { skip }, t => {
   for (const check of ['node --test', 'npm test', 'sh check.sh', 'bash check.sh']) {
     const { repo, hook } = session(t, `startable-${check.replace(/\W+/g, '-')}`, declaring(check), { commit: true })
     const said = hook(stop())
-    assert.match(context(said), /newly reachable commit/, `${check}: R2 reaches the agent`)
+    assert.doesNotMatch(context(said), /newly reachable commit/, `${check}: no commit below HEAD is named (ADR-128 T1)`)
     assert.match(context(said), /work no `qh-check` has passed on/, `${check}: R1 reaches the agent`)
     assert.equal(context(hook(stop())), '', `${check}: not handed over again on the same tree`)
-    assert.deepEqual(delivered(repo), ['both', 'both'], `${check}: recorded as delivered to both`)
+    assert.deepEqual(delivered(repo), ['both'], `${check}: recorded as delivered to both`)
   }
 })
 
@@ -148,10 +148,10 @@ test('turnEnd continue restores the continuation on an inferred and on an unstar
   for (const [name, files] of cases) {
     const { repo, hook } = session(t, `continue-${name}`, files, { commit: true })
     const said = hook(stop())
-    assert.match(context(said), /newly reachable commit/, `${name}: R2 reaches the agent`)
+    assert.doesNotMatch(context(said), /newly reachable commit/, `${name}: no commit below HEAD is named (ADR-128 T1)`)
     assert.match(context(said), /work no `qh-check` has passed on/, `${name}: R1 reaches the agent`)
     assert.equal(context(hook(stop())), '', `${name}: not handed over again on the same tree`)
-    assert.deepEqual(delivered(repo), ['both', 'both'], `${name}: recorded as delivered to both`)
+    assert.deepEqual(delivered(repo), ['both'], `${name}: recorded as delivered to both`)
   }
 })
 
@@ -163,5 +163,5 @@ test('turnEnd notify keeps an unstartable check user-only, and continue changes 
   assert.equal(message(notify.hook(stop())), '', 'and once')
   const startable = session(t, 'startable-continue', declaring('sh check.sh', { turnEnd: 'continue' }), { commit: true })
   assert.match(context(startable.hook(stop())), /work no `qh-check` has passed on/)
-  assert.deepEqual(delivered(startable.repo), ['both', 'both'])
+  assert.deepEqual(delivered(startable.repo), ['both'])
 })

@@ -572,10 +572,10 @@ export function checkRevision(log, tree) {
 }
 
 // ---- ADR-060's completion rules. They read the event log and git, never the
-// transcript. R1 is work no check has passed on, R2 is a newly reachable commit
-// whose tree nothing checked, R4 is an observation that could not be made. Each
-// speaks once per rule and evidence state, so a finding does not repeat while
-// nothing has moved.
+// transcript. R1 is work no check has passed on, R4 is an observation that
+// could not be made (R2, a newly reachable commit, is retired: ADR-128 T1).
+// Each speaks once per rule and evidence state, so a finding does not repeat
+// while nothing has moved.
 // Who a finding is for (ADR-096): on Stop and PreToolUse the agent, whose context those events reach; on every other event only
 // the user. A finding a rule decides whether to say is checked against what that audience has already heard.
 export function channelOf(event, turnEnd = 'agent') {
@@ -605,13 +605,6 @@ export function thisContext(log, generation = 0) {
 
 export function emittedFor(log, rule, key, channel = null, recipient = null) {
   return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key && reachedChannel(entry, channel, recipient))
-}
-
-// R2's own dedupe: one delivered action carries several commit keys in its
-// detail, and a commit named in any of them has been said.
-export function namedByReview(log, key, channel = null, recipient = null) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2' && reachedChannel(entry, channel, recipient)
-    && (entry.key === key || entry.detail?.commits?.includes(key)))
 }
 
 // P already said this tree is unchecked, before the command ran. Saying it again

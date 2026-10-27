@@ -4,7 +4,7 @@
 // code tree has no pass, and a staged index whose code differs. Run through the real hooks and the real qh-check.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -131,8 +131,11 @@ test('a code change, a changed prose list or an unseen write ends the carry-over
     restored.put('docs/a.md', 'two\n')
     const restoredEnd = restored.hook(stop)
     assert.doesNotMatch(said(restoredEnd), R1, `${name}: the working tree is X's code again, so R1 is silent`)
-    assert.match(said(restoredEnd), R2, `${name}: but commit Y is named`)
-    assert.ok(said(restoredEnd).includes(sha.slice(0, 8)), `${name}: by its sha`)
+    assert.doesNotMatch(said(restoredEnd), R2, `${name}: and commit Y is not named either: R2 is retired (ADR-128 T1)`)
+    assert.equal(said(restoredEnd).includes(sha.slice(0, 8)), false, `${name}: not even by its sha`)
+    // The claim still asks HEAD's own commit with its own code tree: Y's code has no pass, whatever the working tree holds.
+    const claims = readFileSync(path.join(restored.box.data, 'claims.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    assert.equal(claims.at(-1)?.evidence, 'unverified', `${name}: the claim reads commit Y unverified`)
 
     // A commit that is X's code plus a prose edit is not named.
     const proseCommit = begin(t, implementation)

@@ -50,6 +50,7 @@ node --test --test-reporter=tap tests/r2-retired.test.mjs && QUALITY_HARNESS_HOO
 | `R1 still names an unchecked tree` | `tests/r2-retired.test.mjs` | the dirty twin: R1 is untouched | — | S3 |
 
 ## Mutation Log
+- 2026-10-27 · 34e79f7d* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · R1 is never queued at Stop, so an unchecked tree goes unnamed · acceptance-sha256:a82e34114205a20134b879abc9b55bb378b4e03c165ddecba354312df48b8802
 
 ## Invariants
 
@@ -69,3 +70,33 @@ A locked test that asserts R2 has no owning task that can retire it: stop and as
 - Naming an unchecked commit any other way (permanent: boundary: the owner, 2026-10-23, "R2 check only head").
 
 ## Verification Log
+- 2026-10-27 · 34e79f7d* · exit 1 · `node --test --test-reporter=tap tests/r2-retired.test.mjs && QUALITY_HARNESS_HOOK_IMPL=go node --test --test-reporter=tap tests/r2-retired.test.mjs` · acceptance-sha256:a82e34114205a20134b879abc9b55bb378b4e03c165ddecba354312df48b8802 · ms:1669 · test-lock-sha256:cdfbef29308814da89e119357b4da8f5569aa4b3a3c9d1011c071595aae0d693 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcjItcmV0aXJlZC50ZXN0Lm1qcwlSMSBzdGlsbCBuYW1lcyBhbiB1bmNoZWNrZWQgdHJlZQlmMTkxYjdmNWUwYmI2OTgyMDNlMWMwZTBhYWZmYjM4YzMzMDRkZjcyZTVjOTM4NzdmYmUwMTZjMjA1ODg5NjgzCmJvZHkJdGVzdHMvcjItcmV0aXJlZC50ZXN0Lm1qcwlubyB0dXJuIGVuZCBuYW1lcyBhIGNvbW1pdCBiZWxvdyBIRUFECTk1MTFiNDkzYjUwNTdjOTU0N2MyMzIyOTU0Nzk4NDViZTM2Nzg0ZmJiNGUwNDU1NWE4NDg4YmFlOTE5Yjg0M2I
+  ```
+  --- last 10 line(s) of stdout (of 48 after folding 48 raw)
+    ...
+  1..2
+  # tests 2
+  # suites 0
+  # pass 1
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 1523.333042
+  ```
+- 2026-10-27 · 34e79f7d* · exit 0 · `node --test --test-reporter=tap tests/r2-retired.test.mjs && QUALITY_HARNESS_HOOK_IMPL=go node --test --test-reporter=tap tests/r2-retired.test.mjs` · acceptance-sha256:a82e34114205a20134b879abc9b55bb378b4e03c165ddecba354312df48b8802 · ms:2870
+- 2026-10-27 · 34e79f7d* · exit 1 · `node --test --test-reporter=tap tests/r2-retired.test.mjs && QUALITY_HARNESS_HOOK_IMPL=go node --test --test-reporter=tap tests/r2-retired.test.mjs` · acceptance-sha256:a82e34114205a20134b879abc9b55bb378b4e03c165ddecba354312df48b8802 · ms:1700
+  ```
+  --- last 10 line(s) of stdout (of 70 after folding 70 raw)
+    ...
+  1..2
+  # tests 2
+  # suites 0
+  # pass 0
+  # fail 2
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 154.9435
+  ```
+- 2026-10-27 · 34e79f7d* · exit 0 · `node --test --test-reporter=tap tests/r2-retired.test.mjs && QUALITY_HARNESS_HOOK_IMPL=go node --test --test-reporter=tap tests/r2-retired.test.mjs` · acceptance-sha256:a82e34114205a20134b879abc9b55bb378b4e03c165ddecba354312df48b8802 · ms:2832

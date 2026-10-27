@@ -550,15 +550,11 @@ test('an index that could not be checked says unknown even when the tree passed'
   assert.doesNotMatch(said, /staged index is unchecked/)
 })
 
-// Codex review round 3 (3): one commit's could-not-look is not every commit's.
+// Codex review round 3 (3) asked this of R2's sentence. ADR-128 T1 retired R2 and the sentence with it; the title is the one
+// ADR-066's and ADR-088's Tests tables name, and those records are history: read it as "no sentence about several commits is left".
 test('R2 over several commits says at least one could not be established', () => {
-  const commits = [{ sha: 'a'.repeat(40), subject: 'one' }, { sha: 'b'.repeat(40), subject: 'two' }]
-  for (const flags of [{ couldNotLook: true }, { orderUnknown: true }]) {
-    const text = lifecycle.uncheckedCommitsReason('RUN-SENTENCE', commits, flags)
-    assert.match(text, /at least one of 2 newly reachable commits/, JSON.stringify(flags))
-    assert.match(text, /not known to be checked/)
-  }
-  assert.doesNotMatch(lifecycle.uncheckedCommitsReason('RUN-SENTENCE', commits.slice(0, 1), { couldNotLook: true }), /at least one/)
+  assert.equal(lifecycle.uncheckedCommitsReason, undefined, 'the R2 sentence is gone')
+  assert.equal(lifecycle.sessionCommits, undefined, 'and so is the commit list it was said over')
 })
 
 // A Windows chaos round (2.111.0-rc, P1): Claude Code on Windows ships a PowerShell

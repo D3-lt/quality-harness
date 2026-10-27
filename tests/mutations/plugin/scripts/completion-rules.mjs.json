@@ -299,16 +299,6 @@
       "only": "^(?:completionClaim reads negation before assertion)$"
     },
     {
-      "label": "R2: several commits say at least one could not be established",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "`at least one of ${commits.length} newly reachable commits`} could not observe it:`",
-      "to": "`${commits.length} newly reachable commits`} could not observe it:`",
-      "only": "^(?:R2 over several commits says at least one could not be established)$"
-    },
-    {
       "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -427,16 +417,6 @@
       "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })",
       "to": "  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)",
       "only": "^(?:\"Last check\" is the check that RAN last, not the one appended last|an order that cannot be established is said so, not reported as \"the failure ran last\")$"
-    },
-    {
-      "label": "R2: over a torn log a commit is not known to be checked",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "      text: uncheckedCommitsReason(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => commitStanding(commit) === 'unresolved'), couldNotLook: unchecked.some(commit => commitStanding(commit) === 'could-not-look') }),",
-      "to": "      text: uncheckedCommitsReason(facts.sentence(), unchecked),",
-      "only": "^(?:over a torn log a newly reachable commit is \"not known to be checked\", never \"unchecked\")$"
     },
     {
       "label": "verdict: a phrase alone is unproven, not unstarted",
@@ -589,22 +569,6 @@
       "only": "^the\\ task\\-evidence\\ nudge\\ has\\ an\\ identity\\ and\\ is\\ said\\ once\\ per\\ tree$"
     },
     {
-      "label": "ADR-105 T1: R2 leaves out a commit its declared fast check passed on",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/observed-events.test.mjs"],
-      "from": "    if (commit.fastPassed) return false",
-      "to": "    if (false) return false",
-      "only": "^a commit its fast check passed on is not named at turn end, and every other commit still is$"
-    },
-    {
-      "label": "ADR-105 T1: the turn-end facts carry each commit's fast pass",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/observed-events.test.mjs"],
-      "from": "    commit.fastPassed = fastPassed.get(commit.tree)",
-      "to": "    commit.fastPassed = false",
-      "only": "^a commit its fast check passed on is not named at turn end, and every other commit still is$"
-    },
-    {
       "label": "ADR-108 T3: a write that changed the tree is not named",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/adr-108.test.mjs"],
@@ -753,16 +717,6 @@
       "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
     },
     {
-      "label": "ADR-120 T6: R2 on an inferred check is judged against the user audience",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "return !namedByReview(said, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)",
-      "to": "return !namedByReview(said, `${commit.sha}:${commitRevision}`, channel, recipient)",
-      "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
-    },
-    {
       "label": "ADR-120 T11: the declared check's first program is probed",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -823,11 +777,11 @@
       "only": "^(?:turnEnd continue restores the continuation on an inferred and on an unstartable check)$"
     },
     {
-      "label": "ADR-120 T9: a commit is asked with the working tree's code tree",
+      "label": "ADR-120 T9: the claim asks HEAD's commit with its own code tree, not the working tree's",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/prose-pass.test.mjs"],
-      "from": "const commitStanding = commit => checkStanding(log, commit.tree, carryOf(commit.codeTree))",
-      "to": "const commitStanding = commit => checkStanding(log, commit.tree, treeCarry)",
+      "from": "  if (commits.some(commit => checkStanding(log, commit.tree, carryOf(commit.codeTree)) !== 'passed')) return 'unverified'",
+      "to": "  if (commits.some(commit => checkStanding(log, commit.tree, carryOf(observation.codeTree)) !== 'passed')) return 'unverified'",
       "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
     },
     {

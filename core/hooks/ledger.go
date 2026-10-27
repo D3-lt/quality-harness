@@ -679,25 +679,6 @@ func emittedFor(log Log, rule string, key any, channel, recipient string) bool {
 	return false
 }
 
-func namedByReview(log Log, key string, channel, recipient string) bool {
-	for _, e := range log.E {
-		if !strict(get(e, "event"), "action.emitted") || !strict(get(e, "rule"), "R2") || !reachedChannel(e, channel, recipient) {
-			continue
-		}
-		if strict(get(e, "key"), key) {
-			return true
-		}
-		if commits, ok := dig(e, "detail", "commits").([]any); ok {
-			for _, c := range commits {
-				if strict(c, key) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 // aboutAnotherPublish: a P advice about a mention, a fresh repository or another repository names no publish from this tree.
 var aboutAnotherPublish = regexp.MustCompile(`:(?:mention|fresh|foreign)$`)
 

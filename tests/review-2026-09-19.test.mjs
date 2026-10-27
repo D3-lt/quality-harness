@@ -194,28 +194,6 @@ test('a review whose start or end could not be observed says so, instead of sayi
   } finally { remove(top) }
 })
 
-test('over a torn log a newly reachable commit is "not known to be checked", never "unchecked"', () => {
-  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-r2-')))
-  try {
-    const said = torn => {
-      const { repo, git, hook, logFile } = fixture(top, torn ? 'r2-torn' : 'r2-whole')
-      hook({ hook_event_name: 'SessionStart', source: 'startup' })
-      writeFileSync(join(repo, 'a.md'), 'one\n')
-      git('commit', '-q', '-am', 'first unchecked commit')
-      writeFileSync(join(repo, 'a.md'), 'two\n')
-      git('commit', '-q', '-am', 'second unchecked commit')
-      if (torn) appendFileSync(logFile, '{"event":"check.passed","record":"r9","se')
-      return hook({ hook_event_name: 'Stop' })
-    }
-    // The control: with the log whole, R2 does accuse — that sentence exists.
-    assert.match(said(false), /newly reachable commit is unchecked — no `qh-check` has passed on its tree/)
-    const torn = said(true)
-    assert.match(torn, /newly reachable commit/, `R2 still speaks: ${torn.slice(0, 400)}`)
-    assert.doesNotMatch(torn, /no `qh-check` has passed on (?:its|their) tree/, 'the lost line may BE the pass')
-    assert.match(torn, /UNKNOWN/)
-  } finally { remove(top) }
-})
-
 test('a state note older than the compaction it follows is not served as that compaction\'s', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-stale-')))
   try {

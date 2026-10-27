@@ -1,76 +1,12 @@
 {
   "mutations": [
     {
-      "label": "the sixth verification review: git's output lines lose trailing Unicode whitespace, so a remote ending in U+00A0 reads as another",
+      "label": "the sixth verification review of R2: git's output lines lose trailing Unicode whitespace, so a line ending in U+00A0 reads as another",
       "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
+      "tests": ["tests/git-lines.test.mjs"],
       "from": "  return mark(run.stdout.split('\\n').map(line => line.replace(/[ \\t\\r\\n\\v\\f]+$/, '')).filter(Boolean), true)",
       "to": "  return mark(run.stdout.split('\\n').map(line => line.trimEnd()).filter(Boolean), true)",
-      "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
-    },
-    {
-      "label": "the fourth verification review: an upstream at a remote's own HEAD hides commits from R2",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
-      "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name)",
-      "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
-    },
-    {
-      "label": "the fifth verification review: a remote's name is taken to be one path segment, so team/peer's HEAD hides commits",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "    return owners.length === 0 || owners.some(remote => name === `refs/remotes/${remote}/HEAD`)",
-      "to": "    return /^refs\\/remotes\\/[^/]+\\/HEAD$/.test(name)",
-      "only": "^(?:an upstream that resolves to a remote's own HEAD hides nothing)$"
-    },
-    {
-      "label": "the third verification review: an upstream branch named topic/HEAD is not a remote-tracking branch",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
-      "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !name.endsWith('/HEAD')",
-      "only": "^(?:an upstream on a branch named topic/HEAD leaves out what it holds)$"
-    },
-    {
-      "label": "the verification review of 7976d523: a merge value that is empty reads as no upstream configured",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  if (keys?.ok && !keys.includes(merge)) names.push(",
-      "to": "  if (keys?.ok && !(keys.includes(merge) && gitLines(root, ['config', '--get', merge])[0])) names.push(",
-      "only": "^(?:a refused upstream hides nothing, even where origin's default branch holds the commits)$"
-    },
-    {
-      "label": "part 2 of the review of 6619eba1..7816aaf7: a refused upstream falls back to origin's default branch",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  if (keys?.ok && !keys.includes(merge)) names.push(",
-      "to": "  if (true) names.push(",
-      "only": "^(?:a refused upstream hides nothing, even where origin's default branch holds the commits)$"
-    },
-    {
-      "label": "part 2 of the review of 6619eba1..7816aaf7: a branch name holding U+2028 is not read as a remote-tracking branch",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
-      "to": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/.test(name) && !remoteHead(name)",
-      "only": "^(?:an upstream on a branch whose name holds U\\+2028 leaves out what it holds)$"
-    },
-    {
-      "label": "the verification review of the fix round: a branch with no upstream names origin's landed commits again",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  if (keys?.ok && !keys.includes(merge)) names.push(gitLines(root, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']))\n",
-      "to": "",
-      "only": "^(?:without an upstream, what origin's default branch holds is not named, and with neither everything is)$"
-    },
-    {
-      "label": "the second verification review: any ref that resolves, a local branch included, hides commits from R2",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "  const tracking = name => /^refs\\/remotes\\/[^/]+\\/.+$/s.test(name) && !remoteHead(name)",
-      "to": "  const tracking = name => name !== ''",
-      "only": "^(?:an origin/HEAD that is not a remote-tracking branch, or a local upstream, hides nothing)$"
+      "only": "^(?:a git line keeps trailing non-ASCII whitespace and loses ASCII whitespace)$"
     },
     {
       "label": "the Codex review of v3.8.53..42a903a8: paths are compared case-sensitively where the file system folds case",
@@ -87,22 +23,6 @@
       "from": "  if (!found.ok || !found.root) return false\n",
       "to": "  if (!found.ok) return false\n",
       "only": "^(?:a repository git could not answer about is gated, never narrowed to the session directory)$"
-    },
-    {
-      "label": "the owner, 2026-10-23: R2 names commits the upstream already reaches",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "['log', '--format=%H%x09%T%x09%s', ...range, ...published]",
-      "to": "['log', '--format=%H%x09%T%x09%s', ...range]",
-      "only": "^(?:a commit the upstream reaches is not named by R2, and a local one or a fork's is)$"
-    },
-    {
-      "label": "the Codex review of v3.8.53..42a903a8: any remote-tracking ref hides a commit from R2",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/r2-remote-commits.test.mjs"],
-      "from": "['log', '--format=%H%x09%T%x09%s', ...range, ...published]",
-      "to": "['log', '--format=%H%x09%T%x09%s', ...range, '--not', '--remotes']",
-      "only": "^(?:a commit the upstream reaches is not named by R2, and a local one or a fork's is)$"
     },
     {
       "label": "BACKLOG §409: a temp path is scratch only while the session's directory is outside the temp root",

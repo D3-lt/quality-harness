@@ -229,14 +229,7 @@ func (h *hookRun) completionFacts(ended *recorded) *completionFacts {
 		f.commits = commitList{list: []*commit{}, failed: true, why: found.reason}
 	default:
 		f.status = statusPaths(root)
-		f.commits = sessionCommits(log.E, root, get(observation, "head"))
-	}
-	fastPassed := map[string]bool{}
-	for _, c := range f.commits.list {
-		if _, ok := fastPassed[c.tree]; !ok {
-			fastPassed[c.tree] = root != "" && latestFastPass(cwd, c.tree, root) != nil
-		}
-		c.fastPassed = fastPassed[c.tree]
+		f.commits = headCommit(log.E, root, get(observation, "head"))
 	}
 	// ADR-120 T9: a commit is asked about with its own code tree, so a pass reaches it only through the code it holds.
 	if list, ok := proseList(get(observation, "prose")); ok && len(list) > 0 && root != "" {
@@ -400,51 +393,6 @@ func uncheckedWorkReason(sentence string, paths []string, outside int, commits [
 const noCheckText = "quality-harness: the tree changed since this session began, and no check is known here (none is " +
 	"declared in a readable `.quality-harness.json`, and none could be inferred), so nothing verified the change. Declare the " +
 	"project's check as `check` in `.quality-harness.json`, or say in your final message that the change is unverified."
-
-const namedCommitLimit = 5
-
-func uncheckedCommitsReason(sentence string, commits []*commit, fl reasonFlags) string {
-	shown := commits[:min(namedCommitLimit, len(commits))]
-	listedLines := []string{}
-	for _, c := range shown {
-		listedLines = append(listedLines, "  "+truncateUTF16([]rune(c.sha), 8)+" "+c.subject)
-	}
-	rest := ""
-	if len(commits) > len(shown) {
-		rest = fmt.Sprintf("\n  … and %d more.", len(commits)-len(shown))
-	}
-	n := len(commits)
-	oneOrMany := func(one, many string) string {
-		if n == 1 {
-			return one
-		}
-		return many
-	}
-	head := ""
-	switch {
-	case fl.logTorn:
-		words := fl.tornWords
-		if words == "" {
-			words = "this session's log"
-		}
-		head = "whether a `qh-check` passed on " + oneOrMany("a newly reachable commit", fmt.Sprintf("%d newly reachable commits", n)) + " " +
-			"is UNKNOWN — " + words + " could not be read whole, and the record of a pass may be among what was lost:"
-	case fl.orderUnknown:
-		head = "which check ran last on " + oneOrMany("a newly reachable commit", fmt.Sprintf("at least one of %d newly reachable commits", n)) + " could not be established:"
-	case fl.couldNotLook:
-		head = "the latest `qh-check` on " + oneOrMany("a newly reachable commit", fmt.Sprintf("at least one of %d newly reachable commits", n)) + " could not observe it:"
-	case n == 1:
-		head = "a newly reachable commit is unchecked — no `qh-check` has passed on its tree:"
-	default:
-		head = fmt.Sprintf("%d newly reachable commits are unchecked — no `qh-check` has passed on their trees:", n)
-	}
-	state := "unchecked"
-	if fl.logTorn || fl.orderUnknown || fl.couldNotLook {
-		state = "not known to be checked"
-	}
-	return "quality-harness: " + head + "\n" + strings.Join(listedLines, "\n") + rest + "\nThis says they are reachable from HEAD and " +
-		state + ", not that this session authored them. " + sentence
-}
 
 func couldNotLookReason(sentence, reason string) string {
 	return "quality-harness: this repository could not be observed (" + reason + "), so its tree, index " +
@@ -620,35 +568,6 @@ func (h *hookRun) completionRules(ended *recorded) {
 				baselineVerdict: baselineVerdict, treeMoved: beforeIsString && afterIsString && before != after,
 			})})
 		}
-	}
-	unchecked := []*commit{}
-	for _, c := range f.commits.list {
-		if c.fastPassed || checkStanding(log, c.tree, f.carryOf(c.codeTree)) == "passed" || (observed && strict(c.tree, tree)) {
-			continue
-		}
-		commitRevision := checkRevision(log, c.tree)
-		if namedByPublish(said, c.tree, commitRevision) {
-			continue
-		}
-		if namedByReview(said, fmt.Sprintf("%s:%d", c.sha, commitRevision), ruleChannel, recipient) {
-			continue
-		}
-		unchecked = append(unchecked, c)
-	}
-	if len(unchecked) > 0 {
-		keys := []any{}
-		keyStrings := []string{}
-		orderUnknown, couldNotLook := false, false
-		for _, c := range unchecked {
-			k := fmt.Sprintf("%s:%d", c.sha, checkRevision(log, c.tree))
-			keys = append(keys, k)
-			keyStrings = append(keyStrings, k)
-			standing := checkStanding(log, c.tree, f.carryOf(c.codeTree))
-			orderUnknown = orderUnknown || standing == "unresolved"
-			couldNotLook = couldNotLook || standing == "could-not-look"
-		}
-		h.queue(action{rule: "R2", key: strings.Join(keyStrings, " "), detail: O("commits", keys), audience: audience,
-			text: uncheckedCommitsReason(f.sentence(), unchecked, reasonFlags{logTorn: logIncomplete(log), tornWords: tornRecord(log, ""), orderUnknown: orderUnknown, couldNotLook: couldNotLook})})
 	}
 	if !observed || f.status.failed || f.commits.failed || logIncomplete(log) {
 		place := f.root

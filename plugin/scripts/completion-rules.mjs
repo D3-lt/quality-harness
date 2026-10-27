@@ -6,9 +6,9 @@ import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents, walk } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
-import { carriedPassUnseen, carryFor, carryWith, channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestFastPass, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, thisContext, tornRecord, unobservableWrites } from './check-ledger.mjs'
+import { carriedPassUnseen, carryFor, carryWith, channelOf, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, revisionFor, thisContext, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { baselineFor } from './check-ledger.mjs'
-import { codeTreeOf, gitRepositoryLookup, mark, sameObservation, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
+import { codeTreeOf, gitRepositoryLookup, headCommit, mark, sameObservation, sessionBaseline, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
 import { turnEndSetting } from './project-config.mjs'
@@ -549,38 +549,6 @@ function couldNotStartOpening(checkEvent) {
     + 'if it cannot start on an unmodified tree the finding is about this machine, and declaring the real command as check in .quality-harness.json is the fix.'
 }
 
-// ONE finding per boundary, however many commits it names. A fetch, a merge or a
-// branch switch makes dozens newly reachable at once, and a message per commit
-// would be dozens of joined advisories in a single hook — each of them asking
-// git for the check command again. Dedupe stays per commit and evidence revision
-// (ADR-060's key), carried in the action's detail.
-const NAMED_COMMIT_LIMIT = 5
-
-// Exported so its wording is tested without building newly reachable commits. The first argument is the sentence that names
-// the project's check (the facts carry it); the wording the tests look at is everything before it.
-export function uncheckedCommitsReason(sentence, commits, { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
-  const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
-  const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
-  const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
-  // The same correction P and R1 already carry: over a log that could not be
-  // read whole, "no `qh-check` has passed" is a verdict nobody observed — the
-  // lost line may be the pass. R2 kept saying it beside R4's could-not-look.
-  const head = logTorn
-    ? `whether a \`qh-check\` passed on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} `
-      + `is UNKNOWN — ${tornWords ?? 'this session\'s log'} could not be read whole, and the record of a pass may be among what was lost:`
-    // The flags say at least one tree is so, not that all are (Codex review
-    // round 3): a plural never claims the reason for every commit it lists.
-    : orderUnknown
-      ? `which check ran last on ${commits.length === 1 ? 'a newly reachable commit' : `at least one of ${commits.length} newly reachable commits`} could not be established:`
-      : couldNotLook
-        ? `the latest \`qh-check\` on ${commits.length === 1 ? 'a newly reachable commit' : `at least one of ${commits.length} newly reachable commits`} could not observe it:`
-      : commits.length === 1
-        ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
-        : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
-  return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
-    + `${logTorn || orderUnknown || couldNotLook ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${sentence}`
-}
-
 function couldNotLookReason(sentence, reason) {
   return `quality-harness: this repository could not be observed (${reason}), so its tree, index `
     + 'and HEAD are unknown to this hook. That is a statement about what could be looked at, not '
@@ -653,7 +621,7 @@ function writesThatChangedNothing(log, ended, root) {
 
 /**
  * What the turn-end rules read from the world (BACKLOG section 375, stage C): the session log, the project's check, the
- * repository root, the writes git could not see, the paths git lists, the commits made since the session began. The reads
+ * repository root, the writes git could not see, the paths git lists, the commit at HEAD when this session made it reachable. The reads
  * that depend on a verdict (the sentence that names the check, the key of the could-not-look finding, the task-file nudge)
  * are functions the judgement calls only if it gets that far. Returns null for a turn the rules do not judge.
  */
@@ -674,14 +642,7 @@ export function completionFacts(input, ended) {
     : statusPaths(root)
   const commits = observation?.ok !== true ? []
     : !found.ok ? mark([], false, found.reason)
-    : sessionCommits(log, root, observation.head)
-  // ADR-105: a commit whose tree the declared fast check passed on was checked by the command the project declares for
-  // commits (ADR-081), so R2 leaves it out. Read here, once per tree, so the judgement reaches no file.
-  const fastPassed = new Map()
-  for (const commit of commits) {
-    if (!fastPassed.has(commit.tree)) fastPassed.set(commit.tree, root !== null && latestFastPass(input.cwd, commit.tree, root) !== null)
-    commit.fastPassed = fastPassed.get(commit.tree)
-  }
+    : headCommit(log, root, observation.head)
   // ADR-120 T9: a commit is asked about with its own code tree, so a pass reaches it only through the code it holds.
   if (root !== null && Array.isArray(observation?.prose)) {
     for (const commit of commits) {
@@ -739,7 +700,7 @@ export function checkCanStart(command, directory, env = process.env, platform = 
 
 /**
  * The turn-end rules as a function of their facts and of the turn's own payload (its message and its event): the completion
- * claim and the evidence it is set against, and the findings R1, R2 and R4 say, in the order they are said. It reaches no file,
+ * claim and the evidence it is set against, and the findings R1 and R4 say, in the order they are said. It reaches no file,
  * process, clock or environment (tests/pure-judges.test.mjs), so a finding is a table over facts and
  * tests/completion-judgement.test.mjs walks it. Returns `{ claim, actions }`; the caller records the claim and queues the actions.
  */
@@ -748,7 +709,6 @@ export function completionJudgement(facts, input) {
   // ADR-120 T9: each tree is asked with its own code tree (null when it has none or a write git cannot see is outstanding).
   const carryOf = codeTree => (observation?.ok === true && writes.length === 0 && !carryVetoed.includes(codeTree) ? carryWith(codeTree, observation.prose) : null)
   const treeCarry = carryOf(observation?.codeTree)
-  const commitStanding = commit => checkStanding(log, commit.tree, carryOf(commit.codeTree))
   const claim = {
     claim: completionClaim(input.last_assistant_message),
     evidence: ledgerEvidence(log, observation, baseline, commits, writes, check, status, carryOf),
@@ -757,8 +717,8 @@ export function completionJudgement(facts, input) {
   const actions = []
   // A finding said only to the user has not been said to the agent: each audience is counted on its own (ADR-096).
   const channel = channelOf(input.hook_event_name, facts.turnEnd)
-  // ADR-120 T6: R1 and R2 ask the agent to run the check, and a check the plugin inferred is not one the agent can be sure to
-  // run. On an inferred check they are said to the user alone, so each is judged against, and delivered to, that audience.
+  // ADR-120 T6: R1 asks the agent to run the check, and a check the plugin inferred is not one the agent can be sure to run.
+  // On an inferred check it is said to the user alone, so it is judged against, and delivered to, that audience.
   // ADR-120 T11: a declared check whose program cannot start here is no more the agent's to run, and `"turnEnd": "continue"` keeps
   // the pre-3.8.51 continuation for it and for an inferred one.
   const userOnly = facts.turnEnd !== 'continue' && (facts.origin === 'inferred' || facts.unstartable === true)
@@ -790,7 +750,7 @@ export function completionJudgement(facts, input) {
   if (!quiet && ((treeUnchecked && !namedByPublish(said, observation.tree, revision)) || writes.length > 0)) {
     const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
     if (!emittedFor(said, 'R1', key, ruleChannel, recipient)) {
-      // The commits R2 leaves to R1: their tree IS the tree being reported.
+      // The commit at HEAD this session made reachable, when its tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
       // ADR-111 T3: the baseline speaks only for a red run of the same command whose tree held still through it and is
       // this tree; anything else is not this change's red (Codex review of v3.8.44..3c42f633).
@@ -800,23 +760,6 @@ export function completionJudgement(facts, input) {
       const treeMoved = typeof latest?.before?.tree === 'string' && typeof latest?.after?.tree === 'string' && latest.before.tree !== latest.after.tree
       actions.push({ rule: 'R1', key, ...audience, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree, treeCarry) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree, treeCarry) === 'could-not-look', checkEvent: latest?.event ?? null, baselineVerdict: attributable ? facts.baselineVerdict ?? null : null, treeMoved }) })
     }
-  }
-  const unchecked = commits.filter(commit => {
-    // The observed working tree is R1's to speak for, and a tree P has already
-    // named at this revision has been said once.
-    if (commit.fastPassed) return false
-    if (commitStanding(commit) === 'passed') return false
-    if (observation?.ok === true && commit.tree === observation.tree) return false
-    const commitRevision = checkRevision(log, commit.tree)
-    if (namedByPublish(said, commit.tree, commitRevision)) return false
-    return !namedByReview(said, `${commit.sha}:${commitRevision}`, ruleChannel, recipient)
-  })
-  if (unchecked.length) {
-    const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
-    actions.push({
-      rule: 'R2', key: keys.join(' '), detail: { commits: keys }, ...audience,
-      text: uncheckedCommitsReason(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => commitStanding(commit) === 'unresolved'), couldNotLook: unchecked.some(commit => commitStanding(commit) === 'could-not-look') }),
-    })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
     || logIncomplete(log)) {

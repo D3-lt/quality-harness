@@ -141,7 +141,8 @@ func turnEndFindings(cwd string) (string, bool) {
 		opens[name] = true
 	}
 	// A mention records no event before its advice, so a rule no turn end emits (P, R3) ends the findings too (the Codex review
-	// of aae06d72). The turn end's rules: completion-rules.mjs's R1, R2, R4, R5, W and N, and the artifact pass's A.
+	// of aae06d72). The turn end's rules: completion-rules.mjs's R1, R4, R5, W and N, and the artifact pass's A; R2, retired by
+	// ADR-128 T1, stays so a log written before then still reads.
 	turnEndRules := map[string]bool{"R1": true, "R2": true, "R4": true, "R5": true, "W": true, "N": true, "A": true}
 	findings := []any{}
 	for _, e := range log.E[last+1:] {

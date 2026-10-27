@@ -294,9 +294,8 @@ test('every reader of the session log is driven above, or says why a lost line c
     revisionFor: 'a count of check events (checkRevision, or every check event where nothing can be observed); it certifies nothing',
     thisContext: 'keeps the current generation\'s action.emitted rows for emittedFor and its siblings; a lost line removes a row, so a finding speaks again, the same safe direction as emittedFor',
     emittedFor: 'asks whether a finding was already said; a lost line makes the finding speak again, which is the safe direction',
-    namedByReview: 'the same question for R2, with the same direction: a lost line makes a commit be named again',
     namedByPublish: 'the same question for rule P, with the same direction: a lost line makes the tree be named again',
-    sessionCommits: 'lists the commits since the session baseline, and with no baseline lists none; completionRules says R4 (could not look) whenever logIncomplete, so a torn log is never read as "no new commits"',
+    headCommit: 'names the commit at HEAD when this session made it reachable, and with no baseline none; completionRules says R4 (could not look) whenever logIncomplete, so a torn log is never read as "HEAD did not move"',
     carryFor: 'asks unobservableWrites, so a log not read whole leaves every write outstanding and the carry is refused; it certifies nothing itself, only lets checkStanding look at a second tree (ADR-120 T9)',
     carriedPassUnseen: 'can only refuse a carry, never grant one: it answers whether a write git cannot see, in any session\'s log, follows the pass a carry would stand on, so a lost line can only remove a pass it asks about (ADR-120 T9)',
   }

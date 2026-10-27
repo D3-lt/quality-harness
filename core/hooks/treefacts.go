@@ -449,36 +449,6 @@ type lines struct {
 
 var verbWord = regexp.MustCompile(`^[a-z][a-z-]*$`)
 
-// fullSha is an object name git printed whole: SHA-1 or SHA-256.
-var fullSha = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
-
-// remoteTracking is a remote-tracking branch's full name, refs/remotes/<remote>/<branch>.
-var remoteTracking = regexp.MustCompile(`^refs/remotes/[^/]+/.+$`)
-
-// remoteHead is whether a name ending in /HEAD may be a remote's own HEAD rather than a branch: a non-symbolic one can hold an
-// unpublished commit, and a remote's name may hold a slash, so it counts as a branch only when a configured remote proves it
-// one under that remote (tree-facts.mjs).
-func remoteHead(root, name string) bool {
-	if !strings.HasSuffix(name, "/HEAD") {
-		return false
-	}
-	remotes := gitLines(root, []string{"remote"}, false)
-	if remotes.failed {
-		return true
-	}
-	owned := false
-	for _, remote := range remotes.list {
-		if !strings.HasPrefix(name, "refs/remotes/"+remote+"/") {
-			continue
-		}
-		if name == "refs/remotes/"+remote+"/HEAD" {
-			return true
-		}
-		owned = true
-	}
-	return !owned
-}
-
 func gitLines(root string, args []string, nul bool) lines {
 	r := git(5*time.Second, nil, append([]string{"-C", root}, args...)...)
 	if r.err != nil || r.status != 0 {
@@ -589,7 +559,6 @@ func hasDotDot(p string) bool {
 
 type commit struct {
 	sha, tree, subject string
-	fastPassed         bool
 	codeTree           string
 }
 
@@ -599,9 +568,9 @@ type commitList struct {
 	why    string
 }
 
-// sessionCommits are the commits reachable now that were not when the session started, less those the branch's upstream
-// already reaches (tree-facts.mjs sessionCommits: landed or fetched work is published, and CI's to answer for).
-func sessionCommits(entries []any, root string, head any) commitList {
+// headCommit is the commit at HEAD when it was not reachable as the session started (tree-facts.mjs headCommit; ADR-128 T1:
+// R2 is retired, and only HEAD is asked about). R1 names it as what the tree at HEAD was committed as.
+func headCommit(entries []any, root string, head any) commitList {
 	baseline := get(sessionBaseline(entries), "observation")
 	first := get(baseline, "head")
 	headSha, ok := head.(string)
@@ -617,34 +586,8 @@ func sessionCommits(entries []any, root string, head any) commitList {
 	if !unborn {
 		rng = firstSha + ".." + headSha
 	}
-	// Only the branch's upstream, or without one origin's default branch, and each must name a remote-tracking branch
-	// (tree-facts.mjs): a fork's remote, a stale ref, a local upstream or a non-symbolic origin/HEAD carries no CI evidence.
-	// Origin's default branch stands in only when no upstream is configured: a configured one that is refused excludes nothing.
-	// Absent is asked of the configured key names, since an empty value prints what an absent key prints (tree-facts.mjs).
-	args := []string{"log", "--format=%H%x09%T%x09%s", rng}
-	names := []lines{gitLines(root, []string{"rev-parse", "--symbolic-full-name", "@{upstream}"}, false)}
-	if branch := gitLines(root, []string{"symbolic-ref", "-q", "HEAD"}, false); !branch.failed && len(branch.list) == 1 && strings.HasPrefix(branch.list[0], "refs/heads/") {
-		key := "branch." + strings.TrimPrefix(branch.list[0], "refs/heads/") + ".merge"
-		if keys := gitLines(root, []string{"config", "-z", "--name-only", "--list"}, true); !keys.failed {
-			configured := false
-			for _, name := range keys.list {
-				configured = configured || name == key
-			}
-			if !configured {
-				names = append(names, gitLines(root, []string{"symbolic-ref", "-q", "refs/remotes/origin/HEAD"}, false))
-			}
-		}
-	}
-	for _, name := range names {
-		if name.failed || len(name.list) != 1 || !remoteTracking.MatchString(name.list[0]) || remoteHead(root, name.list[0]) {
-			continue
-		}
-		if up := gitLines(root, []string{"rev-parse", "--verify", "--quiet", name.list[0] + "^{commit}"}, false); !up.failed && len(up.list) == 1 && fullSha.MatchString(up.list[0]) {
-			args = append(args, "--not", up.list[0])
-			break
-		}
-	}
-	ls := gitLines(root, args, false)
+	// The newest commit of the range is HEAD; a HEAD the session start already reached (a reset back) leaves the range empty.
+	ls := gitLines(root, []string{"log", "-1", "--format=%H%x09%T%x09%s", rng}, false)
 	out := []*commit{}
 	for _, line := range ls.list {
 		parts := strings.Split(line, "\t")

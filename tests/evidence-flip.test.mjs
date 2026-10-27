@@ -279,6 +279,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     'statusline.mjs': { driven: 'statusline reading -> render' },
     'publish-hook.mjs': 'by function, above',
     'ledger-report.mjs': 'by function, above (ledgerReport)',
+    'branch-state.mjs': 'ADR-128 T2: ownCommitOnly and heardNow refuse a log not read whole (complete === false), so a lost line re-sends the brief and never suppresses it',
   }
   const LOG_TAKERS = {
     observedFacts: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },

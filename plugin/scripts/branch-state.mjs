@@ -20,6 +20,7 @@
 // so the whole reader is exercised on any host without a network or a remote.
 import { execFileSync, spawn } from 'node:child_process'
 import { readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { inflateSync } from 'node:zlib'
 import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { isatty } from 'node:tty'
@@ -27,7 +28,7 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 import { findGitDir } from './git-directory.mjs'
 import { startPerformanceTrace } from './performance-trace.mjs'
-import { stateDir } from './event-log.mjs'
+import { readEvents, stateDir } from './event-log.mjs'
 import { REVIEW_COVERING, REVIEWS_FILE } from './host-review.mjs'
 /**
  * Where `.git` is, so the cache lands somewhere never tracked and never shipped.
@@ -608,14 +609,17 @@ function configValue(raw) {
  * so the snapshot is refreshed rather than trusted. An upstream that is configured
  * but not fetched is recorded as such, not as a failure to read.
  */
+// The repository's shared git directory: a linked worktree names it in `commondir`, read from files, no process.
+function commonDirOf(gitDir, read) {
+  const pointer = read(join(gitDir, 'commondir'))?.trim()
+  return pointer ? resolve(gitDir, pointer) : gitDir
+}
+
 export function snapshotKey(gitDir) {
   if (!gitDir) return null
   const read = file => { try { return readFileSync(file, 'utf8') } catch { return null } }
   const SHA = /^[0-9a-f]{40,64}$/
-  const common = (() => {
-    const pointer = read(join(gitDir, 'commondir'))?.trim()
-    return pointer ? resolve(gitDir, pointer) : gitDir
-  })()
+  const common = commonDirOf(gitDir, read)
   const ref = name => {
     for (const dir of [gitDir, common]) {
       const loose = read(join(dir, ...name.split('/')))?.trim()
@@ -923,7 +927,77 @@ export function briefUnchanged(said, text) {
   return typeof said === 'string' && said.replace(DIRTY_COUNT, '') === text.replace(DIRTY_COUNT, '')
 }
 
-function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null, session = null }) {
+// ── ADR-128 T2: a commit this session made is not news to the agent that made it ──────────
+// The brief re-sent on every commit the session made, because HEAD's sha is in its text. It is left unsaid when the ONLY
+// change since the line the session last heard is HEAD moving by commits this session's log records git's commit hook
+// running for, each with one parent, back to the HEAD it heard. Anything that cannot be shown re-sends it (ADR-005): a
+// packed or merge commit, another session, a log not read whole, fewer hook runs than commits. Everything else in the line
+// is still compared: CI, the behind count (a fetch), the branch, the tag. The ahead count may rise by at most the commits.
+const MOVED_CLAUSE = / \(moved since this was read: HEAD now [0-9a-f]+; uncommitted and ahead not re-read\)/
+const TIP_NOTE = ' (the pushed tip as last fetched; HEAD has no run)'
+const aheadOf = text => Number(text.match(/, (\d+) ahead(?= of origin| and )/)?.[1] ?? 0)
+const withoutOwnCommits = text => text.replace(MOVED_CLAUSE, '').replace(TIP_NOTE, '').replace(DIRTY_COUNT, '')
+  .replace(/^(branch-state: \S+ @ )[0-9a-f]{4,64}/, '$1#')
+  .replace(/, \d+ ahead of origin/, '').replace(/, \d+ ahead and /, ', ')
+  .replace(/plugin\/ changed in \d+ file\(s\)/, 'plugin/ changed in # file(s)')
+export function unchangedButOwnCommits(said, text, commits) {
+  // At least one commit: with none, a changed HEAD sha in the text is a snapshot that moved, not a commit, and is said.
+  if (typeof said !== 'string' || typeof text !== 'string' || !Number.isInteger(commits) || commits < 1) return false
+  const rose = aheadOf(text) - aheadOf(said)
+  if (rose < 0 || rose > commits) return false
+  return withoutOwnCommits(said) === withoutOwnCommits(text)
+}
+
+// A commit's parents, read from its loose object; null when it is packed, unreadable or not a commit.
+export function commitParents(gitDir, sha, read = readFileSync) {
+  if (!gitDir || typeof sha !== 'string' || !/^[0-9a-f]{40,64}$/.test(sha)) return null
+  let raw
+  try {
+    const common = commonDirOf(gitDir, file => { try { return read(file, 'utf8') } catch { return null } })
+    raw = inflateSync(read(join(common, 'objects', sha.slice(0, 2), sha.slice(2)))).toString('latin1')
+  } catch { return null }
+  if (!raw.startsWith('commit ')) return null
+  const body = raw.slice(raw.indexOf('\0') + 1)
+  const end = body.indexOf('\n\n')
+  return (end < 0 ? body : body.slice(0, end)).split('\n').filter(line => line.startsWith('parent ')).map(line => line.slice(7))
+}
+
+// How many single-parent commits lead from `from` to `to`, or null when that cannot be shown within `limit`.
+export function ownCommitCount(gitDir, from, to, limit = 50, parents = commitParents) {
+  if (typeof from !== 'string' || typeof to !== 'string') return null
+  let sha = to
+  for (let count = 0; count <= limit; count++) {
+    if (sha === from) return count
+    const up = parents(gitDir, sha)
+    if (!up || up.length !== 1) return null
+    sha = up[0]
+  }
+  return null
+}
+
+const liveHead = gitDir => { try { return JSON.parse(snapshotKey(gitDir))[1] ?? null } catch { return null } }
+
+// What the session has heard: the HEAD it was told of and how far its log ran. Unknown is written as null, so a stale record
+// is never left beside a new line.
+export function heardNow(gitDir, dir, session, events = readEvents) {
+  const unknown = { saidHead: null, saidSession: null, saidEvents: null }
+  if (!gitDir || typeof session !== 'string' || !session) return unknown
+  const log = events(dir, session, { spawn: false })
+  const head = liveHead(gitDir)
+  return log.complete === false || !head ? unknown : { saidHead: head, saidSession: session, saidEvents: log.length }
+}
+
+export function ownCommitOnly(previous, text, { gitDir, dir, session, events = readEvents, parents = commitParents }) {
+  if (!previous || typeof session !== 'string' || previous.saidSession !== session || !Number.isInteger(previous.saidEvents)) return false
+  const commits = ownCommitCount(gitDir, previous.saidHead, liveHead(gitDir), 50, parents)
+  if (!commits) return false
+  const log = events(dir, session, { spawn: false })
+  if (log.complete === false || log.length < previous.saidEvents) return false
+  const ran = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.hook-ran' && entry.hook === 'prepare-commit-msg').length
+  return ran >= commits && unchangedButOwnCommits(previous.said, text, commits)
+}
+
+function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null, session = null, ownCommit = () => false, heard = () => ({}) }) {
   const claim = movedTo && state.looked ? movedClause(movedTo) : ''
   const head = headOf(state)
   const mark = shown => (claim && shown.startsWith(head) ? `${head}${claim}${shown.slice(head.length)}` : shown)
@@ -935,7 +1009,7 @@ function emitCachedBranchState(state, { brief, age, previous, store, refreshing 
   if (permanent && previous?.permanentFor === session) return false
   // Any other line printed ends the session's hearing of it: a repository that gains a remote and loses it again says it again.
   const forget = { permanentFor: permanent ? session : null }
-  if (brief && key === null && previous && briefUnchanged(previous.said, text) && !permanent) return false
+  if (brief && key === null && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, text))) return false
   // ADR-094 T1: the same red run, already said in full, is one line. It is never stored.
   if (key !== null && previous?.redKey === key) {
     process.stdout.write(`${redLine(state)}\n`)
@@ -949,11 +1023,11 @@ function emitCachedBranchState(state, { brief, age, previous, store, refreshing 
   const unknown = brief ? unknownKey(state) : null
   if (unknown !== null && !permanent && saidKey(previous?.said) === unknown) {
     process.stdout.write(`${mark(head)} · ⚠ CI COULD NOT LOOK, unchanged${stale ? suffix : ''}\n`)
-    stampBriefSaid(store, text, key, forget)
+    stampBriefSaid(store, text, key, { ...forget, ...heard() })
     return true
   }
   process.stdout.write(`${text}${suffix}\n`)
-  if (brief) stampBriefSaid(store, text, key, forget)
+  if (brief) stampBriefSaid(store, text, key, { ...forget, ...heard() })
   return true
 }
 // The hook payload the host writes to stdin, or {} when there is none: a terminal, an empty pipe, a body that is not an object.
@@ -996,9 +1070,15 @@ function main(argv = process.argv.slice(2)) {
       // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
       // an unchanged green brief (CLAUDE.md §17).
       replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey,
-        permanentFor: payload.permanentFor ?? current?.permanentFor }))
+        permanentFor: payload.permanentFor ?? current?.permanentFor,
+        saidHead: current?.saidHead ?? null, saidSession: current?.saidSession ?? null, saidEvents: current?.saidEvents ?? null }))
     } catch { /* a cache that cannot be written is not a failure */ }
   }
+  // ADR-128 T2: the session's own commits, judged from this git directory and the session's log.
+  const own = gitDirectory => ({
+    ownCommit: (previous, text) => ownCommitOnly(previous, text, { gitDir: gitDirectory, dir, session }),
+    heard: () => heardNow(gitDirectory, dir, session),
+  })
   if (argv.includes('--refresh')) {
     // ADR-065 T2: the detached refresher. It collects under the same budget, writes
     // the snapshot, prints nothing, and releases the lock the prompt took for it.
@@ -1038,7 +1118,7 @@ function main(argv = process.argv.slice(2)) {
   if (freshSnapshot(previous, now, servedFor, hint ? snapshotKey(hint) : null)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const store = hint ? join(hint, 'qh-branch-state.json') : null
-    emitCachedBranchState(previous.state, { brief, age, previous, store, session })
+    emitCachedBranchState(previous.state, { brief, age, previous, store, session, ...own(hint) })
     finish('cache-hit', { status: 0 })
     return 0
   }
@@ -1058,7 +1138,7 @@ function main(argv = process.argv.slice(2)) {
       return 0
     }
     emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing,
-      stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)), session })
+      stale: true, movedTo: movedSince(previous.key, snapshotKey(hint)), session, ...own(hint) })
     finish('served-behind', { status: 0 })
     return 0
   }
@@ -1071,7 +1151,7 @@ function main(argv = process.argv.slice(2)) {
     key: home ? snapshotKey(home) : null,
   })
   emitCachedBranchState(state, {
-    brief, age: fromCache ? ageSeconds : 0, previous: read(store) ?? previous, store, session,
+    brief, age: fromCache ? ageSeconds : 0, previous: read(store) ?? previous, store, session, ...own(home),
   })
   finish(fromCache ? 'cache-hit' : state.looked ? 'refreshed' : 'unavailable', { status: 0 })
   return 0

@@ -136,6 +136,10 @@ export function publishHookExports(node = process.execPath, script = PUBLISH_HOO
     ['hook.qh-publish-push.command', run('pre-push')],
     ['hook.qh-publish-push.event', 'pre-push'],
     ['hook.qh-publish-push.enabled', 'true'],
+    // ADR-128 T2: the sha of each commit git makes for this session, which the branch-state brief reads. It refuses nothing.
+    ['hook.qh-commit-made.command', run('post-commit')],
+    ['hook.qh-commit-made.event', 'post-commit'],
+    ['hook.qh-commit-made.enabled', 'true'],
   ]
   // The index is taken WHEN THE FILE IS SOURCED, not when it is written: another
   // SessionStart hook or the user's profile may have set GIT_CONFIG_COUNT since.

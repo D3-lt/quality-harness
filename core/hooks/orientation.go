@@ -582,6 +582,10 @@ func publishHookExports() string {
 		{"hook.qh-publish-push.command", runLine("pre-push")},
 		{"hook.qh-publish-push.event", "pre-push"},
 		{"hook.qh-publish-push.enabled", "true"},
+		// ADR-128 T2: the sha of each commit git makes for this session, which the branch-state brief reads. It refuses nothing.
+		{"hook.qh-commit-made.command", runLine("post-commit")},
+		{"hook.qh-commit-made.event", "post-commit"},
+		{"hook.qh-commit-made.enabled", "true"},
 	}
 	out := []string{"# quality-harness (ADR-066): git refuses an unchecked commit or push for this session", "__qh_n=${GIT_CONFIG_COUNT:-0}"}
 	for i, kv := range entries {

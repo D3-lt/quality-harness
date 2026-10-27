@@ -233,7 +233,27 @@ test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: needsConfigHooks 
     env: { ...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'their.key', GIT_CONFIG_VALUE_0: 'kept' },
   })
   assert.equal(run.status, 0, run.stderr)
-  assert.deepEqual(run.stdout.trim().split('\n'), ['kept', '7', 'prepare-commit-msg'])
+  assert.deepEqual(run.stdout.trim().split('\n'), ['kept', '10', 'prepare-commit-msg'])
+})
+
+// ADR-128 T2: the env file also installs post-commit, which records the sha of each commit git makes for the session, so the
+// branch-state brief can tell the session's own commit from one that arrived. Real git, the hook as offered.
+test('the sourced env file makes git record the sha of each commit it makes', { skip: needsConfigHooks }, async () => {
+  const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
+  const { readEvents } = await import('../plugin/scripts/event-log.mjs')
+  const dir = repository('made-')
+  const session = `made-${process.pid}`
+  startSession(dir, session)
+  const envFile = path.join(testTmp, `env-${process.pid}-made`)
+  offerPublishHook({ cwd: dir, session, env: { CLAUDE_ENV_FILE: envFile } })
+  // Warned, not refused, so git goes on to make the commit and run post-commit.
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', publish: 'warn' }))
+  const run = spawnSync('sh', ['-c', `. ${quoted(envFile)} && git add -A && git commit -qm made`], {
+    cwd: dir, encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...GIT_IDENTITY, CLAUDE_CODE_SESSION_ID: session },
+  })
+  assert.equal(run.status, 0, run.stderr)
+  const made = readEvents(dir, session).filter(entry => entry.event === 'commit.made').map(entry => entry.sha)
+  assert.deepEqual(made, [git(dir, 'rev-parse', 'HEAD')])
 })
 
 test('the sourced env file makes git run the hook over a repo-local disable', { skip: needsConfigHooks }, async () => {

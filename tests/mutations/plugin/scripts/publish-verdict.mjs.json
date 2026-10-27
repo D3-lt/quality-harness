@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-128 T2: the env file installs no post-commit hook, so no commit's sha is recorded",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": ["tests/publish-hook.test.mjs"],
+      "from": "    ['hook.qh-commit-made.event', 'post-commit'],",
+      "to": "    ['hook.qh-commit-made.event', 'post-checkout'],",
+      "only": "^(?:the sourced env file makes git record the sha of each commit it makes)$"
+    },
+    {
       "label": "ADR-120 T12: the probe asks git from the payload cwd, where the operand was written",
       "file": "plugin/scripts/publish-verdict.mjs",
       "tests": [

@@ -1,11 +1,11 @@
 {
   "mutations": [
     {
-      "label": "ADR-128 T2: a commit older than the hook run that let one through counts as the session's own",
+      "label": "ADR-128 T2: a commit no post-commit row records counts as the session's own",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "  if (!Number.isFinite(first) || walk.earliest * 1000 < first - 2_000) return false",
-      "to": "  if (!Number.isFinite(first)) return false",
+      "from": "  return walked.every(sha => made.has(sha)) && unchangedButOwnCommits(previous.saidState, state, walked.length)",
+      "to": "  return unchangedButOwnCommits(previous.saidState, state, walked.length)",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
@@ -17,15 +17,7 @@
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
-      "label": "ADR-128 T2: the release count is normalised anywhere in the line, CI job names included",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "  const tail = first.slice(head.length).replace(TIP_NOTE, '').replace(RELEASE_SENTENCE, '$1#$2')",
-      "to": "  const tail = first.slice(head.length).replace(TIP_NOTE, '').replace(/plugin\\/ changed in \\d+ file\\(s\\)/, 'plugin/ changed in # file(s)')",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
-    },
-    {
-      "label": "ADR-128 T2: a session log not read whole still shows the hook ran",
+      "label": "ADR-128 T2: a session log not read whole still shows the commit was made",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
       "from": "  if (log.complete === false || log.length < previous.saidEvents) return false",
@@ -36,24 +28,16 @@
       "label": "ADR-128 T2: a merge commit counts as the session's own",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "    if (!commit || commit.parents.length !== 1) return null",
-      "to": "    if (!commit || commit.parents.length < 1) return null",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
-    },
-    {
-      "label": "ADR-128 T2: a refused hook run counts as a commit the hook let through",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "  const allowed = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.commit-allowed')",
-      "to": "  const allowed = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.hook-ran')",
+      "from": "    if (!up || up.length !== 1) return null",
+      "to": "    if (!up || up.length < 1) return null",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
       "label": "ADR-128 T2: an ahead count that rose past the commits is not news",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "  if (rose < 0 || rose > commits) return false",
-      "to": "  if (rose < 0) return false",
+      "from": "  return rose >= 0 && rose <= commits",
+      "to": "  return rose >= 0",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
@@ -65,11 +49,27 @@
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
-      "label": "ADR-128 T2: the moved clause is left in, so the served snapshot after an own commit is said",
+      "label": "ADR-128 T2: CI is left out of what the brief reports",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "  const shown = head.replace(MOVED_CLAUSE, '').replace(DIRTY_COUNT, '')",
-      "to": "  const shown = head.replace(DIRTY_COUNT, '')",
+      "from": "    state.ci ? { ...state.ci, anchor: null } : null, state.tag ?? null,",
+      "to": "    null, state.tag ?? null,",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
+      "label": "ADR-128 T2: the behind count is left out of what the brief reports, so a fetch is not news",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "state.branch ?? null, state.behind ?? null,",
+      "to": "state.branch ?? null,",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
+      "label": "ADR-128 T2: the state the session heard is not stamped, so its own commit is said",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "    : { saidState: state ?? null, saidKey: JSON.stringify(key), saidHead: key[1], saidSession: session, saidEvents: log.length }",
+      "to": "    : { saidState: null, saidKey: JSON.stringify(key), saidHead: key[1], saidSession: session, saidEvents: log.length }",
       "only": "^(?:a session's own commit does not re-send the line)$"
     },
     {
@@ -108,8 +108,8 @@
       "label": "ADR-122 T3: the brief's own suppression asks whether it is unchanged",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
-      "from": "  if (brief && key === null && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, text))) return false",
-      "to": "  if (brief && key === null && previous && !permanent && (previous.said === text || ownCommit(previous, text))) return false",
+      "from": "  if (brief && key === null && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, state))) return false",
+      "to": "  if (brief && key === null && previous && !permanent && (previous.said === text || ownCommit(previous, state))) return false",
       "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
     },
     {
@@ -763,8 +763,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (brief && key === null && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, text))) return false",
-      "to": "  if (brief && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, text))) return false",
+      "from": "  if (brief && key === null && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, state))) return false",
+      "to": "  if (brief && previous && !permanent && (briefUnchanged(previous.said, text) || ownCommit(previous, state))) return false",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     },
     {
@@ -953,7 +953,7 @@
       "label": "§381 item 13: the short line stamps the full text, so the next unchanged prompt is silent",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
-      "from": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n    stampBriefSaid(store, text, key, { ...forget, ...heard() })\n",
+      "from": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n    stampBriefSaid(store, text, key, { ...forget, ...heard(state) })\n",
       "to": "COULD NOT LOOK, unchanged${stale ? suffix : ''}\\n`)\n",
       "only": "^an unknown CI whose clause is unchanged is not said again when only HEAD moves$"
     },
@@ -1025,8 +1025,8 @@
       "label": "stale HEAD: an age is added to what an unchanged brief is compared with",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-moved.test.mjs"],
-      "from": "(briefUnchanged(previous.said, text) || ownCommit(previous, text))) return false",
-      "to": "(briefUnchanged(previous.said, `${text} (read ${age}s ago)`) || ownCommit(previous, text))) return false"
+      "from": "(briefUnchanged(previous.said, text) || ownCommit(previous, state))) return false",
+      "to": "(briefUnchanged(previous.said, `${text} (read ${age}s ago)`) || ownCommit(previous, state))) return false"
     },
     {
       "label": "ADR-120 T13: the shell runs in the process directory, not the session's",

@@ -158,6 +158,7 @@ test('CI, a fetch, a branch switch or an unrecorded commit re-sends it', t => {
   assert.equal(unchangedButOwnCommits(said, { ...said, head: 'bbbbbbb', dirty: 3, ahead: 1 }, 1), true, 'the control: only what a commit moves')
   assert.equal(unchangedButOwnCommits(said, { ...said, head: 'bbbbbbb', ci: { ...said.ci, skipped: ['plugin/ changed in 2 file(s)'] } }, 1), false, 'a CI job that changed')
   assert.equal(unchangedButOwnCommits(said, { ...said, head: 'bbbbbbb', ahead: 2 }, 1), false, 'an ahead count past the commits')
+  assert.equal(unchangedButOwnCommits(said, { ...said, head: '(unknown)', ahead: 1 }, 1), false, 'a HEAD that could not be read')
 
   // What the evidence rests on, from git's own hooks (publish-hook.mjs): post-commit records the sha git made, and a refused
   // commit, which git never makes, records none.

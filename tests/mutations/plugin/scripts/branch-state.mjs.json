@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-128 T2: a HEAD that could not be read is not news after an own commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "state.branch ?? null, /^[0-9a-f]{4,64}$/.test(state.head ?? ''), state.behind ?? null,",
+      "to": "state.branch ?? null, true, state.behind ?? null,",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
       "label": "ADR-128 T2: a commit no post-commit row records counts as the session's own",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
@@ -52,16 +60,16 @@
       "label": "ADR-128 T2: CI is left out of what the brief reports",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "    state.ci ? { ...state.ci, anchor: null } : null, state.tag ?? null,",
-      "to": "    null, state.tag ?? null,",
+      "from": "state.ci ? { ...state.ci, anchor: null } : null, state.tag ?? null,",
+      "to": "null, state.tag ?? null,",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
       "label": "ADR-128 T2: the behind count is left out of what the brief reports, so a fetch is not news",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "state.branch ?? null, state.behind ?? null,",
-      "to": "state.branch ?? null,",
+      "from": ".test(state.head ?? ''), state.behind ?? null,",
+      "to": ".test(state.head ?? ''),",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {

@@ -935,11 +935,12 @@ export function briefUnchanged(said, text) {
 // crediting someone else's commit. What the brief reports is compared as state, not as text, so nothing in a CI job name
 // can stand for a count. Anything that cannot be shown re-sends it (ADR-005).
 // What the brief reports besides what a session's own commit moves: HEAD's sha, the dirty count, the ahead count (which may
-// rise by at most the commits) and the unreleased count (whether there is one is still compared). CI is compared whole but
-// for which run answered it (HEAD's, or the pushed tip's when HEAD has none).
+// rise by at most the commits) and the unreleased count (whether there is one is still compared). Whether HEAD could be read
+// is compared: a sha that became `(unknown)` is a could-not-look, and is said (the review of 6d83be93). CI is compared whole
+// but for which run answered it (HEAD's, or the pushed tip's when HEAD has none).
 const reported = state => (state && typeof state === 'object'
-  ? JSON.stringify([state.looked, state.note ?? null, state.branch ?? null, state.behind ?? null, state.dirty === null,
-    state.ci ? { ...state.ci, anchor: null } : null, state.tag ?? null, state.releaseBlocked ?? null, Boolean(state.shippedSinceTag)])
+  ? JSON.stringify([state.looked, state.note ?? null, state.branch ?? null, /^[0-9a-f]{4,64}$/.test(state.head ?? ''), state.behind ?? null,
+    state.dirty === null, state.ci ? { ...state.ci, anchor: null } : null, state.tag ?? null, state.releaseBlocked ?? null, Boolean(state.shippedSinceTag)])
   : null)
 export function unchangedButOwnCommits(saidState, state, commits) {
   if (!Number.isInteger(commits) || commits < 1) return false

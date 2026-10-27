@@ -929,27 +929,42 @@ export function briefUnchanged(said, text) {
 
 // ── ADR-128 T2: a commit this session made is not news to the agent that made it ──────────
 // The brief re-sent on every commit the session made, because HEAD's sha is in its text. It is left unsaid when the ONLY
-// change since the line the session last heard is HEAD moving by commits this session's log records git's commit hook
-// running for, each with one parent, back to the HEAD it heard. Anything that cannot be shown re-sends it (ADR-005): a
-// packed or merge commit, another session, a log not read whole, fewer hook runs than commits. Everything else in the line
-// is still compared: CI, the behind count (a fetch), the branch, the tag. The ahead count may rise by at most the commits.
+// change since the line the session last heard is HEAD moving by commits git's commit hook let through for this session
+// (`publish.commit-allowed`, ADR-066's prepare-commit-msg), each with one parent, back to the HEAD it heard, each committed
+// after the first of those, on the same ref and upstream. Anything that cannot be shown re-sends it (ADR-005): a packed or
+// merge commit, another session, a log not read whole, a refused attempt, a commit older than the hook's run, a moved ref.
+// Only the head segment and the release clause's count are normalised; the CI segment is compared as it is (the review of
+// c0d3d412: a job name that looked like a count was erased). The ahead count may rise by at most the commits.
 const MOVED_CLAUSE = / \(moved since this was read: HEAD now [0-9a-f]+; uncommitted and ahead not re-read\)/
-const TIP_NOTE = ' (the pushed tip as last fetched; HEAD has no run)'
-const aheadOf = text => Number(text.match(/, (\d+) ahead(?= of origin| and )/)?.[1] ?? 0)
-const withoutOwnCommits = text => text.replace(MOVED_CLAUSE, '').replace(TIP_NOTE, '').replace(DIRTY_COUNT, '')
-  .replace(/^(branch-state: \S+ @ )[0-9a-f]{4,64}/, '$1#')
-  .replace(/, \d+ ahead of origin/, '').replace(/, \d+ ahead and /, ', ')
-  .replace(/plugin\/ changed in \d+ file\(s\)/, 'plugin/ changed in # file(s)')
+const RELEASE_SENTENCE = /( · plugin\/ changed in )\d+( file\(s\) since \S+, the newest tag reachable from HEAD in this clone — a forge release MAY NOT be tagged here, so check `gh release view` before treating this as unreleased \(§13\)\.)$/
+const TIP_NOTE = / \(the pushed tip as last fetched; HEAD has no run\)(?=( · plugin\/ changed in \d+ file\(s\) since \S+, the newest tag reachable from HEAD in this clone — .*)?$)/
+// The head segment ends at the first ` · `: a branch name holds no space, and nothing before it is CI's.
+const headSegment = line => (line.includes(' · ') ? line.slice(0, line.indexOf(' · ')) : null)
+const aheadOf = head => Number(head.match(/, (\d+) ahead(?= of origin| and )/)?.[1] ?? 0)
+function withoutOwnCommits(text) {
+  const [first, ...rest] = text.split('\n')
+  const head = headSegment(first)
+  if (head === null) return null
+  const shown = head.replace(MOVED_CLAUSE, '').replace(DIRTY_COUNT, '').replace(/^(branch-state: \S+ @ )[0-9a-f]{4,64}/, '$1#')
+    .replace(/, \d+ ahead of origin$/, '').replace(/, \d+ ahead and /, ', ')
+  const tail = first.slice(head.length).replace(TIP_NOTE, '').replace(RELEASE_SENTENCE, '$1#$2')
+  return [shown + tail, ...rest].join('\n')
+}
 export function unchangedButOwnCommits(said, text, commits) {
   // At least one commit: with none, a changed HEAD sha in the text is a snapshot that moved, not a commit, and is said.
   if (typeof said !== 'string' || typeof text !== 'string' || !Number.isInteger(commits) || commits < 1) return false
-  const rose = aheadOf(text) - aheadOf(said)
+  const before = headSegment(said.split('\n')[0])
+  const after = headSegment(text.split('\n')[0])
+  if (before === null || after === null) return false
+  const rose = aheadOf(after) - aheadOf(before)
   if (rose < 0 || rose > commits) return false
-  return withoutOwnCommits(said) === withoutOwnCommits(text)
+  const left = withoutOwnCommits(said)
+  return left !== null && left === withoutOwnCommits(text)
 }
 
-// A commit's parents, read from its loose object; null when it is packed, unreadable or not a commit.
-export function commitParents(gitDir, sha, read = readFileSync) {
+// A commit's parents and committer time (epoch seconds), read from its loose object; null when it is packed, unreadable or
+// not a commit.
+export function commitObject(gitDir, sha, read = readFileSync) {
   if (!gitDir || typeof sha !== 'string' || !/^[0-9a-f]{40,64}$/.test(sha)) return null
   let raw
   try {
@@ -959,42 +974,57 @@ export function commitParents(gitDir, sha, read = readFileSync) {
   if (!raw.startsWith('commit ')) return null
   const body = raw.slice(raw.indexOf('\0') + 1)
   const end = body.indexOf('\n\n')
-  return (end < 0 ? body : body.slice(0, end)).split('\n').filter(line => line.startsWith('parent ')).map(line => line.slice(7))
+  const header = (end < 0 ? body : body.slice(0, end)).split('\n')
+  const committed = Number(header.find(line => line.startsWith('committer '))?.match(/ (\d+) [+-]\d{4}$/)?.[1])
+  if (!Number.isFinite(committed)) return null
+  return { parents: header.filter(line => line.startsWith('parent ')).map(line => line.slice(7)), committed }
 }
 
-// How many single-parent commits lead from `from` to `to`, or null when that cannot be shown within `limit`.
-export function ownCommitCount(gitDir, from, to, limit = 50, parents = commitParents) {
+// The single-parent commits that lead from `from` to `to`, with the earliest committer time among them, or null when that
+// cannot be shown within `limit`.
+export function ownCommitWalk(gitDir, from, to, limit = 50, objects = commitObject) {
   if (typeof from !== 'string' || typeof to !== 'string') return null
   let sha = to
+  let earliest = Infinity
   for (let count = 0; count <= limit; count++) {
-    if (sha === from) return count
-    const up = parents(gitDir, sha)
-    if (!up || up.length !== 1) return null
-    sha = up[0]
+    if (sha === from) return { count, earliest }
+    const commit = objects(gitDir, sha)
+    if (!commit || commit.parents.length !== 1) return null
+    earliest = Math.min(earliest, commit.committed)
+    sha = commit.parents[0]
   }
   return null
 }
 
-const liveHead = gitDir => { try { return JSON.parse(snapshotKey(gitDir))[1] ?? null } catch { return null } }
+const keyOf = gitDir => { try { const key = JSON.parse(snapshotKey(gitDir)); return Array.isArray(key) ? key : null } catch { return null } }
 
-// What the session has heard: the HEAD it was told of and how far its log ran. Unknown is written as null, so a stale record
-// is never left beside a new line.
+// What the session has heard: the snapshot key it was told of (ref, HEAD, upstream) and how far its log ran. Unknown is
+// written as null, so a stale record is never left beside a new line.
 export function heardNow(gitDir, dir, session, events = readEvents) {
-  const unknown = { saidHead: null, saidSession: null, saidEvents: null }
+  const unknown = { saidKey: null, saidHead: null, saidSession: null, saidEvents: null }
   if (!gitDir || typeof session !== 'string' || !session) return unknown
   const log = events(dir, session, { spawn: false })
-  const head = liveHead(gitDir)
-  return log.complete === false || !head ? unknown : { saidHead: head, saidSession: session, saidEvents: log.length }
+  const key = keyOf(gitDir)
+  return log.complete === false || !key?.[1] ? unknown : { saidKey: JSON.stringify(key), saidHead: key[1], saidSession: session, saidEvents: log.length }
 }
 
-export function ownCommitOnly(previous, text, { gitDir, dir, session, events = readEvents, parents = commitParents }) {
+export function ownCommitOnly(previous, text, { gitDir, dir, session, events = readEvents, objects = commitObject }) {
   if (!previous || typeof session !== 'string' || previous.saidSession !== session || !Number.isInteger(previous.saidEvents)) return false
-  const commits = ownCommitCount(gitDir, previous.saidHead, liveHead(gitDir), 50, parents)
-  if (!commits) return false
+  let heard
+  try { heard = JSON.parse(previous.saidKey) } catch { return false }
+  const live = keyOf(gitDir)
+  // A switched ref or a moved upstream is news, whatever HEAD's history shows (the review of c0d3d412).
+  if (!Array.isArray(heard) || !live || heard[0] !== live[0] || heard[2] !== live[2]) return false
+  const walk = ownCommitWalk(gitDir, previous.saidHead, live[1], 50, objects)
+  if (!walk?.count) return false
   const log = events(dir, session, { spawn: false })
   if (log.complete === false || log.length < previous.saidEvents) return false
-  const ran = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.hook-ran' && entry.hook === 'prepare-commit-msg').length
-  return ran >= commits && unchangedButOwnCommits(previous.said, text, commits)
+  const allowed = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.commit-allowed')
+  if (allowed.length < walk.count) return false
+  // A commit older than the first let-through attempt was not made by it: a reset or fast-forward to someone else's child.
+  const first = Date.parse(allowed[0].at)
+  if (!Number.isFinite(first) || walk.earliest * 1000 < first - 2_000) return false
+  return unchangedButOwnCommits(previous.said, text, walk.count)
 }
 
 function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false, stale = false, movedTo = null, session = null, ownCommit = () => false, heard = () => ({}) }) {
@@ -1071,7 +1101,7 @@ function main(argv = process.argv.slice(2)) {
       // an unchanged green brief (CLAUDE.md §17).
       replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey,
         permanentFor: payload.permanentFor ?? current?.permanentFor,
-        saidHead: current?.saidHead ?? null, saidSession: current?.saidSession ?? null, saidEvents: current?.saidEvents ?? null }))
+        saidKey: current?.saidKey ?? null, saidHead: current?.saidHead ?? null, saidSession: current?.saidSession ?? null, saidEvents: current?.saidEvents ?? null }))
     } catch { /* a cache that cannot be written is not a failure */ }
   }
   // ADR-128 T2: the session's own commits, judged from this git directory and the session's log.

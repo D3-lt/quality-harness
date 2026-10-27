@@ -78,7 +78,13 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // second log in `.git/worktrees/<wt>/` holding only this line, and the session's own
   // log never learned the hook had run (seen in both chaos rounds of 626934a).
   appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })
-  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }
+  // ADR-128 T2: a commit the hook lets through is recorded apart from the run above, which a refused or aborted attempt also
+  // writes, so the branch-state brief does not credit this session with a commit it was refused (the review of c0d3d412).
+  const allowed = result => {
+    if (event === 'prepare-commit-msg') appendEvent(owner ?? cwd, session, { event: 'publish.commit-allowed' })
+    return result
+  }
+  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return allowed({ code: 0 })
   // A `qh-check` that ran just before this, in the same script as the commit, is on
   // record only once imported. PreToolUse imports at its own boundary; git's hook
   // has no such boundary, and refused the tree that check had just passed (ADR-066
@@ -87,13 +93,13 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // `prepare-commit-msg` is one commit by construction; `pre-push` never is (ADR-081).
   const verdict = publishVerdict({ cwd, session, observation: observeCarrying(cwd, observeBudgetMs(env)), invoked, commitOnly: event === 'prepare-commit-msg' })
   // An unreadable tree is said at the event too; a refusal is only ever code 1.
-  if (verdict?.unobserved) return { code: 0, message: verdict.text }
+  if (verdict?.unobserved) return allowed({ code: 0, message: verdict.text })
   // A commit let through on a fast check is told so at the event, and so is a verdict that could
   // not be read whole (ADR-088): advice, exit 0, never a silent pass. So is one `"publish": "warn"`
   // turned from a refusal into a warning: the opt-out is a warning, never silence (BACKLOG §381).
   // Other advice stays the hook's.
-  if (!verdict?.deny && verdict?.warned) return { code: 0, message: `${verdict.text}\n(warned, not refused, by git's ${event} hook: "publish": "warn" in .quality-harness.json — ADR-061)` }
-  if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }
+  if (!verdict?.deny && verdict?.warned) return allowed({ code: 0, message: `${verdict.text}\n(warned, not refused, by git's ${event} hook: "publish": "warn" in .quality-harness.json — ADR-061)` })
+  if (!verdict?.deny) return allowed(verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 })
   return { code: 1, message: `${verdict.text}\n(refused by git's ${event} hook — ADR-066)` }
 }
 

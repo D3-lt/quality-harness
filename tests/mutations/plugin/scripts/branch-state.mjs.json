@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "ADR-128 T2: a commit older than the hook run that let one through counts as the session's own",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "  if (!Number.isFinite(first) || walk.earliest * 1000 < first - 2_000) return false",
+      "to": "  if (!Number.isFinite(first)) return false",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
+      "label": "ADR-128 T2: a switched ref under a stale snapshot is not news",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "  if (!Array.isArray(heard) || !live || heard[0] !== live[0] || heard[2] !== live[2]) return false",
+      "to": "  if (!Array.isArray(heard) || !live) return false",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
+      "label": "ADR-128 T2: the release count is normalised anywhere in the line, CI job names included",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "  const tail = first.slice(head.length).replace(TIP_NOTE, '').replace(RELEASE_SENTENCE, '$1#$2')",
+      "to": "  const tail = first.slice(head.length).replace(TIP_NOTE, '').replace(/plugin\\/ changed in \\d+ file\\(s\\)/, 'plugin/ changed in # file(s)')",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
       "label": "ADR-128 T2: a session log not read whole still shows the hook ran",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
@@ -12,16 +36,16 @@
       "label": "ADR-128 T2: a merge commit counts as the session's own",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "    if (!up || up.length !== 1) return null",
-      "to": "    if (!up || up.length < 1) return null",
+      "from": "    if (!commit || commit.parents.length !== 1) return null",
+      "to": "    if (!commit || commit.parents.length < 1) return null",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
-      "label": "ADR-128 T2: a commit no hook run records counts as the session's own",
+      "label": "ADR-128 T2: a refused hook run counts as a commit the hook let through",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "  return ran >= commits && unchangedButOwnCommits(previous.said, text, commits)",
-      "to": "  return unchangedButOwnCommits(previous.said, text, commits)",
+      "from": "  const allowed = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.commit-allowed')",
+      "to": "  const allowed = log.slice(previous.saidEvents).filter(entry => entry.event === 'publish.hook-ran')",
       "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
     },
     {
@@ -44,8 +68,8 @@
       "label": "ADR-128 T2: the moved clause is left in, so the served snapshot after an own commit is said",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-own-commit.test.mjs"],
-      "from": "const withoutOwnCommits = text => text.replace(MOVED_CLAUSE, '').replace(TIP_NOTE, '').replace(DIRTY_COUNT, '')",
-      "to": "const withoutOwnCommits = text => text.replace(TIP_NOTE, '').replace(DIRTY_COUNT, '')",
+      "from": "  const shown = head.replace(MOVED_CLAUSE, '').replace(DIRTY_COUNT, '')",
+      "to": "  const shown = head.replace(DIRTY_COUNT, '')",
       "only": "^(?:a session's own commit does not re-send the line)$"
     },
     {

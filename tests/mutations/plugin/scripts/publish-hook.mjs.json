@@ -1,14 +1,22 @@
 {
   "mutations": [
     {
+      "label": "ADR-128 T2: a refused commit is recorded as one the hook let through",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "from": "  return { code: 1, message: `${verdict.text}\\n(refused by git's ${event} hook — ADR-066)` }",
+      "to": "  return allowed({ code: 1, message: `${verdict.text}\\n(refused by git's ${event} hook — ADR-066)` })",
+      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+    },
+    {
       "label": "publish-hook: an unchecked commit is refused by git in the repository it runs in",
       "file": "plugin/scripts/publish-hook.mjs",
       "tests": [
         "tests/publish-hook.test.mjs"
       ],
       "only": "an unchecked commit is refused by git",
-      "from": "  if (!verdict?.deny) return verdict?.fast",
-      "to": "  if (true) return verdict?.fast"
+      "from": "  if (!verdict?.deny) return allowed(verdict?.fast",
+      "to": "  if (true) return allowed(verdict?.fast"
     },
     {
       "label": "publish-hook: the verdict is taken in the repository git runs the hook in",
@@ -36,8 +44,8 @@
       "tests": [
         "tests/publish-hook.test.mjs"
       ],
-      "from": "  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }",
-      "to": "  if (false) return { code: 0 }",
+      "from": "  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return allowed({ code: 0 })",
+      "to": "  if (false) return allowed({ code: 0 })",
       "only": "^(?:a checked commit, a person's commit and a merge pass the hook|a cherry-pick in progress is concluded without the hook refusing it)$"
     },
     {
@@ -86,8 +94,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (verdict?.unobserved) return { code: 0, message: verdict.text }",
-      "to": "  if (false) return { code: 0, message: verdict.text }",
+      "from": "  if (verdict?.unobserved) return allowed({ code: 0, message: verdict.text })",
+      "to": "  if (false) return allowed({ code: 0, message: verdict.text })",
       "only": "could not be observed"
     },
     {
@@ -106,8 +114,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }",
-      "to": "if (!verdict?.deny) return { code: 0 }",
+      "from": "if (!verdict?.deny) return allowed(verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 })",
+      "to": "if (!verdict?.deny) return allowed({ code: 0 })",
       "only": "^git's own hooks let a commit through with the warning and refuse a push$"
     },
     {

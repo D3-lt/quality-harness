@@ -28,6 +28,10 @@ digest, token = record.encode_lock(snap)
 forged = dict(snap, bodies={("tests/a.test.mjs", "x"): "1" * 64})
 if case == "forged":
     token = record.encode_lock(forged)[1]
+if case == "nocheck":
+    # "x": bound by its sha, yet no check record. The hash passes, so only the payload's own reading can refuse it.
+    import hashlib
+    token, digest = "eA", hashlib.sha256(b"x").hexdigest()
 command = "node --test"
 if case == "command":
     # A command whose text holds lock fields of its own, before the row's real, trailing ones.
@@ -62,4 +66,13 @@ test('the lock fields are read from the end of the row, not from the recorded co
   const said = reads(t, 'command')
   assert.equal(said.read, true, `a command holding lock text is not the lock: ${said.problem}`)
   assert.equal(said.problem, null)
+})
+
+// The row in tests/test-lock.test.mjs ("a lock map with no check record is unreadable") pairs `eA` with a sha it does not hash
+// to, so since the payload is bound it is refused before its reading is reached (a GREEN of the land/539b4076 campaign).
+test('a payload bound by its sha with no check record is still unreadable', t => {
+  const said = reads(t, 'nocheck')
+  assert.equal(said.read, false, 'an empty-looking map is not a lock')
+  assert.equal(said.problem, null, 'it hashed: the refusal is the reading, not the binding')
+  assert.ok(said.blocks.some(line => /could not be read — UNPROVEN/.test(line)), JSON.stringify(said.blocks))
 })

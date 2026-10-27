@@ -262,7 +262,7 @@ function runLifecycleHook(payload, options = {}) {
     // could-not-look (release run of d174c76, BACKLOG §314).
     // The artifact pass runs in this process (ADR-080's `inline` seam), so a test
     // reads its verdict when the hook returns, as it did before the pass moved behind.
-    env: { ...(extraEnv ?? { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000', QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: 'inline' }), QUALITY_HARNESS_SESSION_END_RUNNER: 'inline', TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+    env: { ...(extraEnv ?? { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000', QUALITY_HARNESS_SLOW_HOOK_MS: '600000', QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: 'inline' }), QUALITY_HARNESS_SESSION_END_RUNNER: 'inline', TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
     ...rest,
   })
 }

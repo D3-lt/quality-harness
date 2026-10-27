@@ -1387,11 +1387,12 @@
       "label": "lock: a UTF-8 lock map with no check record is unreadable",
       "file": "plugin/lib/record.py",
       "tests": [
-        "tests/test-lock.test.mjs"
+        "tests/test-lock.test.mjs",
+        "tests/lock-inline-bound.test.mjs"
       ],
       "from": "    if checks != 1:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
       "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
-      "only": "a lock map with no check record is unreadable"
+      "only": "a lock map with no check record is unreadable|a payload bound by its sha with no check record is still unreadable"
     },
     {
       "label": "lock: empty bodies unproven that the hasher can now see is advice",

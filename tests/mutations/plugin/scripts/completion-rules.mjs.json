@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "qh-core, 2026-10-27: a Go summary under a wrapper is not read, so make check is no-work",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/validation-verdict.test.mjs"],
+      "from": "  if (text.split('\\n').some(line => /^ok\\s+\\S+\\s+(?:\\d+(?:\\.\\d+)?s|\\(cached\\))(?:\\s|$)/.test(line) && !line.includes('[no tests to run]'))) return false",
+      "to": "  if (false) return false",
+      "only": "^a wrapper around go test or cargo test is read by the runner's own summary, not by the command \\(qh-core, 2026-10-27\\)$"
+    },
+    {
+      "label": "qh-core, 2026-10-27: a Go package line that matched nothing counts as work under a wrapper",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/validation-verdict.test.mjs"],
+      "from": "(?:\\s|$)/.test(line) && !line.includes('[no tests to run]'))) return false",
+      "to": "(?:\\s|$)/.test(line))) return false",
+      "only": "^a wrapper around go test or cargo test is read by the runner's own summary, not by the command \\(qh-core, 2026-10-27\\)$"
+    },
+    {
+      "label": "qh-core, 2026-10-27: a cargo summary under a wrapper is not read",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/validation-verdict.test.mjs"],
+      "from": "  if (/\\btest result:\\s+ok\\.\\s+[1-9]\\d*\\s+passed\\b/i.test(text)) return false",
+      "to": "  if (false) return false",
+      "only": "^a wrapper around go test or cargo test is read by the runner's own summary, not by the command \\(qh-core, 2026-10-27\\)$"
+    },
+    {
       "label": "ADR-122 T3: a second could-not-look reason at the same place is its own finding",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/said-per-context-routing.test.mjs"],

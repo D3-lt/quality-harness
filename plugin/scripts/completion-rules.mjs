@@ -148,6 +148,14 @@ function reportsZeroTestWork(text, command) {
     })
     if (packageRan) return false
   }
+  // qh-core, 2026-10-27: `make check` around `go test ./...` printed fourteen `ok  <package>  <duration>` lines and one
+  // `?  <package>  [no test files]`, and the rules above are keyed on the COMMAND, so the phrase below matched the testless
+  // package and every green run was no-work: the publish refusal then denied every commit of a green tree (BACKLOG §273's
+  // class, reached through a wrapper). The runner's own summary is read whatever the command, but only in its exact shape:
+  // a Go package line with a duration or `(cached)` and no `[no tests to run]`, or cargo's `test result: ok. N passed` with
+  // N above zero. A looser `ok` would let any script's "ok" stand for a test run (CLAUDE.md §16).
+  if (text.split('\n').some(line => /^ok\s+\S+\s+(?:\d+(?:\.\d+)?s|\(cached\))(?:\s|$)/.test(line) && !line.includes('[no tests to run]'))) return false
+  if (/\btest result:\s+ok\.\s+[1-9]\d*\s+passed\b/i.test(text)) return false
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)
 }
 

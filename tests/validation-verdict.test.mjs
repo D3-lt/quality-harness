@@ -134,3 +134,18 @@ test('the same Go shapes under `go test -json` (real event lines) read the same'
   assert.equal(json([splitHead, splitTail, longPass].join('\n'), 'go test -json -run zzz ./...'), 'no-work',
     'a split summary is not a summary')
 })
+
+test('a wrapper around go test or cargo test is read by the runner\'s own summary, not by the command (qh-core, 2026-10-27)', () => {
+  const okLine = 'ok  \texample.com/q/core/hooks\t0.069s'
+  const testless = '?   \texample.com/q/internal/markdown\t[no test files]'
+  assert.equal(verdict(0, [okLine, testless].join('\n'), 'make check'), 'passed', 'make check around go test ./...')
+  assert.equal(verdict(0, ['ok  \texample.com/q/core/hooks\t(cached)', testless].join('\n'), 'just test'), 'passed', 'a cached package')
+  assert.equal(verdict(0, 'running 0 tests\ntest result: ok. 0 passed\nrunning 3 tests\ntest result: ok. 3 passed; 0 failed', 'make check'), 'passed',
+    'cargo with one crate that ran tests')
+  // The twins (CLAUDE.md §16): nothing but the exact runner shape stands for work.
+  assert.equal(verdict(0, testless, 'make check'), 'no-work', 'every package testless')
+  assert.equal(verdict(0, ['ok  \texample.com/q/p\t0.010s [no tests to run]', testless].join('\n'), 'make check'), 'no-work',
+    'a filter that matched nothing')
+  assert.equal(verdict(0, 'ok done\nno tests found', 'make check'), 'no-work', 'a script that says ok is not a test run')
+  assert.equal(verdict(0, 'running 0 tests\ntest result: ok. 0 passed', 'make check'), 'no-work', 'cargo with no test')
+})

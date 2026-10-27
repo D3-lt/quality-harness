@@ -17,14 +17,14 @@ const { NODE_TEST_CONTEXT: _nested, ...cleanEnv } = process.env
 const env = { ...cleanEnv, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
 const HEAD = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
 
-function corpus(t, { passing = false, vlog = [] } = {}) {
+function corpus(t, { passing = false, vlog = [], records = ['docs', 'adr'] } = {}) {
   const dir = realpathSync.native(mkdtempSync(join(os.tmpdir(), 'qh-lock-write-')))
   t.after(() => { try { chmodSync(join(dir, 'docs', 'adr', 'locks'), 0o755) } catch { /* none */ } remove(dir) })
   assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, timeout: 10_000 }).status, 0)
   mkdirSync(join(dir, 'tests'))
   writeFileSync(join(dir, 'tests', 'a.test.mjs'), `${HEAD}test('locked', () => {\n  assert.equal(1, ${passing ? 1 : 2})\n})\n`)
   const task = (id, name) => {
-    const tasks = join(dir, 'docs', 'adr', `${id}-probe`, 'tasks')
+    const tasks = join(dir, ...records, `${id}-probe`, 'tasks')
     mkdirSync(tasks, { recursive: true })
     const file = join(tasks, name)
     writeFileSync(file, [`# Task ${id}-T1: lock`, '', '## Acceptance', '', '```bash', 'node --test tests/a.test.mjs', '```', '',
@@ -91,4 +91,15 @@ test('the locks directory is held at LF in any corpus', t => {
   const [lock] = locks(dir)
   const attr = spawnSync('git', ['check-attr', 'eol', '--', `docs/adr/locks/${lock}`], { cwd: dir, encoding: 'utf8', timeout: 10_000 })
   assert.match(attr.stdout, /eol: lf/, attr.stdout + attr.stderr)
+})
+
+// The review of c0c7eaeb: a corpus whose path holds a space put that space into the row's field, which no reader's grammar
+// takes, and adr-verify then refused its own row. The path is percent-encoded in the row and decoded by the reader.
+test('a corpus whose path holds a space gets a row its readers can read', t => {
+  const { dir, task } = corpus(t, { records: ['design records'] })
+  const file = task('ADR-001', 'T1-lock.md')
+  assert.notEqual(verify(dir, file).status, 0, 'the fence is red')
+  const [row] = rows(file)
+  assert.match(row ?? '', / · test-lock-file:design%20records\/locks\/[0-9a-f]{64}\.lock$/, readFileSync(file, 'utf8'))
+  assert.equal(readBack(dir, file).read, true)
 })

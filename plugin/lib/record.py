@@ -43,6 +43,7 @@ import subprocess
 import unicodedata
 import stat
 from functools import lru_cache
+import urllib.parse
 from pathlib import Path
 from collections import namedtuple
 
@@ -3981,7 +3982,9 @@ def lock_sidecar_suffix(snap, root, corpus):
     """The row's lock field for a sidecar lock: the sha and the file it names, the file written first."""
     digest, token = encode_lock(snap)
     payload = base64.urlsafe_b64decode(token + "=" * ((4 - len(token) % 4) % 4))
-    return f" · test-lock-sha256:{digest} · test-lock-file:{write_lock_sidecar(root, corpus, digest, payload)}"
+    # Percent-encoded, so a corpus whose path holds a space or a `·` still fits the row's field (the review of c0c7eaeb).
+    rel = urllib.parse.quote(write_lock_sidecar(root, corpus, digest, payload), safe="/")
+    return f" · test-lock-sha256:{digest} · test-lock-file:{rel}"
 
 
 def first_red_lock_suffix(text, root, corpus=None):
@@ -4129,7 +4132,7 @@ def _lock_from_row(line, digest, root):
     named = _LOCK_FILE.search(line)
     if not named:
         return None, None, False
-    rel = named.group(1).replace("\\", "/")
+    rel = urllib.parse.unquote(named.group(1)).replace("\\", "/")
     if root is None:
         return None, f"its lock file `{rel}` cannot be resolved without the repository", False
 
@@ -4145,8 +4148,18 @@ def _lock_from_row(line, digest, root):
         return None, f"git could not list its lock file `{rel}`", False
     if not known:
         return None, f"its lock file `{rel}` is not in the repository (absent, or ignored)", False
+    # The file read must be the one git lists: a tracked link carries the link, not the bytes it points at, so a link, or
+    # a path that resolves outside the repository, is a lock that could not be read (the review of c0c7eaeb).
+    path = Path(root) / rel
     try:
-        data = (Path(root) / rel).read_bytes()
+        resolved = path.resolve(strict=True)
+        contained = Path(root).resolve() in resolved.parents
+    except (OSError, RuntimeError) as exc:
+        return None, f"its lock file `{rel}` could not be resolved ({os_reason(exc) if isinstance(exc, OSError) else 'a link loop'})", False
+    if path.is_symlink() or not contained or not resolved.is_file():
+        return None, f"its lock file `{rel}` is a link, or not a regular file inside the repository", False
+    try:
+        data = resolved.read_bytes()
     except OSError as exc:
         return None, f"its lock file `{rel}` could not be read ({os_reason(exc)})", False
     if hashlib.sha256(data).hexdigest() != digest:

@@ -52,6 +52,11 @@ elif case == "altered":
     put(payload.replace(b"\n", b"\r\n") if b"\n" in payload else payload + b"\r\n")
 elif case == "outside":
     lock_row = row(1, f"test-lock-file:../{digest}.lock")
+elif case == "symlink":
+    outside = os.path.join(os.path.dirname(root), f"outside-{digest[:8]}.lock")
+    with open(outside, "wb") as f: f.write(payload)
+    path = os.path.join(root, rel); os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.symlink(outside, path); git("add", rel)
 elif case == "relock":
     put(payload)
 vlog = [lock_row]
@@ -80,7 +85,7 @@ test('a sidecar lock reads as its inline twin, and names a moved test', t => {
 })
 
 test('a sidecar that is missing, ignored, outside, altered or unreadable is UNPROVEN, and an untracked one is read', t => {
-  for (const which of ['missing', 'ignored', 'outside', 'altered']) {
+  for (const which of ['missing', 'ignored', 'outside', 'altered', ...(process.platform === 'win32' ? [] : ['symlink'])]) {
     const said = reads(t, which)
     assert.equal(said.unread, true, `${which}: read as a lock`)
     assert.ok(said.blocks.some(line => /UNPROVEN/.test(line)), `${which}: ${JSON.stringify(said.blocks)}`)

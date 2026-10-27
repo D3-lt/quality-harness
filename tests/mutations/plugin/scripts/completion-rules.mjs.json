@@ -17,10 +17,18 @@
       "only": "^a wrapper around go test or cargo test is read by the runner's own summary, not by the command \\(qh-core, 2026-10-27\\)$"
     },
     {
+      "label": "the review of c0c7eaeb: a cargo summary anywhere in the output, a quoted one included, stands for cargo",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": ["tests/validation-verdict.test.mjs"],
+      "from": "  if (/^test result: ok\\. [1-9]\\d* passed; \\d+ failed\\b/m.test(text)) return false",
+      "to": "  if (/test result: ok\\. [1-9]\\d* passed; \\d+ failed\\b/m.test(text)) return false",
+      "only": "^a wrapper around go test or cargo test is read by the runner's own summary, not by the command \\(qh-core, 2026-10-27\\)$"
+    },
+    {
       "label": "qh-core, 2026-10-27: a cargo summary under a wrapper is not read",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": ["tests/validation-verdict.test.mjs"],
-      "from": "  if (/\\btest result:\\s+ok\\.\\s+[1-9]\\d*\\s+passed\\b/i.test(text)) return false",
+      "from": "  if (/^test result: ok\\. [1-9]\\d* passed; \\d+ failed\\b/m.test(text)) return false",
       "to": "  if (false) return false",
       "only": "^a wrapper around go test or cargo test is read by the runner's own summary, not by the command \\(qh-core, 2026-10-27\\)$"
     },

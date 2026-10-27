@@ -85,3 +85,5 @@ A reader outside record.py parses the lock field itself: stop and route it throu
   ```
 - 2026-10-27 · bc5618cd* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar.test.mjs` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:657
 - 2026-10-27 · bc5618cd* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar.test.mjs` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:783
+- 2026-10-27 · c0c7eaeb* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:0 · test-lock-sha256:6b55dd0c819c62a03936fd5fbe433fb7b0a61e1f88b3766e80e074d9adb065d6 · test-lock-file:docs/adr/locks/6b55dd0c819c62a03936fd5fbe433fb7b0a61e1f88b3766e80e074d9adb065d6.lock · test-lock-kind:replace
+- 2026-10-27 · c0c7eaeb* · exit 0 · `node --test --test-reporter=tap tests/lock-sidecar.test.mjs` · acceptance-sha256:306f5a6c7845a73843152209e57cf7b924e346143cbd17d1a5cc9122670d3d0d · ms:720

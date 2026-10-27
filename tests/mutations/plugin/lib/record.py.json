@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "the review of c0c7eaeb: a tracked link to bytes outside the repository is read as the lock",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar.test.mjs"],
+      "from": "    if path.is_symlink() or not contained or not resolved.is_file():",
+      "to": "    if False:",
+      "only": "^a sidecar that is missing, ignored, outside, altered or unreadable is UNPROVEN, and an untracked one is read$"
+    },
+    {
+      "label": "the review of c0c7eaeb: a sidecar path is written into the row unencoded",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-sidecar-write.test.mjs"],
+      "from": "    rel = urllib.parse.quote(write_lock_sidecar(root, corpus, digest, payload), safe=\"/\")",
+      "to": "    rel = write_lock_sidecar(root, corpus, digest, payload)",
+      "only": "^a corpus whose path holds a space gets a row its readers can read$"
+    },
+    {
       "label": "ADR-129 T2: a first red's lock stays inline when a corpus is given",
       "file": "plugin/lib/record.py",
       "tests": ["tests/lock-sidecar-write.test.mjs"],

@@ -148,4 +148,5 @@ test('a wrapper around go test or cargo test is read by the runner\'s own summar
     'a filter that matched nothing')
   assert.equal(verdict(0, 'ok done\nno tests found', 'make check'), 'no-work', 'a script that says ok is not a test run')
   assert.equal(verdict(0, 'running 0 tests\ntest result: ok. 0 passed', 'make check'), 'no-work', 'cargo with no test')
+  assert.equal(verdict(0, '# test result: ok. 1 passed; 0 failed; 0 ignored\n# tests 0', 'node --test'), 'no-work', 'a quoted cargo summary is not cargo (the review of c0c7eaeb)')
 })

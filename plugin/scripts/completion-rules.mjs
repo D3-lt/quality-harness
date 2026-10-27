@@ -155,7 +155,7 @@ function reportsZeroTestWork(text, command) {
   // a Go package line with a duration or `(cached)` and no `[no tests to run]`, or cargo's `test result: ok. N passed` with
   // N above zero. A looser `ok` would let any script's "ok" stand for a test run (CLAUDE.md §16).
   if (text.split('\n').some(line => /^ok\s+\S+\s+(?:\d+(?:\.\d+)?s|\(cached\))(?:\s|$)/.test(line) && !line.includes('[no tests to run]'))) return false
-  if (/\btest result:\s+ok\.\s+[1-9]\d*\s+passed\b/i.test(text)) return false
+  if (/^test result: ok\. [1-9]\d* passed; \d+ failed\b/m.test(text)) return false
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)
 }
 

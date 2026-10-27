@@ -137,7 +137,8 @@ export function loadRules(rulesDir) {
     if (!patterns.length) continue
     const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim()
     if (!body) continue
-    const title = body.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, '').trim().slice(0, 160) ?? name
+    // A heading-only first line strips to nothing; the file name stands in for it (the review of 86ca1ca1).
+    const title = body.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, '').trim().slice(0, 160) || name
     rules.push({ name, patterns, body, title })
   }
   return rules

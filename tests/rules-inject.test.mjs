@@ -163,6 +163,18 @@ test('a pointer carries the title, never the body (the owner, 2026-10-27)', () =
   assert.doesNotMatch(outcome.text, /THE EVIDENCE PARAGRAPH/)
 })
 
+test('a title is the first line without its heading marks, at most 160 characters, and never empty', (t) => {
+  const rulesDir = mkdtempSync(join(tmpdir(), 'rules-inject-title-'))
+  t.after(() => remove(rulesDir))
+  writeFileSync(join(rulesDir, '01-heading.md'), '---\npaths:\n  - "a/**"\n---\n\n# Why §1: a heading\n\nbody\n')
+  writeFileSync(join(rulesDir, '02-bare.md'), '---\npaths:\n  - "a/**"\n---\n\n#\n\nbody\n')
+  writeFileSync(join(rulesDir, '03-long.md'), `---\npaths:\n  - "a/**"\n---\n\n${'x'.repeat(200)}\n`)
+  const titles = Object.fromEntries(loadRules(rulesDir).map((rule) => [rule.name, rule.title]))
+  assert.equal(titles['01-heading.md'], 'Why §1: a heading')
+  assert.equal(titles['02-bare.md'], '02-bare.md', 'a heading-only line falls back to the file name')
+  assert.equal(titles['03-long.md'].length, 160)
+})
+
 test('every governing rule is named, however many', () => {
   const many = Array.from({ length: 12 }, (_, i) => ({
     name: `${String(i).padStart(2, '0')}.md`, patterns: ['**'], body: `BODY${i}`, title: `BODY${i}`,

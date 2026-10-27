@@ -54,3 +54,11 @@ test('land names the Windows check once land/<sha> is pushed, and only then', ()
   assert.equal(refused.go(), 1)
   assert.equal(windowsLine(refused.said), undefined)
 })
+
+// A Windows peer whose git sets core.autocrlf=true checked out CRLF from the printed command and had to add the flag itself
+// (ba0b93e6, 2026-10-27): the command carries it, stored in the clone as core.longpaths is.
+test('the Windows check clones with autocrlf off', () => {
+  const w = world()
+  assert.equal(w.go(), 0, w.said.join('\n'))
+  assert.match(windowsLine(w.said), /git clone -c core\.longpaths=true -c core\.autocrlf=false https:/)
+})

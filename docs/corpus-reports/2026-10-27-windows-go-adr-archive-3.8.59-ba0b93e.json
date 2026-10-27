@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-27",
+  "at": "ba0b93e6074983fe3cbee91bd11faf33aa627252",
+  "plugin": "3.8.59",
+  "kind": "probe",
+  "probeSha256": "a07089753b4bdd0bf580fe366e6cc49f9c54b5e3e51e08e10d32209254efc200",
+  "readers": "965cf904036a8dd0ebed5c3384e3e8697a78cbefc180d49c973e737f1128bc32",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 63,
+    "undecided": 0,
+    "tasks": 297,
+    "taskDirectories": 60
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 64,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "windows-go-adr-archive",
+  "found": ""
+}

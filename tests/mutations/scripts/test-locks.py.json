@@ -1,0 +1,11 @@
+{
+  "mutations": [
+    {
+      "label": "test-locks prints UTF-8 on a cp1252 console",
+      "file": "scripts/test-locks.py",
+      "tests": ["tests/test-locks-cp1252.test.mjs"],
+      "from": "        _s.reconfigure(encoding=\"utf-8\", errors=\"replace\")",
+      "to": "        pass"
+    }
+  ]
+}

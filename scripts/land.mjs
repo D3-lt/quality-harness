@@ -145,8 +145,9 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
     const staged = ran('git', ['push', 'origin', `${sha}:refs/heads/${branch}`], true).status
     if (staged !== 0) { log(`land: git push to ${branch} exited ${staged}; nothing was pushed to main`); return 1 }
     // ADR-126 T6: what a Windows peer runs at the sha while CI does, so a Windows-only defect shows up during the wait. It
-    // names the public remote and the sha only (CLAUDE.md §6); `-c core.longpaths=true` is what a deep Windows clone needs (§7).
-    log(`land: ${branch} is pushed; a Windows peer can check it now: git clone -c core.longpaths=true https://github.com/D3-lt/quality-harness.git qh-${sha.slice(0, 8)} && cd qh-${sha.slice(0, 8)} && git fetch -q origin ${branch} && git checkout -q --detach ${sha} && bash scripts/selftest.sh`)
+    // names the public remote and the sha only (CLAUDE.md §6); `-c core.longpaths=true` is what a deep Windows clone needs (§7),
+    // and `-c core.autocrlf=false` keeps a machine that sets autocrlf=true from checking out CRLF (a Windows peer at ba0b93e6).
+    log(`land: ${branch} is pushed; a Windows peer can check it now: git clone -c core.longpaths=true -c core.autocrlf=false https://github.com/D3-lt/quality-harness.git qh-${sha.slice(0, 8)} && cd qh-${sha.slice(0, 8)} && git fetch -q origin ${branch} && git checkout -q --detach ${sha} && bash scripts/selftest.sh`)
     // Every check-run at the sha, every page: a required run on a later page is still a run (ADR-118 Decision 2).
     const runsAt = () => {
       const pages = parsed(text('gh', ['api', `repos/{owner}/{repo}/commits/${sha}/check-runs?filter=all&per_page=100`, '--paginate', '--slurp']) ?? '')

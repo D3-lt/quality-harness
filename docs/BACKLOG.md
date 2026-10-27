@@ -3960,3 +3960,14 @@ The verification review of 51d63c95 found the check could falsely refuse: the pa
 a `test-lock-b64:` inside the recorded command was hashed instead of the trailing field. Both lock fields are now read only
 from the row's trailing lock suffix (`_row_lock_sha`), tested with a command that holds lock text; mutant RED. All 119 records
 under `docs/adr/` lint exit 0 after it, with no lock-file, inline-payload or `Consumes` finding.
+
+## 430. corpus-probe over an ADR directory that holds more than records: three leads from an outside run
+
+From the Windows peer's outside run at ba0b93e6 (2026-10-27), over a Go repository whose ADR directory also holds an
+archive and design notes. Not reproduced here; corpus-probe.mjs is unchanged since v3.8.58, so all three predate 3.8.59.
+1. A sibling archive directory beside the live records is linted as current records.
+2. Dated design notes in the ADR directory are counted as records and FAIL on the missing Alternatives heading.
+3. A Markdown file that is not a record (no `Status:` header) is visited.
+A fourth lead, `"found": ""` beside lint FAILs, is as intended: `found` is the runner's own one-line note, written empty by
+the tool (`plugin/scripts/corpus-probe.mjs` `attestation`, `docs/corpus-reports/README.md`), and `disagreements` counts
+only adr-next against work-next. Open: what decides "a record" for the probe, and whether adr-lint's directory walk agrees.

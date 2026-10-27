@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "a Windows peer's clone of land/<sha> checks out with autocrlf off",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/windows-check.test.mjs"],
+      "from": "git clone -c core.longpaths=true -c core.autocrlf=false https:",
+      "to": "git clone -c core.longpaths=true https:",
+      "only": "^(?:the Windows check clones with autocrlf off)$"
+    },
+    {
       "label": "ADR-126 T6: land names the Windows check once land/<sha> is pushed",
       "file": "scripts/land.mjs",
       "tests": ["tests/windows-check.test.mjs"],

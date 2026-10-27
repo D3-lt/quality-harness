@@ -21,6 +21,13 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+# A Windows console is cp1252, and the grouped lines print `←`: the print raised UnicodeEncodeError there (a Windows peer's
+# selftest at ba0b93e6). As every gate in plugin/bin does, standard output and error are UTF-8 whatever the console says.
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE / "plugin" / "lib"))

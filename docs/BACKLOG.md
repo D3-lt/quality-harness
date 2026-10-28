@@ -3978,3 +3978,23 @@ The read-only Claude review of ADR-130 found that ADR-101 and its T1/T2 Tests ta
 `tests/publish-judgement.test.mjs`. ADR-130 removes that unlocked test with the publish policy engine; its old records
 remain historical evidence. Runtime behavior is unaffected. Open: whether ADR-101 should gain a supersession note
 pointing to ADR-130, without rewriting its task evidence.
+
+## 432. OPEN 2026-10-28 — advisory findings from the Go cutover release review
+
+The recorded Claude fallback review of `v3.8.59..b504ac07` returned clean with these advisories. The Codex run was
+terminated by SIGKILL without a verdict; it is not review evidence. Confirmed against source, with actual source lines
+rather than the reviewer's diff offsets:
+
+- `tests/optional-check.test.mjs:62` patches Node's `child_process.spawn` to observe automatic baseline launches. The
+  shipped lifecycle now delegates to Go, so that marker assertion cannot observe Go starting a child. The orientation
+  and environment assertions remain live. Open: replace the launch probe with a native boundary test and a mutant that
+  proves it catches an actual launch; ADR-130's Implementation paragraph describes the former Node interception.
+- Governs path remapping left duplicate entries in ADR-119, ADR-120, ADR-121, ADR-122 and ADR-130. The paths resolve and
+  the gates pass; deduplicate the headers without rewriting historical task evidence.
+- `core/hooks/pending.go:13` deliberately calls the retained Node ADR reader on a first governed edit. It is bounded,
+  preserves governing context that the former Go stub omitted, and reports could-not-look on failure. It still costs a
+  Node launch. This is the existing ADR-095 corpus-reading cost obligation, not grounds to suppress unknown coverage.
+  Final component measurements on macOS arm64 (three samples per mode, load 3.50 to 3.46 on ten cores) measured corpus
+  Edit at 309.37 ms for the post-ADR-130 Node oracle and 343.50 ms through the verified Go launcher. SessionStart was
+  125.90 to 131.59 ms; Stop was 388.13 to 311.94 ms. Model-directed text matched in each measured case. These are lifecycle
+  component timings, not whole-session CPU or token savings, and supersede the earlier prototype timing comparison.

@@ -142,7 +142,7 @@ function fixture(top, label) {
   return { repo, git, hook, log, logFile, session, top }
 }
 
-test('a write already on record is not forgiven by a baseline adopted after it was committed', () => {
+test('a write already on record is not forgiven by a baseline adopted after it was committed', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-written-')))
   try {
     const { repo, git, hook, log } = fixture(top, 'written')

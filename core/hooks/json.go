@@ -109,9 +109,6 @@ func isUndefined(v any) bool { _, ok := v.(undefinedType); return ok }
 // nullish is `v == null`: undefined or null.
 func nullish(v any) bool { return v == nil || isUndefined(v) }
 
-// str reads a string, and says whether it was one.
-func str(v any) (string, bool) { s, ok := v.(string); return s, ok }
-
 // strOr is the string, or "" when it is not one.
 func strOr(v any) string { s, _ := v.(string); return s }
 
@@ -120,9 +117,6 @@ func isTrue(v any) bool { b, ok := v.(bool); return ok && b }
 
 // isFalse is `v === false`.
 func isFalse(v any) bool { b, ok := v.(bool); return ok && !b }
-
-// num reads a number.
-func num(v any) (float64, bool) { f, ok := v.(float64); return f, ok }
 
 // isInteger is Number.isInteger.
 func isInteger(v any) bool {

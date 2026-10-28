@@ -437,7 +437,7 @@ test('advisory Python syntax check creates no project bytecode', async () => {
   assert.deepEqual(await readdir(dir), ['probe.py'])
 })
 
-test('command hook advises on subagent completion without later evidence', async () => {
+test('command hook advises on subagent completion without later evidence', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // A subagent end that is not a read-only reviewer is a completion boundary
   // like any other: ADR-060's R1 speaks for the work it leaves unchecked.
   const { dir, session } = await unheldRepository('quality-hook-')
@@ -448,7 +448,7 @@ test('command hook advises on subagent completion without later evidence', async
   assert.match(run.stdout, /"systemMessage"/)
 })
 
-test('the publish warning advises, never blocks, while this repository is unchecked', async () => {
+test('the publish warning advises, never blocks, while this repository is unchecked', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // ADR-060: the finding is the observed state — no qh-check has passed on this
   // tree — raised before a command that names commit or push runs.
   const { dir, session } = await unheldRepository('quality-hook-')
@@ -471,7 +471,7 @@ test('the publish warning advises, never blocks, while this repository is unchec
   assert.doesNotMatch(mention.stdout, /"deny"/, `a mention is never a refusal: ${mention.stdout}`)
 })
 
-test('reported: no advisory claims to have blocked anything', async () => {
+test('reported: no advisory claims to have blocked anything', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // The wording IS the contract. A live 2.3.0 session read "Quality gate blocked
   // git commit/push", believed it had been stopped, committed anyway and then
   // narrated "Committed — the reload cleared the stuck hook": a false belief
@@ -655,7 +655,7 @@ test('reported: a project that ships a verify script is asked for that script', 
   assert.equal(projectCheckCommand(dir), 'bash verify.sh')
 })
 
-test('reported: a project that names no check hears nothing from the evidence gates', async () => {
+test('reported: a project that names no check hears nothing from the evidence gates', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // redash-api, 2026-08-26, on 2.3.0: "this is useless.. repeats everywhere even
   // when we do not work with quality harness". The generic fallback — "run the
   // smallest repository-owned test, lint, build, or validation command" — fired
@@ -734,7 +734,7 @@ test('the pre-publish artifact pass still gates a malformed record', async () =>
   assert.match(run.stderr, /Artifact validation failed/)
 })
 
-test('subagent evidence gate remains active while the parent has background work', async () => {
+test('subagent evidence gate remains active while the parent has background work', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // The background-work skip is Stop's alone: a subagent that has finished has
   // finished, whatever the parent still has running.
   const { dir, session } = await unheldRepository('quality-hook-background-')
@@ -893,7 +893,7 @@ test('the artifact pass never outlives the hook it runs inside', async () => {
 // BACKLOG §314: where git outran observe()'s budget, an unchecked commit met neither a
 // refusal nor a word, from PreToolUse or from git's own hook. Unknown is said, as
 // advice (CLAUDE.md §16). The budget seam makes the slow host deterministic.
-test('a tree that could not be observed is said at a publish, in PreToolUse and in git\'s hook', async () => {
+test('a tree that could not be observed is said at a publish, in PreToolUse and in git\'s hook', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { dir, session } = await unheldRepository('quality-unobserved-')
   const slow = { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '1' }
   const attempt = publishAttempt('git commit -m x', dir, session, { env: slow })
@@ -927,7 +927,7 @@ test('observe()\'s budget is read from the environment, and nonsense keeps the d
 // written as the reports arrived rather than as tidy minimal cases, because the
 // tidy version is what passed while the real one failed.
 
-test('no finding is ever hidden: a completion advisory is a systemMessage, and a PreToolUse one reaches the agent in full', async () => {
+test('no finding is ever hidden: a completion advisory is a systemMessage, and a PreToolUse one reaches the agent in full', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // The owner's rule, stated three times: never block, never hide. The advisory
   // conversion nearly violated the second half — exit-0 stderr alone is surfaced
   // only in transcript view, so a finding written there reaches nobody. A
@@ -986,7 +986,7 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   assert.doesNotMatch(hookSaid(quiet.stdout).stdout, /"systemMessage"/)
 })
 
-test('a slow hook names itself; a fast one says nothing about its time', async () => {
+test('a slow hook names itself; a fast one says nothing about its time', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // A hook that is slow was a pause with no name. Above the threshold the run
   // adds one line on both channels — never instead of the finding.
   const repo = await checkedProject('quality-slow-')
@@ -1150,7 +1150,7 @@ test('a location key is the realpath of the repository root, case-folded where t
   assert.equal(locationKey(path.join(dir, 'nope'), 'linux'), path.join(dir, 'nope'))
 })
 
-test('reported: the nag says what changed in a form a person can read', async () => {
+test('reported: the nag says what changed in a form a person can read', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // laravel-monolith, 2026-08-26. The Stop message spliced 120 raw characters of
   // each command into one sentence, so a heredoc put newlines and a mid-token
   // truncation into the text that exists to say WHAT CHANGED:
@@ -1421,7 +1421,7 @@ test('a read-only role is told it is read-only, and an editing role is not', asy
   assert.match(contract('code-reviewer'), /read-only/)
 })
 
-test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs', async () => {
+test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // Both halves of the escape survive ADR-060, because both read the assistant's
   // own message and the OBSERVED changed paths rather than a command's text.
   const { dir, session } = await unheldRepository('quality-escape-docs-', 'notes.md')
@@ -1466,7 +1466,7 @@ test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and 
     'EVIDENCE-LIMITED: prose only, nothing here executes').stdout, /"systemMessage"/)
 })
 
-test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
+test('an interim answer defers the gate at Stop, and never at TaskCompleted', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { dir, session } = await unheldRepository('quality-interim-', 'notes.md')
   const at = (event, message) => runLifecycleHook({
     hook_event_name: event, cwd: dir, session_id: session, last_assistant_message: message,
@@ -1697,7 +1697,7 @@ test('listing-null still names a stale shadow install, not no corpus', async () 
   assert.match(`${listed.stdout}${listed.stderr}`, /SEPARATE copy/)
 })
 
-test('the harness has no opinion about git branches', async () => {
+test('the harness has no opinion about git branches', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // Removed on 2026-08-26: "leave GIT alone... our quality harness is only about
   // ADR skills, not the GIT usage, AI agent already knows how to work here, and
   // even so — CLAUDE.md must be the one who instructs." The guard had just fired
@@ -3615,7 +3615,7 @@ test('the claims ledger gets one row per completion event, classified', async ()
   assert.deepEqual([...new Set(rows.map(row => row.version))], ['events/1'])
 })
 
-test('the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so', async () => {
+test('the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { dir, session } = await unheldRepository('quality-claims-nodata-')
   const env = { ...process.env }
   delete env.CLAUDE_PLUGIN_DATA
@@ -3627,7 +3627,7 @@ test('the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so',
   assert.match(run.stdout, /qh-check/, run.stdout)
 })
 
-test('the claims ledger row never throws out of the hook', async () => {
+test('the claims ledger row never throws out of the hook', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { dir, session } = await unheldRepository('quality-claims-unwritable-')
   // A data dir that is a FILE: every write into it fails, at the OS level, on
   // every platform. The hook must still judge and still exit 0.
@@ -4061,7 +4061,7 @@ function sessionStartSaid(repo, session, source) {
   return JSON.parse(run.stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
 }
 
-test("after a compaction the session is told git's refusal is not yet armed", async () => {
+test("after a compaction the session is told git's refusal is not yet armed", { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { dir: repo, session } = await unheldRepository('quality-arming-')
   appendEvent(repo, session, { event: 'publish.offered' })
   assert.match(sessionStartSaid(repo, session, 'compact'), ARMING_LINE)
@@ -4074,4 +4074,102 @@ test('the armed line is silent on startup and once the hook has run', async () =
   assert.doesNotMatch(sessionStartSaid(repo, session, 'startup'), ARMING_LINE, 'startup: the next prompt is the first')
   appendEvent(repo, session, { event: 'publish.hook-ran', hook: 'prepare-commit-msg' })
   assert.doesNotMatch(sessionStartSaid(repo, session, 'compact'), ARMING_LINE, 'armed: nothing to say')
+})
+
+// ADR-130: retained behavior, with the retired publish-policy expectations removed.
+test("optional checks still report an absent claims data directory", async () => {
+  const { dir, session } = await unheldRepository('quality-claims-nodata-')
+  const env = { ...process.env }
+  delete env.CLAUDE_PLUGIN_DATA
+  const run = turnEnd(dir, session, '✅ All tests pass. Task complete.', { env })
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stderr, /CLAUDE_PLUGIN_DATA/,
+    `the absence must be announced, not skipped\n${run.stderr}`)
+  // The advisory still fires: recording is separate from judging.
+  assert.doesNotMatch(run.stdout, /qh-check/, run.stdout)
+})
+
+test("optional check hooks survive an unwritable claims ledger", async () => {
+  const { dir, session } = await unheldRepository('quality-claims-unwritable-')
+  // A data dir that is a FILE: every write into it fails, at the OS level, on
+  // every platform. The hook must still judge and still exit 0.
+  const wall = path.join(dir, 'not-a-directory')
+  await writeFile(wall, 'x')
+  const run = turnEnd(dir, session, '✅ All tests pass. Task complete.',
+    { env: { ...process.env, CLAUDE_PLUGIN_DATA: wall } })
+  assert.equal(run.status, 0, `a ledger failure is not a hook failure\n${run.stderr}`)
+  assert.doesNotMatch(run.stdout, /qh-check/,
+    `the advisory must survive an unwritable ledger\n${run.stdout}`)
+})
+
+test("optional checks impose no branch or publishing policy", async () => {
+  // Removed on 2026-08-26: "leave GIT alone... our quality harness is only about
+  // ADR skills, not the GIT usage, AI agent already knows how to work here, and
+  // even so — CLAUDE.md must be the one who instructs." The guard had just fired
+  // on a command whose first act was `git switch -c task/…`, the escape it was
+  // itself demanding.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-nogit-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
+  await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
+  await writeFile(path.join(repo, 'a.js'), 'x\n')
+
+  const payloads = [
+    { hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: repo,
+      tool_input: { file_path: path.join(repo, 'a.js') } },
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+      tool_input: { command: 'printf x > a.js' } },
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+      tool_input: { command: 'git merge feature' } },
+    { hook_event_name: 'SessionStart', cwd: repo },
+  ]
+  for (const payload of payloads) {
+    const run = runLifecycleHook(payload)
+    assert.equal(run.status, 0)
+    const message = `${run.stdout}${run.stderr}`
+    assert.doesNotMatch(message, /protected|task branch|git switch|--ff-only/i,
+      `${JSON.stringify(payload)} -> ${message}`)
+  }
+
+  // The evidence question is untouched: it is about the project's check, not
+  // about git, and it still fires before a command naming commit or push.
+  const session = `nogit-${Date.now()}-${process.pid}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo, session_id: session })
+  await writeFile(path.join(repo, 'b.js'), 'y\n')
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
+    tool_input: { command: 'git commit -m x' },
+  })
+  assert.doesNotMatch(commit.stderr, /names commit or push|npm run test/)
+})
+
+test("optional publishing keeps slow-hook timing visible", async () => {
+  // A hook that is slow was a pause with no name. Above the threshold the run
+  // adds one line on both channels — never instead of the finding.
+  const repo = await checkedProject('quality-slow-')
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+  ]))
+  const { dir: held, session } = await unheldRepository('quality-slow-commit-')
+  const payload = {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: held, session_id: session,
+    tool_input: { command: 'git commit -m x' },
+  }
+  const slow = runLifecycleHook(payload, { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_SLOW_HOOK_MS: '0' } })
+  assert.equal(slow.status, 0, slow.stderr)
+  const said = JSON.parse(slow.stdout)
+  assert.match(said.systemMessage, /the PreToolUse hook took \d+\.\ds/, 'the pause is named to the person')
+  assert.match(said.systemMessage.split('\n').at(-1), SLOW_HOOK_NOTE, 'the pause is one whole line, the only one a silence check may ignore')
+  assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(slow.stderr, /hook took \d+\.\ds/, 'and in the transcript')
+  assert.doesNotMatch(said.hookSpecificOutput?.permissionDecisionReason ?? '', /qh-check/)
+
+  // A fast run in a state the warning has not spoken for yet.
+  await writeFile(path.join(held, 'third.py'), 'print(2)\n')
+  const fast = JSON.parse(runLifecycleHook(payload).stdout || '{}')
+  assert.doesNotMatch(fast.systemMessage ?? '', /hook took/, 'a fast run does not talk about its time')
+  // With nothing to say and nothing slow, nothing is written at all.
+  const quiet = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: await mkdtemp(path.join(testTmp, 'quality-quiet-')) })
+  assert.equal(hookSaid(quiet.stdout).stdout, '', 'no finding, and a pause line is not one')
 })

@@ -17,32 +17,11 @@
       "only": "^(?:a standing paragraph is said once per context, not once per three days)$"
     },
     {
-      "label": "ADR-111 T3: a startup SessionStart starts the baseline",
-      "file": "plugin/scripts/on-session-start.mjs",
-      "tests": [
-        "tests/baseline.test.mjs"
-      ],
-      "from": "    startBaseline(input)",
-      "to": "    void startBaseline",
-      "only": "^(?:only a startup SessionStart starts the baseline, and it waits for nothing|a session whose check was green at its start and is red after an edit is told the change broke it)$"
-    },
-    {
-      "label": "ADR-111 T3: no check, no baseline",
-      "file": "plugin/scripts/on-session-start.mjs",
-      "tests": [
-        "tests/baseline.test.mjs"
-      ],
-      "from": "  if (!command || origin === 'refused' || origin === 'unproven') return",
-      "to": "  if (origin === 'refused' || origin === 'unproven') return",
-      "only": "^(?:only a startup SessionStart starts the baseline, and it waits for nothing)$"
-    },
-    {
       "label": "publish-hook: SessionStart offers the hook",
       "file": "plugin/scripts/on-session-start.mjs",
       "tests": [
         "tests/publish-hook.test.mjs"
       ],
-      "only": "sessionstart offers the hook",
       "from": "  try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {",
       "to": "  try { null } catch (failure) {"
     },
@@ -113,16 +92,6 @@
       "to": "      && true"
     },
     {
-      "label": "ADR-068 T2: the arming line is only for a compaction or a resume",
-      "file": "plugin/scripts/on-session-start.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "only": "the armed line is silent",
-      "from": "  if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))",
-      "to": "  if (awaitingArming(readEvents(input.cwd, input.session_id))"
-    },
-    {
       "label": "ADR-122 T3: a resume with no request evidence keeps the three-day mark",
       "file": "plugin/scripts/on-session-start.mjs",
       "tests": [
@@ -133,36 +102,6 @@
       "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
     },
     {
-      "label": "on-session-start: a session git could not arm is told",
-      "file": "plugin/scripts/on-session-start.mjs",
-      "tests": [
-        "tests/unarmed-said.test.mjs"
-      ],
-      "from": "    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) sections.push(marked(note))",
-      "to": "    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) void note",
-      "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
-    },
-    {
-      "label": "on-session-start: the unarmed note is said once per repository and reason",
-      "file": "plugin/scripts/on-session-start.mjs",
-      "tests": [
-        "tests/unarmed-said.test.mjs"
-      ],
-      "from": "    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) sections.push(marked(note))",
-      "to": "    if (true) sections.push(marked(note))",
-      "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
-    },
-    {
-      "label": "on-session-start: a host with no env file is not told it is unarmed",
-      "file": "plugin/scripts/on-session-start.mjs",
-      "tests": [
-        "tests/unarmed-said.test.mjs"
-      ],
-      "from": "  if (offer?.event === 'publish.unarmed' && offer.reason !== 'CLAUDE_ENV_FILE is not set') {",
-      "to": "  if (offer?.event === 'publish.unarmed') {",
-      "only": "^(?:a session git could not arm is told why, once per repository; an armed one and a host with no env file are not)$"
-    },
-    {
       "label": "ADR-120 T4: SessionStart never names the plugin root",
       "file": "plugin/scripts/on-session-start.mjs",
       "tests": [
@@ -170,7 +109,7 @@
       ],
       "from": "  try { offerPluginRoot({ cwd: input.cwd, session: input.session_id }) } catch (failure) {",
       "to": "  try { null } catch (failure) {",
-      "only": "^(?:the session start writes the plugin root once, whatever the git hook probe found)$"
+      "only": "^(?:optional\\ commit\\ tracking\\ exports\\ are\\ installed\\ once\\ with\\ the\\ plugin\\ root)$"
     }
   ]
 }

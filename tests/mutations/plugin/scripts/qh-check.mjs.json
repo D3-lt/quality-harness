@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: a waiter repeats the successful check ahead of it",
+      "tests": [
+        "tests/check-after-wait.test.mjs"
+      ],
+      "from": "  if (waitedMs > 0 && !fast && !again && env.QUALITY_HARNESS_CHECK_AGAIN !== '1') {",
+      "to": "  if (false) {",
+      "only": "^a waiting check reuses the pass",
+      "file": "plugin/scripts/qh-check.mjs"
+    },
+    {
+      "label": "ADR-130: the skipped waiter keeps its lease",
+      "tests": [
+        "tests/check-after-wait.test.mjs"
+      ],
+      "from": "      if (!continuing && held) leaseStep('release', () => lease.release(held))",
+      "to": "      if (false) leaseStep('release', () => lease.release(held))",
+      "only": "^a waiting check reuses the pass",
+      "file": "plugin/scripts/qh-check.mjs"
+    },
+    {
       "label": "Codex v3.8.44 review: a baseline never waits for its turn",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": [

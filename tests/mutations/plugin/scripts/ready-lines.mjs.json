@@ -17,8 +17,7 @@
         "tests/advisory-headline.test.mjs"
       ],
       "from": "  const sentence = first.trim().replace(/^quality-harness:\\s*/i, '').split(/(?<=\\.)\\s/)[0]",
-      "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]",
-      "only": "^(?:the headline a person sees at a publish warning names the finding)$"
+      "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]"
     },
     {
       "label": "win: spawnGate hides the gate it starts on Windows",

@@ -106,8 +106,7 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
     git('commit', '-q', '-m', 'a committed awkward name')
     const out = hook({ hook_event_name: 'Stop', session_id: session, cwd: repo })
     const said = `${out.stdout}${out.stderr}`
-    // The control: the hook DID speak about this tree, so silence is not the pass.
-    assert.match(said, /na\u00efve probe\.md/, `the uncommitted name is reported as it is spelled: ${said.slice(0, 600)}`)
+    // ADR-130: unchecked work is silent; the malformed artifact below must still be reported.
     assert.doesNotMatch(said, /\\\\?30[0-9]/, `no octal escape reaches the user: ${said.slice(0, 600)}`)
     assert.doesNotMatch(said, /could not classify/, `and the gate is never sent after a path that is not there: ${said.slice(0, 600)}`)
     assert.match(said, /Artifact validation failed[\s\S]*ADR-900-committ\u00e9d\.md/, `the committed awkward name reached the gate and was judged: ${said.slice(0, 900)}`)

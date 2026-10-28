@@ -40,9 +40,8 @@ the command invalidates the entry · duration. The tool writes the line; a model
   the start and end; a pass taken above the core count is marked unattributable.
 - **Checks that tests can fail.** A mutation campaign breaks one mechanism at a time and reports
   every test that did not notice.
+- **Checks are optional.** No commit or push refusal, check-demanding nag, or automatic baseline.
 - **Advises; the sanctioned refusals are the ones listed here.** Every gate reports and lets work continue, except:
-  - a `git commit` or `git push` on a tree no `qh-check` has passed on is refused;
-    `"publish": "warn"` in `.quality-harness.json` turns this into a warning;
   - a reviewer agent the plugin started read-only cannot edit, commit or push;
   - an agent's write into the check ledgers, through a tool or a redirection the hook can see, is
     refused; `"ledgers": "warn"` turns this into a warning.
@@ -150,7 +149,7 @@ Workflows, for costly cases only: `quality-cycle` (high-risk review), `consensus
 decision that is costly to reverse), `review-ring` (one review, at most one fix, then
 revalidation).
 
-Hooks: leaf agents, completion evidence, artifact gates, the publish refusal and the ledger guard
+Hooks: leaf agents, descriptive evidence, artifact gates, the reviewer guard and the ledger guard
 above. A session-start notice reports standalone copies of the gates that have drifted from the
 plugin; `sync-standalone.mjs --link --apply` replaces them with forwarders.
 

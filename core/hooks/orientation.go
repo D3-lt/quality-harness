@@ -28,48 +28,6 @@ func pluginRoot() string {
 	return filepath.Dir(filepath.Dir(exe))
 }
 
-// startBaseline is on-session-start.mjs's (ADR-111 T3): the project's check on the tree this session began with, started
-// detached so no hook waits on it (ADR-080), and written to its own ledger by `qh-check --baseline`. Startup only, and only where
-// a check is named. QUALITY_HARNESS_BASELINE_RUNNER=off turns it off, and a path stands in for qh-check.
-func startBaseline(cwd string, session any) {
-	setting := os.Getenv("QUALITY_HARNESS_BASELINE_RUNNER")
-	if setting == "off" {
-		return
-	}
-	var tree any
-	for _, e := range readEvents(cwd, session).E {
-		if strict(get(e, "event"), "session.started") {
-			if isTrue(dig(e, "observation", "ok")) {
-				tree = dig(e, "observation", "tree")
-			}
-			break
-		}
-	}
-	started, ok := tree.(string)
-	if !ok {
-		return
-	}
-	if o := checkCommandOrigin(cwd, nil); o.command == "" || o.origin == "refused" || o.origin == "unproven" {
-		return
-	}
-	runner := setting
-	if runner == "" {
-		runner = filepath.Join(pluginRoot(), "scripts", "qh-check.mjs")
-	}
-	node, err := exec.LookPath("node")
-	if err != nil {
-		node = "node"
-	}
-	// untimed-spawn: detached on purpose — qh-check bounds its own run (QUALITY_HARNESS_CHECK_TIMEOUT)
-	cmd := exec.Command(node, runner, "--baseline", started)
-	cmd.Dir = resolvePath(cwd)
-	detach(cmd)
-	// A baseline that cannot start costs the session nothing but the baseline.
-	if cmd.Start() == nil && cmd.Process != nil {
-		cmd.Process.Release()
-	}
-}
-
 var corpusDirNames = []string{"docs/adr", "docs/specs", "docs/decisions", "adr", "specs"}
 
 // listedPath is a path as git listed it, in `/` form.
@@ -468,9 +426,7 @@ func sessionOrientation(cwd string, say func(text, root string) bool, mark bool)
 			named = "no `check` is declared in `.quality-harness.json`; inferred " + checkInCode(check) + " from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass"
 		}
 		standing("Verification: " + named + ". " +
-			"Run it through `qh-check`: that is what records the result where the " +
-			"completion and commit advisories read it. The same command run any other " +
-			"way still proves the work to you, and leaves them nothing to see.")
+			"`qh-check` optionally records a run for status and reports (ADR-130).")
 	}
 	if stale := staleVersionNotice(); stale != "" {
 		standing(stale)
@@ -499,46 +455,6 @@ func sessionOrientation(cwd string, say func(text, root string) bool, mark bool)
 	}
 	// The standalone-copy notice (install-notices.mjs shadowInstallNotice) is not ported: see ADR-110 T1's divergences.
 	return strings.Join(lines, "\n\n")
-}
-
-const armingNote = "quality-harness: git's own refusal of an unchecked commit or push has not run yet in this " +
-	"session: it takes effect from the next prompt, and until then the text refusal applies (ADR-068)."
-
-func unarmedNote(reason string) string {
-	return "quality-harness: git's own refusal of an unchecked commit or push is not armed in this " +
-		"session (" + reason + "). A commit or push this hook reads in a command is still refused; one made inside a script or a " +
-		"tool the command runs is not, so run `qh-check` before running one (ADR-066)."
-}
-
-// awaitingArming: the session was offered git's hook and no hook run has followed the latest offer.
-func awaitingArming(entries []any) bool {
-	offered := -1
-	for i, e := range entries {
-		if strict(get(e, "event"), "publish.offered") {
-			offered = i
-		}
-	}
-	if offered < 0 {
-		return false
-	}
-	for _, e := range entries[offered+1:] {
-		if strict(get(e, "event"), "publish.hook-ran") {
-			return false
-		}
-	}
-	return true
-}
-
-func armedByGit(entries []any) bool {
-	if awaitingArming(entries) {
-		return false
-	}
-	for _, e := range entries {
-		if strict(get(e, "event"), "publish.hook-ran") {
-			return true
-		}
-	}
-	return false
 }
 
 // pluginRootExport is the shell line that names the plugin copy for the session's shell (ADR-120 T4), as the Node writer's.
@@ -576,18 +492,12 @@ func publishHookExports() string {
 			`(node or its script is gone), so this ` + event + ` was not judged" >&2; exit 0; }; exec "$n" ` + single(script) + " " + event
 	}
 	entries := [][2]string{
-		{"hook.qh-publish-commit.command", runLine("prepare-commit-msg")},
-		{"hook.qh-publish-commit.event", "prepare-commit-msg"},
-		{"hook.qh-publish-commit.enabled", "true"},
-		{"hook.qh-publish-push.command", runLine("pre-push")},
-		{"hook.qh-publish-push.event", "pre-push"},
-		{"hook.qh-publish-push.enabled", "true"},
 		// ADR-128 T2: the sha of each commit git makes for this session, which the branch-state brief reads. It refuses nothing.
 		{"hook.qh-commit-made.command", runLine("post-commit")},
 		{"hook.qh-commit-made.event", "post-commit"},
 		{"hook.qh-commit-made.enabled", "true"},
 	}
-	out := []string{"# quality-harness (ADR-066): git refuses an unchecked commit or push for this session", "__qh_n=${GIT_CONFIG_COUNT:-0}"}
+	out := []string{"# quality-harness: record commits made by this session; checks are optional (ADR-130)", "__qh_n=${GIT_CONFIG_COUNT:-0}"}
 	for i, kv := range entries {
 		out = append(out, fmt.Sprintf("__qh_k=$((__qh_n + %d)); export GIT_CONFIG_KEY_$__qh_k=%s GIT_CONFIG_VALUE_$__qh_k=%s", i, quote(kv[0]), quote(kv[1])))
 	}
@@ -635,7 +545,7 @@ func offerPublishHook(cwd string, session any) {
 		record(O("event", "publish.unarmed", "reason", "the env file could not be read ("+errCode(err, err.Error())+")"))
 		return
 	}
-	if strings.Contains(existing, "hook.qh-publish-") {
+	if strings.Contains(existing, "hook.qh-commit-made.") {
 		return
 	}
 	probe := run(10*time.Second, cwd, map[string]string{"GIT_OPTIONAL_LOCKS": "0"}, "", "git", "-c", "hook.qhprobe.command=true", "-c", "hook.qhprobe.event=pre-commit", "hook", "list", "pre-commit")
@@ -656,16 +566,6 @@ func offerPublishHook(cwd string, session any) {
 		return
 	}
 	record(O("event", "publish.offered"))
-}
-
-func lastOffer(entries []any) any {
-	var found any
-	for _, e := range entries {
-		if strict(get(e, "event"), "publish.offered") || strict(get(e, "event"), "publish.unarmed") {
-			found = e
-		}
-	}
-	return found
 }
 
 func onSessionStart(h *hookRun, input *Obj) {
@@ -694,24 +594,8 @@ func onSessionStart(h *hookRun, input *Obj) {
 		}
 		return verdict == "unsaid" || !remembered
 	}
-	marked := func(text string) string { return text + " " + ItemMarker("standing", text) }
 	if orientation := sessionOrientation(cwd, sayStanding, true); orientation != "" {
 		sections = append(sections, orientation)
-	}
-	offer := lastOffer(readEvents(cwd, session).E)
-	if strict(get(offer, "event"), "publish.unarmed") && !strict(get(offer, "reason"), "CLAUDE_ENV_FILE is not set") {
-		reason := "no reason recorded"
-		if r := get(offer, "reason"); !nullish(r) {
-			reason = jsString(r)
-		}
-		note := unarmedNote(reason)
-		if sayStanding(note, resolvePath(cwd)) {
-			sections = append(sections, marked(note))
-		}
-	}
-	if (strict(source, "compact") || strict(source, "resume")) && awaitingArming(readEvents(cwd, session).E) &&
-		(strict(source, "compact") || sayStanding(armingNote, resolvePath(cwd))) {
-		sections = append(sections, marked(armingNote))
 	}
 	if strict(source, "compact") {
 		note := readSessionNote(session)
@@ -746,7 +630,6 @@ func onSessionStart(h *hookRun, input *Obj) {
 				"so what was unverified before it is unknown here (ADR-005).")
 		}
 	} else if strict(source, "startup") || isUndefined(source) {
-		startBaseline(cwd, session)
 		if previous := previousSessionNotice(cwd); previous != "" {
 			sections = append(sections, previous)
 		}

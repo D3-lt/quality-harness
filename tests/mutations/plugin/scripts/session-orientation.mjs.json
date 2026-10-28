@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: session orientation demands a recorded check",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ],
+      "from": "      + '`qh-check` optionally records a run for status and reports (ADR-130).')",
+      "to": "      + 'Run it through `qh-check`.')",
+      "only": "^SessionStart neither spawns"
+    },
+    {
       "label": "ADR-122 T3: a standing paragraph said carries its marker",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": ["tests/said-per-context-routing.test.mjs"],
@@ -137,16 +147,6 @@
       "from": "(UNPROVEN), so corpus existence is not known.",
       "to": "(UNPROVEN).",
       "only": "^(?:git cannot list is UNPROVEN, not no corpus)$"
-    },
-    {
-      "label": "ADR-099 T1: the readiness transcript changes only by the removed paragraph",
-      "file": "plugin/scripts/session-orientation.mjs",
-      "tests": [
-        "tests/hook-goldens.test.mjs"
-      ],
-      "from": "that is what records the result where the ",
-      "to": "that records the result where the ",
-      "only": "^(?:readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were)$"
     },
     {
       "label": "ADR-099 T1: SessionStart starts no adr-next",

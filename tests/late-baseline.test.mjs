@@ -58,7 +58,7 @@ function fixture(top, label) {
   return { repo, hook, log, run }
 }
 
-test('a first Stop with no SessionStart does not accuse a tree nothing changed', () => {
+test('a first Stop with no SessionStart does not accuse a tree nothing changed', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-late-')))
   try {
     const { repo, hook, log } = fixture(top, 'clean')
@@ -80,7 +80,7 @@ test('a first Stop with no SessionStart does not accuse a tree nothing changed',
   } finally { remove(top) }
 })
 
-test('a DIRTY tree with no SessionStart is still unchecked work, and gets no late baseline', () => {
+test('a DIRTY tree with no SessionStart is still unchecked work, and gets no late baseline', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // The narrowing that keeps the fix honest. The accusation was false only over a
   // clean tree; adopting a dirty one as the baseline would forgive real, unchecked
   // edits — and the first version of the fix did, silencing a publish warning.
@@ -134,7 +134,7 @@ test('a first mention with no SessionStart adopts the late baseline instead of a
   } finally { remove(top) }
 })
 
-test('a mention reads the check that ran before it, and is logged as no publish', () => {
+test('a mention reads the check that ran before it, and is logged as no publish', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-mention-check-')))
   try {
     const { repo, hook, log, run } = fixture(top, 'mention-check')
@@ -175,7 +175,7 @@ test('a mention runs no artifact gate; a publish request does', () => {
 // parent session's log byte-for-byte as it was: three review rounds each found a
 // way a reviewer's warning wrote to or misread the parent's ledger (Codex, f14e4cd
 // and b149b50), and the honest enforcement for that form is the git hook.
-test('a read-only reviewer is decided by the guard alone: no warning, no log write', () => {
+test('a read-only reviewer is decided by the guard alone: no warning, no log write', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-reviewer-mention-')))
   try {
     const { repo, hook, log } = fixture(top, 'reviewer-mention')

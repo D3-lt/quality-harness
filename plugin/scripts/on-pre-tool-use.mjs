@@ -1,7 +1,6 @@
-// PreToolUse: the reviewer guard for a role spawned read-only (ADR-060), the decisions that govern a file about to be edited,
-// and the publish rule for a command that names commit or push (ADR-061, ADR-081). Moved out of lifecycle.mjs unchanged
-// (BACKLOG section 375, stage D).
-import { SHELL_TOOLS, mentionsCommitOrPush, publishUnchecked, readOnlyRole, readOnlyVerdict } from './publish-verdict.mjs'
+// PreToolUse: reviewer and ledger guards, decision context, and artifact validation.
+// Checks impose no publishing policy (ADR-130).
+import { SHELL_TOOLS, mentionsCommitOrPush, readOnlyRole, readOnlyVerdict } from './publish-verdict.mjs'
 import { ledgerRefusal, ledgerWarning, ledgerWrite, ledgersWarn } from './ledger-guard.mjs'
 import { MUTATION_TOOLS } from './hook-record.mjs'
 import { emitJson } from './hook-queue.mjs'
@@ -29,7 +28,7 @@ export async function onPreToolUse(input, recorded) {
       return
     }
   }
-  // ADR-117 T1: the third sanctioned refusal. The evidence in the state directory is written only by its tools.
+  // ADR-117 T1: tool-written evidence is protected. The evidence in the state directory is written only by its tools.
   const ledger = ledgerWrite(input)
   if (ledger) {
     if (ledgersWarn(input.cwd)) {
@@ -67,6 +66,5 @@ export async function onPreToolUse(input, recorded) {
   // (recordHookEvent). The artifact gate is a publish-time check with a
   // publish-time budget: a mention publishes nothing and gets none of it — a
   // peer measured 12 KB of adr-lint findings on a grep before this (2026-09-23).
-  publishUnchecked(input, recorded)
   if (recorded?.event === 'publish.requested') await artifactRule(input, recorded)
 }

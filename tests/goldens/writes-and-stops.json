@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -40,11 +40,11 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. <qh:r1@<marker>>\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert. <qh:w@<marker>>"
+          "additionalContext": "quality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert. <qh:w@<marker>>"
         },
-        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
+        "systemMessage": "quality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
       },
-      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nquality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
+      "stderr": "quality-harness: this turn wrote src/b.js and the tree it wrote to did not change — an edit that matched nothing reports success everywhere but in the tree; read the file and apply the edit again, or say the write was a revert."
     },
     {
       "name": "turn end, tests claimed",
@@ -74,11 +74,11 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. <qh:r1@<marker>>\n\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out <qh:a@<marker>>"
+          "additionalContext": "Artifact validation failed:\nUNPROVEN: could not classify <repo>/out <qh:a@<marker>>"
         },
-        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out"
+        "systemMessage": "Artifact validation failed:\nUNPROVEN: could not classify <repo>/out"
       },
-      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out"
+      "stderr": "Artifact validation failed:\nUNPROVEN: could not classify <repo>/out"
     }
   ],
   "ledgers": {
@@ -200,15 +200,6 @@
       {
         "at": "<time>",
         "event": "action.emitted",
-        "rule": "R1",
-        "key": "<sha>:0:1",
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
         "rule": "W",
         "key": "W:<sha>",
         "channel": "both",
@@ -267,15 +258,6 @@
         "blob": null,
         "complete": false,
         "pass": "<id>"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "R1",
-        "key": "<sha>:0:2",
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       },
       {
         "at": "<time>",

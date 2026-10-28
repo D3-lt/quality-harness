@@ -131,3 +131,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-127](ADR-127-an-escape-is-replayed-against-the-gates.md) | Every defect that escaped to someone outside is replayed against today's tests | Accepted |
 | [ADR-128](ADR-128-say-less-and-measure-what-is-heard.md) | Say less, and measure what the agent does with what is said | Accepted |
 | [ADR-129](ADR-129-a-test-lock-is-a-file-beside-its-row.md) | A test lock's payload is a committed file, and its row carries only the sha | Accepted |
+| [ADR-130](ADR-130-checks-are-optional-tools.md) | Keep explicit checks and evidence; remove compulsory publishing checks, nags and automatic baselines | Accepted |

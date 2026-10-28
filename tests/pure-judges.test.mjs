@@ -90,7 +90,6 @@ test('effect-classes: a function it cannot find, a file it cannot read, nothing 
 // The judges this stage made functions of their facts. A function joins this list when it is one, and leaves it only by a
 // decision a reader can see: the next test names the one that is NOT, and why.
 const JUDGES = [
-  'plugin/scripts/publish-verdict.mjs::publishJudgement',
   'plugin/scripts/check-ledger.mjs::checkStanding',
   'plugin/scripts/check-ledger.mjs::latestOf',
   'plugin/scripts/check-ledger.mjs::latestCheckFor',
@@ -100,7 +99,6 @@ const JUDGES = [
   'plugin/scripts/completion-rules.mjs::completionClaim',
   'plugin/scripts/completion-rules.mjs::completionJudgement',
   'plugin/scripts/publish-command.mjs::publishCommandIn',
-  'plugin/scripts/check-command.mjs::publishSettingNote',
   'plugin/scripts/qh-check.mjs::checkPlan',
   'plugin/scripts/check-record.mjs::classifyRun',
   'plugin/scripts/check-record.mjs::runRecord',

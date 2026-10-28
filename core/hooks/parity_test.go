@@ -176,19 +176,13 @@ func TestClassifierParity(t *testing.T) {
 		if (r.Publish != nil) != ok || (ok && *r.Publish != p) {
 			say(r.Cmd, "publishCommandIn", r.Publish, p)
 		}
-		f := foreignCommitPath(r.Cmd)
-		if (r.Foreign != nil) != (f != "") || (r.Foreign != nil && *r.Foreign != f) {
-			say(r.Cmd, "foreignCommitPath", r.Foreign, f)
-		}
+		// ADR-130: the publish-policy classifiers have no Node runtime caller.
 		for _, pair := range []struct {
 			name           string
 			nodeVal, goVal bool
 		}{
 			{"mentionsCommitOrPush", r.Mentions, mentionsCommitOrPush(r.Cmd)},
-			{"commitOnlyCommand", r.CommitOnly, commitOnlyCommand(r.Cmd)},
-			{"freshRepositoryCommit", r.Fresh, freshRepositoryCommit(r.Cmd)},
-			{"stagesBeforeCommit", r.Stages, stagesBeforeCommit(r.Cmd)},
-			{"leavesHookInPlace", r.Leaves, leavesHookInPlace(r.Cmd)},
+
 			{"constantSuccessCheck", r.Constant, constantSuccessCheck(r.Cmd)},
 		} {
 			if pair.nodeVal != pair.goVal {

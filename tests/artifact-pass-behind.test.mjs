@@ -232,7 +232,7 @@ test('the pass writes only its own ledger', async () => {
   } finally { await cleanup(dir, session) }
 })
 
-test('the unchecked advisory is said once per tree and check state', () => {
+test('the unchecked advisory is said once per tree and check state', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const { dir } = repository(0, '{"check": "exit 1"}')
   writeFileSync(join(dir, 'notes.txt'), 'the session changed something\n')
   try {
@@ -246,7 +246,7 @@ test('the unchecked advisory is said once per tree and check state', () => {
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('a refused publish is denied every time', async () => {
+test('a refused publish is denied every time', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { dir } = repository(0)
   writeFileSync(join(dir, 'notes.txt'), 'the session changed something\n')
   try {

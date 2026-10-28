@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -72,15 +72,8 @@
       "name": "a PowerShell commit",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "turn end",
@@ -219,19 +212,6 @@
         "blob": "b881e07c5cb4081834eaead487356247c457ea751f88afd5b1fe3d412d6b58c2",
         "complete": true,
         "pass": "<id>"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       },
       {
         "at": "<time>",

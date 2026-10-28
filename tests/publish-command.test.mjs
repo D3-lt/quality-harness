@@ -18,7 +18,9 @@ import nodeTest, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
 import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
-import { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from '../plugin/scripts/publish-command.mjs'
+// ADR-130: namespace bindings keep locked, retired test bodies loadable after their policy APIs were removed.
+import * as retiredPolicy from '../plugin/scripts/publish-command.mjs'
+const { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } = retiredPolicy
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 import { sharded } from './helpers/shard.mjs'
 import { remove } from './helpers/remove.mjs'
@@ -398,7 +400,7 @@ const DISABLES_THE_HOOK = [
   'git rebase --exec git\\ commit\\ -n HEAD && git push',
 ]
 
-test('an armed session leaves a plain invocation to git', () => {
+test('an armed session leaves a plain invocation to git', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('armed-')
   for (const command of LEFT_TO_GIT) {
     assert.ok(publishCommandIn(command) !== null, `the classifier matches it: ${command}`)
@@ -409,7 +411,7 @@ test('an armed session leaves a plain invocation to git', () => {
   for (const command of LEFT_TO_GIT) assert.equal(unarmed.decide(command), 'deny', command)
 })
 
-test('an armed session still refuses every form that can disable the hook', () => {
+test('an armed session still refuses every form that can disable the hook', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('escape-')
   for (const command of DISABLES_THE_HOOK) assert.equal(armed.decide(command), 'deny', command)
   // CLEAN twin: on a checked tree the same forms are not refused.
@@ -417,7 +419,7 @@ test('an armed session still refuses every form that can disable the hook', () =
   for (const command of DISABLES_THE_HOOK) assert.notEqual(armed.decide(command), 'deny', command)
 })
 
-test('PowerShell, an offered-only session and the reviewer guard are unchanged', () => {
+test('PowerShell, an offered-only session and the reviewer guard are unchanged', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('pwsh-')
   assert.equal(armed.decide('git commit -m x', { tool_name: 'PowerShell' }), 'deny', 'PowerShell does not source the env file')
   assert.equal(armed.decide('git commit -m x', { agent_type: 'qh-correctness-reviewer', agent_id: 'r1' }), 'deny', 'a read-only role')
@@ -425,7 +427,7 @@ test('PowerShell, an offered-only session and the reviewer guard are unchanged',
   assert.equal(offered.decide('git commit -m x'), 'deny', 'an offer is not arming')
 })
 
-test('an armed session refuses a wrapped git and a reassigned hook variable', () => {
+test('an armed session refuses a wrapped git and a reassigned hook variable', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // Each row is caught by exactly ONE check of leavesHookInPlace, so each check is
   // shown able to fail on its own (the catalogue found the table above let every
   // row fall to two). Reassigning an exported variable changes what git inherits:
@@ -438,7 +440,7 @@ test('an armed session refuses a wrapped git and a reassigned hook variable', ()
   ]) assert.equal(armed.decide(command), 'deny', command)
 })
 
-test('an armed session refuses a quoted, escaped or substituted hook bypass', () => {
+test('an armed session refuses a quoted, escaped or substituted hook bypass', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // Codex review of 3.0.0 (P1): the shell removes quotes and backslashes before git
   // sees its arguments, so `--no""-verify` reaches git as `--no-verify` — and the
   // armed branch had read it as a plain push and advised. Quotes and escapes are
@@ -453,7 +455,7 @@ test('an armed session refuses a quoted, escaped or substituted hook bypass', ()
   ]) assert.equal(armed.decide(command), 'deny', command)
 })
 
-test('an armed session refuses what the shell expands before git sees it', () => {
+test('an armed session refuses what the shell expands before git sees it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // Codex review of 3.0.0, round 2 (P1): a line continuation and a brace expansion
   // reach git as `--no-verify` or `-c hook.…`, and each read as a plain invocation.
   // What bash hands git is measured first, so the rows are not typed from memory
@@ -479,7 +481,7 @@ test('an armed session refuses what the shell expands before git sees it', () =>
   assert.notEqual(armed.decide("git commit -m 'a {b,c} d?'"), 'deny')
 })
 
-test('an armed session refuses a redirection or an attached value that hides a bypass', () => {
+test('an armed session refuses a redirection or an attached value that hides a bypass', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // Codex review of 3.0.0, round 3: a redirection needs no space around it, and a
   // short option takes its value attached — each row below hands git `-n` or a
   // hook-disabling `-c`, measured under bash, and each read as a plain invocation.
@@ -504,7 +506,7 @@ test('an armed session refuses a redirection or an attached value that hides a b
   }
 })
 
-test('the armed check is a grammar of plain forms, not a list of dangerous ones', () => {
+test('the armed check is a grammar of plain forms, not a list of dangerous ones', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // After three Codex rounds each found a new door, the check was turned around: a
   // form not KNOWN to be plain keeps the refusal. Each row reaches git with its hook
   // off, or runs something other than this session's git, and none was on any list.
@@ -532,7 +534,7 @@ test('the armed check is a grammar of plain forms, not a list of dangerous ones'
   ]) assert.equal(leavesHookInPlace(command), true, command)
 })
 
-test('the armed grammar reads words, quoted code and heredocs as the shell does', () => {
+test('the armed grammar reads words, quoted code and heredocs as the shell does', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // Codex review of 3.0.0, round 4, each row measured under bash and zsh: a quoted
   // option hidden as code, a carriage return read as a separator, an environment
   // variable assigned by `printf -v`, a wrapper around quoted code, and a heredoc
@@ -715,7 +717,7 @@ test('a publish is found by argv, as the shell runs it', () => {
   }
 })
 
-test('data that names a publish is not refused, and the known false refusals are gone', () => {
+test('data that names a publish is not refused, and the known false refusals are gone', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   assert.deepEqual(KNOWN_FALSE_REFUSALS, [])
   const armed = armedSession('data-armed-')
   const unarmed = armedSession('data-unarmed-', { armed: false })
@@ -729,7 +731,7 @@ test('data that names a publish is not refused, and the known false refusals are
   }
 })
 
-test('a brace-built publish is refused', () => {
+test('a brace-built publish is refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   assert.equal(publishCommandIn('git {-c,x=y} push'), 'git -c x=y push')
   assert.equal(publishCommandIn('git {commit,-m,x}'), 'git commit')
   assert.equal(publishCommandIn('echo {git,push}'), null)
@@ -738,7 +740,7 @@ test('a brace-built publish is refused', () => {
   assert.equal(unarmed.decide('git {-c,hook.qh-publish-commit.enabled=false} commit -m x'), 'deny')
 })
 
-test('text piped into a shell is read as the shell reads it', () => {
+test('text piped into a shell is read as the shell reads it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('pipe-unarmed-', { armed: false })
   const armed = armedSession('pipe-armed-')
   for (const command of ['echo "x; git commit --no-verify" | bash', "printf 'git push\\n' | sh", "cat <<'X' | bash\ngit push\nX"]) {
@@ -778,7 +780,7 @@ test('the classifier stays linear on a long interpreter script', () => {
 const LIFECYCLE_SOURCE = new URL('../plugin/scripts/publish-command.mjs', import.meta.url)
 const BRACE_BYPASS = 'git {-c,hook.qh-publish-commit.enabled=false} commit -m x'
 
-test('one lexer reads shell text for rule P', () => {
+test('one lexer reads shell text for rule P', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // A quoted operator inside a git argument hides a bypass: `-nm;x` hands git `-n`.
   assert.equal(leavesHookInPlace("git commit '-nm;x'"), false)
   // The shell expands the braces before git sees them; both readers must too.
@@ -839,7 +841,7 @@ const CHAOS_626934A_NOT_PUBLISHES = [
   // Codex review of this batch: xargs forms whose real run launched no git.
   'echo push | xargs -E push git', "printf '' push | xargs git", 'echo push | xargs -0 git',
 ]
-test('the chaos round of 626934a: what the shell ran is what the classifier reads', () => {
+test('the chaos round of 626934a: what the shell ran is what the classifier reads', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('chaos-626934a-', { armed: false })
   for (const [command, expected] of Object.entries(CHAOS_626934A_PUBLISHES)) {
     assert.equal(publishCommandIn(command), expected, command)
@@ -859,7 +861,7 @@ test('the chaos round of 626934a: what the shell ran is what the classifier read
 // A Windows chaos round of 916b515, F7: a 10 MB command made the advisory arm's
 // base64 scan overflow V8's regex stack, so the hook exited 1 before Rule P was read
 // and the `git push` at its end went unrefused. Driven through the hook itself.
-test('an oversized command is still read: the publish at its end is refused, not crashed past', () => {
+test('an oversized command is still read: the publish at its end is refused, not crashed past', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('chaos-916b515-', { armed: false })
   const command = `echo ${'a'.repeat(10 * 1024 * 1024)} && git push`
   assert.equal(mentionsCommitOrPush(command), true)
@@ -874,7 +876,7 @@ const CASE_FOLDED_PUBLISHES = {
   'GIT push': 'GIT push', 'Git commit -m x': 'Git commit', 'Git.Exe push': 'Git.Exe push', 'git.cmd push': 'git.cmd push',
   'python3 -c "import subprocess; subprocess.run([\'GIT\', \'push\'])"': 'GIT push',
 }
-test('git is recognised in any case and through a .cmd shim', () => {
+test('git is recognised in any case and through a .cmd shim', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('case-916b515-', { armed: false })
   for (const [command, expected] of Object.entries(CASE_FOLDED_PUBLISHES)) {
     assert.equal(publishCommandIn(command), expected, command)
@@ -889,7 +891,7 @@ const OS_SHELL_PUBLISHES = {
   'python3 -c "import os; os.system(\'git push\')"': 'git push',
   'python3 -c "import os; os.popen(\'git commit -m x\')"': 'git commit',
 }
-test('a string handed to a shell by os.system or os.popen is read as that shell reads it', () => {
+test('a string handed to a shell by os.system or os.popen is read as that shell reads it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('os-shell-916b515-', { armed: false })
   for (const [command, expected] of Object.entries(OS_SHELL_PUBLISHES)) {
     assert.equal(publishCommandIn(command), expected, command)
@@ -916,7 +918,7 @@ const ARGV_AND_ALIAS_CONTROLS = [
   "perl -e 'system(\"git\", \"status\")'",
   'git -c alias.p=status p', 'git -c alias.p=push status', "git -c 'alias.x=!git status' x",
 ]
-test('an argv list in node or perl, and an alias set with -c, are read as the publish they run', () => {
+test('an argv list in node or perl, and an alias set with -c, are read as the publish they run', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('argv-alias-916b515-', { armed: false })
   for (const [command, expected] of Object.entries(ARGV_AND_ALIAS_PUBLISHES)) {
     assert.equal(publishCommandIn(command), expected, command)
@@ -960,7 +962,7 @@ const REVIEWED_CONTROLS = [
   "perl -e 'print qq{system(\"git\", \"push\")}'",
   'node -e "console.log(\\"a\\\\\\" spawnSync(\'git\', [\'push\'])\\")"',
 ]
-test('an alias is read as git expands it, and a call inside a string is data', () => {
+test('an alias is read as git expands it, and a call inside a string is data', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('reviewed-e0ef6d4-', { armed: false })
   for (const [command, expected] of Object.entries(REVIEWED_PUBLISHES)) {
     assert.equal(publishCommandIn(command), expected, command)
@@ -998,7 +1000,7 @@ const DOLLARS_NOT_A_DIRECTORY = session => [
   `R=$(mktemp -d) && cd "$R" && git init -q && git remote add o ${session} && git push o HEAD:x`,
 ]
 
-test('an armed session leaves a commit into a mktemp directory to git', () => {
+test('an armed session leaves a commit into a mktemp directory to git', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('fresh-armed-')
   const rows = FRESH_DIRECTORY_COMMITS()
   for (const command of rows) assert.notEqual(armed.decide(command), 'deny', command)
@@ -1007,7 +1009,7 @@ test('an armed session leaves a commit into a mktemp directory to git', () => {
   for (const command of [rows[0], rows[2]]) assert.equal(unarmed.decide(command), 'deny', command)
 })
 
-test('an armed session still refuses a dollar it cannot place as a directory', () => {
+test('an armed session still refuses a dollar it cannot place as a directory', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('fresh-dollar-')
   const rows = DOLLARS_NOT_A_DIRECTORY(armed.dir)
   for (const command of rows) assert.equal(armed.decide(command), 'deny', command)
@@ -1143,7 +1145,7 @@ const FRESH_KEEPS_ADR_086 = () => [
   `DIR=$(mktemp -d ${freshTemplate()}); cd $DIR && git init -q && git commit -qm f`,
 ]
 
-test('an armed session leaves a literal-variable directory commit to git', () => {
+test('an armed session leaves a literal-variable directory commit to git', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('lit-armed-')
   const p = literalParent()
   for (const command of LITERAL_DIRECTORY_COMMITS(p)) assert.notEqual(armed.decide(command), 'deny', command)
@@ -1158,7 +1160,7 @@ test('an armed session leaves a literal-variable directory commit to git', () =>
   for (const command of FRESH_KEEPS_ADR_086()) assert.equal(armed.decide(command), 'deny', command)
 })
 
-test('an armed session still refuses a dollar it cannot place as a literal directory', () => {
+test('an armed session still refuses a dollar it cannot place as a literal directory', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('lit-dollar-')
   const rows = LITERAL_DOLLARS_REFUSED(literalParent(), armed.dir)
   for (const command of rows) assert.equal(armed.decide(command), 'deny', command)
@@ -1195,7 +1197,7 @@ const ROUND_TRIP = String.raw`while read -r __name; do
   __seen=$( ( eval "$__name=/tmp/x" && eval "printf %s \"\$$__name\"" ) 2>/dev/null )
   [ "$__seen" = /tmp/x ] || echo "$__name"
 done`
-test('a one-letter scratch name round-trips a literal in every installed shell, and no name a shell manages is admitted', { skip: process.platform === 'win32' && 'the probe shells are POSIX' }, () => {
+test('a one-letter scratch name round-trips a literal in every installed shell, and no name a shell manages is admitted', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const shells = ['bash', 'zsh', 'sh'].filter(shell => spawnSync(shell, ['-c', ':'], { timeout: 10_000 }).status === 0)
   assert.ok(shells.includes('bash'), 'bash is on every POSIX runner')
   const listed = new Set(['EPOCHSECONDS', 'EPOCHREALTIME', 'SRANDOM', 'BASH_ARGV0', 'DIRSTACK', 'HISTCMD', 'GROUPS', 'UID', 'EUID', 'PS1', 'PS2', 'dirstack', 'path', 'fpath', 'cdpath', 'psvar', 'argv', 'status', 'reply', '_'])
@@ -1254,7 +1256,7 @@ const FRESH_REPOSITORY_TWINS = (parent, session) => [
   'R=$(mktemp -d; echo .) && cd "$R" && git init -q && git commit -qm f',
 ]
 
-test('an unarmed commit into a repository the command creates is advised, not refused', () => {
+test('an unarmed commit into a repository the command creates is advised, not refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const parent = freshParent()
   for (let k = 0; k < FRESH_REPOSITORY_ROWS('', '').length; k++) {
     // One session per row: an advisory is said once per tree, so a second row on the
@@ -1273,7 +1275,7 @@ test('an unarmed commit into a repository the command creates is advised, not re
 // plain key, and an advice carrying that key afterwards reads as already said and is dropped. The locked test above runs each
 // row in a fresh session, so nothing there is refused first, and the catalogue mutant dropping `:fresh` went GREEN on CI at
 // bb31d8d8 (the hook golden `publish-classifier` does kill it). This is that case, through the hook, with its clean twin.
-test('a fresh-commit advice after a refused commit on the same tree is still told', () => {
+test('a fresh-commit advice after a refused commit on the same tree is still told', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('fresh-after-refusal-', { armed: false })
   assert.equal(unarmed.decide('git commit -m x'), 'deny', 'the unchecked commit is refused, and its key is the tree\'s')
   const command = FRESH_REPOSITORY_ROWS(freshParent(), slashed(unarmed.dir))[0]
@@ -1282,7 +1284,7 @@ test('a fresh-commit advice after a refused commit on the same tree is still tol
   assert.equal(unarmed.tell(command), '', 'the same fresh commit again on the same tree is silent')
 })
 
-test('an unarmed chain the text cannot place in a fresh repository is still refused', () => {
+test('an unarmed chain the text cannot place in a fresh repository is still refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('fresh-twin-', { armed: false })
   const rows = FRESH_REPOSITORY_TWINS(freshParent(), slashed(unarmed.dir))
   for (const command of rows) assert.equal(unarmed.decide(command), 'deny', command)
@@ -1296,7 +1298,7 @@ test('an unarmed chain the text cannot place in a fresh repository is still refu
 // reach the repository running this suite (CLAUDE.md §9). Bash is found as
 // tests/shell-words.test.mjs finds it.
 const FRESH_BASH = ['/bin/bash'].find(shell => process.platform !== 'win32' && existsSync(shell))
-test('the fresh-repository rows commit where the classifier says they do', { skip: FRESH_BASH ? false : 'no /bin/bash on this platform' }, () => {
+test('the fresh-repository rows commit where the classifier says they do', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:GIT_|CLAUDE_)/.test(name) && name !== 'XDG_CONFIG_HOME')),
     ...IDENTITY, HOME: mkdtempSync(path.join(hookTmp, 'fresh-home-')),
@@ -1351,7 +1353,7 @@ test('the fresh-repository rows commit where the classifier says they do', { ski
 // each test carries the control twin that must still be accepted. Nothing here is run.
 const FRESH_CONTROL = 'R=$(mktemp -d /dev/null/x.XXXX) && cd "$R" && git init -q && git commit --allow-empty -m f'
 
-test('an unarmed fresh substitution is one foreground mktemp and nothing after it', () => {
+test('an unarmed fresh substitution is one foreground mktemp and nothing after it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of [
     'R=$(mktemp -d /dev/null/x.XXXX &) && cd "$R" && git init -q && git commit --allow-empty -m f',
     'R=$(mktemp -d /dev/null/x.XXXX | cat) && cd "$R" && git init -q && git commit --allow-empty -m f',
@@ -1364,7 +1366,7 @@ test('an unarmed fresh substitution is one foreground mktemp and nothing after i
   assert.equal(leavesHookInPlace(FRESH_CONTROL), true)
 })
 
-test('an unarmed fresh commit is refused when arithmetic can reassign its directory', () => {
+test('an unarmed fresh commit is refused when arithmetic can reassign its directory', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of [
     'R=$(mktemp -d) && ((R=1)) && cd "$R" && git init -q && git commit --allow-empty -m f',
     'R=$(mktemp -d /dev/null/x.XXXX; ((1))) && cd "$R" && git init -q && git commit --allow-empty -m f',
@@ -1378,7 +1380,7 @@ test('an unarmed fresh commit is refused when arithmetic can reassign its direct
 // Bash evaluates a variable's VALUE as an arithmetic expression, so `((X))` with X
 // inherited as `GIT_CONFIG_COUNT=0` assigns the hook's variable while the text names
 // none (measured: `x=y=5; ((x)); echo "$y"` prints 5 under bash 3.2).
-test('an armed session refuses arithmetic, which can assign a variable named only in a value', () => {
+test('an armed session refuses arithmetic, which can assign a variable named only in a value', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of [
     'R=$(mktemp -d) && ((R=1)) && cd "$R" && git init -q && git commit --allow-empty -m f',
     '((X)) && git commit -m f',
@@ -1388,7 +1390,7 @@ test('an armed session refuses arithmetic, which can assign a variable named onl
   for (const command of ['git commit -m f', "git commit -m 'x ((1)) let y'"]) assert.equal(leavesHookInPlace(command), true, command)
 })
 
-test('an inherited git or bash environment keeps an unarmed fresh commit refused', () => {
+test('an inherited git or bash environment keeps an unarmed fresh commit refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'BASH_FUNC_cd%%', 'BASH_FUNC_git%%', 'BASH_ENV', 'ENV', 'git_dir']) {
     assert.equal(freshRepositoryCommit(FRESH_CONTROL, { [name]: '' }), false, name)
   }
@@ -1396,7 +1398,7 @@ test('an inherited git or bash environment keeps an unarmed fresh commit refused
   assert.equal(freshRepositoryCommit(FRESH_CONTROL, { GIT_AUTHOR_NAME: 'q', ENVIRONMENT: 'x', LANG: 'C' }), true)
 })
 
-test('a single terminal newline ends an unarmed fresh commit like the end of the text', () => {
+test('a single terminal newline ends an unarmed fresh commit like the end of the text', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   assert.equal(freshRepositoryCommit(`${FRESH_CONTROL}\n`, {}), true)
   // Twin: a newline then another command runs it even where mktemp failed.
   for (const command of [`${FRESH_CONTROL}\ngit commit --allow-empty -m g`, `${FRESH_CONTROL}\n\n`]) {
@@ -1437,7 +1439,7 @@ const ARMED_CODE_MESSAGES = session => [
 const quotedFresh = (parent, value) => `R=$(mktemp -d ${parent}/fresh.XXXX) && cd "$R" && git init -q && git commit -q --allow-empty ${value}`
 const quotedArmed = value => `cd ${slashed(hookTmp)}/scratch && git commit ${value}`
 
-test('a quoted commit message is data to the armed and fresh-repository downgrades', () => {
+test('a quoted commit message is data to the armed and fresh-repository downgrades', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const parent = freshParent()
   const unarmed = armedSession('quoted-unarmed-', { armed: false })
   for (const [value] of QUOTED_MESSAGES) {
@@ -1453,7 +1455,7 @@ test('a quoted commit message is data to the armed and fresh-repository downgrad
   }
 })
 
-test('a message value that can run code keeps the refusal', () => {
+test('a message value that can run code keeps the refusal', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const parent = freshParent()
   const unarmed = armedSession('code-unarmed-', { armed: false })
   const fresh = CODE_MESSAGES.map(value => quotedFresh(parent, value))
@@ -1476,7 +1478,7 @@ test('a message value that can run code keeps the refusal', () => {
 
 // Executed, as ADR-086 T2's rows are: each data row commits in the directory mktemp
 // made, with the message as written, and never in the session repository.
-test('the masked fresh-repository rows commit where the classifier says they do', { skip: FRESH_BASH ? false : 'no /bin/bash on this platform' }, () => {
+test('the masked fresh-repository rows commit where the classifier says they do', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:GIT_|CLAUDE_)/.test(name) && name !== 'XDG_CONFIG_HOME')),
     ...IDENTITY, HOME: mkdtempSync(path.join(hookTmp, 'masked-home-')),
@@ -1512,7 +1514,7 @@ const HELD_AS_DATA = [
   'echo "$x"', "echo '$x$(git push)'", 'echo function g { git push; }',
 ]
 
-test('a publish run from a heredoc body, a quoted substitution or a function body is refused', () => {
+test('a publish run from a heredoc body, a quoted substitution or a function body is refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('body-unarmed-', { armed: false })
   for (const command of RUN_FROM_A_BODY) assert.equal(unarmed.decide(command), 'deny', command)
   // CLEAN twin: on a checked tree the same rows are not refused.
@@ -1520,7 +1522,7 @@ test('a publish run from a heredoc body, a quoted substitution or a function bod
   for (const command of RUN_FROM_A_BODY) assert.notEqual(unarmed.decide(command), 'deny', command)
 })
 
-test('a heredoc body, a parameter and a function name that only hold a publish stay data', () => {
+test('a heredoc body, a parameter and a function name that only hold a publish stay data', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   HELD_AS_DATA.forEach((command, k) => {
     // One session per row: a mention is said once per tree.
     const unarmed = armedSession(`body-data-${k}-`, { armed: false })
@@ -1540,7 +1542,7 @@ const PATH_WRAPPED = [
 // Run under bash with a stand-in git, where the wrapper exists; `sudo` is lexed only (ADR-067 Decision 2).
 const PATH_WRAPPED_RUN = ['/usr/bin/env git push', '/usr/bin/env -- git push', '/bin/env git push', '/usr/bin/time git push', '/usr/bin/nice git push']
 
-test('a wrapper named by its absolute path runs the publish it wraps', () => {
+test('a wrapper named by its absolute path runs the publish it wraps', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of PATH_WRAPPED) assert.equal(publishCommandIn(command), 'git push', command)
   // A Windows drive path is absolute too (CLAUDE.md §7); lexed only.
   assert.equal(publishCommandIn('C:/tools/env.exe git push'), 'git push')
@@ -1575,7 +1577,7 @@ test('a relative path or a look-alike wrapper name stays a mention', () => {
 // (`offerPublishHook` appends once per file), and the Bash tool reads a new file only from the
 // next user prompt (ADR-068 T2). So a hook run from before the latest offer says nothing about
 // the shell that runs this command: the session is awaiting arming, and the refusal stays.
-test('a hook run before the latest offer does not arm the session', () => {
+test('a hook run before the latest offer does not arm the session', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const stale = armedSession('stale-armed-')
   appendEvent(stale.dir, stale.session, { event: 'publish.offered' })
   assert.equal(stale.decide('git commit -m x'), 'deny', 'awaiting arming: git may not run its hook in this shell')
@@ -1653,7 +1655,7 @@ test('a sink body is judged by the shell\'s reading of it, not by a spelling', (
   ]) assert.equal(mentionsCommitOrPush(command), true, command)
 })
 
-test('the hook says nothing about a sink body, and still tells a mention beside it', () => {
+test('the hook says nothing about a sink body, and still tells a mention beside it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = armedSession('sink-body-', { armed: false })
   for (const command of SINK_BODIES) assert.doesNotMatch(unarmed.tell(command), /only mentions commit or push/, command)
   assert.match(unarmed.tell("sh <<'EOF'\nx\nEOF\necho push"), /only mentions commit or push/)
@@ -1677,7 +1679,7 @@ test('a stand-in for the verb is never run by a sink body', { skip: FRESH_BASH ?
 })
 
 // ── The advisory dedupe keys on the tree, so what was said first must not silence what is said next ──
-test('a mention on a tree does not silence the advice a softened refusal gets there', () => {
+test('a mention on a tree does not silence the advice a softened refusal gets there', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const armed = armedSession('dedupe-kind-')
   assert.match(armed.tell('echo push'), /only mentions commit or push/)
   assert.match(armed.tell('git push'), /names commit or push/, 'advice for a publish is not the mention already said')

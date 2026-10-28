@@ -37,7 +37,7 @@ function session(t, name, files, { commit = false } = {}) {
   return { repo, hook, write }
 }
 
-test('a declared check with unchecked work continues the turn', { skip }, t => {
+test('a declared check with unchecked work continues the turn', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const { hook } = session(t, 'declared', DECLARED, { commit: true })
   const said = hook(stop())
   assert.doesNotMatch(context(said), /newly reachable commit/, 'no commit below HEAD is named (ADR-128 T1)')
@@ -46,7 +46,7 @@ test('a declared check with unchecked work continues the turn', { skip }, t => {
   assert.equal(context(hook(stop())), '', 'not handed over again on the same tree')
 })
 
-test('an inferred check with unchecked work is said to the user once and does not continue the turn', { skip }, t => {
+test('an inferred check with unchecked work is said to the user once and does not continue the turn', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const { hook, write } = session(t, 'inferred', INFERRED, { commit: true })
   const said = hook(stop())
   assert.equal(said.stdout?.hookSpecificOutput, undefined, `nothing continues the turn: ${JSON.stringify(said.stdout)}`)
@@ -62,7 +62,7 @@ test('an inferred check with unchecked work is said to the user once and does no
   assert.match(message(changed), /work no `qh-check` has passed on/, 'but is said to the user again')
 })
 
-test('an inferred check keeps turnEnd notify user-only, as before', { skip }, t => {
+test('an inferred check keeps turnEnd notify user-only, as before', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const { hook } = session(t, 'inferred-notify', { ...INFERRED, '.quality-harness.json': '{"turnEnd":"notify"}\n' })
   const said = hook(stop())
   assert.equal(context(said), '')
@@ -70,7 +70,7 @@ test('an inferred check keeps turnEnd notify user-only, as before', { skip }, t 
   assert.equal(message(hook(stop())), '', 'and once')
 })
 
-test('the artifact and no-check findings still reach the agent', { skip }, t => {
+test('the artifact and no-check findings still reach the agent', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   // A: an artifact finding with only an inferred check beside it.
   const a = session(t, 'artifact-inferred', INFERRED)
   const bad = path.join(a.repo, 'docs', 'adr', 'ADR-001-bad.md')
@@ -88,7 +88,7 @@ test('the artifact and no-check findings still reach the agent', { skip }, t => 
 })
 // The dedupe reads the audience a row records: a user-only delivery recorded as reaching the agent would hide the finding from an
 // agent that is later asked for it.
-test('an inferred finding is recorded as delivered to the user alone, a declared one to both', { skip }, t => {
+test('an inferred finding is recorded as delivered to the user alone, a declared one to both', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const rows = repo => Object.values(ledgers(repo)).flat().filter(row => row.event === 'action.emitted' && (row.rule === 'R1' || row.rule === 'R2'))
   const inferred = session(t, 'rows-inferred', INFERRED, { commit: true })
   inferred.hook(stop())
@@ -109,7 +109,7 @@ const declaring = (check, extra = {}) => ({
 const UNSTARTABLE = [['bash scripts/missing.sh', /missing\.sh/], ['nosuchtool test', /nosuchtool/]]
 const delivered = repo => Object.values(ledgers(repo)).flat().filter(row => row.event === 'action.emitted' && (row.rule === 'R1' || row.rule === 'R2')).map(row => row.channel)
 
-test('a declared check that cannot start continues no turn and is said to the user once', { skip }, t => {
+test('a declared check that cannot start continues no turn and is said to the user once', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const [check, program] of UNSTARTABLE) {
     const { repo, hook, write } = session(t, `unstartable-${UNSTARTABLE.findIndex(entry => entry[0] === check)}`, declaring(check), { commit: true })
     const said = hook(stop())
@@ -128,7 +128,7 @@ test('a declared check that cannot start continues no turn and is said to the us
   }
 })
 
-test('a declared check that can start continues as before', { skip }, t => {
+test('a declared check that can start continues as before', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const check of ['node --test', 'npm test', 'sh check.sh', 'bash check.sh']) {
     const { repo, hook } = session(t, `startable-${check.replace(/\W+/g, '-')}`, declaring(check), { commit: true })
     const said = hook(stop())
@@ -139,7 +139,7 @@ test('a declared check that can start continues as before', { skip }, t => {
   }
 })
 
-test('turnEnd continue restores the continuation on an inferred and on an unstartable check', { skip }, t => {
+test('turnEnd continue restores the continuation on an inferred and on an unstartable check', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const cases = [
     ['inferred', { ...INFERRED, '.quality-harness.json': '{"turnEnd":"continue"}\n' }],
     ['missing-script', declaring('bash scripts/missing.sh', { turnEnd: 'continue' })],
@@ -155,7 +155,7 @@ test('turnEnd continue restores the continuation on an inferred and on an unstar
   }
 })
 
-test('turnEnd notify keeps an unstartable check user-only, and continue changes nothing for a declared one that starts', { skip }, t => {
+test('turnEnd notify keeps an unstartable check user-only, and continue changes nothing for a declared one that starts', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const notify = session(t, 'unstartable-notify', declaring('nosuchtool test', { turnEnd: 'notify' }), { commit: true })
   const said = notify.hook(stop())
   assert.equal(context(said), '')

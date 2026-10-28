@@ -1,28 +1,24 @@
 {
   "mutations": [
     {
-      "label": "the review of f2d2f739: a no-work run in a torn log is counted, not listed",
+      "label": "ADR-130: delegation requires a recorded check",
+      "from": "    '`qh-check` optionally records a run (ADR-130); report the exact commands you ran and their results.',",
+      "to": "    'Before returning after edits, run `qh-check`.',",
+      "only": "^delegated workers receive",
       "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/no-work-one-line.test.mjs"],
-      "from": "checkEvent === 'check.no-work' && !logTorn && !orderUnknown && !couldNotLook",
-      "to": "checkEvent === 'check.no-work'",
-      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ]
     },
     {
-      "label": "BACKLOG §428: a no-work run on this tree still lists every changed path",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/no-work-one-line.test.mjs"],
-      "from": "  const listed = paths.length && checkEvent === 'check.no-work'",
-      "to": "  const listed = false",
-      "only": "^a no-work run on this tree is said in one line, not with the path list$"
-    },
-    {
-      "label": "BACKLOG §428: a no-work run on this tree is said as no check at all",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/no-work-one-line.test.mjs"],
-      "from": "      : checkEvent === 'check.no-work' && paths.length",
-      "to": "      : false",
-      "only": "^a no-work run on this tree is said in one line, not with the path list$"
+      "label": "ADR-130: optional checks emit the retired check nags",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ],
+      "from": "  for (const action of actions) if (!['R1', 'R4', 'R5'].includes(action.rule)) queueAction(action)",
+      "to": "  for (const action of actions) queueAction(action)",
+      "only": "^an unchecked commit and push receive no check refusal or check nag$",
+      "file": "plugin/scripts/completion-rules.mjs"
     },
     {
       "label": "qh-core, 2026-10-27: a Go summary under a wrapper is not read, so make check is no-work",
@@ -71,36 +67,6 @@
       "from": "  const said = thisContext(log, facts.generation ?? 0)",
       "to": "  const said = log",
       "only": "^(?:an older guard yields to the request: a Stop after a compaction and two R4 reasons are said)$"
-    },
-    {
-      "label": "ADR-113 T2: the turn end reads an unreadable declaration as a check nobody can pass",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/refusals-hold.test.mjs"
-      ],
-      "from": "  const check = origin.command || (origin.origin === 'refused' || origin.origin === 'unreadable' ? origin.origin : null)",
-      "to": "  const check = origin.command || (origin.origin === 'refused' ? origin.origin : null)",
-      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
-    },
-    {
-      "label": "BACKLOG §383: a run the tree moved under is told apart from one that could not start",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/adr-108.test.mjs"
-      ],
-      "from": "      const treeMoved = typeof latest?.before?.tree === 'string' && typeof latest?.after?.tree === 'string' && latest.before.tree !== latest.after.tree",
-      "to": "      const treeMoved = false",
-      "only": "^(?:a check the tree moved under is to be run again, not reported as could-not-start)$"
-    },
-    {
-      "label": "BACKLOG §383: a run the tree moved under is asked for again",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/adr-108.test.mjs"
-      ],
-      "from": "couldNotLook && COULD_NOT_START[checkEvent] && !treeMoved ? '' :",
-      "to": "couldNotLook && COULD_NOT_START[checkEvent] ? '' :",
-      "only": "^(?:a check the tree moved under is to be run again, not reported as could-not-start)$"
     },
     {
       "label": "Codex v3.8.44 review: a committed change is a change",
@@ -156,11 +122,12 @@
       "label": "ADR-111 T3: the turn end reads the baseline ledger",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
-        "tests/baseline.test.mjs"
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
+        "tests/lifecycle.test.mjs"
       ],
       "from": "    baselineVerdict: root !== null && baseline?.ok === true",
-      "to": "    baselineVerdict: false && baseline?.ok === true",
-      "only": "^(?:a session whose check was green at its start and is red after an edit is told the change broke it)$"
+      "to": "    baselineVerdict: false && baseline?.ok === true"
     },
     {
       "label": "ADR-111 T2: a changed tree with no known check is said",
@@ -198,11 +165,12 @@
       "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
         "tests/lifecycle.test.mjs"
       ],
       "from": "/\\bEVIDENCE-LIMITED:\\s+\\S.{15,}/i",
-      "to": "/\\bEVIDENCE-LIMITED:\\s*/i",
-      "only": "^(?:EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs)$"
+      "to": "/\\bEVIDENCE-LIMITED:\\s*/i"
     },
     {
       "label": "hooks: a read-only role is told it is read-only",
@@ -213,16 +181,6 @@
       "from": "/(explore|plan|research|review|audit|scout|memory)/",
       "to": "/(explore|plan|research|audit|scout|memory)/",
       "only": "^(?:a read-only role is told it is read-only, and an editing role is not)$"
-    },
-    {
-      "label": "advisory: a project that names no check hears nothing",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    return { claim, actions }\n  }\n  const revision",
-      "to": "  }\n  const revision",
-      "only": "^(?:reported: a project that names no check hears nothing from the evidence gates)$"
     },
     {
       "label": "verdict: a command that never started is not a failure",
@@ -332,7 +290,7 @@
       ],
       "from": "    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
       "to": "    if (home === undefined) return\n    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
-      "only": "^(?:the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so)$"
+      "only": "^(?:optional\\ checks\\ still\\ report\\ an\\ absent\\ claims\\ data\\ directory)$"
     },
     {
       "label": "lifecycle: an honest disclosure of what was not run is hedged, not none",
@@ -355,44 +313,26 @@
       "only": "^(?:completionClaim reads negation before assertion)$"
     },
     {
-      "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(said, observation.tree, revision)) || writes.length > 0)) {",
-      "to": "  if (!quiet) {",
-      "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified|writes the tree cannot see re-open the finding|a check that finishes in a later turn clears the finding then|a log that could not be read whole cannot supply a passing verdict|a torn checks\\.jsonl cannot leave an older pass standing as the verdict)$"
-    },
-    {
       "label": "advisory: R1's key carries the evidence revision, so a later check re-opens it",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
-        "tests/observed-events.test.mjs"
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
+        "tests/lifecycle.test.mjs"
       ],
       "from": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`",
-      "to": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${writes.length}`",
-      "only": "^(?:writes the tree cannot see re-open the finding)$"
-    },
-    {
-      "label": "advisory: R4 is said once per session and cwd",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "    if (!emittedFor(said, 'R4', key, channel, recipient)) {",
-      "to": "    if (true) {",
-      "only": "^(?:writes the tree cannot see re-open the finding)$"
+      "to": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${writes.length}`"
     },
     {
       "label": "ledger: an unchecked tree is unverified, whatever the rules said",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
-        "tests/observed-events.test.mjs"
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
+        "tests/lifecycle.test.mjs"
       ],
       "from": "  if (treeUnchecked || writes.length > 0) return 'unverified'",
-      "to": "  if (writes.length > 0) return 'unverified'",
-      "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified)$"
+      "to": "  if (writes.length > 0) return 'unverified'"
     },
     {
       "label": "evidence-flip: a torn log is not a session where nothing happened",
@@ -525,16 +465,6 @@
       "only": "the session note reads the late baseline"
     },
     {
-      "label": "§319 D4: the turn-end could-not-look names the session log whatever tore",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "${tornRecord(log, 'this session’s event log')} could not be read whole",
-      "to": "this session’s event log could not be read whole",
-      "only": "a torn checks.jsonl is named as checks.jsonl"
-    },
-    {
       "label": "ADR-094 T4: the previous-session count is taken without the root",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -595,16 +525,6 @@
       "only": "^turn end: no combination of facts breaks a property an answer must have$"
     },
     {
-      "label": "ADR-096 T2: R1 is said to the agent once per tree",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-delivery.test.mjs"
-      ],
-      "from": "if (!emittedFor(said, 'R1', key, ruleChannel, recipient)) {",
-      "to": "if (true) {",
-      "only": "^a\\ finding\\ delivered\\ to\\ the\\ agent\\ for\\ this\\ tree\\ is\\ not\\ delivered\\ again,\\ and\\ a\\ changed\\ tree\\ is\\ said\\ again$"
-    },
-    {
       "label": "ADR-096 T2: the task-evidence nudge is said once per tree",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -663,46 +583,6 @@
       "only": "^a turn whose writes left the tree unchanged is told so once, and a turn whose writes changed it is not$"
     },
     {
-      "label": "adr-108 T1: a check that could not start is told not to run again",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/adr-108.test.mjs"
-      ],
-      "from": "and do not run it again on this tree; ",
-      "to": "and run it again when ready; ",
-      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
-    },
-    {
-      "label": "adr-108 T1: the could-not-start finding names the verdict it read",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/adr-108.test.mjs"
-      ],
-      "from": "it ${named[0]} (${named[1]}), so it",
-      "to": "it ${named[0]}, so it",
-      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
-    },
-    {
-      "label": "adr-108 T1: the could-not-start finding does not also ask for the check",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/adr-108.test.mjs"
-      ],
-      "from": "${couldNotLook && COULD_NOT_START[checkEvent] && !treeMoved ? '' :",
-      "to": "${false ? '' :",
-      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
-    },
-    {
-      "label": "adr-108 T1: the verdict reaches the finding from the ledger",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/adr-108.test.mjs"
-      ],
-      "from": "checkEvent: latest?.event ?? null",
-      "to": "checkEvent: null",
-      "only": "^a check that could not start is reported once as evidence-limited, not run again$"
-    },
-    {
       "label": "adr-108 T2: the subagent contract carries the batching sentence",
       "file": "plugin/scripts/completion-rules.mjs",
       "tests": [
@@ -733,118 +613,37 @@
       "only": "^a spawned implementer is told to read every site, edit in one batch, and check each edit landed$"
     },
     {
-      "label": "ADR-120 T6: the check's origin is carried into the turn-end rules",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "check, origin: origin.origin, root,",
-      "to": "check, origin: 'declared', root,",
-      "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
-    },
-    {
-      "label": "ADR-120 T6: R1 and R2 on an inferred check are marked for the user alone",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "const audience = userOnly ? { audience: 'user' } : {}",
-      "to": "const audience = {}",
-      "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
-    },
-    {
-      "label": "ADR-120 T6: R1 on an inferred check is judged against the user audience",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "if (!emittedFor(said, 'R1', key, ruleChannel, recipient))",
-      "to": "if (!emittedFor(said, 'R1', key, channel, recipient))",
-      "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
-    },
-    {
-      "label": "ADR-120 T11: the declared check's first program is probed",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "unstartable: origin.origin === 'declared' && !checkCanStart(",
-      "to": "unstartable: false && !checkCanStart(",
-      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
-    },
-    {
-      "label": "ADR-120 T11: an unstartable check is marked for the user alone",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "(facts.origin === 'inferred' || facts.unstartable === true)",
-      "to": "(facts.origin === 'inferred' || false)",
-      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
-    },
-    {
-      "label": "ADR-120 T11: a program found on no PATH directory cannot start",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "if (!onPath) return false",
-      "to": "if (!onPath) return true",
-      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
-    },
-    {
-      "label": "ADR-120 T11: a script absent for its interpreter cannot start",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "return existsSync(path.resolve(directory, rest[0]))",
-      "to": "return true",
-      "only": "^(?:a declared check that cannot start continues no turn and is said to the user once)$"
-    },
-    {
-      "label": "ADR-120 T11: a program on PATH can start",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "return stat.isFile() && (windows || (stat.mode & 0o111) !== 0)",
-      "to": "return false",
-      "only": "^(?:a declared check that can start continues as before)$"
-    },
-    {
-      "label": "ADR-120 T11: turnEnd continue restores the continuation",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "const userOnly = facts.turnEnd !== 'continue' && (",
-      "to": "const userOnly = (",
-      "only": "^(?:turnEnd continue restores the continuation on an inferred and on an unstartable check)$"
-    },
-    {
       "label": "ADR-120 T9: the claim asks HEAD's commit with its own code tree, not the working tree's",
       "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
+        "tests/lifecycle.test.mjs"
+      ],
       "from": "  if (commits.some(commit => checkStanding(log, commit.tree, carryOf(commit.codeTree)) !== 'passed')) return 'unverified'",
-      "to": "  if (commits.some(commit => checkStanding(log, commit.tree, carryOf(observation.codeTree)) !== 'passed')) return 'unverified'",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": "  if (commits.some(commit => checkStanding(log, commit.tree, carryOf(observation.codeTree)) !== 'passed')) return 'unverified'"
     },
     {
       "label": "ADR-120 T9: a commit is given the working tree's code tree",
       "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
+        "tests/lifecycle.test.mjs"
+      ],
       "from": "commit.codeTree = codeTreeOf(root, commit.tree, observation.prose) ?? undefined",
-      "to": "commit.codeTree = observation.codeTree",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": "commit.codeTree = observation.codeTree"
     },
     {
       "label": "ADR-120 T9: the turn end asks the working tree without its code tree",
       "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/completion-judgement.test.mjs",
+        "tests/prose-pass.test.mjs",
+        "tests/lifecycle.test.mjs"
+      ],
       "from": "const treeCarry = carryOf(observation?.codeTree)",
-      "to": "const treeCarry = null",
-      "only": "^(?:a pass stands across a prose-only change for every reader)$"
+      "to": "const treeCarry = null"
     },
     {
       "label": "ADR-120 T9: the compaction note asks the working tree without its code tree",
@@ -853,14 +652,6 @@
       "from": "const treeCarry = observation?.ok === true ? carryFor(log, root, observation.codeTree, observation.prose) : null",
       "to": "const treeCarry = null",
       "only": "^(?:the compaction note says a pass that stands for the tree passed on the changed paths, in Node and Go)$"
-    },
-    {
-      "label": "ADR-120 T9: the turn end carries a pass across a write another session logged after it",
-      "file": "plugin/scripts/completion-rules.mjs",
-      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
-      "from": "writes.length === 0 && !carryVetoed.includes(codeTree) ?",
-      "to": "writes.length === 0 ?",
-      "only": "^(?:a write another session made after the pass ends the carry-over, and one made before it does not)$"
     },
     {
       "label": "ADR-120 T11: a command-local assignment is read as no PATH change",

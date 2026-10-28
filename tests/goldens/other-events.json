@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -19,7 +19,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SubagentStart",
-          "additionalContext": "QUALITY CONTRACT — you are a leaf role, not the lifecycle coordinator. Do not invoke /quality-harness:work, /quality-harness:consensus, /quality-harness:review-ring, /quality-harness:quality-cycle, or spawn another agent unless your delegation explicitly assigns coordination. Preserve the supplied scope and non-goals; invent no features, configuration, fallbacks, dependencies, or speculative abstractions. DRY duplicated knowledge, not similar syntax; use SOLID only where a demonstrated boundary needs it. Treat this role as read-only unless the delegation explicitly authorizes edits. Before returning after edits, run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. Return touched files, exact executed evidence, and remaining risk or uncertainty."
+          "additionalContext": "QUALITY CONTRACT — you are a leaf role, not the lifecycle coordinator. Do not invoke /quality-harness:work, /quality-harness:consensus, /quality-harness:review-ring, /quality-harness:quality-cycle, or spawn another agent unless your delegation explicitly assigns coordination. Preserve the supplied scope and non-goals; invent no features, configuration, fallbacks, dependencies, or speculative abstractions. DRY duplicated knowledge, not similar syntax; use SOLID only where a demonstrated boundary needs it. Treat this role as read-only unless the delegation explicitly authorizes edits. `qh-check` optionally records a run (ADR-130); report the exact commands you ran and their results. Return touched files, exact executed evidence, and remaining risk or uncertainty."
         }
       },
       "stderr": ""

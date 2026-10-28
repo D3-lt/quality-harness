@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: Go delegation requires a recorded check",
+      "from": "\"`qh-check` optionally records a run (ADR-130); report the exact commands you ran and their results.\"",
+      "to": "\"Before returning after edits, run `qh-check`.\"",
+      "only": "^Go hooks allow unchecked publishing",
+      "file": "core/hooks/sessionend.go",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ]
+    },
+    {
       "label": "ADR-120 T9: the Go compaction note asks the working tree without its code tree",
       "file": "core/hooks/sessionend.go",
       "tests": ["tests/prose-pass.test.mjs"],

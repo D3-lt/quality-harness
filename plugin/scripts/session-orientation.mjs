@@ -93,15 +93,7 @@ export function sessionOrientation(cwd, { once = false, say = null, mark = false
       ? `this project's own check is ${checkInCode(check)}`
       : `no \`check\` is declared in \`.quality-harness.json\`; inferred ${checkInCode(check)} from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass`
     standing(`Verification: ${named}. `
-      // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
-      // spelled, piped or redirected no longer decides anything — but running it
-      // any other way now leaves no record at all, and the orientation has to say
-      // so. A peer session testing this branch ran its check directly and was
-      // still told the tree was unchecked, which is correct and was not said
-      // anywhere (2026-09-18).
-      + 'Run it through `qh-check`: that is what records the result where the '
-      + 'completion and commit advisories read it. The same command run any other '
-      + 'way still proves the work to you, and leaves them nothing to see.')
+      + '`qh-check` optionally records a run for status and reports (ADR-130).')
   }
 
   const stale = staleVersionNotice()

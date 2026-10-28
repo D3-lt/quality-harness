@@ -19,7 +19,7 @@ function section(number) {
   return next < 0 ? text.slice(start) : text.slice(start, start + 1 + next)
 }
 
-test('CLAUDE.md section 3 names a turn that continues as an act, not a refusal', () => {
+test('CLAUDE.md section 3 names a turn that continues as an act, not a refusal', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const rules = section(3)
   assert.match(rules, /continue[s]? (?:a|the) turn/i, 'section 3 says a hook may continue a turn')
   assert.match(rules, /ADR-096/, 'and names the record that decided it')
@@ -46,7 +46,7 @@ function unchecked(t, name, files = {}) {
   return { box, repo, session, hook: payload => runHook(box, repo, session, payload) }
 }
 
-test('a Stop with unchecked work gives the agent the finding and the user a headline', { skip }, t => {
+test('a Stop with unchecked work gives the agent the finding and the user a headline', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const { hook } = unchecked(t, 'to-agent')
   const said = hook(stop())
   assert.equal(said.stdout?.hookSpecificOutput?.hookEventName, 'Stop', JSON.stringify(said.stdout))
@@ -60,7 +60,7 @@ test('a second Stop in the same turn adds nothing', { skip }, t => {
   assert.equal(context(said), '', 'a turn that has already continued once ends')
 })
 
-test('a finding delivered to the agent for this tree is not delivered again, and a changed tree is said again', { skip }, t => {
+test('a finding delivered to the agent for this tree is not delivered again, and a changed tree is said again', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const { repo, hook } = unchecked(t, 'once-per-tree')
   assert.match(context(hook(stop())), /qh-check/, 'said the first time')
   assert.equal(context(hook(stop())), '', 'not again on the same tree')
@@ -102,14 +102,14 @@ test('the task-evidence nudge has an identity and is said once per tree', { skip
   assert.equal(context(hook(stop())), '', 'and is not repeated on the same tree')
 })
 
-test('SubagentStop output is unchanged', { skip }, t => {
+test('SubagentStop output is unchanged', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const { hook } = unchecked(t, 'subagent')
   const said = hook({ hook_event_name: 'SubagentStop', agent_type: 'general-purpose', last_assistant_message: 'Done.' })
   assert.equal(said.stdout?.hookSpecificOutput, undefined, 'nothing is added to a subagent\'s context')
   assert.match(said.stdout?.systemMessage ?? '', /qh-check/, 'the user is told, as before')
 })
 
-test('turnEnd notify keeps a finding user-only, and any other value means agent', { skip }, t => {
+test('turnEnd notify keeps a finding user-only, and any other value means agent', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const [value, expected] of [['notify', false], ['shout', true], [undefined, true]]) {
     const config = { check: 'sh check.sh', fastCheck: 'sh check.sh', ...(value === undefined ? {} : { turnEnd: value }) }
     const { hook } = unchecked(t, `turn-end-${value ?? 'none'}`, { '.quality-harness.json': `${JSON.stringify(config)}\n` })

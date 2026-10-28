@@ -105,7 +105,7 @@ function events(dir, session) {
   return readFileSync(path.join(sessions, file), 'utf8').trim().split('\n').map(line => JSON.parse(line).event)
 }
 
-test('an unchecked commit is refused by git in the repository it runs in', { skip: needsConfigHooks }, () => {
+test('an unchecked commit is refused by git in the repository it runs in', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('refused-')
   const session = `hook-refused-${process.pid}`
   startSession(dir, session)
@@ -125,7 +125,7 @@ test('an unchecked commit is refused by git in the repository it runs in', { ski
   assert.ok(events(dir, session).includes('publish.hook-ran'), 'the hook recorded that it ran')
 })
 
-test("a checked commit, a person's commit and a merge pass the hook", { skip: needsConfigHooks }, () => {
+test("a checked commit, a person's commit and a merge pass the hook", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('passed-')
   const session = `hook-passed-${process.pid}`
   startSession(dir, session)
@@ -158,7 +158,7 @@ test("a checked commit, a person's commit and a merge pass the hook", { skip: ne
   assert.equal(merged.status, 0, `a merge is not a commit this refuses: ${merged.stderr}`)
 })
 
-test('a cherry-pick in progress is concluded without the hook refusing it', { skip: needsConfigHooks }, () => {
+test('a cherry-pick in progress is concluded without the hook refusing it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // A conflicted pick leaves CHERRY_PICK_HEAD, and concluding it runs
   // prepare-commit-msg with the same source `git commit -m` uses; only git's own
   // sequencer state keeps the refusal to a plain commit (ADR-066 Decision 2).
@@ -194,7 +194,7 @@ function startSessionWithEnvFile(dir, session, envFile) {
   assert.equal(run.status, 0, run.stderr)
 }
 
-test('sessionstart offers the hook only where git runs config hooks', { skip: needsConfigHooks }, async () => {
+test('sessionstart offers the hook only where git runs config hooks', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   // Through SessionStart itself, so what SELECTS the offer is what is tested.
   const dir = repository('offer-')
@@ -217,7 +217,7 @@ test('sessionstart offers the hook only where git runs config hooks', { skip: ne
   assert.ok(!seen.includes('publish.offered'))
 })
 
-test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: needsConfigHooks }, async () => {
+test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   const dir = repository('count-')
   const session = `count-${process.pid}`
@@ -256,7 +256,7 @@ test('the sourced env file makes git record the sha of each commit it makes', { 
   assert.deepEqual(made, [git(dir, 'rev-parse', 'HEAD')])
 })
 
-test('the sourced env file makes git run the hook over a repo-local disable', { skip: needsConfigHooks }, async () => {
+test('the sourced env file makes git run the hook over a repo-local disable', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   const dir = repository('override-')
   const session = `override-${process.pid}`
@@ -278,7 +278,7 @@ test('the sourced env file makes git run the hook over a repo-local disable', { 
   assert.match(bare.stdout, /^disabled\s+qh-publish-commit$/m)
 })
 
-test('an installation path with shell characters survives the exports', { skip: needsConfigHooks }, async () => {
+test('an installation path with shell characters survives the exports', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   // Codex review of 3.0.0: the stored command double-quoted its paths, and git runs
   // it through sh, so a `$` in the installation path was expanded away. The paths are
   // single-quoted now; this one holds a `$`, a backtick and a single quote.
@@ -305,7 +305,7 @@ function worktreeOf(dir, prefix) {
   return worktree
 }
 
-test("an unchecked commit in a linked worktree of the session's repository is refused", { skip: needsConfigHooks }, () => {
+test("an unchecked commit in a linked worktree of the session's repository is refused", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('wt-main-')
   const session = `hook-worktree-${process.pid}`
   startSession(dir, session)
@@ -338,7 +338,7 @@ test('a checked linked worktree commits, and a scratch repository still passes',
 // directory as the repository, which is right for `.git` and wrong for a bare
 // repository (the common directory IS the repository) and for a submodule (whose
 // common directory sits under the superproject's `.git/modules/`).
-test('a worktree of a bare repository is judged, and a submodule is its own repository', { skip: needsConfigHooks }, () => {
+test('a worktree of a bare repository is judged, and a submodule is its own repository', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const source = repository('bare-src-')
   const bare = path.join(mkdtempSync(path.join(testTmp, 'bare-')), 'b.git')
   git(source, 'clone', '-q', '--bare', source, bare)
@@ -368,7 +368,7 @@ test('a worktree of a bare repository is judged, and a submodule is its own repo
 // commit made a second log in `.git/worktrees/<wt>/` holding only `publish.hook-ran`,
 // and the session's log never learned the hook had run, so a session committing from
 // a worktree read as never armed (seen in both chaos rounds of 626934a).
-test("git's hook in a linked worktree records that it ran in the session's own log", { skip: needsConfigHooks }, () => {
+test("git's hook in a linked worktree records that it ran in the session's own log", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('wt-armed-')
   const session = `hook-worktree-armed-${process.pid}`
   startSession(dir, session)
@@ -385,7 +385,7 @@ test("git's hook in a linked worktree records that it ran in the session's own l
 // A corpus-chaos run of 916b515 (ts-generator, macOS, LEAD 1): the exports bake
 // node's versioned path, and once `brew upgrade node` removed it git refused every commit
 // and push in every repository, because git refuses when a hook command cannot start.
-test('a hook whose node moved still runs, and one whose script is gone refuses nothing', { skip: needsConfigHooks }, async () => {
+test('a hook whose node moved still runs, and one whose script is gone refuses nothing', { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { publishHookExports } = await import('../plugin/scripts/publish-verdict.mjs')
   const script = path.join(testTmp, 'refuse.mjs')
   writeFileSync(script, "process.stderr.write('ran ' + process.argv[2] + ' ' + process.argv.length); process.exit(1)\n")
@@ -410,7 +410,7 @@ test('a hook whose node moved still runs, and one whose script is gone refuses n
 
 // The same run, LEAD 2: a torn log tail swallowed the next append into itself, so the
 // session's own log could not show that git's hook ran (ADR-068).
-test("a torn log tail does not swallow the hook's own record", { skip: needsConfigHooks }, async () => {
+test("a torn log tail does not swallow the hook's own record", { skip: 'ADR-130: compulsory check policy retired' }, async () => {
   const { readEvents } = await import('../plugin/scripts/event-log.mjs')
   const dir = repository('torn-')
   const session = `hook-torn-${process.pid}`
@@ -428,7 +428,7 @@ test("a torn log tail does not swallow the hook's own record", { skip: needsConf
 // BACKLOG §381, item 3 (from §378): under `"publish": "warn"` git's hook returned `{ code: 0 }` with
 // no message, so a commit a script ran on an unchecked tree was not even warned about: PreToolUse
 // saw only the script's name. The opt-out turns a refusal into a warning, never into silence.
-test('under "publish": "warn" the git hook warns at the event and lets the commit through', { skip: needsConfigHooks }, () => {
+test('under "publish": "warn" the git hook warns at the event and lets the commit through', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('warned-')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', fastCheck: 'sh check.sh', publish: 'warn' }))
   git(dir, 'commit', '-qam', 'warn')

@@ -158,15 +158,7 @@ func subagentContract(input *Obj) string {
 	if !readOnly {
 		parts = append(parts, "Read every site you will touch before the first edit, make the edits as one batch, and check that each landed: an edit that matched nothing is a failure (the execution skill's \"Read and edit in batches\").")
 	}
-	cwd, _ := input.Get("cwd").(string)
-	if cwd == "" {
-		cwd, _ = os.Getwd()
-	}
-	sentence := runTheCheckSentence(cwd)
-	if strings.HasPrefix(sentence, "Run ") {
-		sentence = "run " + sentence[len("Run "):]
-	}
-	parts = append(parts, "Before returning after edits, "+sentence, "Return touched files, exact executed evidence, and remaining risk or uncertainty.")
+	parts = append(parts, "`qh-check` optionally records a run (ADR-130); report the exact commands you ran and their results.", "Return touched files, exact executed evidence, and remaining risk or uncertainty.")
 	if capability := declaredCapability(input); capability != "" {
 		parts = append(parts, capability)
 	}

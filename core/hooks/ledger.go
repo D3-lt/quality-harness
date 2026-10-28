@@ -78,26 +78,6 @@ func ledgerPass(stateRoot, file, seen string, match func(*Obj) bool, vetoRoot st
 	return &ledgerPassResult{latest: latest, seq: latestSeq, count: count, byID: byID}
 }
 
-type fastPass struct {
-	command any
-	count   int
-}
-
-// latestFastPass is check-ledger.mjs's: the latest fast record on this tree, for the fastCheck declared now (ADR-113 T3).
-func latestFastPass(cwd, tree, root string) *fastPass {
-	command := fastCheckCommand(root)
-	if command == "" {
-		return nil
-	}
-	pass := ledgerPass(cwd, "fast-checks.jsonl", "fastSeen", func(r *Obj) bool {
-		return strict(dig(r, "after", "tree"), tree) && strict(get(r, "command"), command)
-	}, root)
-	if pass == nil {
-		return nil
-	}
-	return &fastPass{command: pass.latest.Get("command"), count: pass.count}
-}
-
 // unseenWriteSince says whether any session log holds a write git cannot see that a pass does not cover (ADR-081).
 func unseenWriteSince(root, seen string, seq int, started float64) bool {
 	sessions := filepath.Join(stateDir(root), "sessions")
@@ -307,59 +287,6 @@ func importCheckRecords(cwd string, session any) importResult {
 		imported++
 	}
 	return importResult{imported: imported, complete: whole}
-}
-
-type boundLog struct {
-	log     Log
-	dropped int
-	torn    bool
-}
-
-// ledgerBoundLog is the session log with every check event checks.jsonl does not hold removed (ADR-088 T2).
-func ledgerBoundLog(cwd string, log Log) boundLog {
-	torn := boundLog{log: log, torn: true}
-	text, err := os.ReadFile(filepath.Join(stateDir(cwd), "checks.jsonl"))
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			return torn
-		}
-		text = nil
-	}
-	all := strings.Split(string(text), "\n")
-	if strings.TrimSpace(all[len(all)-1]) != "" {
-		return torn
-	}
-	records := map[string]any{}
-	for _, line := range all[:len(all)-1] {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		record, err := parseJSON(line)
-		if err != nil {
-			return torn
-		}
-		id, ok := get(record, "id").(string)
-		if !ok {
-			return torn
-		}
-		if _, have := records[id]; !have {
-			records[id] = record
-		}
-	}
-	kept := []any{}
-	for _, entry := range log.E {
-		event, ok := get(entry, "event").(string)
-		if !ok || !strings.HasPrefix(event, "check.") || event == "check.source-unreadable" {
-			kept = append(kept, entry)
-			continue
-		}
-		id, ok := get(entry, "record").(string)
-		record, have := records[id]
-		if ok && have && checkEventName(record) == event && strict(dig(record, "after", "tree"), dig(entry, "after", "tree")) && carriedAsRecorded(entry, record) {
-			kept = append(kept, entry)
-		}
-	}
-	return boundLog{log: Log{E: kept, Complete: log.Complete}, dropped: len(log.E) - len(kept)}
 }
 
 // lateBaselineAllowed: the first look of a session that has no baseline, over a clean tree, with no write on record.

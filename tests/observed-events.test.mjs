@@ -397,7 +397,7 @@ test('a read-only role cannot commit or push and its other changes are reported'
 const PUBLISH_WARNING = 'names commit or push'
 const OLD_COMMIT_ADVISORY = 'would publish'
 
-test('a command naming commit or push is warned before it runs', () => {
+test('a command naming commit or push is warned before it runs', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   assert.equal(typeof lifecycle.containsCommitOrPush, 'function')
   const dir = repository('t4p-')
   projectWithCheck(dir)
@@ -594,7 +594,7 @@ function scriptedSession(withCheck) {
   return { steps, session, a, b, state }
 }
 
-test('the scripted session advises as its step table lists', () => {
+test('the scripted session advises as its step table lists', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const run = scriptedSession(true)
   assert.deepEqual(run.steps.map(entry => [entry.label, entry.rules]),
     SCENARIO.map(([label, rules]) => [label, rules]))
@@ -639,7 +639,7 @@ test('the scripted session advises as its step table lists', () => {
 // ADR-111 T2 reversed the 2026-08-26 silence in one case: a tree that changed in a project with no declared or inferred
 // check is said, as R5, once per tree. No rule that needs a check speaks, and the claim rows still read `no-check`. The
 // title is the one ADR-060 T5's Tests table names, and that record is history: read it as "no completion advisory but R5".
-test('a repository without a check hears no completion advisory', () => {
+test('a repository without a check hears no completion advisory', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const run = scriptedSession(false)
   for (const entry of run.steps) {
     assert.ok(entry.rules.every(rule => rule === 'R5'), entry.label + ' delivered ' + entry.rules.join(', '))
@@ -653,7 +653,7 @@ test('a repository without a check hears no completion advisory', () => {
 
 // ADR-128 T1 retired R2. The title is the one ADR-060's Tests tables name, and those records are history: read it as "an
 // unchecked commit whose tree equals the session start is named by nothing". R1 still speaks for the tree.
-test('an unchecked commit is named even when its tree equals the session start', () => {
+test('an unchecked commit is named even when its tree equals the session start', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('t5s-')
   projectWithCheck(dir)
   writeFileSync(path.join(dir, 'pending.md'), 'pending\n')
@@ -675,7 +675,7 @@ test('an unchecked commit is named even when its tree equals the session start',
 // apart from the rules, because at step 9′ an unchecked COMMIT kept the row
 // honest whatever the tree contributed. This is the isolated case — P warned,
 // nothing was committed, and the row must still say the work is unchecked.
-test('a tree the publish warning named still records unverified', () => {
+test('a tree the publish warning named still records unverified', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('t5l-')
   projectWithCheck(dir)
   git(dir, 'add', '-A')
@@ -697,7 +697,7 @@ test('a tree the publish warning named still records unverified', () => {
 // A fetch, a merge or a branch switch makes many commits newly reachable at
 // once. ADR-128 T1 retired R2, so none of them is named; the title is the one
 // ADR-060's Tests tables name, read as history. R1 speaks for the tree, once.
-test('many unchecked commits are one finding', () => {
+test('many unchecked commits are one finding', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('t5m-')
   projectWithCheck(dir)
   git(dir, 'add', '-A')
@@ -764,7 +764,7 @@ function waitFor(predicate, what) {
   assert.fail('waited 30s for ' + what)
 }
 
-test('writes the tree cannot see re-open the finding', () => {
+test('writes the tree cannot see re-open the finding', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('t5w-')
   projectWithCheck(dir)
   git(dir, 'add', '-A')
@@ -1140,7 +1140,7 @@ test('an untracked directory is gated by the files in it, never as a directory',
   assert.equal(gatedPaths(eventsIn(state, session)).length, before, 'a complete result is not re-taken')
 })
 
-test('the harness does not observe its own ledger', () => {
+test('the harness does not observe its own ledger', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // CLAUDE_PLUGIN_DATA is wherever the host puts it, and a host that puts it
   // inside the repository made every hook dirty the tree it was watching: the
   // claims ledger appeared as a changed path and moved the tree, so the SAME
@@ -1172,7 +1172,7 @@ test('the harness does not observe its own ledger', () => {
 // commit. R2 stays silent here on purpose: R1 speaks for the observed tree.
 const COMMITTED_TREE = /the tree at HEAD, committed as/
 
-test('a turn that ended in a commit names the commit, not a change that is not there', () => {
+test('a turn that ended in a commit names the commit, not a change that is not there', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('peer-commit-')
   projectWithCheck(dir)
   git(dir, 'add', '-A')
@@ -1195,7 +1195,7 @@ test('a turn that ended in a commit names the commit, not a change that is not t
 // Bash call that finishes in a LATER turn. The record is imported at the next
 // hook, so the turn that ends while it runs is still unchecked and the turn
 // after it is not — no special case, but it had no test.
-test('a check that finishes in a later turn clears the finding then', () => {
+test('a check that finishes in a later turn clears the finding then', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('peer-bg-')
   projectWithCheck(dir)
   git(dir, 'add', '-A')
@@ -1281,7 +1281,7 @@ test('the key a per-edit gate persists is the one rule A looks up, on either pla
   assert.notEqual(persistedEventPath(asBashSawIt, root, 'win32'), asBashSawIt)
 })
 
-test('a git query that FAILED is not a git query that found nothing', () => {
+test('a git query that FAILED is not a git query that found nothing', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // ⚠ `gitLines` returned `[]` for a nonzero exit, a timeout and a spawn error
   // alike, and its callers read that as "no commits" and "no paths". So a history
   // query that could not run suppressed R2 entirely and left the ledger saying
@@ -1330,7 +1330,7 @@ test('a git query that FAILED is not a git query that found nothing', () => {
     `and it must not leave the ledger claiming verified: ${said}`)
 })
 
-test('a log that could not be read whole cannot supply a passing verdict', () => {
+test('a log that could not be read whole cannot supply a passing verdict', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // ⚠ A TORN LINE WAS SKIPPED AND A READ ERROR BECAME "NO EVENTS", so an
   // incomplete log answered in the vocabulary of a complete one. The reviewer's
   // probe made it concrete: a log holding an older PASS and a newer FAILURE whose
@@ -1425,7 +1425,7 @@ test('a session note never invents a check, and never reports silence as stillne
     `and it must say what it could not do: ${blind}`)
 })
 
-test('a session that began before the first commit still sees the commits it gained', () => {
+test('a session that began before the first commit still sees the commits it gained', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // ⚠ AN UNBORN HEAD IS AN OBSERVATION, NOT AN ABSENCE. `observe()` records a
   // repository with no commits as `{ ok: true, head: null }` — positively looked
   // at, positively empty. Both consumers then required a STRING baseline:
@@ -1757,7 +1757,7 @@ test('a file edited while the BATCH gated it is not recorded as answered either'
     'and a gate whose bytes moved underneath it has not answered about them')
 })
 
-test('a torn checks.jsonl cannot leave an older pass standing as the verdict', () => {
+test('a torn checks.jsonl cannot leave an older pass standing as the verdict', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. `readEvents` was taught
   // that an incomplete read must not supply a positive verdict; `importCheckRecords`
   // still swallowed a torn line in `checks.jsonl` with `catch { continue }` and had

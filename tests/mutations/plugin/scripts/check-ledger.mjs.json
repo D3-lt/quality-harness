@@ -16,7 +16,7 @@
       ],
       "from": " && record.command === command",
       "to": "",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     },
     {
       "label": "ADR-111 T3: only a bound row is a kept baseline",
@@ -109,8 +109,7 @@
         "tests/fail-open.test.mjs"
       ],
       "from": "  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'",
-      "to": "  if (false) return 'could-not-look'",
-      "only": "^(?:a check that could not look is not reported as no check passing|a check that could not look after a pass warns and does not refuse|an index that could not be checked says unknown even when the tree passed)$"
+      "to": "  if (false) return 'could-not-look'"
     },
     {
       "label": "fail-open: a pass recorded before an unobservable write does not cover it",
@@ -150,8 +149,7 @@
         "tests/late-baseline.test.mjs"
       ],
       "from": "    && observedClean(cwd, observation)",
-      "to": "    && true",
-      "only": "^(?:a DIRTY tree with no SessionStart is still unchecked work, and gets no late baseline)$"
+      "to": "    && true"
     },
     {
       "label": "evidence-flip: whole is something a log must SAY, so a copy that lost the flag cannot certify",
@@ -251,8 +249,7 @@
         "tests/chaos-e016066.test.mjs"
       ],
       "from": "  return log?.complete !== true ? sessionWords : '`checks.jsonl`",
-      "to": "  return true ? sessionWords : '`checks.jsonl`",
-      "only": "a torn checks.jsonl is named as checks.jsonl"
+      "to": "  return true ? sessionWords : '`checks.jsonl`"
     },
     {
       "label": "ADR-081 T1: a write git cannot see is ignored by the skip",
@@ -271,8 +268,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "  if (!latest || checkEventName(latest) !== 'check.passed') return null\n  if (unseenWriteSince(vetoRoot",
-      "to": "  if (!latest) return null\n  if (unseenWriteSince(vetoRoot",
-      "only": "^a commit with no fast pass, or a failed one, is still refused$"
+      "to": "  if (!latest) return null\n  if (unseenWriteSince(vetoRoot"
     },
     {
       "label": "ADR-081 review: an unseen write is judged by its clock alone",
@@ -301,8 +297,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "  if (unseenWriteSince(vetoRoot, { seen, seq: latestSeq, started: Date.parse(latest.before?.at) })) return null",
-      "to": "  if (false) return null",
-      "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
+      "to": "  if (false) return null"
     },
     {
       "label": "§343: a write logs no fast-ledger count",
@@ -311,8 +306,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "fastSeen: ledgerRecordCount(cwd, 'fast-checks.jsonl')",
-      "to": "fastSeen: ledgerRecordCount(cwd, 'checks.jsonl')",
-      "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
+      "to": "fastSeen: ledgerRecordCount(cwd, 'checks.jsonl')"
     },
     {
       "label": "§343 review: a write outside the repository vetoes the pass",
@@ -321,48 +315,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry)) continue",
-      "to": "if (false) continue",
-      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
-    },
-    {
-      "label": "ADR-088 T2: a ledger record binds an event only on the event's own tree",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": " || record.after?.tree !== entry.after?.tree",
-      "to": "",
-      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
-    },
-    {
-      "label": "ADR-088 T2: a check event the ledger holds is kept and still clears the refusal",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "    if (record === undefined || checkEventName(record)",
-      "to": "    if (true || checkEventName(record)",
-      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
-    },
-    {
-      "label": "ADR-088 T2: a torn ledger binds nothing",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "    try { record = JSON.parse(line) } catch { return torn }",
-      "to": "    try { record = JSON.parse(line) } catch { continue }",
-      "only": "^(?:a torn ledger is could-not-look to git's hook as well)$"
-    },
-    {
-      "label": "ADR-088 review: ledgerBoundLog reads an unterminated last line as torn",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "  if (lines.pop().trim()) return torn",
-      "to": "  lines.pop()",
-      "only": "^(?:an unterminated last ledger line is torn)$"
+      "to": "if (false) continue"
     },
     {
       "label": "ADR-088 review: the importer reads an unterminated last line as torn",
@@ -371,8 +324,7 @@
         "tests/publish-ledger-binding.test.mjs"
       ],
       "from": "  if (lines.pop().trim()) whole = false",
-      "to": "  lines.pop()",
-      "only": "^(?:an unterminated last ledger line is torn)$"
+      "to": "  lines.pop()"
     },
     {
       "label": "ADR-088 follow-up: the fast exemption reads an unterminated last line as torn",
@@ -381,8 +333,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "  if (lines.pop().trim()) return null\n  let latest = null",
-      "to": "  ;\n  let latest = null",
-      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
+      "to": "  ;\n  let latest = null"
     },
     {
       "label": "ADR-088 follow-up: a write's ledger count skips an unterminated last line",
@@ -431,8 +382,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "    if (typeof record?.id !== 'string') return null\n    byId.set(record.id, record)\n    count += 1",
-      "to": "    if (false) return null\n    byId.set(record.id, record)\n    count += 1",
-      "only": "^a row that is not a record proves nothing, in either ledger$"
+      "to": "    if (false) return null\n    byId.set(record.id, record)\n    count += 1"
     },
     {
       "label": "ADR-088 follow-up: qh-check's skip reads an unterminated last line as torn",
@@ -441,8 +391,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "  if (lines.pop().trim()) return null\n  let latest = null",
-      "to": "  ;\n  let latest = null",
-      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
+      "to": "  ;\n  let latest = null"
     },
     {
       "label": "ADR-101 T2: a torn last line after a pass is refused, not dropped",
@@ -534,58 +483,47 @@
     {
       "label": "ADR-120 T9: a pass carries to a tree under another list than the one it was taken under",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "entry.after?.codeTree === carry.codeTree && sameList(entry.prose, carry.prose)",
-      "to": "entry.after?.codeTree === carry.codeTree",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": "entry.after?.codeTree === carry.codeTree"
     },
     {
       "label": "ADR-120 T9: a pass carries to a tree whose code differs",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "entry.after?.codeTree === carry.codeTree && ",
-      "to": "",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": ""
     },
     {
       "label": "ADR-120 T9: a write git cannot see no longer ends the carry-over",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null",
-      "to": "carryWith(codeTree, prose)",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": "carryWith(codeTree, prose)"
     },
     {
       "label": "ADR-120 T9: the import drops the list a pass was taken under",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "...(Array.isArray(record.prose) ? { prose: record.prose } : {}),",
-      "to": "",
-      "only": "^(?:a pass stands across a prose-only change for every reader|a check event names its code tree and list only as the ledger record holds them)$"
-    },
-    {
-      "label": "ADR-120 T9: an event may name a list the ledger record does not hold",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
-      "from": "\n      && (entry.prose === undefined || sameList(entry.prose, record.prose))",
-      "to": "",
-      "only": "^(?:a check event names its code tree and list only as the ledger record holds them)$"
-    },
-    {
-      "label": "ADR-120 T9: an event may name a code tree the ledger record does not hold",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
-      "from": "(entry.after?.codeTree === undefined || entry.after.codeTree === record.after?.codeTree)",
-      "to": "true",
-      "only": "^(?:a check event names its code tree and list only as the ledger record holds them)$"
+      "to": ""
     },
     {
       "label": "ADR-120 T9: the carry stands against a write another session logged after the pass",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/carry-and-probe-fixes.test.mjs"],
+      "tests": [
+        "tests/carry-and-probe-fixes.test.mjs"
+      ],
       "from": "return carry && !carriedPassUnseen(log, root, carry) ? carry : null",
-      "to": "return carry",
-      "only": "^(?:a write another session made after the pass ends the carry-over, and one made before it does not)$"
+      "to": "return carry"
     }
   ]
 }

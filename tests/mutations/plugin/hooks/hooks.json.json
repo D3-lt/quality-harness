@@ -7,8 +7,7 @@
         "tests/refusals-hold.test.mjs"
       ],
       "from": "        \"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write\",",
-      "to": "        \"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\",",
-      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+      "to": "        \"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\","
     },
     {
       "label": "2.111.0-rc P1: the hook is called for the PowerShell tool",
@@ -16,7 +15,6 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "only": "PowerShell tool",
       "from": "\"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write\"",
       "to": "\"matcher\": \"Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write\""
     },

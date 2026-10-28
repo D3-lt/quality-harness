@@ -207,26 +207,29 @@
     {
       "label": "ADR-120 T9: the index's code tree is the working tree's",
       "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "treeWithout(git, env, scratch, 'index-code', indexTree, without)",
-      "to": "treeWithout(git, env, scratch, 'index-code', tree, without)",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": "treeWithout(git, env, scratch, 'index-code', tree, without)"
     },
     {
       "label": "ADR-120 T9: a commit has no code tree",
       "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "return treeWithout(git, env, scratch, 'index', treeSha, without)",
-      "to": "return null",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over)$"
+      "to": "return null"
     },
     {
       "label": "ADR-120 T9: a hook records an observation without the code tree",
       "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "specs.length ? observe(cwd, budgetMs, { without: specs, carry: true }) : observe(cwd, budgetMs)",
-      "to": "observe(cwd, budgetMs)",
-      "only": "^(?:a pass stands across a prose-only change for every reader)$"
+      "to": "observe(cwd, budgetMs)"
     }
   ]
 }

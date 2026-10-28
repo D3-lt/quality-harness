@@ -118,20 +118,6 @@ func readConfig(root string) any {
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
-// fastCheckCommand is check-command.mjs's (ADR-081): the fastCheck a project declares, a non-empty string that is not a
-// constant success, or "".
-func fastCheckCommand(root string) string {
-	fast, ok := get(readConfig(root), "fastCheck").(string)
-	if !ok {
-		return ""
-	}
-	fast = jsTrim(fast)
-	if fast == "" || constantSuccessCheck(fast) {
-		return ""
-	}
-	return fast
-}
-
 func declaredCheckCommand(directory string) string {
 	check, ok := get(readConfig(directory), "check").(string)
 	if ok && strings.TrimSpace(check) != "" {
@@ -149,44 +135,6 @@ func jsTrim(s string) string {
 		}
 		return r >= 0x2000 && r <= 0x200a
 	})
-}
-
-type publishSettingResult struct{ warn, ignored, unknown bool }
-
-func publishSetting(cwd string, found *lookup) publishSettingResult {
-	directory := nearestExistingDirectory(resolvePath(cwd))
-	if directory == "" {
-		return publishSettingResult{unknown: true}
-	}
-	if found == nil {
-		l := gitRepositoryLookup(directory)
-		found = &l
-	}
-	if !found.ok {
-		return publishSettingResult{unknown: true}
-	}
-	root := found.root
-	if root == "" {
-		root = directory
-	}
-	config, ok := readConfig(root).(*Obj)
-	if !ok || !config.Has("publish") {
-		return publishSettingResult{}
-	}
-	if strict(config.Get("publish"), "warn") {
-		return publishSettingResult{warn: true}
-	}
-	return publishSettingResult{ignored: true}
-}
-
-func publishSettingNote(s publishSettingResult) string {
-	if s.warn {
-		return " Refusal is off for this project: `\"publish\": \"warn\"` in .quality-harness.json makes this a warning."
-	}
-	if s.ignored {
-		return " The `\"publish\"` value in .quality-harness.json was ignored: only `\"publish\": \"warn\"` turns this refusal into a warning."
-	}
-	return ""
 }
 
 var knownStatus = map[string]string{"true": "zero", ":": "zero", "echo": "zero", "printf": "zero", "false": "nonzero"}
@@ -686,14 +634,6 @@ func runTheCheckSentence(cwd string) string {
 	return "No `check` is declared in `.quality-harness.json`. I inferred from this repository rather than from a declaration: " + checkInCode(o.command) +
 		", so that is not this project's own check. If it is red on an unmodified tree the finding is about this machine and not about your change — say which, and declare the real command as `check`. " +
 		"Run `qh-check` (it runs " + checkInCode(o.command) + " and records what it observed) after the final edit and report the exact command and result."
-}
-
-func inferredCheckCaveat(cwd string) string {
-	o := checkCommandOrigin(cwd, nil)
-	if o.origin == "inferred" {
-		return fmt.Sprintf(" The check %s was inferred from a manifest, not declared; declare it as `check` in .quality-harness.json.", checkInCode(o.command))
-	}
-	return ""
 }
 
 // turnEndSetting is where a turn-end finding goes (ADR-096 T3): notify, or the agent. ADR-120 T11: "continue" is the agent's too, and

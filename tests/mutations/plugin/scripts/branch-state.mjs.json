@@ -3,74 +3,92 @@
     {
       "label": "ADR-128 T2: a HEAD that could not be read is not news after an own commit",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "state.branch ?? null, /^[0-9a-f]{4,64}$/.test(state.head ?? ''), state.behind ?? null,",
       "to": "state.branch ?? null, true, state.behind ?? null,",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: a commit no post-commit row records counts as the session's own",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "  return walked.every(sha => made.has(sha)) && unchangedButOwnCommits(previous.saidState, state, walked.length)",
       "to": "  return unchangedButOwnCommits(previous.saidState, state, walked.length)",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: a switched ref under a stale snapshot is not news",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "  if (!Array.isArray(heard) || !live || heard[0] !== live[0] || heard[2] !== live[2]) return false",
       "to": "  if (!Array.isArray(heard) || !live) return false",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: a session log not read whole still shows the commit was made",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "  if (log.complete === false || log.length < previous.saidEvents) return false",
       "to": "  if (log.length < previous.saidEvents) return false",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: a merge commit counts as the session's own",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "    if (!up || up.length !== 1) return null",
       "to": "    if (!up || up.length < 1) return null",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: an ahead count that rose past the commits is not news",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "  return rose >= 0 && rose <= commits",
       "to": "  return rose >= 0",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: another session's commit counts as this one's",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "  if (!previous || typeof session !== 'string' || previous.saidSession !== session || !Number.isInteger(previous.saidEvents)) return false",
       "to": "  if (!previous || typeof session !== 'string' || !Number.isInteger(previous.saidEvents)) return false",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: CI is left out of what the brief reports",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "state.ci ? { ...state.ci, anchor: null } : null, state.tag ?? null,",
       "to": "null, state.tag ?? null,",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: the behind count is left out of what the brief reports, so a fetch is not news",
       "file": "plugin/scripts/branch-state.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": ".test(state.head ?? ''), state.behind ?? null,",
       "to": ".test(state.head ?? ''),",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-128 T2: the state the session heard is not stamped, so its own commit is said",

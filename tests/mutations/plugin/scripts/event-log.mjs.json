@@ -67,8 +67,7 @@
         "tests/publish-hook.test.mjs"
       ],
       "from": "        if (size > 0 && readSync(fd, last, 0, 1, size - 1) === 1 && last[0] !== 0x0a) lead = '\\n'",
-      "to": "        if (false) lead = '\\n'",
-      "only": "torn log tail does not swallow"
+      "to": "        if (false) lead = '\\n'"
     },
     {
       "label": "3.8.10: a git listing gets Node's default 1 MiB buffer",
@@ -87,8 +86,7 @@
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
       "from": "return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
-      "to": "return !(relative === '..' || path.isAbsolute(relative)",
-      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
+      "to": "return !(relative === '..' || path.isAbsolute(relative)"
     },
     {
       "label": "ADR-094 T4: a path is placed with its parent resolved before the lexical spelling is tried",

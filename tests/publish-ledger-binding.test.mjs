@@ -111,7 +111,7 @@ const ledger = dir => path.join(lifecycle.stateDir(dir), 'checks.jsonl')
 const lastRecord = dir => JSON.parse(readFileSync(ledger(dir), 'utf8').trim().split('\n').at(-1))
 const DROPPED = /check event\(s\) in this session's log name no `qh-check` record and were not counted/
 
-test('a check event the ledger does not hold does not clear the refusal', () => {
+test('a check event the ledger does not hold does not clear the refusal', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('refuse-')
   const session = `ledger-refuse-${process.pid}`
   start(dir, session)
@@ -164,7 +164,7 @@ test('a check event the ledger does not hold does not clear the refusal', () => 
   assert.notEqual(verdict.decision, 'deny', `a real pass imported twice: ${verdict.text}`)
 })
 
-test('a torn ledger binds nothing and refuses nothing', () => {
+test('a torn ledger binds nothing and refuses nothing', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const torn of [true, false]) {
     const dir = repository(torn ? 'torn-' : 'whole-')
     const session = `ledger-${torn ? 'torn' : 'whole'}-${process.pid}`
@@ -184,7 +184,7 @@ test('a torn ledger binds nothing and refuses nothing', () => {
   }
 })
 
-test('git refuses a pass the ledger does not hold', { skip: needsConfigHooks }, () => {
+test('git refuses a pass the ledger does not hold', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('git-')
   const session = `ledger-git-${process.pid}`
   start(dir, session)
@@ -208,7 +208,7 @@ test('git refuses a pass the ledger does not hold', { skip: needsConfigHooks }, 
 // The torn test above holds through the PreToolUse path, where the importer also records
 // `check.source-unreadable`, so the verdict is unknown whatever the binding did. This one reads the
 // binding itself: a ledger not read whole drops no event, and the refusal text says none was dropped.
-test('a torn ledger drops no check event', () => {
+test('a torn ledger drops no check event', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const torn of [true, false]) {
     const dir = repository(torn ? 'torn-drop-' : 'whole-drop-')
     const session = `ledger-drop-${torn ? 'torn' : 'whole'}-${process.pid}`
@@ -244,7 +244,7 @@ function gitHookVerdict(dir, session) {
   return lifecycle.publishVerdict({ cwd: dir, session, observation: lifecycle.observe(dir), invoked: 'git commit', commitOnly: true })
 }
 
-test("a torn ledger is could-not-look to git's hook as well", () => {
+test("a torn ledger is could-not-look to git's hook as well", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   // Unterminated, terminated but unparseable, and (the twin) empty.
   for (const content of ['{"id":', '{"id":\n', '']) {
     const torn = content !== ''
@@ -267,7 +267,7 @@ test("a torn ledger is could-not-look to git's hook as well", () => {
   }
 })
 
-test('an unterminated last ledger line is torn', () => {
+test('an unterminated last ledger line is torn', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const cut of [true, false]) {
     const dir = repository(cut ? 'cut-' : 'kept-')
     const session = `ledger-cut-${cut ? 'cut' : 'kept'}-${process.pid}`
@@ -298,7 +298,7 @@ test('an unterminated last ledger line is torn', () => {
 // A second Codex review of the ADR-088 diff: git's hook said nothing for a could-not-look verdict.
 // It prints only an unobserved tree and a fast pass, so a torn ledger beside a session pass
 // went through a commit and a push in silence. Driven through real git and the hook entry.
-test("git's own hook says a torn ledger is unknown, at commit and at push", { skip: needsConfigHooks }, () => {
+test("git's own hook says a torn ledger is unknown, at commit and at push", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const torn of [true, false]) {
     const dir = repository(torn ? 'hook-torn-' : 'hook-whole-')
     const remote = mkdtempSync(path.join(testTmp, 'remote-'))
@@ -333,7 +333,7 @@ test("git's own hook says a torn ledger is unknown, at commit and at push", { sk
 
 // A review of 8fe4fa8: rule P's dedupe key did not change when the ledger tore, so advice already
 // given on a tree swallowed the could-not-look advice that followed. A newly torn ledger is said once.
-test('a ledger torn after the advice was given is said once', () => {
+test('a ledger torn after the advice was given is said once', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('said-')
   const session = `ledger-said-${process.pid}`
   start(dir, session)
@@ -353,7 +353,7 @@ test('a ledger torn after the advice was given is said once', () => {
 // ADR-088 Follow-ups, a judgement reversed: a publish on a tree and index equal to the session's
 // baseline needs no check (ADR-061), and stayed silent beside a torn ledger. It is said, once, at
 // both entry points, and is still never refused.
-test('a baseline-equal publish beside a torn ledger is said once, and never refused', () => {
+test('a baseline-equal publish beside a torn ledger is said once, and never refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const torn of [true, false]) {
     const dir = repository(torn ? 'base-torn-' : 'base-whole-')
     const session = `ledger-base-${torn ? 'torn' : 'whole'}-${process.pid}`
@@ -380,7 +380,7 @@ test('a baseline-equal publish beside a torn ledger is said once, and never refu
   }
 })
 
-test("git's own hook says a torn ledger at a baseline-equal commit and push", { skip: needsConfigHooks }, () => {
+test("git's own hook says a torn ledger at a baseline-equal commit and push", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const torn of [true, false]) {
     const dir = repository(torn ? 'base-hook-torn-' : 'base-hook-whole-')
     const remote = mkdtempSync(path.join(testTmp, 'remote-'))

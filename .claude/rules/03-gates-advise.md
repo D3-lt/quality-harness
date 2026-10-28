@@ -78,3 +78,10 @@ PreToolUse context or a deny) was the one rule the agent saw. A live probe on Cl
 returning a marker as `additionalContext`) showed the agent quoting the marker after exactly one continuation, the second Stop
 carrying `stop_hook_active: true`. So a turn-end finding now reaches the agent, and continuing a turn is named in section 3 as an
 act that is not a refusal.
+
+## ADR-130: checks are optional tools
+
+The owner retired the compulsory project-check refusal, its arming and check nags, and automatic session-start
+baselines on 2026-10-28. The publish-refusal account above is historical evidence for ADR-061 and ADR-066, not current
+policy. CLAUDE.md §3 and ADR-130 govern the current behavior: explicit checks still record evidence, and reviewer and
+ledger guards remain active. Repository tooling and CI retain their own required checks.

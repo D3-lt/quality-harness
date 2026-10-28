@@ -41,7 +41,7 @@ test('qh-check --baseline records against the starting tree and holds no git loc
   assert.equal(ledger(repo, 'baseline.jsonl').length, 3, 'an unbound run does not stand for a baseline')
 })
 
-test('only a startup SessionStart starts the baseline, and it waits for nothing', { skip }, t => {
+test('only a startup SessionStart starts the baseline, and it waits for nothing', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const marker = path.join(box.tmp, 'started.json')
   const runner = path.join(box.tmp, 'fake-baseline.mjs')
@@ -101,7 +101,7 @@ test('a baseline pass leaves the same-tree skip as it was', { skip }, t => {
 
 // The whole path, with qh-check itself as the runner: SessionStart takes the baseline, an edit turns the check red, and the
 // turn end names the regression.
-test('a session whose check was green at its start and is red after an edit is told the change broke it', { skip }, t => {
+test('a session whose check was green at its start and is red after an edit is told the change broke it', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const repo = project(box, 'e2e', 'test ! -f src/broken')
   const live = { QUALITY_HARNESS_BASELINE_RUNNER: '' }
@@ -118,7 +118,7 @@ test('a session whose check was green at its start and is red after an edit is t
 
 // ADR-113 T1's surviving mutant: a row whose tree moved during its run is unbound, and is never read as the baseline, on either
 // path. The rows are written here so the bound flag is the only difference between the two sessions.
-test('an unbound baseline row names nothing, and the same row bound does', { skip }, t => {
+test('an unbound baseline row names nothing, and the same row bound does', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const said = bound => {
     const repo = project(box, `bound-${bound}`, 'test ! -f src/broken')

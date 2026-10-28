@@ -1,57 +1,21 @@
 #!/usr/bin/env node
-// Git's side of the publish refusal (ADR-066). SessionStart offers this to git as
-// a config-based hook through `CLAUDE_ENV_FILE`, so it runs AT the event, in the
-// repository being committed, whatever spelling, wrapper or script file launched
-// git. Nothing is installed into any repository.
-//
-//   node publish-hook.mjs prepare-commit-msg <file> [<source> [<sha>]]
-//   node publish-hook.mjs pre-push <remote> <url>
-//
-// `prepare-commit-msg`, not `pre-commit`: measured 2026-09-26 on git 2.55 and
-// Apple Git 2.54, `git commit --no-verify` skips `pre-commit` and does not skip
-// this one. The verdict is rule P's own (`publishVerdict`), so the two callers
-// cannot disagree about what is checked.
-//
-// Exit 1 refuses the git event; everything else, including a failure of this
-// script, exits 0 — a hook that could not look must not refuse (ADR-005).
+// Record commits made by this session for branch-state suppression (ADR-128).
+// Retired publish events return success without inspecting check evidence (ADR-130).
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import path from 'node:path'
+import { commonDirectory } from './publish-verdict.mjs'
 
 import { appendEvent, readEvents } from './event-log.mjs'
-import { importCheckRecords } from './check-ledger.mjs'
-import { observeBudgetMs, observeCarrying } from './tree-facts.mjs'
-import { publishVerdict } from './publish-verdict.mjs'
 import { isMainModule } from './main-module.mjs'
 
-// What each event stands for, in the words rule P's refusal already uses.
-const INVOKED = { 'prepare-commit-msg': 'git commit', 'pre-push': 'git push' }
 
-// A merge, cherry-pick, revert or rebase in progress. Each also fires
-// prepare-commit-msg, some with the source `git commit -m` uses, so git's own state
-// is what keeps the refusal to `git commit` (ADR-066 Decision 2). The `merge`
-// source adds nothing to it: a merge has MERGE_HEAD, and concluding a conflicted
-// pick — the other `merge` source — has CHERRY_PICK_HEAD (catalogue, 2026-09-26).
-const SEQUENCER = ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply']
-
-export function sequencerInProgress(cwd) {
-  const dir = spawnSync('git', ['rev-parse', '--absolute-git-dir'], { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-  if (dir.error || dir.status !== 0) return false
-  const gitDir = dir.stdout.trim()
-  return SEQUENCER.some(name => existsSync(path.join(gitDir, name)))
-}
 
 // The repository `cwd` belongs to — its common git directory, which a linked worktree
 // shares with the main checkout — when it holds this session's log, else null. The
 // answer is resolved against `cwd`, since some gits print the common directory
 // relative to it.
 function sessionOwnsRepository(cwd, session) {
-  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-  if (common.error || common.status !== 0) return null
-  // The common directory itself, not its parent: a bare repository IS its common
-  // directory, and a submodule's lives under the superproject's `.git/modules/`,
-  // whose parent is the superproject (a chaos round of 626934a, W10 and W11).
-  const repository = path.resolve(cwd, common.stdout.trim())
+  const repository = commonDirectory(cwd, cwd)
+  if (repository === null) return null
   // A log that cannot be read whole is owned: judging costs a warning, while passing
   // unjudged would be the flattering answer (tests/evidence-flip.test.mjs READERS).
   const events = readEvents(repository, session)
@@ -61,8 +25,8 @@ function sessionOwnsRepository(cwd, session) {
 
 /** Decide one git hook event. Returns `{ code, message? }`; only `code: 1` refuses. */
 export function runPublishHook({ event, cwd = process.cwd(), env = process.env }) {
-  const invoked = INVOKED[event]
-  if (!invoked && event !== 'post-commit') return { code: 0 }
+  // Older sessions may still invoke the retired prepare-commit-msg/pre-push exports after an update.
+  if (event !== 'post-commit') return { code: 0 }
   const session = env.CLAUDE_CODE_SESSION_ID
   // No session id: a person's own git, or a shell the harness does not own.
   if (typeof session !== 'string' || !session) return { code: 0 }
@@ -82,28 +46,6 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
     if (!head.error && head.status === 0 && /^[0-9a-f]{40,64}$/.test(sha)) appendEvent(owner ?? cwd, session, { event: 'commit.made', sha })
     return { code: 0 }
   }
-  // What makes a session ARMED (ADR-066 Decision 3): the hook itself, not the offer.
-  // Recorded in the log the session keeps. Written to `cwd`, a worktree commit made a
-  // second log in `.git/worktrees/<wt>/` holding only this line, and the session's own
-  // log never learned the hook had run (seen in both chaos rounds of 626934a).
-  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })
-  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }
-  // A `qh-check` that ran just before this, in the same script as the commit, is on
-  // record only once imported. PreToolUse imports at its own boundary; git's hook
-  // has no such boundary, and refused the tree that check had just passed (ADR-066
-  // review, P2). One import per caller: a second one in the verdict hid the first.
-  importCheckRecords(cwd, session)
-  // `prepare-commit-msg` is one commit by construction; `pre-push` never is (ADR-081).
-  const verdict = publishVerdict({ cwd, session, observation: observeCarrying(cwd, observeBudgetMs(env)), invoked, commitOnly: event === 'prepare-commit-msg' })
-  // An unreadable tree is said at the event too; a refusal is only ever code 1.
-  if (verdict?.unobserved) return { code: 0, message: verdict.text }
-  // A commit let through on a fast check is told so at the event, and so is a verdict that could
-  // not be read whole (ADR-088): advice, exit 0, never a silent pass. So is one `"publish": "warn"`
-  // turned from a refusal into a warning: the opt-out is a warning, never silence (BACKLOG §381).
-  // Other advice stays the hook's.
-  if (!verdict?.deny && verdict?.warned) return { code: 0, message: `${verdict.text}\n(warned, not refused, by git's ${event} hook: "publish": "warn" in .quality-harness.json — ADR-061)` }
-  if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }
-  return { code: 1, message: `${verdict.text}\n(refused by git's ${event} hook — ADR-066)` }
 }
 
 if (isMainModule(import.meta.url)) {

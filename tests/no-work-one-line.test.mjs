@@ -48,7 +48,7 @@ function turnEnd(t, implementation, script, { torn = false } = {}) {
   return JSON.stringify(stop.stdout)
 }
 
-test('a no-work run on this tree is said in one line, not with the path list', { skip }, t => {
+test('a no-work run on this tree is said in one line, not with the path list', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const implementation of [{ impl: 'node' }, ...(noGo ? [] : [{ impl: 'go', bin: goCore() }])]) {
     const noWork = turnEnd(t, implementation, "echo 'tests 0'\n")
     assert.match(noWork, /ran no tests \(no-work\), so nothing verified it\. \d+ changed paths\./, implementation.impl)
@@ -61,5 +61,13 @@ test('a no-work run on this tree is said in one line, not with the path list', {
     const unknown = turnEnd(t, implementation, "echo 'tests 0'\n", { torn: true })
     assert.match(unknown, /check state is unknown/, implementation.impl)
     assert.match(unknown, /Changed paths: .*src\/new\/f0\.js/, implementation.impl)
+  }
+})
+
+test('no-work, failed and torn checks do not produce turn-end check nags', { skip }, t => {
+  for (const implementation of [{ impl: 'node' }, ...(noGo ? [] : [{ impl: 'go', bin: goCore() }])]) {
+    for (const [script, options] of [["echo 'tests 0'\n", {}], ['exit 1\n', {}], ["echo 'tests 0'\n", { torn: true }]]) {
+      assert.doesNotMatch(turnEnd(t, implementation, script, options), /qh-check|Changed paths:|check state is unknown/, implementation.impl)
+    }
   }
 })

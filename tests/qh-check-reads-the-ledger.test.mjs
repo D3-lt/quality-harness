@@ -147,7 +147,7 @@ test('a fast check is recorded apart, where no full-check reader looks', () => {
   } finally { done(fixture) }
 })
 
-test('a commit-only command on a fast-passed tree is told, not refused', () => {
+test('a commit-only command on a fast-passed tree is told, not refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -158,7 +158,7 @@ test('a commit-only command on a fast-passed tree is told, not refused', () => {
   } finally { done(fixture) }
 })
 
-test('a commit with no fast pass, or a failed one, is still refused', () => {
+test('a commit with no fast pass, or a failed one, is still refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -172,7 +172,7 @@ test('a commit with no fast pass, or a failed one, is still refused', () => {
   } finally { done(failing) }
 })
 
-test('a push, or a commit that also pushes, is refused on a fast-passed tree', () => {
+test('a push, or a commit that also pushes, is refused on a fast-passed tree', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -182,7 +182,7 @@ test('a push, or a commit that also pushes, is refused on a fast-passed tree', (
   } finally { done(fixture) }
 })
 
-test("git's own hooks let a commit through with the warning and refuse a push", () => {
+test("git's own hooks let a commit through with the warning and refuse a push", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   const session = 'ledger-git-hook'
   try {
@@ -201,7 +201,7 @@ test("git's own hooks let a commit through with the warning and refuse a push", 
   } finally { done(fixture) }
 })
 
-test('a commit refused before a fast pass is told after it', () => {
+test('a commit refused before a fast pass is told after it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   const session = 'ledger-key'
   try {
@@ -226,7 +226,7 @@ test('--fast with no fastCheck declared is said, and runs nothing', () => {
 
 // The Codex round on ADR-081's code: each finding gets its regression, through the boundary it reported.
 
-test('a git command that runs other commands is not a commit, whatever it names', () => {
+test('a git command that runs other commands is not a commit, whatever it names', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -241,7 +241,7 @@ test('a git command that runs other commands is not a commit, whatever it names'
   } finally { done(fixture) }
 })
 
-test('a commit fed by an expanding here-document is refused, and a quoted one is told', () => {
+test('a commit fed by an expanding here-document is refused, and a quoted one is told', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -255,7 +255,7 @@ test('a commit fed by an expanding here-document is refused, and a quoted one is
 // refused before the here-document guard is reached, and that guard's mutant went GREEN (the
 // dispatched campaign at df11e2e). The guard still refuses ANY unquoted body, including one that names
 // nothing the lexer would flag: this pins it.
-test('a commit fed by an unquoted here-document is refused even when its body names nothing to expand', () => {
+test('a commit fed by an unquoted here-document is refused even when its body names nothing to expand', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -292,7 +292,7 @@ test('a sessions directory that cannot be listed runs the check', { skip: (proce
   }
 })
 
-test('a row that is not a record proves nothing, in either ledger', () => {
+test('a row that is not a record proves nothing, in either ledger', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository()
   try {
     check(fixture)
@@ -315,7 +315,7 @@ const post = (fixture, session, file) => spawnSync(process.execPath, [lifecycle]
   input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: resolve(fixture.dir, file) }, session_id: session, cwd: fixture.dir }),
 })
 
-test('a commit told through on a fast pass says when the staged index is not the tree it checked', () => {
+test('a commit told through on a fast pass says when the staged index is not the tree it checked', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -331,7 +331,7 @@ test('a commit told through on a fast pass says when the staged index is not the
   } finally { done(fixture) }
 })
 
-test('a write git cannot see, after a fast pass, takes the commit back to the full check', () => {
+test('a write git cannot see, after a fast pass, takes the commit back to the full check', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   const session = 'ledger-fast-unseen'
   try {
@@ -349,7 +349,7 @@ test('a write git cannot see, after a fast pass, takes the commit back to the fu
   } finally { done(fixture) }
 })
 
-test('a write the fast ledger counts after its pass is seen, even when the clock went back', () => {
+test('a write the fast ledger counts after its pass is seen, even when the clock went back', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const written = fastSeen => JSON.stringify({ at: '2000-01-01T00:00:00.000Z', event: 'file.written', observable: false, path: 'ignored.bin', fastSeen })
   for (const [fastSeen, expected] of [[1, 'deny'], [0, null]]) {
     const fixture = repository({ check: FULL, fastCheck: FAST })
@@ -366,7 +366,7 @@ test('a write the fast ledger counts after its pass is seen, even when the clock
 
 // The review of §343's first fix: a veto over every write git cannot see refused a commit after a
 // scratchpad note, which a full pass never did. Only a write inside the repository counts.
-test('a write outside the repository vetoes neither a fast-path commit nor the full skip', () => {
+test('a write outside the repository vetoes neither a fast-path commit nor the full skip', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   const outside = join(fixture.top, 'scratch.txt')
   try {
@@ -423,7 +423,7 @@ test('a skip whose ledger cannot be written is said, and still skips', () => {
 
 // ADR-088 Follow-ups: qh-check ends every record with a newline, so a last line without one was
 // not written whole even when it parses. Both readers of a pass here read it as the importer does.
-test('an unterminated last line proves nothing, in either ledger', () => {
+test('an unterminated last line proves nothing, in either ledger', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const cut of [true, false]) {
     const fixture = repository()
     try {

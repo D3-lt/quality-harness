@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -16,15 +16,8 @@
       "name": "commit before any check",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "fast check",
@@ -34,28 +27,15 @@
       "name": "commit after a fast pass",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-check` to pass first (ADR-081). The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked. <qh:p@<marker>>"
-        },
-        "systemMessage": "quality-harness advised the agent: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-… (full text in the transcript)"
-      },
-      "stderr": "quality-harness: a fast check (`sh check.sh`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need `qh-check` to pass first (ADR-081). The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "push after a fast pass",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is not fully checked — a fast check (`sh check.sh`) passed on its current tree, but only a command proven to be one `git commit` may go through on a fast pass, this one is not proven to be one commit, and a push needs the full check (ADR-081) — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is not fully checked — a fast check (`sh check.sh`) passed on its current tree, but only a command proven to be one `git …"
-      },
-      "stderr": "quality-harness: this repository is not fully checked — a fast check (`sh check.sh`) passed on its current tree, but only a command proven to be one `git commit` may go through on a fast pass, this one is not proven to be one commit, and a push needs the full check (ADR-081) — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "full check",
@@ -79,15 +59,8 @@
       "name": "commit after a further change",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "full check again",
@@ -281,19 +254,6 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
         "event": "publish.requested",
         "observation": {
           "ok": true,
@@ -304,19 +264,6 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0:fast1",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
         "event": "publish.requested",
         "observation": {
           "ok": true,
@@ -324,19 +271,6 @@
           "index": "<sha>",
           "head": "<sha>"
         }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       },
       {
         "at": "<time>",
@@ -406,19 +340,6 @@
         "blob": "4a23bfb28bdb64187bd8410414aa18616f225b4c2c1835f0728430ae35914e93",
         "complete": true,
         "pass": "<id>"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       }
     ],
     "skips.jsonl": [

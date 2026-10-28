@@ -71,7 +71,7 @@ const count = (text, wanted) => text.split('\n').filter(entry => entry === wante
 const probeFailed = () => ({ status: 129, stdout: '', stderr: "error: unknown subcommand: `list'" })
 const probeListed = () => ({ status: 0, stdout: 'qhprobe\n', stderr: '' })
 
-test('the session start writes the plugin root once, whatever the git hook probe found', t => {
+test('the session start writes the plugin root once, whatever the git hook probe found', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const dir = scratch(t)
   const cwd = path.join(dir, 'cwd')
   mkdirSync(cwd)
@@ -120,7 +120,7 @@ const noGo = required('go', (() => {
 })())
 const posixOnly = process.platform === 'win32' && 'the core is exercised on POSIX, as the goldens are'
 
-test('the Go session start writes the same plugin root line', { skip: noGo || posixOnly }, t => {
+test('the Go session start writes the same plugin root line', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const bin = scratch(t)
   const qh = path.join(bin, 'qh')
   const built = spawnSync('go', ['build', '-o', qh, './cmd/qh'], { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true })
@@ -142,4 +142,74 @@ test('the Go session start writes the same plugin root line', { skip: noGo || po
   start(older, 'go-root-2')
   start(older, 'go-root-2')
   assert.equal(readFileSync(older, 'utf8'), block + `${line(pluginDir)}\n`)
+})
+
+// ADR-130: retained behavior, with the retired publish-policy expectations removed.
+test("optional commit tracking exports are installed once with the plugin root", t => {
+  const dir = scratch(t)
+  const cwd = path.join(dir, 'cwd')
+  mkdirSync(cwd)
+  const root = path.resolve(here, '..', 'plugin')
+  // As on-session-start.mjs calls them: the plugin root, then git's hook.
+  const offer = (file, run) => {
+    const env = { CLAUDE_ENV_FILE: file }
+    offerPluginRoot({ cwd, session: 'plugin-root-node', env })
+    offerPublishHook({ cwd, session: 'plugin-root-node', env, run })
+  }
+  // The probe failed: no git hook is written, the plugin root is.
+  const failed = path.join(dir, 'failed.env')
+  offer(failed, probeFailed)
+  assert.equal(count(readFileSync(failed, 'utf8'), line(root)), 1)
+  assert.doesNotMatch(readFileSync(failed, 'utf8'), /hook\.qh-publish-/)
+  // A second SessionStart on the same file adds nothing, with the probe failed or listed.
+  offer(failed, probeFailed)
+  offer(failed, probeListed)
+  assert.equal(count(readFileSync(failed, 'utf8'), line(root)), 1)
+  // The probe listed it: the git block follows, and a repeat adds neither.
+  const listed = path.join(dir, 'listed.env')
+  offer(listed, probeListed)
+  const written = readFileSync(listed, 'utf8')
+  assert.equal(count(written, line(root)), 1)
+  assert.match(written, /hook\.qh-commit-made\.command/)
+  offer(listed, probeListed)
+  assert.equal(readFileSync(listed, 'utf8'), written)
+  // An env file that already holds an older git block (no plugin root yet) still gets the line, once, and the block is left alone.
+  const older = path.join(dir, 'older.env')
+  const block = '# older block\nexport GIT_CONFIG_KEY_0=hook.qh-publish-commit.command\n'
+  writeFileSync(older, block)
+  offer(older, probeListed)
+  offer(older, probeListed)
+  assert.ok(readFileSync(older, 'utf8').startsWith(block + `${line(root)}\n`))
+  assert.equal((readFileSync(older, 'utf8').match(/hook\.qh-commit-made\.command/g) ?? []).length, 1)
+  // Through the real SessionStart hook, so what calls the writers is tested too.
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'repo', { 'a.txt': 'x\n' })
+  const started = path.join(box.top, 'started.env')
+  runHook(box, repo, 'plugin-root-node-2', { hook_event_name: 'SessionStart', source: 'startup' }, { CLAUDE_ENV_FILE: started }, { impl: 'node' })
+  assert.equal(count(readFileSync(started, 'utf8'), line(pluginDir)), 1)
+})
+
+test("Go optional commit tracking keeps root exports and installation idempotent", { skip: noGo || posixOnly }, t => {
+  const bin = scratch(t)
+  const qh = path.join(bin, 'qh')
+  const built = spawnSync('go', ['build', '-o', qh, './cmd/qh'], { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true })
+  assert.equal(built.status, 0, `go build failed: ${built.stderr}`)
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'repo', { 'a.txt': 'x\n' })
+  const start = (file, session) => runHook(box, repo, session, { hook_event_name: 'SessionStart', source: 'startup' },
+    { CLAUDE_ENV_FILE: file }, { impl: 'go', bin: qh })
+  const fresh = path.join(box.top, 'fresh.env')
+  start(fresh, 'go-root-1')
+  assert.equal(count(readFileSync(fresh, 'utf8'), line(pluginDir)), 1)
+  // A resume on the same file adds nothing.
+  start(fresh, 'go-root-1')
+  assert.equal(count(readFileSync(fresh, 'utf8'), line(pluginDir)), 1)
+  // An older git block already there: the line is still written, once, after it.
+  const older = path.join(box.top, 'older.env')
+  const block = '# older block\nexport GIT_CONFIG_KEY_0=hook.qh-publish-commit.command\n'
+  writeFileSync(older, block)
+  start(older, 'go-root-2')
+  start(older, 'go-root-2')
+  assert.ok(readFileSync(older, 'utf8').startsWith(block + `${line(pluginDir)}\n`))
+  assert.equal((readFileSync(older, 'utf8').match(/hook\.qh-commit-made\.command/g) ?? []).length, 1)
 })

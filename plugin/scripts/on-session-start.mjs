@@ -3,48 +3,13 @@
 // lifecycle.mjs unchanged (BACKLOG section 375, stage D). It never blocks.
 import { bumpSessionGeneration, claimCompaction, firstMentionHere, previousSessionNotice, readSessionNote } from './session-notes.mjs'
 import { sweepStaleSessionLogs } from './housekeeping.mjs'
-import { awaitingArming, offerPluginRoot, offerPublishHook } from './publish-verdict.mjs'
+import { offerPluginRoot, offerPublishHook } from './publish-verdict.mjs'
 import { sessionOrientation } from './session-orientation.mjs'
 import { appendEvent, readEvents } from './event-log.mjs'
-import path from 'node:path'
 import { logIncomplete } from './check-ledger.mjs'
 import { emitJson } from './hook-queue.mjs'
-import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import { checkCommandOrigin } from './check-command.mjs'
 
-import { itemMarker, saidInContext } from './said-per-context.mjs'
-// ADR-111 T3: the project's check on the tree this session began with, started detached so no hook waits on it (ADR-080),
-// and written to its own ledger by `qh-check --baseline`. Startup only, and only where a check is named. The tree is the one
-// recorded when the session started. QUALITY_HARNESS_BASELINE_RUNNER=off turns it off, and a path stands in for qh-check.
-function startBaseline(input) {
-  const setting = process.env.QUALITY_HARNESS_BASELINE_RUNNER
-  if (setting === 'off') return
-  const started = readEvents(input.cwd, input.session_id).find(entry => entry.event === 'session.started')
-  const tree = started?.observation?.ok === true ? started.observation.tree : null
-  if (typeof tree !== 'string') return
-  const { command, origin } = checkCommandOrigin(input.cwd ?? process.cwd())
-  if (!command || origin === 'refused' || origin === 'unproven') return
-  const runner = setting || fileURLToPath(new URL('./qh-check.mjs', import.meta.url))
-  try {
-    // untimed-spawn: detached on purpose — qh-check bounds its own run (QUALITY_HARNESS_CHECK_TIMEOUT)
-    const child = spawn(process.execPath, [runner, '--baseline', tree], {
-      cwd: path.resolve(input.cwd ?? process.cwd()), detached: true, stdio: 'ignore', windowsHide: true,
-    })
-    // Before any return: a spawn that fails emits `error` later, and unheard it is an uncaught exception in the hook.
-    child.on('error', () => {})
-    child.unref()
-  } catch { /* a baseline that cannot start costs the session nothing but the baseline */ }
-}
-
-const ARMING_NOTE = "quality-harness: git's own refusal of an unchecked commit or push has not run yet in this "
-  + 'session: it takes effect from the next prompt, and until then the text refusal applies (ADR-068).'
-
-// BACKLOG §381 (from §370): an offer git could not take was recorded and never said, so a session
-// on git below 2.54 believed a commit inside a script was refused at the event, as in an armed one.
-const unarmedNote = reason => "quality-harness: git's own refusal of an unchecked commit or push is not armed in this "
-  + `session (${reason}). A commit or push this hook reads in a command is still refused; one made inside a script or a `
-  + 'tool the command runs is not, so run `qh-check` before running one (ADR-066).'
+import { saidInContext } from './said-per-context.mjs'
 
 export function onSessionStart(input, recorded) {
   // After compaction the session has none of the context the once-per-session
@@ -74,24 +39,8 @@ export function onSessionStart(input, recorded) {
     if (verdict === 'said' || verdict === 'pending') return false
     return verdict === 'unsaid' || !remembered
   }
-  const marked = text => `${text} ${itemMarker('standing', text)}`
   const orientation = sessionOrientation(input.cwd, { say: sayStanding, mark: true })
   if (orientation) sections.push(orientation)
-  // Said once per repository and reason: a standing fact, not news on every start (CLAUDE.md §19).
-  const offer = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'publish.offered' || entry.event === 'publish.unarmed').at(-1)
-  // A host that offers no env file at all is not a failure to arm: there is no Bash environment to
-  // arm, and every session there would carry the note (the goldens and the corpus matrix run so).
-  if (offer?.event === 'publish.unarmed' && offer.reason !== 'CLAUDE_ENV_FILE is not set') {
-    const note = unarmedNote(offer.reason ?? 'no reason recorded')
-    if (sayStanding(note, path.resolve(input.cwd ?? process.cwd()))) sections.push(marked(note))
-  }
-  // ADR-068 T2: after a compaction or resume, the Bash tool picks up the exports only
-  // from the next user prompt (measured 2026-09-26). While no hook run follows the
-  // latest offer, say which refusal is in force; it changes no verdict.
-  if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))
-    && (input.source === 'compact' || sayStanding(ARMING_NOTE, path.resolve(input.cwd ?? process.cwd())))) {
-    sections.push(marked(ARMING_NOTE))
-  }
   if (input.source === 'compact') {
     // The compaction summary is the model's; this is the gates'. Hand back what
     // PreCompact measured, so the next context knows what is unverified without
@@ -121,7 +70,6 @@ export function onSessionStart(input, recorded) {
     else if (!tied && note) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
       + 'so what was unverified before it is unknown here (ADR-005).')
   } else if (input.source === 'startup' || input.source === undefined) {
-    startBaseline(input)
     const previous = previousSessionNotice(input.cwd)
     if (previous) sections.push(previous)
   }

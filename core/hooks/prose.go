@@ -1,7 +1,5 @@
-// A pass stands for a later tree while the only paths that differ are the project's declared `prose` (ADR-120 T9): the declaration
-// (plugin/scripts/project-config.mjs proseSpecs), the code tree a commit has without those paths, the carry a reader asks a pass
-// with (plugin/scripts/check-ledger.mjs carryFor), and the hint a refusal gives a project that declares nothing
-// (plugin/scripts/prose-hint.mjs).
+// A pass stands for a later tree while only declared prose paths differ (ADR-120 T9).
+// This contains the declaration, code tree, and carry readers retain after ADR-130 retired publish refusal.
 package hooks
 
 import (
@@ -18,7 +16,6 @@ var (
 	proseLiteral   = regexp.MustCompile(`^[\w.@+][\w.@+/-]*$`)
 	proseUnder     = regexp.MustCompile(`^[\w.@+][\w.@+-]*/[\w.@+/*?[\]-]*$`)
 	proseExtension = regexp.MustCompile(`^(?:\*\*/)?\*\.[A-Za-z0-9]+$`)
-	textDocument   = regexp.MustCompile(`(?i)\.(?:md|mdx|txt|rst)$`)
 )
 
 const proseMost = 20
@@ -161,21 +158,6 @@ func carriedPassUnseen(log Log, root string, c *carry) bool {
 	return unseenWriteSince(root, "checksSeen", seq, dateParse(dig(latest, "before", "at")))
 }
 
-// carriedAsRecorded is whether a check event's code tree and list are the ledger record's: an event that names either must name
-// what the record holds, or it is not bound (ADR-120 T9).
-func carriedAsRecorded(entry, record any) bool {
-	if code := dig(entry, "after", "codeTree"); !isUndefined(code) && !strict(code, dig(record, "after", "codeTree")) {
-		return false
-	}
-	if list := get(entry, "prose"); !isUndefined(list) {
-		declared, ok := proseList(get(record, "prose"))
-		if !ok || !sameProse(list, declared) {
-			return false
-		}
-	}
-	return true
-}
-
 // codeTreeOf is the tree a tree git holds has once the declared paths are removed, or "" when git could not say.
 func codeTreeOf(cwd, treeSha string, without []string) string {
 	if treeSha == "" || len(without) == 0 {
@@ -208,98 +190,4 @@ func codeTreeOf(cwd, treeSha string, without []string) string {
 		return ""
 	}
 	return code
-}
-
-// proseSettingHint is said once per tree, on a refusal whose unchecked work is text documents alone and whose project declares no
-// `prose`.
-const proseSettingHint = " The work since the last full pass is to text documents alone: if this project's check reads none of them, a \"prose\": [...] list " +
-	"in .quality-harness.json lets a later change to them alone stand on a pass (the project owner's declaration, ADR-120)."
-
-// proseHintTold is whether the hint was already said for this tree: a P action carries it in its detail.
-func proseHintTold(log Log, tree any) bool {
-	for _, e := range log.E {
-		if strict(get(e, "event"), "action.emitted") && strict(get(e, "rule"), "P") &&
-			isTrue(dig(e, "detail", "proseHint")) && strict(dig(e, "detail", "tree"), tree) {
-			return true
-		}
-	}
-	return false
-}
-
-// previousPassHead is prose-hint.mjs's: the HEAD of the latest full pass of `command`, when that pass was taken on that commit's
-// own tree, or "".
-func previousPassHead(root, command string) string {
-	text, err := os.ReadFile(filepath.Join(stateDir(root), "checks.jsonl"))
-	if err != nil {
-		return ""
-	}
-	var latest any
-	for _, line := range strings.Split(string(text), "\n") {
-		record, err := parseJSON(line)
-		if err != nil {
-			continue
-		}
-		if _, ok := dig(record, "after", "head").(string); ok && strict(get(record, "command"), command) && checkEventName(record) == "check.passed" {
-			latest = record
-		}
-	}
-	if latest == nil {
-		return ""
-	}
-	head := strOr(dig(latest, "after", "head"))
-	tree := git(10*time.Second, nil, "-C", root, "rev-parse", "--verify", "-q", head+"^{tree}")
-	if tree.err != nil || tree.status != 0 || strings.TrimSpace(tree.stdout) != strOr(dig(latest, "after", "tree")) {
-		return ""
-	}
-	return head
-}
-
-// onlyTextChangedSince is prose-hint.mjs's: whether what differs from `head` is regular text documents alone.
-func onlyTextChangedSince(root, head string) bool {
-	changed := git(10*time.Second, nil, "-C", root, "diff", "--no-renames", "--raw", "-z", head, "--")
-	untracked := git(10*time.Second, nil, "-C", root, "ls-files", "-z", "--others", "--exclude-standard")
-	if changed.err != nil || changed.status != 0 || untracked.err != nil || untracked.status != 0 {
-		return false
-	}
-	regular := func(mode string) bool { return mode == "000000" || mode == "100644" }
-	paths := []string{}
-	fields := strings.Split(changed.stdout, "\x00")
-	for at := 0; at+1 < len(fields); at += 2 {
-		if !strings.HasPrefix(fields[at], ":") {
-			return false
-		}
-		modes := strings.Split(fields[at][1:], " ")
-		if len(modes) < 2 || !regular(modes[0]) || !regular(modes[1]) {
-			return false
-		}
-		paths = append(paths, fields[at+1])
-	}
-	for _, file := range strings.Split(untracked.stdout, "\x00") {
-		if file == "" {
-			continue
-		}
-		info, err := os.Lstat(filepath.Join(root, file))
-		if err != nil || !info.Mode().IsRegular() {
-			return false
-		}
-		paths = append(paths, file)
-	}
-	if len(paths) == 0 {
-		return false
-	}
-	for _, p := range paths {
-		if !textDocument.MatchString(p) {
-			return false
-		}
-	}
-	return true
-}
-
-// proseOnlySincePass is whether the work since the last full pass of `command` is text documents alone.
-func proseOnlySincePass(root, command string) bool {
-	if root == "" || command == "" {
-		return false
-	}
-	head := previousPassHead(root, command)
-	return head != "" && onlyTextChangedSince(root, head)
 }

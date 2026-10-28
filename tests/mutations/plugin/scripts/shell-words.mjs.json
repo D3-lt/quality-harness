@@ -94,21 +94,21 @@
       "label": "ADR-067 T2: the shell's own brace expansion reaches git's options",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/qh-core-parity.test.mjs"
       ],
       "from": "    for (let n = 0; n + 1 < cuts.length; n++) {",
       "to": "    for (let n = 0; n + 1 < Math.min(cuts.length, 2); n++) {",
-      "only": "a brace-built publish is refused"
+      "only": "^the Go classifier answers every literal"
     },
     {
       "label": "ADR-067 T3: a quoted span holding an operator is code to judge",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/qh-core-parity.test.mjs"
       ],
       "from": "  const spanned = span => { if (CODE.test(span)) word.code = true }",
       "to": "  const spanned = span => {}",
-      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+      "only": "^the Go classifier answers every literal"
     },
     {
       "label": "ADR-067 (Codex round): a substitution inside ${…} runs",
@@ -154,11 +154,11 @@
       "label": "ADR-067 (Codex round): a process substitution is code, never plain",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/qh-core-parity.test.mjs"
       ],
       "from": "      word.code = true\n      for (const ch of src.slice(i, end + 1)) push(ch, false)",
       "to": "      for (const ch of src.slice(i, end + 1)) push(ch, false)",
-      "only": "an armed session still refuses every form that can disable the hook"
+      "only": "^the Go classifier answers every literal"
     },
     {
       "label": "ADR-067 (Codex round): a continued redirection target is one word",
@@ -194,9 +194,9 @@
       "label": "ADR-090 T2: an unquoted heredoc body's substitution is a command",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/qh-core-parity.test.mjs"
       ],
-      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "only": "^the Go classifier answers every literal",
       "from": "      if (!doc.quoted) doc.owner.substitutions.push(...substitutionsIn(body, false))",
       "to": "      if (false) doc.owner.substitutions.push(...substitutionsIn(body, false))"
     },
@@ -204,9 +204,9 @@
       "label": "ADR-090 T2: a substitution after a parameter in double quotes is recorded",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/qh-core-parity.test.mjs"
       ],
-      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "only": "^the Go classifier answers every literal",
       "from": "      while (/\\w/.test(src[e] ?? '')) e++",
       "to": "      while (/[\\w$]/.test(src[e] ?? '')) e++"
     },
@@ -214,9 +214,9 @@
       "label": "ADR-090 T2: a function keyword body is read as commands",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/publish-command.test.mjs"
+        "tests/qh-core-parity.test.mjs"
       ],
-      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "only": "^the Go classifier answers every literal",
       "from": "    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; unmodelled = true; return }",
       "to": "    if (false) { naming = true; unmodelled = true; return }"
     },

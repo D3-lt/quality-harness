@@ -89,8 +89,7 @@
         "tests/advisory-headline.test.mjs"
       ],
       "from": "      for (const text of texts) process.stderr.write(`${text}\\n`)",
-      "to": "      void texts",
-      "only": "^(?:the headline a person sees at a publish warning names the finding)$"
+      "to": "      void texts"
     },
     {
       "label": "lifecycle: a PreToolUse advisory reaches the agent as additionalContext, not only the person",
@@ -99,8 +98,7 @@
         "tests/advisory-headline.test.mjs"
       ],
       "from": "        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\\n\\n${forContext}` : forContext",
-      "to": "        void forContext",
-      "only": "^(?:the headline a person sees at a publish warning names the finding)$"
+      "to": "        void forContext"
     },
     {
       "label": "lifecycle: the person sees one line of a PreToolUse advisory, not the report",
@@ -109,8 +107,7 @@
         "tests/advisory-headline.test.mjs"
       ],
       "from": "        const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`",
-      "to": "        const headline = `quality-harness advised the agent: ${joined}`",
-      "only": "^(?:the headline a person sees at a publish warning names the finding)$"
+      "to": "        const headline = `quality-harness advised the agent: ${joined}`"
     },
     {
       "label": "lifecycle: a slow hook names itself",
@@ -120,7 +117,7 @@
       ],
       "from": "  if (elapsed >= slowHookThresholdMs(env)) {",
       "to": "  if (false) {",
-      "only": "^(?:a slow hook names itself; a fast one says nothing about its time)$"
+      "only": "^(?:optional\\ publishing\\ keeps\\ slow\\-hook\\ timing\\ visible)$"
     },
     {
       "label": "lifecycle: a hook payload that is not JSON is said on stderr, never swallowed",
@@ -139,8 +136,7 @@
         "tests/late-baseline.test.mjs"
       ],
       "from": "  const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null",
-      "to": "  const guardAlone = false",
-      "only": "^(?:a read-only reviewer is decided by the guard alone: no warning, no log write)$"
+      "to": "  const guardAlone = false"
     },
     {
       "label": "chaos 626934a: a payload that is not an object is named",
@@ -219,8 +215,7 @@
         "tests/turn-end-delivery.test.mjs"
       ],
       "from": "} else if (stopReachesAgent(input)) {",
-      "to": "} else if (false) {",
-      "only": "^a\\ Stop\\ with\\ unchecked\\ work\\ gives\\ the\\ agent\\ the\\ finding\\ and\\ the\\ user\\ a\\ headline$"
+      "to": "} else if (false) {"
     },
     {
       "label": "ADR-096 review: a Stop that has continued once reaches only the user",
@@ -249,8 +244,7 @@
         "tests/turn-end-declared.test.mjs"
       ],
       "from": "const forAgent = delivered.filter(action => action.audience !== 'user')",
-      "to": "const forAgent = delivered.filter(action => true)",
-      "only": "^(?:an inferred check with unchecked work is said to the user once and does not continue the turn)$"
+      "to": "const forAgent = delivered.filter(action => true)"
     },
     {
       "label": "ADR-120 T6: a user-only delivery is recorded as reaching the user alone",
@@ -259,8 +253,7 @@
         "tests/turn-end-declared.test.mjs"
       ],
       "from": "channel: action.audience === 'user' ? 'user' : reachedBy(input),",
-      "to": "channel: reachedBy(input),",
-      "only": "^(?:an inferred finding is recorded as delivered to the user alone, a declared one to both)$"
+      "to": "channel: reachedBy(input),"
     }
   ]
 }

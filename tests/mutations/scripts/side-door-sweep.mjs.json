@@ -78,7 +78,7 @@
       ],
       "from": "if (code.some(line => LEDGER.test(line))",
       "to": "if (false && code.some(line => LEDGER.test(line))",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     },
     {
       "label": "ADR-113 T3: a ledger named in a comment is not code",
@@ -88,7 +88,7 @@
       ],
       "from": ".filter(line => !COMMENT.test(line))",
       "to": ".filter(line => true)",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     },
     {
       "label": "ADR-113 T3: a verb counts only inside the git call's arguments",
@@ -98,7 +98,7 @@
       ],
       "from": ".split(/[\\])]/, 1)[0]",
       "to": "",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     },
     {
       "label": "ADR-113 T3: matchers are read anchored",
@@ -108,7 +108,7 @@
       ],
       "from": "new RegExp(`^(?:",
       "to": "new RegExp(`(?:",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     },
     {
       "label": "ADR-113 T3: an entry no site matches is stale",
@@ -118,7 +118,7 @@
       ],
       "from": ".filter(key => !seen.has(",
       "to": ".filter(key => false && !seen.has(",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     },
     {
       "label": "ADR-113 T3: the gate exits 1 over an unlisted site",
@@ -128,7 +128,7 @@
       ],
       "from": "return result.unlisted.length || result.stale.length || doors.problems.length ? 1 : 0",
       "to": "return 0",
-      "only": "^(?:every side door is allow-listed with its reason, and a new one fails)$"
+      "only": "^(?:side\\-door\\ inventory\\ and\\ fast\\ ledger\\ binding\\ remain\\ enforced\\ for\\ optional\\ checks)$"
     }
   ]
 }

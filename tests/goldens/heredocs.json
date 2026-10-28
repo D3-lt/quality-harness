@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -26,7 +26,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -35,14 +35,8 @@
       "name": "cat <<EOF > note.txt\ngit push\nEOF",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first. <qh:p@<marker>>"
-        },
-        "systemMessage": "quality-harness advised the agent: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. (full text in the transcript)"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "start",
@@ -51,7 +45,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -70,7 +64,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -79,15 +73,8 @@
       "name": "cat <<'EOF' | sh\ngit push\nEOF",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git pus…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     }
   ],
   "ledgers": {
@@ -149,19 +136,6 @@
         "at": "<time>",
         "event": "publish.unarmed",
         "reason": "CLAUDE_ENV_FILE is not set"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0:mention",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       }
     ],
     "sessions/heredocs-2.jsonl": [
@@ -220,19 +194,6 @@
         "blob": "4c2c85c4f42367f4eefb554b524eadc7f8c16afa6bb9783d0e61ae68ce40eca3",
         "complete": true,
         "pass": "<id>"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       }
     ]
   }

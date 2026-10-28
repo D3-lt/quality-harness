@@ -19,18 +19,11 @@
     {
       "label": "ADR-120 T9: the Go import drops the list a pass was taken under",
       "file": "core/hooks/ledger.go",
-      "tests": ["tests/prose-pass.test.mjs"],
+      "tests": [
+        "tests/prose-pass.test.mjs"
+      ],
       "from": "get(record, \"prose\").([]any); ok {",
-      "to": "get(record, \"prose\").([]any); ok && false {",
-      "only": "^(?:a pass stands across a prose-only change for every reader)$"
-    },
-    {
-      "label": "ADR-120 T9: the Go ledger binds an event to a code tree and list the record does not hold",
-      "file": "core/hooks/ledger.go",
-      "tests": ["tests/prose-pass.test.mjs"],
-      "from": " && carriedAsRecorded(entry, record) {",
-      "to": " {",
-      "only": "^(?:the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar)$"
+      "to": "get(record, \"prose\").([]any); ok && false {"
     }
   ]
 }

@@ -249,7 +249,7 @@ test('a session whose first look failed takes a late baseline over a clean tree,
   assert.ok(!stop.includes('no `qh-check` has passed on'), stop.slice(0, 400))
 })
 
-test('a failed first look still refuses over a dirty tree or a write on record, and a torn log gets no baseline', () => {
+test('a failed first look still refuses over a dirty tree or a write on record, and a torn log gets no baseline', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dirty = failedStart('dirty')
   writeFileSync(join(dirty.repo, 'a.md'), 'edited\n')
   const commit = dirty.hook({ ...PUSH, tool_input: { command: 'git commit -am x' } })
@@ -271,7 +271,7 @@ test('a failed first look still refuses over a dirty tree or a write on record, 
 
 // Codex review of fe918bb, P1: a shell edit writes no `file.written`, so a Stop that saw the
 // edit, a commit, and a clean publish look adopted the committed tree and forgave it.
-test('a tree seen before a commit is not forgiven by a late baseline after a failed start', () => {
+test('a tree seen before a commit is not forgiven by a late baseline after a failed start', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const seen = failedStart('seen')
   writeFileSync(join(seen.repo, 'a.md'), 'edited in a shell\n')
   seen.hook({ hook_event_name: 'Stop' })
@@ -286,7 +286,7 @@ test('a tree seen before a commit is not forgiven by a late baseline after a fai
 // P2: git's own hook prepares no late baseline, so a failed start refused a pristine push
 // launched from a script. It applies the same rule without writing, and only to the log
 // that holds that start: a linked worktree's empty log is still judged unchecked (ADR-068).
-test('git\'s own hook gives a failed start the same late baseline, and a worktree none', () => {
+test('git\'s own hook gives a failed start the same late baseline, and a worktree none', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const clean = failedStart('hook-clean')
   const env = { ...process.env, CLAUDE_CODE_SESSION_ID: clean.session }
   assert.equal(runPublishHook({ event: 'pre-push', cwd: clean.repo, env }).code, 0)
@@ -435,7 +435,7 @@ test('adr-lint says when a record\'s Status is not one the readers recognise, an
 // §319's addendum, D4 (go-cli-adr-corpus, at two commits). A torn `checks.jsonl` made the
 // verdict unknown, which is right, and the text named "this session's event log", which was
 // whole. It names the file that tore now; a torn session log is still named as the session log.
-test('a torn checks.jsonl is named as checks.jsonl, not as the session log', () => {
+test('a torn checks.jsonl is named as checks.jsonl, not as the session log', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const repo = scratch()
   const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(repo, '.git', 'qh-data') }
   const git = (...args) => spawnSync('git', args, { cwd: repo, env, encoding: 'utf8', timeout: 30_000, windowsHide: true })

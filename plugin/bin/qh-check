@@ -4,8 +4,7 @@
 Usage: qh-check [--wait] [--again] [--fast] [--commit <git commit arguments>]
        qh-check --baseline <tree>
 
-ADR-060 T2. Advisories count a check only when it was run through this gate: it
-runs the project's check at the repository root (the `check` declared in
+An optional runner (ADR-130): it runs the project's check at the repository root (the `check` declared in
 `.quality-harness.json`, or the one inferred from a manifest), observes the tree
 before and after, and appends one record to `checks.jsonl` in the worktree's
 state directory. The record is tool-written evidence (CLAUDE.md §4); a check run
@@ -32,14 +31,13 @@ again: the gate says when that pass was taken and how long it took, and exits 0
 runs it anyway.
 
 `--fast` runs the `fastCheck` declared in `.quality-harness.json` and records it in
-`fast-checks.jsonl`, where no reader of a full pass looks. A pass there lets a command
-that is one commit and nothing else through, with a warning; a push still needs the
-full check (ADR-081). With no `fastCheck` declared it says so and exits 2.
+`fast-checks.jsonl`, where no reader of a full pass looks. It always runs when requested;
+with no `fastCheck` declared it says so and exits 2. Publishing does not require either check.
 
 `--baseline <tree>` (ADR-111 T3) runs the project's check on the tree a session began
 with and records it in `baseline.jsonl`, never in `checks.jsonl`, so it cannot stand in
-for a pass. SessionStart starts it detached; the turn end reads it to tell a change that
-broke the check from a check that was already red. It binds its verdict to `<tree>` only
+for a pass. Baselines run only when requested; SessionStart never launches one.
+It binds its verdict to `<tree>` only
 when the tree before and after the run is that tree.
 
 `--commit <git commit arguments>` checks the staged tree and commits it in one call

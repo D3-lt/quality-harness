@@ -172,6 +172,21 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const admission = await takeTurn({ lease, env, wait, command, root, stderr })
   if (admission.code !== undefined) return admission.code
   const { held, look, leaseStep, waitedMs } = admission
+  // Another check may have finished while this one waited. Re-read its evidence against the current tree before launching.
+  if (waitedMs > 0 && !fast && !again && env.QUALITY_HARNESS_CHECK_AGAIN !== '1') {
+    let continuing = false
+    try {
+      const fresh = reuseByProse({ already: passedAlready({ root, git, command, env, prose: prose.specs }),
+        prose, git, command, root, stderr, beforeReuse })
+      if (fresh) {
+        recordSkip({ already: fresh, command, prose, root, stderr })
+        return 0
+      }
+      continuing = true
+    } finally {
+      if (!continuing && held) leaseStep('release', () => lease.release(held))
+    }
+  }
   const beside = look()
   for (const line of beside ? lease.besideLines(beside) : []) stderr.write(`qh-check: ${line}\n`)
   const startedAt = new Date().toISOString()

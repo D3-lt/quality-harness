@@ -103,7 +103,7 @@ test('the previous-session notice is silent when a pass is recorded for the curr
   assert.doesNotMatch(start(top, repo), PREVIOUS, 'clean, with a pass')
 })
 
-test('a tree with no pass keeps the previous-session notice, clean or dirty', t => {
+test('a tree with no pass keeps the previous-session notice, clean or dirty', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const top = sandbox(t)
   const repo = repository(top, 'repo-e')
   previousRow(top, repo)
@@ -121,4 +121,25 @@ test('a tree with no pass keeps the previous-session notice, clean or dirty', t 
   const bare = repository(top, 'repo-f', null)
   previousRow(top, bare)
   assert.match(start(top, bare), /Nothing has checked them since/)
+})
+
+// ADR-130: the old locked registration remains historical; state reports are descriptive.
+test('optional checks preserve previous-state notices for unverified trees', t => {
+  const top = sandbox(t)
+  const repo = repository(top, 'repo-e')
+  previousRow(top, repo)
+  const dirty = start(top, repo)
+  assert.match(dirty, PREVIOUS, 'dirty, no pass')
+  git(repo, 'add', '-A')
+  git(repo, 'commit', '-q', '-m', 'work', '--no-gpg-sign')
+  assert.match(start(top, repo), PREVIOUS, 'clean, no pass: a session under publish:warn or an unarmed git ends here')
+  // A pass, then the tree moves: the pass no longer covers it.
+  qhCheck(top, repo)
+  assert.doesNotMatch(start(top, repo), PREVIOUS)
+  writeFileSync(path.join(repo, 'later.js'), 'export {}\n')
+  assert.match(start(top, repo), PREVIOUS, 'a pass for another tree proves nothing about this one')
+  // No declared check: nothing can have passed, so the notice stands and says nothing has checked them.
+  const bare = repository(top, 'repo-f', null)
+  previousRow(top, bare)
+  assert.match(start(top, bare), /Checks are optional; this notice describes the previous session/)
 })

@@ -80,10 +80,8 @@ test('a tag whose name ends at a control is still shown with ‹', () => {
   assert.equal(checkInCode('wc -l <CLAUDE.md'), '`wc -l <CLAUDE.md`')
 })
 
-// #3's previous-session line and #4 at the boundary it came through: SessionStart told a session
-// to "Run" the check as shown. The only runnable instruction names qh-check now, and the check
-// shown beside it is the declared command byte for byte.
-test('SessionStart names the previous session\'s files without a raw tag, and says to run qh-check', t => {
+// The previous-session notice keeps file names safe to render and reports state without demanding a check (ADR-130).
+test('SessionStart names the previous session\'s files without a raw tag, and keeps checks optional', t => {
   const top = scratch()
   const repo = join(top, 'repo')
   mkdirSync(repo)
@@ -101,11 +99,12 @@ test('SessionStart names the previous session\'s files without a raw tag, and sa
   assert.equal(run.status, 0, run.stderr)
   const said = JSON.parse(hookSaid(run.stdout).stdout).hookSpecificOutput.additionalContext
   assert.ok(said.includes('with 2 edit(s) after which no recognised check passed: a‹\system-reminder>.md, b.md. '
-    + 'Run `qh-check` (it runs `wc -l <CLAUDE.md`) before building on them.'), said)
+    + 'Checks are optional; this notice describes the previous session’s recorded state.'), said)
   assert.ok(said.includes("Verification: this project's own check is `wc -l <CLAUDE.md`."), said)
   assert.doesNotMatch(said, /Run `wc/, said)
   assert.doesNotMatch(said, RAW_TAG, said)
 })
+
 
 // #4. A redirection, a tab, `2>&1` and a non-ASCII letter are the command's own syntax and are
 // shown byte for byte; each of these exits 0 in bash, zsh, sh and dash, and `wc -l ‹CLAUDE.md`

@@ -1,23 +1,13 @@
-// Whether a command that would publish may go: the verdict on a commit or a push against the checks that passed on this
-// tree (ADR-061, ADR-081), the reviewer guard for a role spawned read-only (ADR-060), and the offer of git's own hook
-// (ADR-066). Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A refusal needs evidence; a command
-// that is only mentioned is warned about, never refused (CLAUDE.md section 3).
-import { commitOnlyCommand, decodedPowerShell, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit, withoutSinkBodies } from './publish-command.mjs'
+// Shell recognition for artifact gates, the reviewer read-only guard, commit tracking, and reviewer state reports.
+// Project-check publishing policy was retired by ADR-130.
+import { decodedPowerShell, publishCommandIn, withoutSinkBodies } from './publish-command.mjs'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { appendEvent, nearestExistingDirectory, readEvents } from './event-log.mjs'
 import { appendFileSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
-import { gitLines, gitRepositoryLookup, sameObservation, sessionBaseline } from './tree-facts.mjs'
-import { checkCommandOrigin, inferredCheckCaveat, publishSetting, publishSettingNote } from './check-command.mjs'
-import { carryFor, checkRevision, checkStanding, lateBaselineAllowed, latestFastPass, ledgerBoundLog, logIncomplete, tornRecord } from './check-ledger.mjs'
+import { gitLines, gitRepositoryLookup, sameObservation } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
-import { once } from './lazily.mjs'
-import { proseOnlySincePass } from './prose-hint.mjs'
-
-// ADR-120 T9: said once per tree, on a refusal whose unchecked work is text documents alone and whose project declares no `prose`.
-const PROSE_SETTING_HINT = ' The work since the last full pass is to text documents alone: if this project\'s check reads none of them, a "prose": [...] list '
-  + 'in .quality-harness.json lets a later change to them alone stand on a pass (the project owner\'s declaration, ADR-120).'
 
 // The roles that say "never edits". Read from the agent type the hook payload
 // carries inside a subagent, with or without the plugin namespace. A test holds
@@ -87,23 +77,8 @@ export function readOnlyRole(agentType) {
   return READ_ONLY_ROLES.includes(bare) ? bare : null
 }
 
-// P `publish-unchecked` (ADR-060): before a command naming commit or push runs,
-// when the tree or the index is unchecked and differs from the session's start.
-// It says the command is about to run while this repository is unchecked; it
-// does not claim the command publishes this repository, which it may not.
-// ── ADR-066 T2: SessionStart offers git the publish hook ────────────────────
-//
-// Through the env file the host sources before every Bash call, so nothing is
-// written into any repository. It is an OFFER, not arming: a session counts as
-// armed only once the hook itself has run (`publish.hook-ran`, T1). A shell that
-// never sourced the file, a git below 2.54 and a different git on PATH would
-// otherwise be recorded as protected while nothing ran (ADR-066 review, P1).
-//
-// Two hook names, not one: git appends its own arguments to a config hook's
-// command but does not say which event it is running, so each command names its
-// event. `enabled=true` is exported too, because configuration from the
-// environment outranks a repository's own file — a repo-local `enabled false`
-// does not switch it off (measured 2026-09-26).
+// SessionStart offers post-commit tracking through the host env file (ADR-128, ADR-130).
+// A config hook is offered only where git lists it; older git keeps the rest of the session usable.
 const PUBLISH_HOOK_SCRIPT = fileURLToPath(new URL('./publish-hook.mjs', import.meta.url))
 // ADR-120 T4: the copy this session's hooks run, named to every forwarder the session's shell starts, so an older writer
 // and a newer hook no longer meet (BACKLOG section 389). Its own line, ahead of and apart from the git block below.
@@ -130,12 +105,6 @@ export function publishHookExports(node = process.execPath, script = PUBLISH_HOO
     + `[ -n "$n" ] && [ -f ${single(script)} ] || { echo "quality-harness: git's publish hook could not start `
     + `(node or its script is gone), so this ${event} was not judged" >&2; exit 0; }; exec "$n" ${single(script)} ${event}`
   const entries = [
-    ['hook.qh-publish-commit.command', run('prepare-commit-msg')],
-    ['hook.qh-publish-commit.event', 'prepare-commit-msg'],
-    ['hook.qh-publish-commit.enabled', 'true'],
-    ['hook.qh-publish-push.command', run('pre-push')],
-    ['hook.qh-publish-push.event', 'pre-push'],
-    ['hook.qh-publish-push.enabled', 'true'],
     // ADR-128 T2: the sha of each commit git makes for this session, which the branch-state brief reads. It refuses nothing.
     ['hook.qh-commit-made.command', run('post-commit')],
     ['hook.qh-commit-made.event', 'post-commit'],
@@ -143,25 +112,13 @@ export function publishHookExports(node = process.execPath, script = PUBLISH_HOO
   ]
   // The index is taken WHEN THE FILE IS SOURCED, not when it is written: another
   // SessionStart hook or the user's profile may have set GIT_CONFIG_COUNT since.
-  return ['# quality-harness (ADR-066): git refuses an unchecked commit or push for this session',
+  return ['# quality-harness: record commits made by this session; checks are optional (ADR-130)',
     '__qh_n=${GIT_CONFIG_COUNT:-0}',
     ...entries.map(([key, value], i) => `__qh_k=$((__qh_n + ${i})); export GIT_CONFIG_KEY_$__qh_k=${quote(key)} GIT_CONFIG_VALUE_$__qh_k=${quote(value)}`),
     `export GIT_CONFIG_COUNT=$((__qh_n + ${entries.length}))`,
     'unset __qh_n __qh_k', ''].join('\n')
 }
 
-// The session was offered git's hook and no hook run has followed the latest offer.
-export function awaitingArming(events) {
-  const offered = events.map(entry => entry.event).lastIndexOf('publish.offered')
-  return offered >= 0 && !events.slice(offered + 1).some(entry => entry.event === 'publish.hook-ran')
-}
-
-// Armed: git's hook has run since the latest offer. A run from before it says nothing about
-// the shell a command now runs in, since a new env file reaches Bash only from the next user
-// prompt (ADR-068 T2; the ADR-098 Follow-up).
-function armedByGit(events) {
-  return !awaitingArming(events) && events.some(entry => entry.event === 'publish.hook-ran')
-}
 
 /**
  * Name this session's plugin copy in the env file, once per file by the line's own text (ADR-120 T4). Apart from
@@ -192,7 +149,7 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
     if (error?.code !== 'ENOENT') return record({ event: 'publish.unarmed', reason: `the env file could not be read (${error?.code ?? error})` })
   }
   // Once per env file: a resume or compact SessionStart must not add a second copy.
-  if (existing.includes('hook.qh-publish-')) return null
+  if (existing.includes('hook.qh-commit-made.')) return null
   const probe = run('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit', 'hook', 'list', 'pre-commit'],
     { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
   if (probe.error || probe.status !== 0 || !/\bqhprobe\b/.test(probe.stdout ?? '')) {
@@ -205,258 +162,10 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
   return record({ event: 'publish.offered' })
 }
 
-/**
- * Rule P's decision, for both of its callers (ADR-066 T1): PreToolUse, which sees
- * a command's text, and `publish-hook.mjs`, which git runs at the event itself.
- * `invoked` is the invocation the caller PROVED — the matched text, or the git
- * event — and null for a mention, which is never refused. Returns null when there
- * is nothing to say, else `{ deny, key, detail, text }`.
- */
-export function publishVerdict({ cwd, session, observation, invoked, commitOnly = false, stagesFirst = false }) {
-  return publishJudgement(publishFacts({ cwd, session, observation }), { invoked, commitOnly, stagesFirst })
-}
-
-/**
- * What the verdict reads from the world (BACKLOG section 375, stage C). Each field is read when the judgement first asks for
- * it and at most once, in the order the judgement asks, so a decision that stops early (a project with no check, a tree that
- * could not be observed) reads no more than it did before the split. A test hands the judgement a plain object of the same
- * shape and needs no repository.
- */
-export function publishFacts({ cwd, session, observation }) {
-  // ONE root lookup for this decision: the check and the opt-out are read from
-  // the same answer, so they cannot disagree about which project this is.
-  const found = once(() => {
-    const place = nearestExistingDirectory(path.resolve(cwd))
-    return place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
-  })
-  const fastPasses = new Map()
-  return {
-    observation,
-    origin: once(() => checkCommandOrigin(cwd, found())),
-    setting: once(() => publishSetting(cwd, found())),
-    ledger: once(() => ledgerBoundLog(cwd, readEvents(cwd, session))),
-    caveat: once(() => inferredCheckCaveat(cwd)),
-    lateBaselineAllowed: (log, now) => lateBaselineAllowed(log, cwd, now),
-    // ADR-120 T9: the facts that need git or a file, so the judgement stays a function of what it is handed.
-    carry: (log, codeTree, prose) => carryFor(log, found().root ?? cwd, codeTree, prose),
-    proseOnly: once(() => proseOnlySincePass(found().root, checkCommandOrigin(cwd, found()).command)),
-    fastPass: tree => {
-      if (!fastPasses.has(tree)) fastPasses.set(tree, latestFastPass(cwd, tree, found().root ?? cwd))
-      return fastPasses.get(tree)
-    },
-  }
-}
-
-/**
- * Rule P's decision as a function of its facts and of what the caller proved about the command. It reaches no file, process,
- * clock or environment of its own (tests/pure-judges.test.mjs holds that), so what it may refuse is a table over facts and
- * tests/publish-judgement.test.mjs walks that table.
- */
-export function publishJudgement(facts, { invoked, commitOnly = false, stagesFirst = false }) {
-  const origin = facts.origin()
-  if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven' && origin.origin !== 'unreadable') return null
-  const observation = facts.observation
-  // ⚠ A TREE THAT COULD NOT BE OBSERVED IS SAID, NEVER PASSED IN SILENCE. This
-  // returned null before anything was said, so where git outran observe()'s budget an
-  // unchecked commit met neither a refusal nor a word, from PreToolUse or from git's
-  // own hook (reproduced with a slow git, BACKLOG §314). A state nobody could read is
-  // advice, never a refusal (CLAUDE.md §16), and the sentence names the look that failed.
-  if (observation?.ok !== true) {
-    const reason = observation?.reason ?? 'no observation was made'
-    return {
-      deny: false, unobserved: true, key: `unobserved:${reason}`, detail: { reason },
-      text: `quality-harness: whether this repository is checked is unknown — its working tree could not be observed (${reason}) — and the command `
-        + (invoked !== null
-          ? `about to run names commit or push (\`${invoked}\`). Nothing is refused on a state that could not be read. Run \`qh-check\` before publishing; on a slow host, QUALITY_HARNESS_OBSERVE_BUDGET_MS raises the 5s budget.`
-          : 'about to run only mentions commit or push. Advisory; nothing is refused.')
-        + facts.caveat(),
-    }
-  }
-  const now = observation
-  // ADR-088 T2: only check events `checks.jsonl` holds can clear the refusal. A ledger not read
-  // whole is could-not-look here whoever imported it, as a `check.source-unreadable` would say.
-  const bound = facts.ledger()
-  const { dropped } = bound
-  const log = bound.torn ? Object.assign([...bound.log, { event: 'check.source-unreadable' }], { complete: bound.log.complete }) : bound.log
-  // A start that could not look, judged by git's own hook, which prepares no late baseline:
-  // the rule recordHookEvent adopts by, applied without writing. Only where this log holds
-  // that start, so a linked worktree's empty log is not handed one (ADR-068).
-  const baseline = sessionBaseline(log)?.observation
-    ?? (log.some(entry => entry.event === 'session.started') && facts.lateBaselineAllowed(log, now) ? now : undefined)
-  // ADR-120 T9: a pass stands for the tree asked about when only the declared prose differs from the tree it was taken on:
-  // each of the tree and the index is asked with its own code tree, never the other's.
-  const carryOf = codeTree => (facts.carry ? facts.carry(log, codeTree, now.prose) : null)
-  const treeStanding = checkStanding(log, now.tree, carryOf(now.codeTree))
-  const indexStanding = checkStanding(log, now.index, carryOf(now.indexCodeTree))
-  const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
-  const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
-  const revision = checkRevision(log, now.tree)
-  // A record that could not be read whole is a state of its own: advice already given on this tree
-  // must not swallow the could-not-look advice that follows it (a review of 8fe4fa8).
-  const key = `${now.tree}:${now.index}:${revision}${logIncomplete(log) ? ':unknown' : ''}`
-  if (!treeUnchecked && !indexUnchecked) {
-    // ⚠ A TREE AND INDEX EQUAL TO THE BASELINE NEED NO CHECK (ADR-061), BUT A RECORD NOT READ
-    // WHOLE IS STILL SAID. This returned null whatever the ledger held, so a torn `checks.jsonl`
-    // went unsaid at every baseline-equal publish, from PreToolUse and from git's own hook alike
-    // (ADR-088 Follow-ups). Advice, never a refusal: nothing here needs a check, and the record
-    // that tore is what later verdicts on this repository will have to read.
-    if (!logIncomplete(log)) return null
-    return {
-      deny: false, unknown: true, key, detail: { tree: now.tree, revision },
-      text: `quality-harness: ${tornRecord(log, 'the session log')} could not be read whole, so what \`qh-check\` recorded here cannot be shown. The command `
-        + (invoked !== null ? `about to run names commit or push (\`${invoked}\`)` : 'about to run only mentions commit or push')
-        + ' on a working tree and index unchanged since the session started, which need no check, so nothing is refused. While that record stays torn, a publish of changed work here is advice, never refused (ADR-061).',
-    }
-  }
-  // ⚠ THE TREE'S STANDING DECIDES THE REFUSAL, and only the tree's. An index whose
-  // check could not look is a finding about the index; folding it in here let it
-  // rescue a working tree that FAILED (Codex review round 2, 2026-09-22).
-  const unordered = treeStanding === 'unresolved'
-  const couldNotLook = treeStanding === 'could-not-look'
-  const indexUnknown = indexStanding === 'unresolved' || indexStanding === 'could-not-look'
-  // ⚠ ONLY THE TREE CAN REFUSE. A check runs on the working tree, and the index is
-  // compared against those trees, so a staged change beside an untracked file
-  // equals no checked tree and was denied after every pass (found live by a peer,
-  // 2026-09-22). The index still warns: its exact bytes were never checked.
-  // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
-  // warning below is then all it gets, on every attempt the dedupe allows.
-  const setting = facts.setting()
-  // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
-  // evidence than advice). A command that merely mentions the words is warned.
-  // What would be refused but for the opt-out: git's hook warns of it at the event (BACKLOG §381).
-  const refusable = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null
-  const deny = refusable && !setting.warn
-  // ADR-081: a command proven to be one commit, on a tree whose latest declared fast
-  // check passed, is told rather than refused. Its key carries the fast records, so a
-  // commit refused before the fast pass is told after it. Anything that pushes, and
-  // any form not proven, still needs the full check.
-  // Before the opt-out: a fast-passed commit is let through by the fast pass, warn or not, and is
-  // told so, never "warned" (Codex review of 921330b9..976aa281, P2).
-  if (refusable && commitOnly) {
-    const fastPass = facts.fastPass(now.tree)
-    if (fastPass) {
-      // The fast check ran on the working tree; the commit records the index. A partial
-      // stage is a different tree, and the full path says so at the same point.
-      const staged = now.index === now.tree ? ''
-        : ' The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked.'
-      return {
-        deny: false, fast: true, key: `${key}:fast${fastPass.count}`, detail: { tree: now.tree, revision },
-        text: `quality-harness: a fast check (\`${fastPass.command}\`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need \`qh-check\` to pass first (ADR-081).${staged}`,
-      }
-    }
-  }
-  // A fast pass this command cannot use (it is not proven to be one commit, or it pushes) is still a
-  // pass: the sentence below said "no `qh-check` has passed" over it, which was untrue (2026-10-08).
-  const fastSeen = treeUnchecked ? facts.fastPass(now.tree) : null
-  const hinted = treeUnchecked && invoked !== null && !fastSeen && !logIncomplete(log) && !unordered && !couldNotLook
-    && !['unproven', 'unreadable', 'refused'].includes(origin.origin) && now.prose === undefined
-    && !log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.detail?.proseHint === true && entry.detail?.tree === now.tree)
-    && facts.proseOnly?.() === true
-  return {
-    deny, key, detail: { tree: now.tree, revision, ...(hinted ? { proseHint: true } : {}) },
-    // A record that could not be read whole is could-not-look, which git's hook says at the event
-    // rather than passing in silence (ADR-088; a Codex review of its diff).
-    unknown: !deny && logIncomplete(log),
-    // `"publish": "warn"` turned a refusal into this warning; git's hook says it, never nothing.
-    warned: refusable && setting.warn,
-    // On a torn log this still warns — it must — but says UNKNOWN, not "no check
-    // has": a check may have succeeded and its record be what was lost (ADR-005).
-    // An order that cannot be established is the same kind of could-not-look.
-    text: (logIncomplete(log)
-      ? `quality-harness: whether this repository is checked is unknown — ${tornRecord(log, 'the session log')} could not be read whole, so whether \`qh-check\` succeeded on its current tree cannot be shown — and the command `
-      : unordered
-        ? 'quality-harness: whether this repository is checked is unknown — the order of its check events could not be established — and the command '
-        : couldNotLook
-          ? 'quality-harness: whether this repository is checked is unknown — the latest `qh-check` on its current tree could not observe it (it timed out, did not start, or its observation failed) — and the command '
-        : origin.origin === 'unproven'
-          ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
-        : origin.origin === 'unreadable'
-          ? `quality-harness: this repository is unchecked — ${origin.problem}, so no \`qh-check\` can pass here until it is fixed — and the command `
-          : origin.origin === 'refused'
-            ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
-            : !treeUnchecked && stagesFirst
-              ? 'quality-harness: the index this commit records is not known yet — the command stages files (`git add`, or the commit\'s own `-a`) before it commits, and the index was read before it runs — and the command '
-            : !treeUnchecked && indexUnknown && treeStanding === 'passed'
-              ? 'quality-harness: the staged index is not known to be checked — `qh-check` passed on the working tree, but the index holds different content and whether a check passed on it cannot be established — and the command '
-            : !treeUnchecked && treeStanding === 'passed'
-              ? 'quality-harness: the staged index is unchecked — `qh-check` passed on the working tree, but the index holds different content (a partial stage, or files the check saw that are not staged) — and the command '
-            : !treeUnchecked && indexUnknown
-              ? 'quality-harness: the staged index is not known to be checked — the working tree is unchanged since the session started, but the index has moved and whether a `qh-check` passed on the staged content cannot be established — and the command '
-            : !treeUnchecked
-              ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
-              : fastSeen
-                ? `quality-harness: this repository is not fully checked — a fast check (\`${fastSeen.command}\`) passed on its current tree, but only a command proven to be one \`git commit\` may go through on a fast pass, this one is not proven to be one commit, and a push needs the full check (ADR-081) — and the command `
-                : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
-      + (invoked !== null
-        ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
-        // ADR-122 T3: the mention is said once per context, and its text shortened to what the agent acts on.
-        : 'about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first.')
-      + (dropped > 0 ? ` ${dropped} check event(s) in this session's log name no \`qh-check\` record and were not counted.` : '')
-      + `${facts.caveat()}${publishSettingNote(setting)}${hinted ? PROSE_SETTING_HINT : ''}`,
-  }
-}
-
-export function publishUnchecked(input, requested, env = process.env) {
-  if (requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') return
-  // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
-  // evidence than advice). A command that merely mentions the words is warned.
-  const invoked = publishCommandIn(input.tool_input?.command)
-  let verdict = publishVerdict({
-    cwd: input.cwd, session: input.session_id, observation: requested.observation,
-    invoked,
-    commitOnly: commitOnlyCommand(input.tool_input?.command),
-    stagesFirst: stagesBeforeCommit(input.tool_input?.command),
-  })
-  if (!verdict) return
-  // ADR-066 T3: in a Bash session where git's own hook has RUN, a plain invocation
-  // is left to git, which refuses it at the event in the repository it commits
-  // into. An offer is not arming, nor is a hook run from before the latest offer;
-  // PowerShell does not source the env file, and a form that could have switched
-  // the hook off keeps the refusal.
-  if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(input.tool_input?.command)
-    && armedByGit(readEvents(input.cwd, input.session_id))) {
-    verdict = { ...verdict, deny: false, text: `${verdict.text} In this session git's own hook refuses it at the event (ADR-066), so this is advice.` }
-  }
-  // ADR-086 T2: in a Bash session, a commit the text proves lands in a repository the
-  // same command created in a fresh `mktemp -d` directory is told, not refused. Its key
-  // is its own, so a later mention on this tree is still told.
-  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command, env)) {
-    verdict = {
-      ...verdict, deny: false, key: `${verdict.key}:fresh`,
-      text: 'quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout\'s unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first.',
-    }
-  }
-  // ADR-104: a commit the text proves is one git command into an absolute literal path is
-  // told, not refused, when git places that path's repository elsewhere than this checkout's.
-  // Git's answer, not the path's: a gitfile, a symlink or a linked worktree leads back here.
-  // Advice as well as a refusal is replaced, since neither is about this checkout (§371).
-  const target = input.tool_name === 'Bash' ? foreignCommitPath(input.tool_input?.command, env) : null
-  if (target !== null) {
-    const there = commonDirectory(target, input.cwd)
-    const here = there === null ? null : commonDirectory(input.cwd, input.cwd)
-    if (here !== null && there !== here) {
-      verdict = {
-        ...verdict, deny: false, key: `${verdict.key}:foreign`,
-        // It still says what the command names: ADR-060 T4's locked test asserts that a commit
-        // into another repository is warned of as naming commit or push, and it is one.
-        // The reason leads: the person sees only the first sentence, cut at 140 characters, and a -C path of ordinary
-        // length cut "(ADR-104)" off when it came after the command (BACKLOG §381 item 11). ADR-060 T4's phrase stays.
-        text: `quality-harness: a commit into another repository is advised, not refused (ADR-104): the command about to run names commit or push (\`${publishCommandIn(input.tool_input?.command)}\`), and it lands in a repository other than this checkout — git keeps it in a different git directory — so this checkout's state does not refuse it. If the commit was meant for this checkout, run \`qh-check\` first.`,
-      }
-    }
-  }
-  // A denial has to happen on every attempt. Saying it once and then allowing
-  // the same command is the warning's dedupe applied to a refusal. The dedupe key is the tree's, so it
-  // names what was said as well: a mention already told here must not silence the advice a refusal
-  // softened to (BACKLOG §381).
-  const key = invoked === null ? `${verdict.key}:mention` : verdict.key
-  if (!verdict.deny && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
-  queueAction({ rule: 'P', key, detail: verdict.detail, deny: verdict.deny, text: verdict.text })
-}
 
 // ADR-104 Decision 2: the git directory a path's repository keeps, as git resolves it, after
 // realpath, or null when git could not say: a probe that fails, times out or prints nothing
-// proves nothing, and the refusal stands.
+// proves nothing about repository ownership.
 export function commonDirectory(dir, cwd, run = spawnSync) {
   const probe = run('git', ['-C', dir, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
     { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })

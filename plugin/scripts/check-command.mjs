@@ -121,24 +121,7 @@ function declaredCheckCommand(directory) {
  * back to the current directory, missed the root's opt-out and refused (Codex
  * review round 3). A lookup that could not answer is unknown, never "here".
  */
-export function publishSetting(cwd, discovery = null) {
-  const directory = nearestExistingDirectory(path.resolve(cwd))
-  if (!directory) return { warn: false, ignored: false, unknown: true }
-  const found = discovery ?? gitRepositoryLookup(directory)
-  if (!found.ok) return { warn: false, ignored: false, unknown: true }
-  let config
-  try {
-    config = JSON.parse(readFileSync(path.join(found.root ?? directory, '.quality-harness.json'), 'utf8'))
-  } catch { return { warn: false, ignored: false, unknown: false } }
-  if (!config || typeof config !== 'object' || !Object.hasOwn(config, 'publish')) return { warn: false, ignored: false, unknown: false }
-  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }
-}
 
-export function publishSettingNote(setting) {
-  if (setting.warn) return ' Refusal is off for this project: `"publish": "warn"` in .quality-harness.json makes this a warning.'
-  if (setting.ignored) return ' The `"publish"` value in .quality-harness.json was ignored: only `"publish": "warn"` turns this refusal into a warning.'
-  return ''
-}
 
 // A declaration that cannot fail does not certify. Measured 2026-09-22: `true`,
 // `:`, `exit 0`, `sh -c true` and `bash -c 'exit 0'` each exit 0. One layer of
@@ -518,11 +501,4 @@ export function runTheCheckSentence(cwd) {
     + 'machine and not about your change — say which, and declare the real command as `check`. '
     + `Run \`qh-check\` (it runs ${checkInCode(command)} and records what it observed) after the final `
     + 'edit and report the exact command and result.'
-}
-
-export function inferredCheckCaveat(cwd) {
-  const { command, origin } = checkCommandOrigin(cwd)
-  return origin === 'inferred'
-    ? ` The check ${checkInCode(command)} was inferred from a manifest, not declared; declare it as \`check\` in .quality-harness.json.`
-    : ''
 }

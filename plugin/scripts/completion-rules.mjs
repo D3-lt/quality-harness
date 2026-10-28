@@ -395,7 +395,7 @@ export function subagentContract(input) {
     roleLine,
     // ADR-108 T2: the mrw way in one sentence, for a role that may edit; no skill reaches a subagent that did not invoke one.
     readOnly ? null : 'Read every site you will touch before the first edit, make the edits as one batch, and check that each landed: an edit that matched nothing is a failure (the execution skill\'s "Read and edit in batches").',
-    `Before returning after edits, ${runTheCheckSentence(input.cwd).replace(/^Run /, 'run ')}`,
+    '`qh-check` optionally records a run (ADR-130); report the exact commands you ran and their results.',
     'Return touched files, exact executed evidence, and remaining risk or uncertainty.',
     // ADR-029 T2. What the CALLER asked for, when it asked for anything. Said as
     // "asked for" rather than "you are running", because this hook receives a
@@ -601,7 +601,8 @@ export function completionRules(input, ended) {
   if (!facts) return
   const { claim, actions } = completionJudgement(facts, input)
   recordClaim(input, claim.claim, claim.evidence, claim.mutations)
-  for (const action of actions) queueAction(action)
+  // ADR-130: evidence remains descriptive; it never asks the session to run a check.
+  for (const action of actions) if (!['R1', 'R4', 'R5'].includes(action.rule)) queueAction(action)
 }
 
 /**

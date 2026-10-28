@@ -48,7 +48,7 @@
     ], "reason": "ADR-096: a turn-end finding reaches the agent and continues its turn once; ADR-096's Follow-up measures whether a continued turn acts" },
     "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "refusal", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "permissionDecision" },
-      { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'publish.requested'" }
+      { "kind": "tool", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "'publish.requested'" }
     ] },
     "PreToolUse · Skill · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
       { "kind": "tool", "by": "plugin/scripts/ledger-report.mjs", "token": "'skill.invoked'" }

@@ -13,7 +13,7 @@ const skip = process.platform === 'win32' && 'the fixtures run sh checks, as the
 const said = run => run.stdout?.hookSpecificOutput ?? {}
 const commit = { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -am x' } }
 
-test('a broken config and an mrw write are seen by both refusals', { skip }, t => {
+test('a broken config and an mrw write are seen by both refusals', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   // A declared check in a file JSON cannot parse (a trailing comma), and nothing a manifest could infer.
   const broken = fixtureRepo(box, 'broken', { '.quality-harness.json': '{"check": "sh check.sh",}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })
@@ -61,7 +61,7 @@ test('a broken config and an mrw write are seen by both refusals', { skip }, t =
 // The Codex review of 6641c951..4db47214: only a native plan's headers were read, so a write in mrw's other forms was no write
 // at all to the record, and a check that passed before it could stand for the tree after it. Each form is a write now, and one
 // whose files the input does not name is recorded with no path, which counts as unseen until a check passes after it.
-test('an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen', { skip }, t => {
+test('an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const written = (name, toolInput) => {
     const repo = fixtureRepo(box, name, { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n', 'src/a.js': 'x\n' })

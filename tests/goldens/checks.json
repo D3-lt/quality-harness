@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -22,15 +22,8 @@
       "name": "commit after a red check",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "a red fast check",
@@ -73,14 +66,8 @@
       "name": "turn end",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (<parser detail>), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`. <qh:r1@<marker>>"
-        },
-        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (<parser detail>), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
-      },
-      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: .quality-harness.json, README.md, check.sh, src/b.js. .quality-harness.json is not valid JSON (<parser detail>), so no check can pass here and `qh-check` will not guess what it declares. Fix the file, then run `qh-check`."
+      "stdout": "",
+      "stderr": ""
     }
   ],
   "checks": [
@@ -388,19 +375,6 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:1",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 1
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
         "event": "check.passed",
         "record": "<id>",
         "seq": 2,
@@ -519,15 +493,6 @@
         "blob": "bd08a2cb054bcde7cde47c92cd33aa8dc8c9385a1e141659bf22169e9fb2e21d",
         "complete": true,
         "pass": "<id>"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "R1",
-        "key": "<sha>:0:0",
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       }
     ],
     "skips.jsonl": [

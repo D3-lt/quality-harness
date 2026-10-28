@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see. <qh:standing@<marker>>"
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. `qh-check` optionally records a run for status and reports (ADR-130). <qh:standing@<marker>>"
         }
       },
       "stderr": ""
@@ -43,14 +43,8 @@
       "name": "turn end",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "Stop",
-          "additionalContext": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/a.js. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. <qh:r1@<marker>>"
-        },
-        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/a.js. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
-      },
-      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/a.js. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+      "stdout": "",
+      "stderr": ""
     }
   ],
   "ledgers": {
@@ -128,15 +122,6 @@
         "blob": "1df3032e75cb45e568d2741f3dbf4ba4b11d547f91e906e0563bc9990d9cf07e",
         "complete": true,
         "pass": "<id>"
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "R1",
-        "key": "<sha>:0:0",
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       }
     ]
   }

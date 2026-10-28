@@ -26,8 +26,8 @@
       "tests": [
         "tests/subtracted.test.mjs"
       ],
-      "from": "where the completion and publish rules read it.",
-      "to": "where the completion and publish rules read it, or wrap it in `scripts/verify.mjs`.",
+      "from": "Use normal project commands.",
+      "to": "Use normal project commands, or wrap them in `scripts/verify.mjs`.",
       "only": "^verify\\.mjs is not shipped, and nothing shipped or tested names it$"
     }
   ]

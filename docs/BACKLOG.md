@@ -3971,3 +3971,10 @@ archive and design notes. Not reproduced here; corpus-probe.mjs is unchanged sin
 A fourth lead, `"found": ""` beside lint FAILs, is as intended: `found` is the runner's own one-line note, written empty by
 the tool (`plugin/scripts/corpus-probe.mjs` `attestation`, `docs/corpus-reports/README.md`), and `disagreements` counts
 only adr-next against work-next. Open: what decides "a record" for the probe, and whether adr-lint's directory walk agrees.
+
+## 431. ADR-101 keeps historical references to the retired publish-judgement test
+
+The read-only Claude review of ADR-130 found that ADR-101 and its T1/T2 Tests tables still name
+`tests/publish-judgement.test.mjs`. ADR-130 removes that unlocked test with the publish policy engine; its old records
+remain historical evidence. Runtime behavior is unaffected. Open: whether ADR-101 should gain a supersession note
+pointing to ADR-130, without rewriting its task evidence.

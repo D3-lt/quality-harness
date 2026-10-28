@@ -22,7 +22,7 @@ function turnEnd(t, check, { ran = true } = {}) {
   return JSON.stringify(stop.stdout)
 }
 
-test('a check that could not start is reported once as evidence-limited, not run again', { skip }, t => {
+test('a check that could not start is reported once as evidence-limited, not run again', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const unstarted = turnEnd(t, 'qh-no-such-command-adr108')
   assert.match(unstarted, /did not start \(unstarted\)/, 'the finding names which verdict it read')
   assert.match(unstarted, /EVIDENCE-LIMITED/)
@@ -133,7 +133,7 @@ test('a write the observed tree cannot contain is never named unchanged, and a n
 // BACKLOG §383 (2026-10-18): a full check passed while this session committed beside it, so its trees before and after
 // differed and it read as unproven, and the turn end said "do not run it again on this tree". A run the tree moved under is
 // not one that could not start: it is to be run again once the tree holds still.
-test('a check the tree moved under is to be run again, not reported as could-not-start', { skip }, t => {
+test('a check the tree moved under is to be run again, not reported as could-not-start', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const said = turnEnd(t, 'sh -c "echo x >> src/moved.js"')
   assert.match(said, /the tree changed while it ran/)
   assert.match(said, /Run `qh-check`/, 'it is asked to run the check again')

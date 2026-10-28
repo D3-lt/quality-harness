@@ -23,8 +23,7 @@
         "tests/refusals-hold.test.mjs"
       ],
       "from": "  if (problem) return { command: null, origin: 'unreadable', problem }",
-      "to": "  if (false) return { command: null, origin: 'unreadable', problem }",
-      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+      "to": "  if (false) return { command: null, origin: 'unreadable', problem }"
     },
     {
       "label": "BACKLOG §383: an escaped quote does not close a multi-line basic string",
@@ -158,26 +157,6 @@
       "from": "  return typeof check === 'string' && check.trim() ? check.trim() : null",
       "to": "  return check ?? null",
       "only": "^(?:a project that declares its check is asked for that check)$"
-    },
-    {
-      "label": "fail-open: a failed root lookup makes the publish opt-out unknown",
-      "file": "plugin/scripts/check-command.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  if (!found.ok) return { warn: false, ignored: false, unknown: true }",
-      "to": "  if (false) return { warn: false, ignored: false, unknown: true }",
-      "only": "^(?:the publish opt-out is read from the root the decision used, or is unknown)$"
-    },
-    {
-      "label": "fail-open: only the exact \"warn\" value opts out of the refusal",
-      "file": "plugin/scripts/check-command.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }",
-      "to": "  return { warn: true, ignored: false, unknown: false }",
-      "only": "^(?:a project can turn the publish refusal back into a warning, and only on purpose)$"
     },
     {
       "label": "checks: the DECLARED arm of the run-the-check sentence says whose word the command is",

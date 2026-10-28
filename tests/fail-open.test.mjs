@@ -76,7 +76,7 @@ function whole(entries) {
   return log
 }
 
-test('a constant success is not a check and an unchecked publish is refused', () => {
+test('a constant success is not a check and an unchecked publish is refused', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of ['true', ':', 'exit 0', 'sh -c true', "bash -c 'exit 0'", 'sh -c ":"']) {
     assert.equal(lifecycle.constantSuccessCheck(command), true, command)
   }
@@ -146,7 +146,7 @@ test('a constant success is not a check and an unchecked publish is refused', ()
 // Found live by a peer on 2026-09-22: a check passes on the working tree, which
 // includes an untracked file, while the index holds only the staged change. The
 // index then equals no checked tree, and a deny on it repeated on every attempt.
-test('a passing check on the tree is not refused because the index differs from it', () => {
+test('a passing check on the tree is not refused because the index differs from it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('index-')
   writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
@@ -179,7 +179,7 @@ test('a passing check on the tree is not refused because the index differs from 
 // The owner's decision, 2026-09-22: the refusal is the default, and a project
 // may turn it back into the warning. Anything but the exact value keeps the
 // default, so a typo cannot silently disable it, and the hook says so.
-test('a project can turn the publish refusal back into a warning, and only on purpose', () => {
+test('a project can turn the publish refusal back into a warning, and only on purpose', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const attempt = (label, config) => {
     const dir = repository(`publish-${label}-`)
     writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
@@ -213,7 +213,7 @@ test('a project can turn the publish refusal back into a warning, and only on pu
 
 // Codex review round 2, 2026-09-22: only the TREE's standing decides a refusal.
 // An index whose check timed out must not rescue a working tree that failed.
-test('an index that could not be checked does not rescue a failed working tree', () => {
+test('an index that could not be checked does not rescue a failed working tree', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('index-timeout-')
   writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
@@ -244,7 +244,7 @@ test('an index that could not be checked does not rescue a failed working tree',
 
 // Codex review round 2 (F4): after a pass, a later check that could not look must
 // not be reported by the session note or R1 as "no check has passed".
-test('a check that could not look is not reported as no check passing', () => {
+test('a check that could not look is not reported as no check passing', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const tree = 'tree-1'
   const log = whole([
     { event: 'session.started', observation: { ok: true, tree: 'tree-0', index: 'i0', head: 'h0' } },
@@ -295,7 +295,7 @@ test('a write whose check count failed stays outstanding', () => {
 
 // Codex review, 2026-09-22 (F1): a later check that could not look is not a
 // failure. It must not turn an earlier pass into a refusal.
-test('a check that could not look after a pass warns and does not refuse', () => {
+test('a check that could not look after a pass warns and does not refuse', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const [label, extra] of [['timeout', { signal: 'SIGTERM' }], ['unstarted', { verdict: 'unstarted' }]]) {
     const dir = repository(`couldnot-${label}-`)
     writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
@@ -362,7 +362,7 @@ test('a pass recorded before an unobservable write does not cover it', () => {
 
 // Codex review, 2026-09-22 (F6): an index that moved while the tree still equals
 // the session start is unchecked, and nothing passed. The warning must not say one did.
-test('an unchecked index warning does not invent a passing check', () => {
+test('an unchecked index warning does not invent a passing check', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('inherited-')
   writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
@@ -384,7 +384,7 @@ test('an unchecked index warning does not invent a passing check', () => {
 
 // BACKLOG §381 item 9, through the hook: the same moved index, but the command stages before it commits, so the index
 // read before it runs is not the one it records. Said as not known yet, never unchecked, and still not refused.
-test('a command that stages before it commits hears its index is not known yet', () => {
+test('a command that stages before it commits hears its index is not known yet', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('stages-first-')
   writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
@@ -431,7 +431,7 @@ test('a write stays outstanding by log order, not by its timestamp', () => {
   assert.equal(lifecycle.unobservableWrites(torn).length, 1)
 })
 
-test('an unresolved check order is not worded as unchecked', () => {
+test('an unresolved check order is not worded as unchecked', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const tree = 'tree-1'
   const log = whole([
     { event: 'session.started', observation: { ok: true, tree: 'tree-0', index: 'i0', head: 'h0' } },
@@ -506,7 +506,7 @@ test('a root query that did not answer is not a pass', () => {
 // Codex review round 3 (1): the opt-out is read from the root the refusal was
 // decided on. A second lookup that failed fell back to the current directory,
 // missed the root's opt-out and refused, or honoured a nested file instead.
-test('the publish opt-out is read from the root the decision used, or is unknown', () => {
+test('the publish opt-out is read from the root the decision used, or is unknown', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('publish-sub-')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', publish: 'warn' }))
   mkdirSync(path.join(dir, 'sub'))
@@ -521,7 +521,7 @@ test('the publish opt-out is read from the root the decision used, or is unknown
 
 // Codex review round 3 (2): a passed working tree does not make an index that
 // could not be checked read as "unchecked".
-test('an index that could not be checked says unknown even when the tree passed', () => {
+test('an index that could not be checked says unknown even when the tree passed', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('passed-tree-unknown-index-')
   writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
@@ -560,7 +560,7 @@ test('R2 over several commits says at least one could not be established', () =>
 // A Windows chaos round (2.111.0-rc, P1): Claude Code on Windows ships a PowerShell
 // tool, and every shell check read `tool_name === 'Bash'`, so a publish through it was
 // neither refused on an unchecked tree nor denied to a read-only role.
-test('a publish through the PowerShell tool is refused, and denied to a read-only role', () => {
+test('a publish through the PowerShell tool is refused, and denied to a read-only role', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const dir = repository('pwsh-')
   writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
   writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))

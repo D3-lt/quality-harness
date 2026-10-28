@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: the Go previous session notice demands a check",
+      "file": "core/hooks/notes.go",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ],
+      "from": "\ttext += \"Checks are optional; this notice describes the previous session’s recorded state.\"",
+      "to": "\ttext += \"Run `qh-check` before building on them.\"",
+      "only": "^Go hooks allow unchecked publishing"
+    },
+    {
       "label": "ultrareview of v3.8.53..main: the Go core's daily sweep leaves the statusline caches",
       "file": "core/hooks/notes.go",
       "tests": ["tests/go-sweep.test.mjs"],

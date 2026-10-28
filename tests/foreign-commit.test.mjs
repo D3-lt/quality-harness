@@ -16,7 +16,9 @@ import { dirname, join, resolve } from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
-import { foreignCommitPath, freshRepositoryCommit, leavesHookInPlace } from '../plugin/scripts/publish-command.mjs'
+// ADR-130: namespace bindings keep locked, retired test bodies loadable after their policy APIs were removed.
+import * as retiredPolicy from '../plugin/scripts/publish-command.mjs'
+const { foreignCommitPath, freshRepositoryCommit, leavesHookInPlace } = retiredPolicy
 import { commonDirectory } from '../plugin/scripts/publish-verdict.mjs'
 import { IMPL, QH_BIN } from './hook-golden.mjs'
 
@@ -91,7 +93,7 @@ function session({ armed = false, fast = false } = {}) {
 
 const OBSERVED = target => `git -C ${target} -c user.email=q@x -c user.name=q commit -qm base; echo "commit exit $?"`
 
-test('a literal -C commit into another repository is advised, armed or not, unchecked or fast-pass', () => {
+test('a literal -C commit into another repository is advised, armed or not, unchecked or fast-pass', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const rows = [OBSERVED(slashed(foreign)), `git -C ${slashed(foreign)} commit -m x`, `git -C ${slashed(foreign)} commit -F - <<'EOF'\nm\nEOF`]
   // The same repository by its other spellings, where this machine has them (measured on macOS).
   if (slashed(foreign).startsWith('/private/tmp/')) rows.push(`git -C ${slashed(foreign).slice('/private'.length)} commit -m x`)
@@ -118,7 +120,7 @@ test('a literal -C commit into another repository is advised, armed or not, unch
   assert.match(said.text, ADVICE)
 })
 
-test("a -C path that reaches this repository's git directory is never foreign", () => {
+test("a -C path that reaches this repository's git directory is never foreign", { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = session()
   const armed = session({ armed: true })
   const rows = []
@@ -157,7 +159,7 @@ test("a -C path that reaches this repository's git directory is never foreign", 
   for (const command of rows[1]) assert.doesNotMatch(armed.tell(command).text, ADVICE, command)
 })
 
-test('what runs beside the commit, or redirects it, keeps the refusal', () => {
+test('what runs beside the commit, or redirects it, keeps the refusal', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = session()
   const F = slashed(foreign)
   const rows = [
@@ -209,7 +211,7 @@ test('tests/foreign-commit.test.mjs is in the declared fast check', () => {
 
 // Codex review of 99a574c1: each row was accepted by the reader there and advised as foreign,
 // while bash ran the hidden call. A new test, so T1's locked tests stay as they were.
-test('arithmetic, a here-string and a command before the commit keep the refusal', () => {
+test('arithmetic, a here-string and a command before the commit keep the refusal', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = session()
   const F = slashed(foreign)
   const rows = [
@@ -231,7 +233,7 @@ test('arithmetic, a here-string and a command before the commit keep the refusal
 // literal data as arithmetic, so a message line `((1))` in a quoted here-document, or an `echo`
 // of `'let x=1'`, kept a commit into another repository refused. Data, as the shell reads it, is
 // left out of that scan; anything the shell expands is still read. A new test beside the locked ones.
-test('literal data is not arithmetic, and an expansion of it still is', () => {
+test('literal data is not arithmetic, and an expansion of it still is', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = session()
   const F = slashed(foreign)
   const here = slashed(unarmed.dir)
@@ -272,7 +274,7 @@ test('literal data is not arithmetic, and an expansion of it still is', () => {
 // kept a commit into another repository refused. Each occurrence is masked on its own now, and kept out only when the text
 // read again holds the marker in that occurrence's slot. The three spellings that stood in code instead still refuse
 // (CLAUDE.md §16). Plain literals with placeholder paths, so the parity test reads them through the Go core too.
-test('a literal repeated as data keeps no refusal, and the three code-again spellings still refuse', () => {
+test('a literal repeated as data keeps no refusal, and the three code-again spellings still refuse', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const unarmed = session()
   const at = command => command.replaceAll('/x/foreign', slashed(foreign)).replaceAll('/x/here', slashed(unarmed.dir))
   for (const command of [
@@ -305,7 +307,7 @@ test('a literal repeated as data keeps no refusal, and the three code-again spel
 
 // ADR-104 T3 (alternative (d), the owner, 2026-10-15): `cd L && git commit` is read as `git -C L commit`. Only `&&` joins
 // them: after `;`, `||` or a newline a `cd` that fails leaves the commit in this checkout.
-test('a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal', () => {
+test('a literal cd into another repository, then one commit, is advised, and every other cd keeps the refusal', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const F = slashed(foreign)
   for (const command of [`cd ${F} && git commit -m x`, `cd ${F} && git -c user.name=q -c user.email=q@x commit -qm x; echo "commit exit $?"`]) {
     assert.equal(foreignCommitPath(command, {}, process.platform), F, command)
@@ -342,7 +344,7 @@ test('a literal cd into another repository, then one commit, is advised, and eve
 
 // BACKLOG §381 item 11 (an outside run of v3.8.32): the person sees the advice's first sentence, cut at 140 characters,
 // and the reason "(ADR-104)" came after the command, so a -C path of ordinary length cut it off. The reason leads now.
-test('the person told of a commit into another repository is told why it was allowed', () => {
+test('the person told of a commit into another repository is told why it was allowed', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const said = session().tell(`git -C ${slashed(foreign)} commit -m x`)
   assert.notEqual(said.decision, 'deny', said.text)
   const headline = JSON.parse(said.text).systemMessage ?? ''
@@ -367,7 +369,7 @@ test('the session helper runs the hook the implementation seam names', () => {
 // that reads the masked text refused. Each occurrence is masked on its own now, and kept only when the text read again has
 // `msg` in that occurrence's word; a copy that is code stays and still refuses (CLAUDE.md §16). Plain literals with
 // placeholder paths, so the parity test reads every row through the Go core too.
-test('a commit message repeated as data is masked in each of its words, and a copy that is code still refuses', () => {
+test('a commit message repeated as data is masked in each of its words, and a copy that is code still refuses', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of [
     "git -C /x/foreign commit -m 'let x=1' -m 'let x=1'",
     "git -C /x/foreign commit -m 'let x=1'; echo 'let x=1'",
@@ -398,7 +400,7 @@ test('a commit message repeated as data is masked in each of its words, and a co
 // Found by a mutant after the red run of ADR-119 T5: with the slot check skipped, the FIRST occurrence of a message's
 // spelling is masked, and when that one is code standing before the message (`sh -c '…'`), the code is what disappears.
 // Every row above passed with the check gone, so this is a test beside the locked one, run by the same fence.
-test('the occurrence masked is the message, not the same spelling run as code before it', () => {
+test('the occurrence masked is the message, not the same spelling run as code before it', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   for (const command of [
     "sh -c 'git push'; cd /x/scratch && git commit -m 'git push'",
     "cd /x/scratch && sh -c 'git push' && git commit -m 'git push'",

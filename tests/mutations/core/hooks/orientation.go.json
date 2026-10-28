@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: Go session orientation demands a recorded check",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ],
+      "from": "\t\t\t\"`qh-check` optionally records a run for status and reports (ADR-130).\")",
+      "to": "\t\t\t\"Run it through `qh-check`.\")",
+      "only": "^Go hooks allow unchecked publishing"
+    },
+    {
       "label": "ADR-120 T4: the Go session start never names the plugin root",
       "file": "core/hooks/orientation.go",
       "tests": [
@@ -8,7 +18,7 @@
       ],
       "from": "\tofferPluginRoot(cwd, session)",
       "to": "\t_ = cwd",
-      "only": "^(?:the Go session start writes the same plugin root line)$"
+      "only": "^(?:Go\\ optional\\ commit\\ tracking\\ keeps\\ root\\ exports\\ and\\ installation\\ idempotent)$"
     },
     {
       "label": "ADR-120 T4: the Go writer appends the plugin root again on every SessionStart",
@@ -18,7 +28,7 @@
       ],
       "from": "strings.Contains(\"\\n\"+existing, \"\\n\"+strings.TrimSuffix(rootExport, \"\\n\")+\"\\n\")",
       "to": "false",
-      "only": "^(?:the Go session start writes the same plugin root line)$"
+      "only": "^(?:Go\\ optional\\ commit\\ tracking\\ keeps\\ root\\ exports\\ and\\ installation\\ idempotent)$"
     }
   ]
 }

@@ -566,11 +566,7 @@ func previousSessionNotice(cwd string) string {
 		text += ": " + strings.Join(files, ", ")
 	}
 	text += ". "
-	if check != "" {
-		text += "Run `qh-check` (it runs " + checkInCode(check) + ") before building on them."
-	} else {
-		text += "Nothing has checked them since."
-	}
+	text += "Checks are optional; this notice describes the previous session’s recorded state."
 	return text
 }
 

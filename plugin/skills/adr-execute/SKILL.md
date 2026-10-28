@@ -156,7 +156,7 @@ into the middle of a sequence:
 ```bash
 T=docs/adr/<record>/tasks/<task>.md
 # ...make the edit set for this task in one plan, then:
-qh-check && python3 "$CLAUDE_PLUGIN_ROOT/bin/adr-verify" "$T"
+python3 "$CLAUDE_PLUGIN_ROOT/bin/adr-verify" "$T"
 ```
 
 When several tasks in a wave are ready to record at once, name them all in one call:
@@ -165,9 +165,9 @@ call would, with every output line prefixed by its task. A failing fence does no
 task, the exit is the first non-zero one, and a mistyped or repeated path refuses the whole call
 before any fence runs. It is for plain recording only, never with `--mutant`, `--human` or `--relock`.
 
-`qh-check` runs this project's declared check and records what it observed, which is
-what the completion advisories read. Running the command yourself still proves the
-work; it just leaves no record for them.
+Run the project's required check at the scope the change needs. `qh-check` is an optional
+runner that records its observation for status and reports; hooks never require it (ADR-130).
+`adr-verify` already runs the task's Acceptance fence, so avoid running that fence twice.
 
 ⚠ **Chaining is for what does not need a decision between steps.** The check and the evidence run
 belong together — `adr-verify` runs the fence itself and records what it observed, so nothing is

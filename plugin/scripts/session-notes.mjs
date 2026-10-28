@@ -200,9 +200,7 @@ export function previousSessionNotice(cwd, platform = process.platform) {
   }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
     + `${what} after which no recognised check passed${files.length ? `: ${files.join(', ')}` : ''}. `
-    // The one sentence here that says Run names qh-check: the span beside it is the declared
-    // command's text, and running that any other way records nothing (Codex review of ffd4892, #4).
-    + (check ? `Run \`qh-check\` (it runs ${checkInCode(check)}) before building on them.` : 'Nothing has checked them since.')
+    + 'Checks are optional; this notice describes the previous session’s recorded state.'
 }
 
 function sessionMentionPath(sessionId, key) {

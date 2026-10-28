@@ -40,13 +40,13 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/scripts/on-turn-end.mjs` | domain | what a finished turn, subagent or task says about itself | ADR-060, ADR-096 |
 | `plugin/scripts/on-session-end.mjs` | domain | the row a session leaves for the next one | ADR-060 |
 | `plugin/scripts/on-subagent-start.mjs` | domain | the contract a spawned role is handed | ADR-060 |
-| `plugin/scripts/publish-verdict.mjs` | domain | whether a commit or push is on a checked tree (rule P) | ADR-061, ADR-066 |
+| `plugin/scripts/publish-verdict.mjs` | domain | reviewer guards, commit tracking exports and reviewer state reports | ADR-060, ADR-128, ADR-130 |
 | `plugin/scripts/publish-command.mjs` | domain | which shell commands publish | ADR-067, ADR-090 |
 | `plugin/scripts/shell-words.mjs` | domain | how shell text splits into words | ADR-067 |
 | `plugin/scripts/shell-grammar.mjs` | domain | how the words of a check read as lists, pipelines, groups and definitions (Go twin: `core/hooks/shellgrammar.go`) | ADR-120 |
 | `plugin/scripts/ledger-guard.mjs` | domain | which writes into the state directory are refused | ADR-117 |
 | `plugin/scripts/reviewer-guard.mjs` | domain | what a read-only role may not do | ADR-060 |
-| `plugin/scripts/publish-hook.mjs` | adapter | git's own side of the publish refusal | ADR-066, ADR-068 |
+| `plugin/scripts/publish-hook.mjs` | adapter | recording the sha git committed for a session; retired publish events are no-ops | ADR-128, ADR-130 |
 | `plugin/scripts/check-ledger.mjs` | domain | how the check ledgers are read | ADR-081, ADR-101 |
 | `plugin/scripts/check-record.mjs` | adapter | how a check run is written to the ledgers | ADR-060, ADR-111 |
 | `plugin/scripts/qh-check.mjs` | api | running the project's check and recording it | ADR-060, ADR-081, ADR-100 |
@@ -147,14 +147,14 @@ repository keeps a hashed subdirectory under it); `corpus-probe` uses that to wr
 
 | File | Written by | Read by |
 |------|------------|---------|
-| `checks.jsonl` | `qh-check` (`plugin/scripts/check-record.mjs`), the only writer | `check-ledger.mjs` (`ledgerPass`), the publish verdict, the turn end |
+| `checks.jsonl` | explicit `qh-check` (`plugin/scripts/check-record.mjs`), the only writer | runner reuse, descriptive turn-end claims, status and reports; never a publish prerequisite (ADR-130) |
 | `fast-checks.jsonl` | `qh-check --fast` (`check-record.mjs`) | `check-ledger.mjs` (`latestFastPass`); no reader of a full pass opens it (ADR-081) |
-| `baseline.jsonl` | `qh-check --baseline` (`check-record.mjs`) | the turn end only (ADR-111) |
+| `baseline.jsonl` | explicit `qh-check --baseline` (`check-record.mjs`); never SessionStart (ADR-130) | baseline reports and descriptive evidence readers |
 | `skips.jsonl` | `qh-check` when it reuses a pass on the same tree (`check-record.mjs`) | `ledger-report.mjs` |
 | `passed-tests.json` | `qh-check`, after each pass: its test files by path and content, their test names where the runner was measured, and a full check's passed and skipped counts from its runners' summaries, per ledger and command (`removed-tests.mjs`) | `qh-check`'s next pass, which names a test file gone and not moved, a test gone from a file that stays, a test skipped in place, and a drop in the count no removal accounts for |
 | `receipts.jsonl` | `adr-verify`, one row per log row it writes (`plugin/lib/record.py`, `RECEIPTS_NAME`) | `adr-lint` (ADR-117 T2) |
 | `reviews.jsonl` | `host-review.mjs` (`REVIEWS_FILE`), one row per review it launched | `release-evidence.mjs` (ADR-100) |
-| `sessions/<session>.jsonl` | every hook (`appendEvent`, `sessionLogFile`); check events imported from `checks.jsonl` | the rules, `ledger-report.mjs`, the publish verdict |
+| `sessions/<session>.jsonl` | every hook (`appendEvent`, `sessionLogFile`); check events imported from `checks.jsonl` | reviewer and artifact rules, descriptive evidence, `ledger-report.mjs`, commit tracking |
 
 Beside it, under `CLAUDE_PLUGIN_DATA` (machine-local, not per repository): `claims.jsonl` (`completion-rules.mjs` writes,
 `claims-rate.mjs` reads) and `sessions.jsonl` (`on-session-end.mjs` writes, `session-notes.mjs` reads).
@@ -207,8 +207,6 @@ CLAUDE.md §3 sanctions the refusals it lists, and no others. Each lives in both
 
 | Refusal | Record | Node | Go | Opt-out |
 |---------|--------|------|----|---------|
-| An unchecked commit or push, at PreToolUse | ADR-061, ADR-081 | `publish-verdict.mjs` via `on-pre-tool-use.mjs` | `core/hooks/publish.go` | `"publish": "warn"` |
-| The same, refused by git at the event | ADR-066, ADR-068 | `publish-hook.mjs`, offered to git through `CLAUDE_ENV_FILE` at SessionStart | `core/hooks/orientation.go` (the offer) | `"publish": "warn"` |
 | A read-only role editing, committing or pushing | ADR-060 | `on-pre-tool-use.mjs` (`readOnlyVerdict`), and `reviewer-guard.mjs` in the agents' frontmatter | `core/hooks/publish.go` | none: it fences a role the caller made read-only |
 | A hook-visible write into the state directory | ADR-117 | `ledger-guard.mjs` via `on-pre-tool-use.mjs` | `core/hooks/ledger_guard.go` | `"ledgers": "warn"` |
 
@@ -279,8 +277,8 @@ Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is t
 
 | Boundary | Crossing rule | Check |
 |----------|---------------|-------|
-| An agent's commit or push from a tool call | refused on a tree no `qh-check` passed on, unless `"publish": "warn"` (ADR-061) | `node --test tests/fail-open.test.mjs` |
-| A commit or push git runs, however launched | git's `prepare-commit-msg` and `pre-push` refuse the unchecked one (ADR-066, ADR-068) | `node --test tests/publish-hook.test.mjs` |
+| An agent's commit or push from a tool call | project checks are optional; reviewer and ledger guards remain (ADR-130) | `node --test tests/optional-check.test.mjs` |
+| A commit or push git runs, however launched | no check refusal; only post-commit session tracking is installed (ADR-130) | `node --test tests/optional-check.test.mjs` |
 | A read-only role's tools | no edit, commit or push; other changes are reported at SubagentStop (ADR-060) | `node --test tests/observed-events.test.mjs` |
 | The state directory | written only by its tools; a hook-visible write is refused unless `"ledgers": "warn"` (ADR-117 T1) | `node --test tests/ledger-writes.test.mjs` |
 | A task's log rows | written by `adr-verify` with a receipt; an uncommitted row without one fails `adr-lint` (ADR-117 T2) | `node --test tests/log-receipts.test.mjs` |

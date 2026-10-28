@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: the previous session notice demands a check",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ],
+      "from": "    + 'Checks are optional; this notice describes the previous session’s recorded state.'",
+      "to": "    + 'Run `qh-check` before building on them.'",
+      "only": "^a new session reports"
+    },
+    {
       "label": "context: said once per path per session",
       "file": "plugin/scripts/session-notes.mjs",
       "tests": [
@@ -67,8 +77,7 @@
         "tests/fail-open.test.mjs"
       ],
       "from": "  const unobserved = facts?.treeOrder === 'could-not-look'",
-      "to": "  const unobserved = false",
-      "only": "^(?:a check that could not look is not reported as no check passing)$"
+      "to": "  const unobserved = false"
     },
     {
       "label": "evidence-flip: a committed turn with an unchecked tree is not neutral",
@@ -129,16 +138,6 @@
       "from": "      + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `",
       "to": "      + ' '",
       "only": "^(?:an UNKNOWN previous session still says what was independently known to be outstanding)$"
-    },
-    {
-      "label": "§321 codex render: the previous-session line says to run the check as shown",
-      "file": "plugin/scripts/session-notes.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "(check ? `Run \\`qh-check\\` (it runs ${checkInCode(check)}) before building on them.`",
-      "to": "(check ? `Run ${checkInCode(check)} before building on them.`",
-      "only": "names the previous session"
     },
     {
       "label": "§321 codex render: the previous session's files print a tag raw",
@@ -228,7 +227,7 @@
       ],
       "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared, prose: proseSpecs(repository).specs })) return ''",
       "to": "if (repository && declared && (passedAlready({ root: repository, git: true, command: declared, prose: proseSpecs(repository).specs }) || statusPaths(repository).length === 0)) return ''",
-      "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
+      "only": "^optional checks preserve previous-state notices for unverified trees$"
     },
     {
       "label": "ADR-099 T1: the hook output names no ready task (the compaction note)",

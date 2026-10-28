@@ -14,7 +14,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
-import { commitOnlyCommand, foreignCommitPath, freshRepositoryCommit, leavesHookInPlace, publishCommandIn, stagesBeforeCommit } from '../plugin/scripts/publish-command.mjs'
+import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
 import { parseShell } from '../plugin/scripts/shell-grammar.mjs'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
@@ -88,9 +88,8 @@ const nodeRow = cmd => {
   const parsed = shellWords(cmd)
   return {
     cmd,
-    publish: publishCommandIn(cmd), mentions: mentionsCommitOrPush(cmd), commitOnly: commitOnlyCommand(cmd),
-    fresh: freshRepositoryCommit(cmd), stages: stagesBeforeCommit(cmd), leaves: leavesHookInPlace(cmd),
-    foreign: foreignCommitPath(cmd), constant: constantSuccessCheck(cmd),
+    // ADR-130: compare the classifiers still used by the product.
+    publish: publishCommandIn(cmd), mentions: mentionsCommitOrPush(cmd), constant: constantSuccessCheck(cmd),
     tree: parseShell(parsed),
     words: {
       complete: parsed.complete,

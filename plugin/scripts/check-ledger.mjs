@@ -301,36 +301,6 @@ export function importCheckRecords(cwd, session) {
  * no check has been recorded, so every check event is unbound. It never writes, and the log keeps
  * its `complete` flag, which `.filter` would otherwise drop (see `logIncomplete`).
  */
-export function ledgerBoundLog(cwd, log) {
-  const torn = { log, dropped: 0, torn: true }
-  let text
-  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
-    if (error?.code !== 'ENOENT') return torn
-    text = ''
-  }
-  const lines = text.split('\n')
-  if (lines.pop().trim()) return torn
-  const records = new Map()
-  for (const line of lines) {
-    if (!line.trim()) continue
-    let record
-    try { record = JSON.parse(line) } catch { return torn }
-    if (typeof record?.id !== 'string') return torn
-    // The first record of an id is the one the importer copied.
-    if (!records.has(record.id)) records.set(record.id, record)
-  }
-  const bound = entry => {
-    if (typeof entry?.event !== 'string' || !entry.event.startsWith('check.') || entry.event === 'check.source-unreadable') return true
-    const record = typeof entry.record === 'string' ? records.get(entry.record) : undefined
-    if (record === undefined || checkEventName(record) !== entry.event || record.after?.tree !== entry.after?.tree) return false
-    // ADR-120 T9: the code tree and the list a pass is carried by are the record's, or the event is not bound.
-    return (entry.after?.codeTree === undefined || entry.after.codeTree === record.after?.codeTree)
-      && (entry.prose === undefined || sameList(entry.prose, record.prose))
-  }
-  const kept = log.filter(bound)
-  kept.complete = log.complete
-  return { log: kept, dropped: log.length - kept.length }
-}
 
 /**
  * Whether `observation` may stand as a late baseline: the first look of a session that has

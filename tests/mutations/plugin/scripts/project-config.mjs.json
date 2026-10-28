@@ -131,16 +131,6 @@
       "only": "^a config that starts with a byte-order mark is refused and says so \\(a Windows run of 3.8.18\\)$"
     },
     {
-      "label": "ADR-096 T3: turnEnd notify keeps findings user-only",
-      "file": "plugin/scripts/project-config.mjs",
-      "tests": [
-        "tests/turn-end-delivery.test.mjs"
-      ],
-      "from": "config?.turnEnd === 'notify' ? 'notify' : 'agent'",
-      "to": "'agent'",
-      "only": "^turnEnd\\ notify\\ keeps\\ a\\ finding\\ user\\-only,\\ and\\ any\\ other\\ value\\ means\\ agent$"
-    },
-    {
       "label": "ADR-096 T3: an unreadable configuration means the default",
       "file": "plugin/scripts/project-config.mjs",
       "tests": [
@@ -165,16 +155,6 @@
       "from": "declaredPathspecs(root, 'ignore')",
       "to": "declaredPathspecs(root, 'prose')",
       "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
-    },
-    {
-      "label": "ADR-120 T11: turnEnd continue is read",
-      "file": "plugin/scripts/project-config.mjs",
-      "tests": [
-        "tests/turn-end-declared.test.mjs"
-      ],
-      "from": "if (config?.turnEnd === 'continue') return 'continue'",
-      "to": "",
-      "only": "^(?:turnEnd continue restores the continuation on an inferred and on an unstartable check)$"
     }
   ]
 }

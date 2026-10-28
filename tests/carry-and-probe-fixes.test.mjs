@@ -34,7 +34,7 @@ function otherSessionWrote(repo, at) {
   writeFileSync(file, `${JSON.stringify({ at, event: 'file.written', path: path.join(repo, 'build', 'x'), observable: false })}\n`)
 }
 
-test('a write another session made after the pass ends the carry-over, and one made before it does not', { skip: posixOnly }, t => {
+test('a write another session made after the pass ends the carry-over, and one made before it does not', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const repo = fixtureRepo(box, 'foreign', { '.quality-harness.json': `${JSON.stringify({ check: 'sh check.sh', prose: PROSE })}\n`, 'check.sh': 'exit 0\n', '.gitignore': 'build/\n', 'src/a.mjs': 'export const a = 0\n', 'docs/a.md': 'one\n' })
   const started = '2026-10-21T10:00:00.000Z'

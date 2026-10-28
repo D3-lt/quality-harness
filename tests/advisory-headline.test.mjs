@@ -23,7 +23,7 @@ const lifecycleScript = join(resolve(dirname(fileURLToPath(import.meta.url)), '.
 const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid',
   GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
 
-test('the headline a person sees at a publish warning names the finding', () => {
+test('the headline a person sees at a publish warning names the finding', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-headline-')))
   try {
     const repo = join(top, 'repo')

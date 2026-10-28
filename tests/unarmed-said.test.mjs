@@ -55,7 +55,7 @@ function oldGit() {
 const envFile = () => { const file = join(top, `env-${made}`); writeFileSync(file, ''); return file }
 const UNARMED = /git's own refusal of an unchecked commit or push is not armed in this session \(git here does not list a config-based hook/
 
-test('a session git could not arm is told why, once per repository; an armed one and a host with no env file are not', { skip: process.platform === 'win32' && 'the stand-in git is a #! script (CLAUDE.md §7)' }, () => {
+test('a session git could not arm is told why, once per repository; an armed one and a host with no env file are not', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const say = start({ CLAUDE_ENV_FILE: envFile(), PATH: oldGit() })
   assert.match(say(), UNARMED)
   // ADR-122 Decision 8: a start is a new context, so it is told again; a resume that shows no request evidence keeps the

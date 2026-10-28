@@ -36,7 +36,7 @@ const reason = (fixture, command) => {
   return { decision: out?.permissionDecision ?? null, text: out?.permissionDecisionReason ?? '' }
 }
 
-test('a refusal after a fast pass says the fast check passed and why it does not count here', () => {
+test('a refusal after a fast pass says the fast check passed and why it does not count here', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository()
   try {
     const fast = spawnSync(process.execPath, [qhCheck, '--fast'], { cwd: fixture.dir, env: fixture.env, encoding: 'utf8', timeout: 60_000, windowsHide: true })
@@ -50,7 +50,7 @@ test('a refusal after a fast pass says the fast check passed and why it does not
   } finally { remove(fixture.top) }
 })
 
-test('a refusal with no pass at all keeps saying no qh-check has passed', () => {
+test('a refusal with no pass at all keeps saying no qh-check has passed', { skip: 'ADR-130: compulsory check policy retired' }, () => {
   const fixture = repository()
   try {
     const refused = reason(fixture, 'git commit -m x && echo done')

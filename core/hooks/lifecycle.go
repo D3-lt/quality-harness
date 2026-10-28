@@ -36,7 +36,12 @@ type hookRun struct {
 	stderr  io.Writer
 }
 
-func (h *hookRun) queue(a action)    { h.pending = append(h.pending, a) }
+func (h *hookRun) queue(a action) {
+	// ADR-130: check standing is descriptive; it never demands a run or refuses publishing.
+	if a.rule != "P" && a.rule != "R1" && a.rule != "R4" && a.rule != "R5" {
+		h.pending = append(h.pending, a)
+	}
+}
 func (h *hookRun) emitJSON(out *Obj) { h.output = out }
 func (h *hookRun) say(text string)   { io.WriteString(h.stderr, text) }
 
@@ -584,12 +589,6 @@ func (h *hookRun) handle() {
 	}
 	if id, ok := h.session.(string); !guardAlone && ok && id != "" {
 		h.importPassVerdicts(h.audience(), h.recipient())
-	}
-	if rec != nil && rec.lateBaseline && projectCheckCommand(h.cwd) != "" {
-		h.queue(action{rule: "R4", key: "late-baseline:" + jsString(h.session),
-			text: "quality-harness: began watching this session at this turn, not at its start — it was installed, enabled " +
-				"or updated while the session was running. Anything changed or committed before now was not observed, so " +
-				"nothing here speaks for it (ADR-005). From here on the working tree is measured against what it is now."})
 	}
 	if h.event == "SubagentStop" {
 		h.reviewChangedState(rec)

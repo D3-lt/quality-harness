@@ -8,8 +8,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { appendEvent, nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryRoot, rememberStatus } from './tree-facts.mjs'
-import { emitJson, peekOutput, pendingActions, queueAction, takeOutput } from './hook-queue.mjs'
-import { projectCheckCommand } from './check-command.mjs'
+import { emitJson, peekOutput, pendingActions, takeOutput } from './hook-queue.mjs'
 import { channelOf, deliveredTo } from './check-ledger.mjs'
 import { turnEndSetting } from './project-config.mjs'
 import { importPassVerdicts, runArtifactPass } from './artifact-pass.mjs'
@@ -222,16 +221,6 @@ export async function handleHook(input) {
     try { importPassVerdicts(input.cwd ?? process.cwd(), input.session_id, audienceOf(input), recipientOf(input)) } catch (failure) {
       process.stderr.write(`[quality-harness] the artifact pass's ledger was not read (${failure?.message ?? failure}).\n`)
     }
-  }
-  // What a late baseline leaves genuinely unknown, said ONCE and as a limit on what
-  // could be seen — never as an accusation about work nobody observed (ADR-005).
-  if (recorded?.lateBaseline && projectCheckCommand(input.cwd)) {
-    queueAction({
-      rule: 'R4', key: `late-baseline:${input.session_id}`,
-      text: 'quality-harness: began watching this session at this turn, not at its start — it was installed, enabled '
-        + 'or updated while the session was running. Anything changed or committed before now was not observed, so '
-        + 'nothing here speaks for it (ADR-005). From here on the working tree is measured against what it is now.',
-    })
   }
   if (event === 'SubagentStop') {
     try { reviewChangedState(input, recorded) } catch (failure) {

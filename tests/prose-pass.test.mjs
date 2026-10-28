@@ -9,7 +9,9 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { checkStanding, carryFor, latestCheckFor, ledgerBoundLog } from '../plugin/scripts/check-ledger.mjs'
+// ADR-130: namespace bindings keep locked, retired test bodies loadable after their policy APIs were removed.
+import * as retiredPolicy from '../plugin/scripts/check-ledger.mjs'
+const { checkStanding, carryFor, latestCheckFor, ledgerBoundLog } = retiredPolicy
 import { readEvents } from '../plugin/scripts/event-log.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
@@ -66,7 +68,7 @@ function begin(t, implementation, { prose = PROSE, commitCode = false } = {}) {
   return { box, repo, session, hook, put, commit, git: (...args) => git(repo, box, ...args) }
 }
 
-test('a pass stands across a prose-only change for every reader', { skip: posixOnly }, t => {
+test('a pass stands across a prose-only change for every reader', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const implementation of implementations()) {
     const s = begin(t, implementation)
     s.put('docs/a.md', 'two\n')
@@ -96,7 +98,7 @@ test('a pass stands across a prose-only change for every reader', { skip: posixO
   }
 })
 
-test('a code change, a changed prose list or an unseen write ends the carry-over', { skip: posixOnly }, t => {
+test('a code change, a changed prose list or an unseen write ends the carry-over', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const implementation of implementations()) {
     const name = implementation.impl
     // A code edit beside the prose edit.
@@ -187,7 +189,7 @@ test('a code change, a changed prose list or an unseen write ends the carry-over
   assert.equal(carryFor(written, s.repo, observation.codeTree, observation.prose), null, 'an unseen write after the pass vetoes the carry')
 })
 
-test('a prose-only unchecked diff with no prose declared names the setting once', { skip: posixOnly }, t => {
+test('a prose-only unchecked diff with no prose declared names the setting once', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   for (const implementation of implementations()) {
     const name = implementation.impl
     const s = begin(t, implementation, { prose: null, commitCode: true })
@@ -209,7 +211,7 @@ test('a prose-only unchecked diff with no prose declared names the setting once'
 
 // Added beside the three above once the readers were in (the task's Tests table names those three): the pieces they reach a
 // reader through that no row of theirs could tell apart from a lucky pass.
-test('a check event names its code tree and list only as the ledger record holds them', { skip: posixOnly }, t => {
+test('a check event names its code tree and list only as the ledger record holds them', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const s = begin(t, { impl: 'node' })
   s.put('docs/a.md', 'two\n')
   s.hook(stop)

@@ -195,16 +195,9 @@ const READERS = {
   // lost line can only make the note appear. NOT executed: no fixture tears the log under a SessionStart.
   onSessionEnd: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
   onSessionStart: { unexecuted: 'BACKLOG 375 stage D — needs a fixture that tears the log at a compact SessionStart' },
-  completionFacts: { executed: 'Stop (completionRules)' },
-  publishUnchecked: { executed: 'PreToolUse naming commit (publishUnchecked)' },
-  // ADR-066 T1: rule P's decision, extracted so git's hook shares it. PreToolUse
-  // still reaches it through publishUnchecked, so that boundary's tears run it.
-  publishFacts: { executed: 'PreToolUse naming commit (publishUnchecked)' },
-  // NOT executed: no fixture tears the log under a git hook. What holds is that a
-  // torn log reaches publishVerdict, whose logIncomplete arm warns and never denies,
-  // so the hook exits 0 — the could-not-look ADR-061 already takes, never a pass
-  // recorded as evidence.
-  runPublishHook: { unexecuted: 'ADR-066 T1 — needs a fixture that tears the session log under a git hook' },
+  completionFacts: { unexecuted: 'ADR-130: descriptive claims are persisted; torn-record persistence is tested below' },
+  // ADR-130: git hooks record commits; they no longer judge checks.
+  runPublishHook: { unexecuted: 'ADR-130: commit tracking reads only session ownership, never a check verdict' },
   // ADR-068 T1. NOT executed. A torn log in the main checkout counts as OWNED (the
   // worktree is then judged, and a torn worktree log warns), so a lost line can only
   // add a judgement, never remove one.
@@ -212,8 +205,8 @@ const READERS = {
   reviewChangedState: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
   // Both run inside every hook, so every row of the table runs them; the `head`
   // tear is the one that loses the baseline `recordHookEvent` would re-find.
-  importCheckRecords: { executed: 'PreToolUse naming commit (publishUnchecked)' },
-  recordHookEvent: { executed: 'Stop (completionRules)' },
+  importCheckRecords: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
+  recordHookEvent: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
   // NOT executed, and said so rather than dressed as safe: no fixture here holds
   // an artifact, so nothing runs rule A against a torn log. The claim — a lost
   // `artifact.gated` re-gates, a lost `action.emitted` re-fires — is still prose.
@@ -228,10 +221,7 @@ const READERS = {
   // a torn session log is named UNPROVEN and the look is PARTIAL — a lost line can lower a count, never
   // pass for one read whole.
   ledgerReport: { tested: 'tests/ledger-report.test.mjs' },
-  // ADR-111 T3. NOT executed. It reads the log only for `session.started` and the tree it observed: a torn log that lost
-  // that line starts no baseline, which says nothing, and a baseline is written to its own ledger, which no reader of a pass
-  // reads. A lost line can take a baseline away, never make one up or certify a tree.
-  startBaseline: { unexecuted: 'ADR-111 T3 — needs a fixture that tears the session log before SessionStart reads it' },
+
 }
 
 test('every reader of the session log is driven above, or says why a lost line cannot flatter it', () => {
@@ -389,9 +379,7 @@ const TEARS = {
   last: text => { const lines = text.trimEnd().split('\n'); lines[lines.length - 1] = lines.at(-1).slice(0, 40); return lines.join('\n') + '\n' },
 }
 const BOUNDARIES = {
-  'Stop (completionRules)': { payload: { hook_event_name: 'Stop' } },
-  'PreToolUse naming commit (publishUnchecked)': {
-    payload: { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' } } },
+
   'SubagentStop of a read-only role (reviewChangedState)': {
     review: true, payload: { hook_event_name: 'SubagentStop', agent_id: 'a1', agent_type: REVIEWER } },
 }

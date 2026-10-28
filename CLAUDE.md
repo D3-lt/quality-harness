@@ -69,24 +69,21 @@ Why: `.claude/rules/02-running-the-checks.md`
 
 - A gate advises and never prevents an attempt. `errors.advise(...)` is advisory,
   `errors.append(...)` is blocking; moving a finding between them is a behaviour change.
-- **The sanctioned refusals are the ones listed here, and no others.** ADR-061's publish refusal: a command that invokes
-  `git commit` or `git push` (a mention is warned about, not refused) on a tree no `qh-check` has passed on, when the session log was read whole — and,
-  where the session's git hook has run (ADR-066), the commit or push refused by git at the event
-  itself, whatever launched it; a
-  project turns it back into a warning with `"publish": "warn"` in `.quality-harness.json`. A command
-  proven to be one commit, on a tree whose latest declared fast check passed, is advised instead
-  (ADR-081); a push still needs the full check. And
-  ADR-060's reviewer guard: a role spawned read-only may not edit, commit or push. And ADR-117's ledger guard: a write
-  into the repository's state directory that the hook can see (an Edit, Write or mrw write, a shell redirection or `tee`
-  there) is refused, since the evidence there is written only by its tools; `"ledgers": "warn"` warns instead. A new refusal
-  needs an Accepted record, and an opt-out unless it only fences a role the caller made read-only.
+- **The sanctioned refusals are the ones listed here, and no others.** ADR-060's reviewer guard: a role spawned read-only
+  may not edit, commit or push. ADR-117's ledger guard: a write into the repository's state directory that the hook can see
+  (an Edit, Write or mrw write, a shell redirection or `tee` there) is refused, since the evidence there is written only by
+  its tools; `"ledgers": "warn"` warns instead. A new refusal needs an Accepted record, and an opt-out unless it only
+  fences a role the caller made read-only.
+- **Checks are optional tools (ADR-130).** SessionStart never launches a project check. No hook refuses a commit or push
+  because a check is missing, or nags the session to run one. Explicit `qh-check` and `qh-check --commit` retain their
+  evidence and exit-code contracts. A repository may still require checks through its own tooling and CI.
 - **"No others" is about what the plugin does unasked in a user's session**: a hook intercepting a tool call. A command
   the user or agent runs explicitly may have preconditions of its own, and they ship: `qh-check --commit` refuses a
   pathspec or a tree unlike its index before it checks or commits (ADR-100), in any repository. This repository's own
   tooling is outside the list too: the hook in `.githooks/`, the ruleset on main (`.github/rulesets/main.json`, which
   refuses a sha lacking the required checks) and `scripts/land.mjs`.
 - **A hook may continue a turn to hand the agent a finding** (ADR-096). At Stop a finding meant for the agent goes into its
-  context, and the turn continues once so it can act; that is an act, not a fourth refusal, and it never stops a command. A
+  context, and the turn continues once so it can act; it never stops a command. A
   `systemMessage` reaches the user only, never the agent.
 - **A gate never reports an observation it did not make.** Could-not-look is `UNRUN`, `PARTIAL`,
   `UNPROVEN` — never the vocabulary of a verdict. (ADR-005)

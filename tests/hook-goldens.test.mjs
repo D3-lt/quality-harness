@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
-import { GO_GOLDENS, GO_LACKS, exercised, expectGolden, fixtureRepo, goSkip, goSkipFor, goldenFile, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox, staleGoGoldens, staleLacks } from './hook-golden.mjs'
+import { GO_GOLDENS, GO_LACKS, exercised, expectGolden, fixtureRepo, goSkipFor, goldenFile, ledgers, normaliser, pluginDir, runHook, runQhCheck, sandbox, staleGoGoldens, staleLacks } from './hook-golden.mjs'
 
 const skip = process.platform === 'win32' && 'transcripts are recorded on POSIX (BACKLOG section 375)'
 const CONFIG = '{"check":"sh check.sh","fastCheck":"sh check.sh"}\n'
@@ -271,7 +271,7 @@ function uncoveredHooks(hooksJson, sent) {
 // PreToolUse advised that command as a mention of push, and the turn end counted that advice as having said the tree was
 // unchecked, so it said nothing. Asserted on what each implementation prints rather than a stored transcript, so a regression
 // cannot be recorded as the expected answer.
-test('a mention of push before the turn end does not silence it, and a real publish advice still does', { skip }, t => {
+test('a mention of push before the turn end does not silence it, and a real publish advice still does', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const turn = (name, command) => {
     const repo = fixtureRepo(box, name, BASE)
@@ -302,7 +302,7 @@ test('a mention of push before the turn end does not silence it, and a real publ
 
 // ADR-111 T2, through the hook: a red check is said as failed at the turn end, and a changed tree in a project with no
 // declared or inferred check is said once instead of not at all.
-test('a red check then done, and a changed tree with no check then done, are said at the turn end', { skip: skip || goSkip('a red check then done, and a changed tree with no check then done, are said at the turn end') }, t => {
+test('a red check then done, and a changed tree with no check then done, are said at the turn end', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const end = (repo, name) => {
     const file = path.join(repo, 'src', 'a.js')

@@ -4,267 +4,134 @@
       "name": "git commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git commit -am x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git commit --amend --no-edit",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git commit -F - <<'EOF'\nmessage\nEOF",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git add -A && git commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git push",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git pus…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git push origin main",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git pus…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git push --force-with-lease",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git pus…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git -C . commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git -C . commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git -C ."
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git -C . commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git -c user.name=a commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git -c user.name=a commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git -c …"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git -c user.name=a commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "/usr/bin/git commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`/usr/bin/git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`/usr/bi…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`/usr/bin/git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "command git push",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git pus…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "env GIT_DIR=.git git commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "bash -c 'git commit -m x'",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "sh -lc \"git push\"",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git pus…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git push`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "(cd src && git commit -m x)",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "cd /tmp && git commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "x=$(git commit -m y)",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git 'commit' -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
-        },
-        "systemMessage": "quality-harness refused the command: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git com…"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run names commit or push (`git commit`). Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "git commit-tree HEAD^{tree} -m x",
@@ -277,14 +144,8 @@
       "name": "echo \"git commit\"",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first. <qh:p@<marker>>"
-        },
-        "systemMessage": "quality-harness advised the agent: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. (full text in the transcript)"
-      },
-      "stderr": "quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command about to run only mentions commit or push. Advisory; if it does publish, run `qh-check` first."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "echo git push",
@@ -353,14 +214,8 @@
       "name": "R=$(mktemp -d) && cd \"$R\" && git init -q && git add -A && git commit -m x",
       "exit": 0,
       "signal": null,
-      "stdout": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout's unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first. <qh:p@<marker>>"
-        },
-        "systemMessage": "quality-harness advised the agent: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout's unchecked state does not … (full text in the transcript)"
-      },
-      "stderr": "quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout's unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first."
+      "stdout": "",
+      "stderr": ""
     },
     {
       "name": "gh pr create --fill",
@@ -453,16 +308,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -476,16 +328,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -499,16 +348,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -522,16 +368,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -545,16 +388,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -568,16 +408,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -591,16 +428,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -614,16 +448,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -637,16 +468,13 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
+        "event": "publish.requested",
+        "observation": {
+          "ok": true,
           "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
+          "index": "<sha>",
+          "head": "<sha>"
+        }
       },
       {
         "at": "<time>",
@@ -660,19 +488,6 @@
       },
       {
         "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
         "event": "publish.requested",
         "observation": {
           "ok": true,
@@ -680,239 +495,6 @@
           "index": "<sha>",
           "head": "<sha>"
         }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0:mention",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
-      },
-      {
-        "at": "<time>",
-        "event": "publish.requested",
-        "observation": {
-          "ok": true,
-          "tree": "<sha>",
-          "index": "<sha>",
-          "head": "<sha>"
-        }
-      },
-      {
-        "at": "<time>",
-        "event": "action.emitted",
-        "rule": "P",
-        "key": "<sha>:<sha>:0:fresh",
-        "detail": {
-          "tree": "<sha>",
-          "revision": 0
-        },
-        "channel": "both",
-        "recipient": "main",
-        "generation": 0
       }
     ]
   }

@@ -7,8 +7,7 @@
         "tests/refusals-hold.test.mjs"
       ],
       "from": "if (paths === null) return recordUnnamedWrite(input)",
-      "to": "if (paths === null) return null",
-      "only": "^(?:an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen)$"
+      "to": "if (paths === null) return null"
     },
     {
       "label": "Codex review of 6641c951..4db47214: an apply_patch write names its files",
@@ -17,8 +16,7 @@
         "tests/refusals-hold.test.mjs"
       ],
       "from": "} else if (format === 'apply_patch') {",
-      "to": "} else if (false) {",
-      "only": "^(?:an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen)$"
+      "to": "} else if (false) {"
     },
     {
       "label": "Codex review of 6641c951..4db47214: a rename writes its destination",
@@ -27,8 +25,7 @@
         "tests/refusals-hold.test.mjs"
       ],
       "from": "if (header[2] === 'rename' && lines[at + 1]?.trim()) found.push(lines[at + 1].trim())",
-      "to": "if (false) found.push('')",
-      "only": "^(?:an mrw write in any of its forms is recorded, and one whose files cannot be named counts as unseen)$"
+      "to": "if (false) found.push('')"
     },
     {
       "label": "ADR-113 T2: an mrw write is recorded with its plan's paths",
@@ -37,8 +34,7 @@
         "tests/refusals-hold.test.mjs"
       ],
       "from": "    if (input.tool_name === MRW_WRITE) {",
-      "to": "    if (false) {",
-      "only": "^(?:a broken config and an mrw write are seen by both refusals)$"
+      "to": "    if (false) {"
     },
     {
       "label": "baseline: a session watched from late does not accuse a tree nothing changed",
@@ -67,8 +63,7 @@
         "tests/late-baseline.test.mjs"
       ],
       "from": "  const source = importCheckRecords(input.cwd, session)",
-      "to": "  const source = name === 'publish.mentioned' ? { complete: true } : importCheckRecords(input.cwd, session)",
-      "only": "^(?:a mention reads the check that ran before it, and is logged as no publish)$"
+      "to": "  const source = name === 'publish.mentioned' ? { complete: true } : importCheckRecords(input.cwd, session)"
     }
   ]
 }

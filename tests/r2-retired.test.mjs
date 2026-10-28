@@ -32,7 +32,7 @@ test('no turn end names a commit below HEAD', { skip }, t => {
   assert.ok(!rules(repo).includes('R2'), JSON.stringify(rules(repo)))
 })
 
-test('R1 still names an unchecked tree', { skip }, t => {
+test('R1 still names an unchecked tree', { skip: 'ADR-130: compulsory check policy retired' }, t => {
   const box = sandbox(t)
   const repo = fixtureRepo(box, 'r1-stays', DECLARED)
   const hook = payload => runHook(box, repo, 'r1-stays-1', payload)

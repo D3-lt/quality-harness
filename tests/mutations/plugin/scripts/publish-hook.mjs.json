@@ -1,60 +1,32 @@
 {
   "mutations": [
     {
+      "label": "ADR-130: a retired git event refuses unchecked work",
+      "tests": [
+        "tests/optional-check.test.mjs"
+      ],
+      "from": "  if (event !== 'post-commit') return { code: 0 }",
+      "to": "  if (event !== 'post-commit') return { code: 1 }",
+      "only": "^retired git events do not inspect",
+      "file": "plugin/scripts/publish-hook.mjs"
+    },
+    {
       "label": "ADR-128 T2: post-commit records no sha, so the session's own commit cannot be shown",
       "file": "plugin/scripts/publish-hook.mjs",
-      "tests": ["tests/branch-state-own-commit.test.mjs"],
+      "tests": [
+        "tests/branch-state-own-commit.test.mjs"
+      ],
       "from": "    if (!head.error && head.status === 0 && /^[0-9a-f]{40,64}$/.test(sha)) appendEvent(owner ?? cwd, session, { event: 'commit.made', sha })",
       "to": "    if (!head.error && head.status === 0 && /^[0-9a-f]{40,64}$/.test(sha)) appendEvent(owner ?? cwd, session, { event: 'commit.made' })",
-      "only": "^(?:CI, a fetch, a branch switch or an unrecorded commit re-sends it)$"
-    },
-    {
-      "label": "publish-hook: an unchecked commit is refused by git in the repository it runs in",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "an unchecked commit is refused by git",
-      "from": "  if (!verdict?.deny) return verdict?.fast",
-      "to": "  if (true) return verdict?.fast"
-    },
-    {
-      "label": "publish-hook: the verdict is taken in the repository git runs the hook in",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "an unchecked commit is refused by git",
-      "from": "  const verdict = publishVerdict({ cwd, session,",
-      "to": "  const verdict = publishVerdict({ cwd: path.dirname(cwd), session,"
-    },
-    {
-      "label": "publish-hook: a qh-check that ran just before the commit is seen",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "a checked commit, a person",
-      "from": "  importCheckRecords(cwd, session)\n  // `prepare-commit-msg` is one commit by construction",
-      "to": "  // `prepare-commit-msg` is one commit by construction"
-    },
-    {
-      "label": "publish-hook: a merge, cherry-pick or rebase in progress passes the hook",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "from": "  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }",
-      "to": "  if (false) return { code: 0 }",
-      "only": "^(?:a checked commit, a person's commit and a merge pass the hook|a cherry-pick in progress is concluded without the hook refusing it)$"
+      "only": "^(?:branch\\-state\\ distinguishes\\ session\\ commits\\ when\\ checks\\ are\\ optional)$"
     },
     {
       "label": "ADR-068 T1: a linked worktree of the session's repository is judged",
       "file": "plugin/scripts/publish-hook.mjs",
       "tests": [
-        "tests/publish-hook.test.mjs"
+        "tests/optional-check.test.mjs"
       ],
-      "only": "an unchecked commit in a linked worktree",
+      "only": "^post-commit tracks actual commits",
       "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
       "to": "  if (readEvents(cwd, session).length === 0) return { code: 0 }"
     },
@@ -67,84 +39,6 @@
       "only": "a checked linked worktree commits",
       "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
       "to": "  if (false) return { code: 0 }"
-    },
-    {
-      "label": "chaos 626934a: the repository is the common directory itself",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "from": "  const repository = path.resolve(cwd, common.stdout.trim())",
-      "to": "  const repository = path.dirname(path.resolve(cwd, common.stdout.trim()))",
-      "only": "a worktree of a bare repository is judged, and a submodule is its own repository"
-    },
-    {
-      "label": "git's hook in a worktree records that it ran in the session's own log",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "from": "  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })",
-      "to": "  appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })",
-      "only": "git's hook in a linked worktree records that it ran in the session's own log"
-    },
-    {
-      "label": "§314: git's own hook says an unobserved tree too",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (verdict?.unobserved) return { code: 0, message: verdict.text }",
-      "to": "  if (false) return { code: 0, message: verdict.text }",
-      "only": "could not be observed"
-    },
-    {
-      "label": "§314: git's own hook reads the budget from its environment",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "observation: observeCarrying(cwd, observeBudgetMs(env)), invoked,",
-      "to": "observation: observeCarrying(cwd), invoked,",
-      "only": "could not be observed"
-    },
-    {
-      "label": "ADR-081 T2: git's commit hook lets a fast-passed commit through in silence",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }",
-      "to": "if (!verdict?.deny) return { code: 0 }",
-      "only": "^git's own hooks let a commit through with the warning and refuse a push$"
-    },
-    {
-      "label": "ADR-088 review 2: git's hook says a could-not-look verdict",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "verdict?.fast || verdict?.unknown ?",
-      "to": "verdict?.fast ?",
-      "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
-    },
-    {
-      "label": "publish-hook: under publish warn git's hook warns at the event",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "from": "  if (!verdict?.deny && verdict?.warned) return",
-      "to": "  if (false) return",
-      "only": "^(?:under \"publish\": \"warn\" the git hook warns at the event and lets the commit through)$"
-    },
-    {
-      "label": "ADR-120 T9: git's hook judges an observation without the code tree",
-      "file": "plugin/scripts/publish-hook.mjs",
-      "tests": ["tests/prose-pass.test.mjs"],
-      "from": "observation: observeCarrying(cwd, observeBudgetMs(env))",
-      "to": "observation: (({ codeTree, indexCodeTree, prose, ...plain }) => plain)(observeCarrying(cwd, observeBudgetMs(env)))",
-      "only": "^(?:a pass stands across a prose-only change for every reader)$"
     }
   ]
 }

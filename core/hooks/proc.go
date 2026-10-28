@@ -75,7 +75,7 @@ func run(timeout time.Duration, dir string, env map[string]string, stdin string,
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
 	hideWindow(cmd)
-	err := cmd.Run()
+	err := runObservedCommand(cmd, func() bool { return ctx.Err() == context.DeadlineExceeded })
 	res := runResult{status: -1, stdout: out.String(), stderr: errOut.String()}
 	if ctx.Err() == context.DeadlineExceeded {
 		res.timedOut = true

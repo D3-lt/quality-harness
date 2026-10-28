@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-131: a disabled native process observer cannot prove that a real launch was seen",
+      "file": "core/hooks/process_trace.go",
+      "tests": [
+        "tests/native-observation.test.mjs"
+      ],
+      "from": "if !trace.append(phase, \"attempted\") {",
+      "to": "if true {",
+      "only": "^native baseline observation sees a real project check$"
+    },
+    {
+      "label": "ADR-131: native observations cannot write into an unrelated Git checkout",
+      "file": "core/hooks/process_trace.go",
+      "tests": [
+        "tests/native-observation.test.mjs"
+      ],
+      "from": "if git || head && objects {",
+      "to": "if false && (git || head && objects) {",
+      "only": "^native observation refuses a different Git checkout as its trace sink$"
+    }
+  ]
+}

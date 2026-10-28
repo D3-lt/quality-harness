@@ -1,22 +1,33 @@
 #!/bin/sh
 # ADR-110/116: one verified native hook engine. Only SessionStart may bootstrap it.
 set -eu
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+script=$0
+# Git Bash may receive a native Windows path from the host.
+case "$script" in *\\*) script=$(printf '%s' "$script" | tr '\\' '/') ;; esac
+case "$script" in */*) directory=${script%/*} ;; *) directory=. ;; esac
+root=$(CDPATH= cd -- "$directory/.." && pwd)
 version=$(
   while IFS= read -r line; do
     case "$line" in
-      (*'"version"'*:*) version=${line#*:}; version=${version%%,*}; version=$(printf '%s' "$version" | tr -d '[:space:]"'); printf '%s\n' "$version"; break ;;
+      (*'"version"'*:*)
+        version=${line#*:}
+        case "$version" in
+          (*\"*\"*) version=${version#*\"}; version=${version%%\"*} ;;
+          (*) version='' ;;
+        esac
+        printf '%s\n' "$version"; break ;;
     esac
   done < "$root/.claude-plugin/plugin.json"
 )
 case "$version" in ''|*[!0-9.]*) echo 'quality-harness: could not run: core version is unreadable' >&2; exit 1 ;; esac
-case "$(uname -s)" in
+platform=$(uname -sm) || { echo 'quality-harness: could not run: unsupported core platform' >&2; exit 1; }
+case "${platform%% *}" in
   Darwin) os=darwin ;;
   Linux) os=linux ;;
   MINGW*|MSYS*|CYGWIN*) os=windows ;;
   *) echo 'quality-harness: could not run: unsupported core platform' >&2; exit 1 ;;
 esac
-case "$(uname -m)" in
+case "${platform#* }" in
   arm64|aarch64) arch=arm64 ;;
   x86_64|amd64) arch=amd64 ;;
   *) echo 'quality-harness: could not run: unsupported core architecture' >&2; exit 1 ;;

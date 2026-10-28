@@ -654,7 +654,9 @@ func (h *hookRun) startArtifactPass(targets []string, identities map[string]any,
 	// The temp directory, not the session's: on Windows a live process's working directory cannot be deleted.
 	cmd.Dir = os.TempDir()
 	detach(cmd)
+	trace := startProcessTrace(cmd, cwd, "attempt", append([]string{directory}, targets...)...)
 	if err := cmd.Start(); err != nil {
+		trace.ended(cmd, err, false)
 		release()
 		unrun(err.Error())
 		return
@@ -664,14 +666,23 @@ func (h *hookRun) startArtifactPass(targets []string, identities map[string]any,
 		unrun("the process did not start")
 		return
 	}
+	trace.started(cmd)
 	record()
-	cmd.Process.Release()
+	trace.released(cmd.Process.Release())
 }
 
 // RunArtifactPass is `qh hook --artifact-pass <request>`: the pass itself. It gates the request's targets a chunk at a time and
 // appends each verdict with what its gate said to the pass ledger as ONE line, holds the machine lease while it gates
 // (ADR-077), and releases its own lock and no other. 2 is a request it could not read.
-func RunArtifactPass(requestFile string) int { return runArtifactPass(requestFile) }
+func RunArtifactPass(requestFile string) int {
+	trace := artifactProcessTrace(requestFile)
+	status := runArtifactPass(requestFile)
+	if trace != nil {
+		trace.row.Status = &status
+		trace.append("ended", "artifact-pass-returned")
+	}
+	return status
+}
 
 func runArtifactPass(requestFile string) int {
 	text, err := os.ReadFile(requestFile)

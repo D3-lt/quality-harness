@@ -112,3 +112,11 @@ the verified cache.
 
 The installer/launcher tests execute a real native binary after the Node installer writes it, including on Windows CI.
 This checks execution in that environment; it is not a claim about every adopter's local application-control policy.
+
+## Amendment, 2026-10-28: native provenance (ADR-131)
+
+`SHA256SUMS.txt` gains an additive `# qh-core-source-v1 <source-sha-or-dash> <source-digest> <run-id-or-dash>` header.
+The source digest covers the shared conservative native-input scope. Release builds check the same source snapshot
+before and after compilation. Publishing verifies the expected source revision and landing run as well as all asset hashes.
+The installer keeps that exact manifest beside the executable. Legacy manifests still install, while only committed
+CI provenance can support a new native attestation. Normal prompt hooks perform no new provenance scan or network lookup.

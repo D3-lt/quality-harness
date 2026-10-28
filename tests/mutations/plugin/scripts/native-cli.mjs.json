@@ -6,7 +6,7 @@
       "tests": [
         "tests/qh-launcher.test.mjs"
       ],
-      "from": "if (!verifiedCore(binary))",
+      "from": "if (!process.env.QUALITY_HARNESS_QH_BIN && !verifiedCore(binary))",
       "to": "if (false)"
     }
   ]

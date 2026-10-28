@@ -7,6 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CORE_TARGETS, coreAsset } from '../plugin/scripts/core-assets.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
+import { coreManifest, nativeSourceIdentity } from './native-source.mjs'
 
 const core = fileURLToPath(new URL('../core', import.meta.url))
 export function buildCore({ goos, goarch, output, version, run = spawnSync }) {
@@ -16,16 +17,22 @@ export function buildCore({ goos, goarch, output, version, run = spawnSync }) {
   })
   if (answer.error || answer.status !== 0) throw new Error(`core build ${goos}/${goarch} failed: ${answer.error?.message ?? answer.stderr ?? answer.status}`)
 }
-export function buildReleaseAssets(directory, { version, run = spawnSync }) {
+export function buildReleaseAssets(directory, { version, run = spawnSync,
+  sourceIdentity = () => nativeSourceIdentity(path.dirname(core)), landingRun = process.env.GITHUB_RUN_ID || null }) {
   mkdirSync(directory, { recursive: true })
   const sums = []
+  const source = sourceIdentity()
+  if (!source.sources) throw new Error(source.reason)
   for (const [goos, goarch] of CORE_TARGETS) {
     const name = coreAsset(goos, goarch)
     const output = path.resolve(directory, name)
     buildCore({ goos, goarch, output, version, run })
-    sums.push(`${createHash('sha256').update(readFileSync(output)).digest('hex')}  ${name}`)
+    sums.push([name, createHash('sha256').update(readFileSync(output)).digest('hex')])
   }
-  writeFileSync(path.join(directory, 'SHA256SUMS.txt'), sums.join('\n') + '\n')
+  const after = sourceIdentity()
+  if (after.at !== source.at || after.sources !== source.sources) throw new Error('native sources changed while release assets were built')
+  writeFileSync(path.join(directory, 'SHA256SUMS.txt'), coreManifest({ at: source.at, sources: source.sources,
+    run: landingRun }, sums))
 }
 if (isMainModule(import.meta.url)) {
   try {

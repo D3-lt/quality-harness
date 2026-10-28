@@ -17,9 +17,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
+import { nativeContractAt, nativeSourcesAt } from './native-source.mjs'
+import { loadNativeManifest } from './native-manifest.mjs'
 
 /** The attestation schema of docs/corpus-reports/README.md, in the order a file is written. */
-export const KEYS = ['date', 'at', 'atReason', 'plugin', 'kind', 'probeSha256', 'readers', 'platform', 'node', 'python',
+export const KEYS = ['date', 'at', 'atReason', 'plugin', 'kind', 'probeSha256', 'readers', 'native', 'platform', 'node', 'python',
   'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'look', 'notCompared', 'verdictChanges', 'runner', 'found']
 const CORPUS_KEYS = ['records', 'undecided', 'tasks', 'taskDirectories', 'countsFrom']
 // The looks a probe report carries (ADR-089), and null for a report that carried none.
@@ -113,7 +115,7 @@ function verdictChangesShape(value) {
 
 // `filed`: the name of the file under docs/corpus-reports that holds this very attestation (`--verify`), which is not
 // a duplicate of itself.
-export function check(text, root, { filed = null, hand = false } = {}) {
+export function check(text, root, { filed = null, hand = false, nativeManifest = (run, at) => loadNativeManifest(run, at, { root }) } = {}) {
   const candidates = jsonObjects(text).filter(o => o && typeof o === 'object' && !Array.isArray(o) && 'at' in o && 'kind' in o)
   if (candidates.length !== 1) {
     return { refused: [`1: the message holds ${candidates.length} attestations (an object with \`at\` and \`kind\`); exactly one is filed`] }
@@ -170,6 +172,33 @@ export function check(text, root, { filed = null, hand = false } = {}) {
   let pluginVersion = null
   try { pluginVersion = JSON.parse(version.stdout.toString('utf8')).version } catch { /* compared below as null */ }
   if (attestation.plugin !== pluginVersion) refused.push(`5: plugin ${JSON.stringify(attestation.plugin)} is not ${JSON.stringify(pluginVersion)}, plugin.json at ${attestation.at.slice(0, 7)}`)
+  const nativeRequired = nativeContractAt(git, attestation.at)
+  if (nativeRequired === null) return { couldNotLook: 'git could not read the native evidence contract' }
+  const native = attestation.native
+  const hasNative = Object.hasOwn(attestation, 'native')
+  const nativeKeys = ['asset', 'at', 'look', 'run', 'sha256', 'sources']
+  const validNative = native && typeof native === 'object' && !Array.isArray(native)
+    && Object.keys(native).sort().join(',') === nativeKeys.join(',')
+    && native.look === 'ok' && native.at === attestation.at
+    && ['asset', 'at', 'run', 'sha256', 'sources'].every(key => typeof native[key] === 'string')
+    && /^[1-9][0-9]*$/.test(native.run) && /^[a-f0-9]{64}$/.test(native.sources) && /^[a-f0-9]{64}$/.test(native.sha256)
+  if (nativeRequired && !hasNative) refused.push('5: native readers require the executed binary and CI source identity')
+  if (hasNative && !validNative) refused.push('2: native identity does not match its exact schema or source commit')
+  if (validNative && refused.length === 0) {
+    const sources = nativeSourcesAt(git, attestation.at)
+    if (sources === null) return { couldNotLook: 'git could not read the native production inputs' }
+    if (native.sources !== sources) refused.push('5: native source digest differs from the production inputs at the attested commit')
+    else {
+      const observed = nativeManifest(native.run, attestation.at)
+      if (observed.couldNotLook) return observed
+      if (observed.refused) refused.push(...observed.refused)
+      else if (observed.manifest?.source?.at !== native.at || observed.manifest?.source?.sources !== native.sources
+        || observed.manifest?.source?.run !== native.run || observed.manifest?.sums?.[native.asset] !== native.sha256) {
+        refused.push('5: the executed native binary does not match the landing CI manifest')
+      }
+    }
+  }
+
   const name = fileName(attestation)
   // And the name it builds is a plain name, whatever a field held: the file lands in
   // docs/corpus-reports or nowhere.

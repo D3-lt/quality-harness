@@ -208,3 +208,130 @@ test('native hook output and historical Node output remain attributable after th
     assert.equal(result.unattributed, 0)
   } finally { remove(dir) }
 })
+
+test('exclusive context totals count deliveries once while item rows can overlap', t => {
+  const body = 'ą😀 <qh:a@11111111> and <qh:b@22222222>'
+  const { dir, file } = transcript([
+    success('PreToolUse', 'one', OURS, '{"hookSpecificOutput":{}}'),
+    context('PreToolUse', 'one', body),
+    success('PreToolUse', 'two', OURS, '{"hookSpecificOutput":{}}'),
+    context('PreToolUse', 'two', [{ type: 'text', text: body }]),
+    headline('PreToolUse', 'two', 'user only'),
+    success('Stop', 'stop', OURS, 'debug only'),
+    { type: 'attachment', attachment: { type: 'hook_non_blocking_error', hookEvent: 'Stop', toolUseID: 'err', command: OURS, stderr: 'diagnostic' } },
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.deepEqual(result.totals.observedModel, { deliveries: 2, characters: 2 * body.length, bytes: 2 * Buffer.byteLength(body) })
+  assert.equal(result.totals.userOnly.characters, 'user only'.length)
+  assert.equal(result.totals.diagnosticOnly.deliveries, 2)
+  assert.equal(result.rowsOverlap, true)
+  assert.equal(result.coverage.status, 'complete')
+})
+
+test('exclusive context attribution handles split native commands and keeps uncertainty visible', t => {
+  const native = success('PreToolUse', 'native', 'sh')
+  native.attachment.args = ['${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh', 'hook', 'PreToolUse']
+  const { dir, file } = transcript([
+    native, context('PreToolUse', 'native', 'known'),
+    success('PreToolUse', 'bare', 'sh'), context('PreToolUse', 'bare', 'unidentified'),
+    success('PreToolUse', 'mixed', OURS), success('PreToolUse', 'mixed', theirs),
+    context('PreToolUse', 'mixed', 'mixed'),
+    context('PreToolUse', 'missing', 'no receipt'),
+    success('SessionStart', 'cache', 'sh /cache/quality-harness/quality-harness/3.8.60/scripts/qh-hook.sh hook SessionStart'),
+    context('SessionStart', 'cache', 'cache'),
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.totals.observedModel.characters, 'knowncache'.length)
+  assert.equal(result.uncertain.ambiguous.characters, 'mixed'.length)
+  assert.equal(result.uncertain.unattributed.characters, 'unidentifiedno receipt'.length)
+  assert.equal(result.coverage.status, 'partial')
+})
+
+test('exclusive context rejects unsupported content shapes and reports host caps', t => {
+  const { dir, file } = transcript([
+    success('PreToolUse', 'typed', OURS), context('PreToolUse', 'typed', [{ type: 'text', text: 'actual' }]),
+    success('PreToolUse', 'unknown', OURS), context('PreToolUse', 'unknown', { arbitrary: 'not known text' }),
+    success('PreToolUse', 'cap', OURS), context('PreToolUse', 'cap', 'x'.repeat(10_001)),
+    success('FutureEvent', 'future', OURS, 'unknown event output'),
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.totals.observedModel.characters, 'actual'.length, 'text block metadata is not context')
+  assert.equal(result.uncertain.unknownShapes, 1)
+  assert.equal(result.uncertain.cappedDeliveries, 1)
+  assert.equal(result.totals.unknownAudience.deliveries, 1)
+  assert.equal(result.coverage.status, 'partial')
+})
+
+test('exclusive totals ignore paired Stop summaries but expose an unpaired summary', t => {
+  const { dir, file } = transcript([
+    success('Stop', 's', OURS, '{"decision":"block","reason":"continue"}'),
+    context('Stop', 's', 'continue'),
+    { type: 'system', subtype: 'stop_hook_summary', toolUseID: 's', hookErrors: ['continue'] },
+    { type: 'system', subtype: 'stop_hook_summary', toolUseID: 'orphan', hookErrors: ['unobserved'] },
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.totals.observedModel.characters, 'continue'.length)
+  assert.equal(result.uncertain.unpairedSummaries, 1)
+  assert.equal(result.coverage.status, 'partial')
+})
+
+test('exclusive totals join canonical SessionStart mirrors and require real Stop context', t => {
+  const linked = context('PreToolUse', 'direct', 'direct content')
+  linked.attachment.command = OURS
+  const { dir, file } = transcript([
+    success('SessionStart', 'startup', OURS, '{"hookSpecificOutput":{"additionalContext":"standing"}}'),
+    context('SessionStart', 'SessionStart', 'standing'),
+    linked,
+    success('Stop', 'user-only', OURS),
+    headline('Stop', 'user-only', 'headline'),
+    { type: 'system', subtype: 'stop_hook_summary', toolUseID: 'user-only', hookErrors: ['continue unseen'] },
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.totals.observedModel.characters, 'standingdirect content'.length)
+  assert.equal(result.uncertain.missingCanonical, 0, 'the canonical latest-call mirror resolves before envelope accounting')
+  assert.equal(result.totals.unknownAudience.deliveries, 0)
+  assert.equal(result.uncertain.unpairedSummaries, 1, 'a user-only headline is no model-context mirror')
+})
+
+test('unusable canonical output and invalid records cannot report complete zero context', t => {
+  const { dir, file } = transcript([
+    null,
+    success('SessionStart', 's', OURS, '{"hookSpecificOutput":{"additionalContext":"not represented"}}'),
+    context('SessionStart', 's', ''),
+    success('FutureEvent', 'f', OURS), headline('FutureEvent', 'f', 'future headline'),
+    success('UserPromptSubmit', 'ok', BRIEF, 'valid observation'),
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.unreadable, 1)
+  assert.equal(result.totals.observedModel.characters, 'valid observation'.length)
+  assert.equal(result.uncertain.missingCanonical, 1)
+  assert.equal(result.totals.unknownAudience.characters, 'not representedfuture headline'.length)
+  assert.equal(result.coverage.status, 'partial')
+})
+
+test('an unrelated canonical attachment cannot vouch for this hook and prototype names are not channels', t => {
+  const other = context('PreToolUse', 'mixed-owned', 'their text')
+  other.attachment.command = theirs
+  const invalid = context('UserPromptSubmit', 'prototype', 'not a known channel')
+  invalid.attachment.type = '__proto__'
+  invalid.attachment.command = OURS
+  const { dir, file } = transcript([
+    success('PreToolUse', 'mixed-owned', OURS, '{"hookSpecificOutput":{"additionalContext":"our missing context"}}'),
+    other, invalid,
+    success('PreToolUse', 'ours', OURS, '{"hookSpecificOutput":{"additionalContext":"observed"}}'),
+    context('PreToolUse', 'ours', 'observed'),
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.totals.observedModel.characters, 'observed'.length)
+  assert.equal(result.uncertain.missingCanonical, 1)
+  assert.equal(result.totals.unknownAudience.characters, 'our missing context'.length)
+  assert.equal(result.uncertain.unknownShapes, 1)
+  assert.equal(result.coverage.status, 'partial')
+})

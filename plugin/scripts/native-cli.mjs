@@ -7,18 +7,20 @@ import { fileURLToPath } from 'node:url'
 import { coreAsset } from './core-assets.mjs'
 import { verifiedCore } from './qh-fetch.mjs'
 
+export function nativeBinaryPath(version, env = process.env) {
+  if (env.QUALITY_HARNESS_QH_BIN) return env.QUALITY_HARNESS_QH_BIN
+  const data = env.CLAUDE_PLUGIN_DATA || path.join(env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'quality-harness')
+  return path.join(data, 'qh', version, coreAsset(process.platform, process.arch))
+}
+
 export function execNative(args, input) {
   const root = fileURLToPath(new URL('..', import.meta.url))
   const { version } = JSON.parse(readFileSync(new URL('../.claude-plugin/plugin.json', import.meta.url), 'utf8'))
-  // The existing source-check seam explicitly selects a locally built core. Installed hooks use qh-hook's verified cache.
-  let binary = process.env.QUALITY_HARNESS_QH_BIN
-  if (!binary) {
-    const data = process.env.CLAUDE_PLUGIN_DATA || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'quality-harness')
-    binary = path.join(data, 'qh', version, coreAsset(process.platform, process.arch))
-    if (!verifiedCore(binary)) {
-      process.stderr.write('quality-harness: could not run: a verified Go core is missing; run the qh-fetch CLI\n')
-      return 1
-    }
+  // The probe uses this same selector so its identity describes the executable this transport starts.
+  const binary = nativeBinaryPath(version)
+  if (!process.env.QUALITY_HARNESS_QH_BIN && !verifiedCore(binary)) {
+    process.stderr.write('quality-harness: could not run: a verified Go core is missing; run the qh-fetch CLI\n')
+    return 1
   }
   const result = spawnSync(binary, args, {
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: root }, timeout: 120_000, windowsHide: true,

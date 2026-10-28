@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-131: native identity verifies the bytes actually executed",
+      "file": "plugin/scripts/native-provenance.mjs",
+      "tests": [
+        "tests/native-provenance.test.mjs"
+      ],
+      "from": "manifest.sums[asset] !== sha256",
+      "to": "false",
+      "only": "^native manifests bind source, run, target and actual executable bytes$"
+    }
+  ]
+}

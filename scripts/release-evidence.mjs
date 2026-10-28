@@ -33,6 +33,7 @@ import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { REVIEW_COVERING, REVIEWS_FILE } from '../plugin/scripts/host-review.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
+import { NATIVE_READER_ROOTS, isReaderPath } from './native-source.mjs'
 
 /**
  * Judge a run's release-worthiness from the `gh run view --json` object.
@@ -380,7 +381,7 @@ export function readAttestations(dir, { readdir = readdirSync, read = readFileSy
 
 // What a "reader" is for the release question: the plugin's own list (ADR-064 T1),
 // as repository paths.
-export const READER_PATHS = READER_DIRECTORIES.map(directory => `plugin/${directory}`)
+export const READER_PATHS = [...READER_DIRECTORIES.map(directory => `plugin/${directory}`), ...NATIVE_READER_ROOTS]
 
 /**
  * The outside-run question for `sha`, asked of git. The anchor is the newest tag
@@ -396,7 +397,7 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
   try { tag = git(['describe', '--tags', '--abbrev=0', `${sha}~1`]) } catch { return { ...outsideRun(null, [], () => false), tag: null } }
   let changed
   try {
-    changed = git(['diff', '--name-only', `${tag}..${sha}`, '--', ...READER_PATHS]).split('\n').filter(Boolean)
+    changed = git(['diff', '--name-only', `${tag}..${sha}`, '-z', '--', ...READER_PATHS]).split('\0').filter(isReaderPath)
   } catch { return { ...outsideRun(null, [], () => false), tag } }
   const covers = at => {
     // `merge-base --is-ancestor` exits 1 for a definite "no" and otherwise for a
@@ -415,7 +416,8 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
     if (beforeSha !== true) return beforeSha
     // And the run must have seen the readers being released: a reader edited
     // after the run is a reader nobody outside has run.
-    try { return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === '' } catch { return null }
+    try { return !git(['diff', '--name-only', `${at}..${sha}`, '-z', '--', ...READER_PATHS]).split('\0').some(isReaderPath) } catch { return null }
+
   }
   // Only a covering report is verified: verifying is several git calls, and a report at an older revision attests nothing
   // either way. One that does not verify is named; one git could not check it against is coverage unknown (ADR-005).

@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-131: exclusive context delivery is counted more than once",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": [
+        "tests/hook-footprint.test.mjs"
+      ],
+      "from": "total.characters += text.length",
+      "to": "total.characters += text.length * 2",
+      "only": "^exclusive context totals count deliveries once while item rows can overlap$"
+    },
+    {
       "label": "Codex review of 979585de: the plugin root variable alone is not this plugin's hook",
       "file": "scripts/hook-footprint.mjs",
       "tests": ["tests/hook-footprint.test.mjs"],
@@ -44,8 +54,8 @@
       "label": "ADR-122 T1: an unparseable line is counted, never dropped",
       "file": "scripts/hook-footprint.mjs",
       "tests": ["tests/hook-footprint.test.mjs"],
-      "from": "    try { records.push(JSON.parse(line)) } catch { unreadable += 1 }",
-      "to": "    try { records.push(JSON.parse(line)) } catch { /* dropped */ }",
+      "from": "    } catch { unreadable += 1 }",
+      "to": "    } catch { /* dropped */ }",
       "only": "^(?:an unparseable transcript line is counted as unreadable)$"
     },
     {

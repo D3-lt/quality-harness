@@ -21,3 +21,15 @@ test('the Go core reads a long transcript from its end, and records marks only a
   // A filter that selects nothing exits 0 too: each test is seen passing by name.
   for (const name of names) assert.match(said, new RegExp(`^--- PASS: ${name} `, 'm'), `${name} ran`)
 })
+
+test('the native process observer exercises execution, privacy, completion and resource boundaries', { skip: noGo }, () => {
+  const names = ['TestNativeProcessTraceHelper', 'TestNativeProcessTraceBoundary', 'TestNativeProcessTraceStartErrorAndTimeout',
+    'TestNativeProcessTraceUnsafeSinkDoesNotChangeChild', 'TestNativeProcessTraceDisabledBeforeInspection',
+    'TestNativeProcessTraceReleasedIsNotCompleted', 'TestNativeProcessTraceResourceUnits',
+    'TestNativeProcessTraceArtifactReturnIsSelfReported', 'TestNativeProcessTraceSeparators']
+  const run = spawnSync('go', ['test', '-count=1', '-v', '-run', `^(${names.join('|')})$`, './hooks/'],
+    { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true })
+  const said = `${run.stdout}\n${run.stderr}`
+  assert.equal(run.status, 0, said)
+  for (const name of names) assert.match(said, new RegExp(`^--- PASS: ${name} `, 'm'), `${name} ran`)
+})

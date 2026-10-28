@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-131: ignored native production inputs cannot disappear from the source identity",
+      "file": "scripts/native-source.mjs",
+      "tests": [
+        "tests/native-provenance.test.mjs"
+      ],
+      "from": "'--cached', '--others', '--',",
+      "to": "'--cached', '--others', '--exclude-standard', '--',",
+      "only": "^native source identity matches Git but does not hide untracked, edited or deleted production files$"
+    },
+    {
+      "label": "ADR-131: native production inputs cannot be omitted from release coverage",
+      "file": "scripts/native-source.mjs",
+      "tests": [
+        "tests/native-release.test.mjs"
+      ],
+      "from": "    || (name.startsWith('core/') && !name.startsWith('core/bin/') && !name.endsWith('_test.go'))",
+      "to": "    || false",
+      "only": "^a native-only production change requires fresh outside evidence$"
+    },
+    {
+      "label": "ADR-131: conservative native inputs include embedded data and assembly",
+      "file": "scripts/native-source.mjs",
+      "tests": [
+        "tests/native-release.test.mjs"
+      ],
+      "from": "!name.endsWith('_test.go')",
+      "to": "name.endsWith('.go') && !name.endsWith('_test.go')",
+      "only": "^a native-only production change requires fresh outside evidence$"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/native-cost.test.mjs	a registered command that could not start never reports a successful sample	f2b2e439679fb1bec2be44c16f8589de1b51d13332038c0937cffd2fac3b075f
+body	tests/native-cost.test.mjs	hook-cost observes every registered native SessionStart hook and labels partial process coverage	8d845684d5a1be1550d3949a366fad3e6923e1f00e4fc230a4eaca7b8607b5c2
+body	tests/native-observation.test.mjs	a context attachment contributes once to the exclusive total	bc3c51ce3ba81105039ff92e75e5d7d4aae303653abaf7210eb60213c7dc9d4c
+body	tests/native-observation.test.mjs	native baseline observation sees a real project check	2612652ae5c5e9fa505bc45cd87f3704d4f69363011b7e316025bc73ae00c38c
+body	tests/native-observation.test.mjs	native observation refuses a different Git checkout as its trace sink	869f001a6d860c62a04b778cbe1a67dd355fd3c58ce6088f52c150de749738cc

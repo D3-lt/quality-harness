@@ -1,0 +1,805 @@
+{
+  "schema": "quality-harness-cost-results-v1",
+  "date": "2026-10-29",
+  "protocols": [
+    "docs/adr/ADR-131-native-reader-identity-and-measured-cost/protocol.md",
+    "docs/adr/ADR-131-native-reader-identity-and-measured-cost/launcher-protocol.md"
+  ],
+  "revisions": {
+    "A": "55bf5fcf076bdf0f49541d70113306b0e093f6b8",
+    "B": "2933b680c74961667f63357030f2d498711e0e8c",
+    "C": "a276b4d684f1f7d09f64aa8a142374bd2ae92903"
+  },
+  "validBlocks": 5,
+  "rejectedBlocks": 1,
+  "registeredCommandsPerReplay": 32,
+  "summaries": [
+    {
+      "corpus": "governed",
+      "label": "A",
+      "pluginVersion": "3.8.59",
+      "readersSha256": "1bc6f20be72762da2415ba850c3d1b43db6c6fdbf27d7f14e4e8ccdc7c8d0be7",
+      "nativeSources": null,
+      "binarySha256": null,
+      "fixtureSha256": "63e412bb165c08e050905413a702c955ae69e154b564017d64ebbd8e98890b15",
+      "modelCharacters": {
+        "samples": [
+          5400,
+          5400,
+          5400,
+          5400,
+          5400
+        ],
+        "median": 5400,
+        "min": 5400,
+        "max": 5400
+      },
+      "modelBytes": {
+        "samples": [
+          5447,
+          5447,
+          5447,
+          5447,
+          5447
+        ],
+        "median": 5447,
+        "min": 5447,
+        "max": 5447
+      },
+      "checkExecutions": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          4140.8042940000005,
+          6749.808167999996,
+          5178.043831000003,
+          4330.846461999992,
+          4518.942666000002
+        ],
+        "median": 4518.942666000002,
+        "min": 4140.8042940000005,
+        "max": 6749.808167999996
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          3531.4809999999993,
+          4549.7,
+          4028.7969999999996,
+          3671.546,
+          3712.913
+        ],
+        "median": 3712.913,
+        "min": 3531.4809999999993,
+        "max": 4549.7
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          209.32450099999977,
+          319.5801250000022,
+          310.414084,
+          209.08008399999926,
+          274.21399999999994
+        ],
+        "median": 274.21399999999994,
+        "min": 209.08008399999926,
+        "max": 319.5801250000022
+      }
+    },
+    {
+      "corpus": "governed",
+      "label": "B",
+      "pluginVersion": "3.8.59",
+      "readersSha256": "d7d138796b5df5491810b3fb4629d1a8204e02a2b920c6088496c6e2408ea6f8",
+      "nativeSources": null,
+      "binarySha256": null,
+      "fixtureSha256": "63e412bb165c08e050905413a702c955ae69e154b564017d64ebbd8e98890b15",
+      "modelCharacters": {
+        "samples": [
+          3676,
+          3676,
+          3676,
+          3676,
+          3676
+        ],
+        "median": 3676,
+        "min": 3676,
+        "max": 3676
+      },
+      "modelBytes": {
+        "samples": [
+          3699,
+          3699,
+          3699,
+          3699,
+          3699
+        ],
+        "median": 3699,
+        "min": 3699,
+        "max": 3699
+      },
+      "checkExecutions": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          4164.362414999999,
+          4879.017247999997,
+          4731.123463999993,
+          4263.410461999998,
+          5497.684294000002
+        ],
+        "median": 4731.123463999993,
+        "min": 4164.362414999999,
+        "max": 5497.684294000002
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          3547.3579999999997,
+          3893.9049999999997,
+          3765.4449999999997,
+          3607.612,
+          3937.9210000000007
+        ],
+        "median": 3765.4449999999997,
+        "min": 3547.3579999999997,
+        "max": 3937.9210000000007
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          123.94374999999854,
+          190.74125000000004,
+          233.50187500000175,
+          126.0814160000009,
+          126.38583300000028
+        ],
+        "median": 126.38583300000028,
+        "min": 123.94374999999854,
+        "max": 233.50187500000175
+      }
+    },
+    {
+      "corpus": "governed",
+      "label": "C",
+      "pluginVersion": "3.8.60",
+      "readersSha256": "6d2810fad5ebf7c31916abcb9e980421477f2e19732b3af75b5cf9aa87ef2efd",
+      "nativeSources": "8ab0130590c8519fc6a1004d2badf7b4016c22daf07ff93b66dda8f1495e8904",
+      "binarySha256": "ca560f158db010f1be57b153e0e2fb645e4279eb240a7156924e7c00feb7a3f6",
+      "fixtureSha256": "63e412bb165c08e050905413a702c955ae69e154b564017d64ebbd8e98890b15",
+      "modelCharacters": {
+        "samples": [
+          3676,
+          3676,
+          3676,
+          3676,
+          3676
+        ],
+        "median": 3676,
+        "min": 3676,
+        "max": 3676
+      },
+      "modelBytes": {
+        "samples": [
+          3699,
+          3699,
+          3699,
+          3699,
+          3699
+        ],
+        "median": 3699,
+        "min": 3699,
+        "max": 3699
+      },
+      "checkExecutions": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          3907.4091629999966,
+          4843.830788,
+          5157.857709999999,
+          3337.789499999996,
+          3712.538580999999
+        ],
+        "median": 3907.4091629999966,
+        "min": 3337.789499999996,
+        "max": 5157.857709999999
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          2447.7699999999995,
+          2732.51,
+          2892.5289999999995,
+          2246.3889999999997,
+          2432.152
+        ],
+        "median": 2447.7699999999995,
+        "min": 2246.3889999999997,
+        "max": 2892.5289999999995
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          0.26154199999837147,
+          0.24558299999989686,
+          0.26912499999980355,
+          0.24262500000168075,
+          0.23174900000049092
+        ],
+        "median": 0.24558299999989686,
+        "min": 0.23174900000049092,
+        "max": 0.26912499999980355
+      }
+    },
+    {
+      "corpus": "governed",
+      "label": "D",
+      "pluginVersion": "3.8.60",
+      "readersSha256": "d4d7b63f50f3fcea44aaed905e76527cf1f855a954a88a06d909eee6fbdbfd1a",
+      "nativeSources": "381d462197164d42ae2d0e2fe92156927ef8ad4b90e217b21edaf50598c650e0",
+      "binarySha256": "5a201851aca38d038ca727546e1a29d4a2c95610b4a1db9d9815cdafcae23706",
+      "fixtureSha256": "63e412bb165c08e050905413a702c955ae69e154b564017d64ebbd8e98890b15",
+      "modelCharacters": {
+        "samples": [
+          3676,
+          3676,
+          3676,
+          3676,
+          3676
+        ],
+        "median": 3676,
+        "min": 3676,
+        "max": 3676
+      },
+      "modelBytes": {
+        "samples": [
+          3699,
+          3699,
+          3699,
+          3699,
+          3699
+        ],
+        "median": 3699,
+        "min": 3699,
+        "max": 3699
+      },
+      "checkExecutions": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          3269.7023310000004,
+          3375.9508370000003,
+          4348.284539999996,
+          3351.7146219999995,
+          3367.861125000003
+        ],
+        "median": 3367.861125000003,
+        "min": 3269.7023310000004,
+        "max": 4348.284539999996
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          2222.199,
+          2285.4799999999996,
+          2672.561,
+          2278.867,
+          2287.3549999999996
+        ],
+        "median": 2285.4799999999996,
+        "min": 2222.199,
+        "max": 2672.561
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          0.5215419999949518,
+          0.5579589999997552,
+          0.6475420000006125,
+          0.6155839999996715,
+          0.5319999999992433
+        ],
+        "median": 0.5579589999997552,
+        "min": 0.5215419999949518,
+        "max": 0.6475420000006125
+      }
+    },
+    {
+      "corpus": "empty",
+      "label": "A",
+      "pluginVersion": "3.8.59",
+      "readersSha256": "1bc6f20be72762da2415ba850c3d1b43db6c6fdbf27d7f14e4e8ccdc7c8d0be7",
+      "nativeSources": null,
+      "binarySha256": null,
+      "fixtureSha256": "02822032311a8a6e6e5a7524d51a6ebd1df5c6f83fc609233d2dd9f4a9bd44e1",
+      "modelCharacters": {
+        "samples": [
+          5230,
+          5230,
+          5230,
+          5230,
+          5230
+        ],
+        "median": 5230,
+        "min": 5230,
+        "max": 5230
+      },
+      "modelBytes": {
+        "samples": [
+          5275,
+          5275,
+          5275,
+          5275,
+          5275
+        ],
+        "median": 5275,
+        "min": 5275,
+        "max": 5275
+      },
+      "checkExecutions": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          4404.724332999995,
+          4741.918082999997,
+          4608.3422919999975,
+          5829.070498000012,
+          6434.4123340000115
+        ],
+        "median": 4741.918082999997,
+        "min": 4404.724332999995,
+        "max": 6434.4123340000115
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          3718.764,
+          3872.2969999999996,
+          3753.733,
+          4119.789999999999,
+          4165.290999999999
+        ],
+        "median": 3872.2969999999996,
+        "min": 3718.764,
+        "max": 4165.290999999999
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          232.60841699999946,
+          272.18612399999984,
+          211.6890420000018,
+          207.40879199999472,
+          272.28962599999795
+        ],
+        "median": 232.60841699999946,
+        "min": 207.40879199999472,
+        "max": 272.28962599999795
+      }
+    },
+    {
+      "corpus": "empty",
+      "label": "B",
+      "pluginVersion": "3.8.59",
+      "readersSha256": "d7d138796b5df5491810b3fb4629d1a8204e02a2b920c6088496c6e2408ea6f8",
+      "nativeSources": null,
+      "binarySha256": null,
+      "fixtureSha256": "02822032311a8a6e6e5a7524d51a6ebd1df5c6f83fc609233d2dd9f4a9bd44e1",
+      "modelCharacters": {
+        "samples": [
+          3506,
+          3506,
+          3506,
+          3506,
+          3506
+        ],
+        "median": 3506,
+        "min": 3506,
+        "max": 3506
+      },
+      "modelBytes": {
+        "samples": [
+          3527,
+          3527,
+          3527,
+          3527,
+          3527
+        ],
+        "median": 3527,
+        "min": 3527,
+        "max": 3527
+      },
+      "checkExecutions": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          4204.033413999994,
+          4426.405001999985,
+          4120.097121000021,
+          4364.509994000007,
+          5241.2536690000015
+        ],
+        "median": 4364.509994000007,
+        "min": 4120.097121000021,
+        "max": 5241.2536690000015
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          3566.76,
+          3757.795,
+          3508.642999999999,
+          3672.253,
+          4080.7780000000002
+        ],
+        "median": 3672.253,
+        "min": 3508.642999999999,
+        "max": 4080.7780000000002
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          126.4578760000004,
+          127.01570900000297,
+          125.59908300000825,
+          124.50070799999958,
+          125.03654200000165
+        ],
+        "median": 125.59908300000825,
+        "min": 124.50070799999958,
+        "max": 127.01570900000297
+      }
+    },
+    {
+      "corpus": "empty",
+      "label": "C",
+      "pluginVersion": "3.8.60",
+      "readersSha256": "6d2810fad5ebf7c31916abcb9e980421477f2e19732b3af75b5cf9aa87ef2efd",
+      "nativeSources": "8ab0130590c8519fc6a1004d2badf7b4016c22daf07ff93b66dda8f1495e8904",
+      "binarySha256": "ca560f158db010f1be57b153e0e2fb645e4279eb240a7156924e7c00feb7a3f6",
+      "fixtureSha256": "02822032311a8a6e6e5a7524d51a6ebd1df5c6f83fc609233d2dd9f4a9bd44e1",
+      "modelCharacters": {
+        "samples": [
+          3506,
+          3506,
+          3506,
+          3506,
+          3506
+        ],
+        "median": 3506,
+        "min": 3506,
+        "max": 3506
+      },
+      "modelBytes": {
+        "samples": [
+          3527,
+          3527,
+          3527,
+          3527,
+          3527
+        ],
+        "median": 3527,
+        "min": 3527,
+        "max": 3527
+      },
+      "checkExecutions": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          3329.285999999993,
+          3433.553963000002,
+          3871.0889130000032,
+          3290.202873999995,
+          3583.053751999996
+        ],
+        "median": 3433.553963000002,
+        "min": 3290.202873999995,
+        "max": 3871.0889130000032
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          2203.5080000000003,
+          2266.031,
+          2413.371,
+          2182.0239999999994,
+          2292.718
+        ],
+        "median": 2266.031,
+        "min": 2182.0239999999994,
+        "max": 2413.371
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          0.2171249999992142,
+          0.2101249999977881,
+          0.5055839999986347,
+          0.29845900000145775,
+          0.21362499999668216
+        ],
+        "median": 0.2171249999992142,
+        "min": 0.2101249999977881,
+        "max": 0.5055839999986347
+      }
+    },
+    {
+      "corpus": "empty",
+      "label": "D",
+      "pluginVersion": "3.8.60",
+      "readersSha256": "d4d7b63f50f3fcea44aaed905e76527cf1f855a954a88a06d909eee6fbdbfd1a",
+      "nativeSources": "381d462197164d42ae2d0e2fe92156927ef8ad4b90e217b21edaf50598c650e0",
+      "binarySha256": "5a201851aca38d038ca727546e1a29d4a2c95610b4a1db9d9815cdafcae23706",
+      "fixtureSha256": "02822032311a8a6e6e5a7524d51a6ebd1df5c6f83fc609233d2dd9f4a9bd44e1",
+      "modelCharacters": {
+        "samples": [
+          3506,
+          3506,
+          3506,
+          3506,
+          3506
+        ],
+        "median": 3506,
+        "min": 3506,
+        "max": 3506
+      },
+      "modelBytes": {
+        "samples": [
+          3527,
+          3527,
+          3527,
+          3527,
+          3527
+        ],
+        "median": 3527,
+        "min": 3527,
+        "max": 3527
+      },
+      "checkExecutions": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "tracedHookWallMs": {
+        "samples": [
+          4476.507498999999,
+          3446.294081999993,
+          5577.753000000004,
+          3408.1312500000167,
+          3392.790292999998
+        ],
+        "median": 3446.294081999993,
+        "min": 3392.790292999998,
+        "max": 5577.753000000004
+      },
+      "tracedRootWaitedCpuMs": {
+        "samples": [
+          2665.9379999999996,
+          2313.229,
+          2782.8499999999995,
+          2257.261,
+          2278.509
+        ],
+        "median": 2313.229,
+        "min": 2257.261,
+        "max": 2782.8499999999995
+      },
+      "completionReceiptWaitMs": {
+        "samples": [
+          0.5555830000084825,
+          0.5427500000005239,
+          1.1821660000023257,
+          0.5259580000019923,
+          0.5005420000015874
+        ],
+        "median": 0.5427500000005239,
+        "min": 0.5005420000015874,
+        "max": 1.1821660000023257
+      }
+    }
+  ],
+  "launcher": [
+    {
+      "corpus": "governed",
+      "samples": [
+        {
+          "pair": 0,
+          "beforeWallMs": 3271.1077910000004,
+          "afterWallMs": 3103.0957919999996,
+          "wallRatio": 0.9486375840434661,
+          "beforeRootWaitedCpuMs": 2169.8519999999994,
+          "afterRootWaitedCpuMs": 2161.764,
+          "cpuRatio": 0.9962725568379782,
+          "modelCharacters": 3694
+        },
+        {
+          "pair": 1,
+          "beforeWallMs": 4155.591291000003,
+          "afterWallMs": 3875.2106680000006,
+          "wallRatio": 0.9325293072956335,
+          "beforeRootWaitedCpuMs": 2332.078,
+          "afterRootWaitedCpuMs": 2341.134000000001,
+          "cpuRatio": 1.0038832320359785,
+          "modelCharacters": 3694
+        },
+        {
+          "pair": 2,
+          "beforeWallMs": 3409.327291,
+          "afterWallMs": 3321.2559169999963,
+          "wallRatio": 0.9741675214836382,
+          "beforeRootWaitedCpuMs": 2269.9489999999996,
+          "afterRootWaitedCpuMs": 2320.3269999999998,
+          "cpuRatio": 1.022193450161215,
+          "modelCharacters": 3694
+        },
+        {
+          "pair": 3,
+          "beforeWallMs": 3416.3060410000003,
+          "afterWallMs": 3254.366498,
+          "wallRatio": 0.952598057358878,
+          "beforeRootWaitedCpuMs": 2281.4129999999996,
+          "afterRootWaitedCpuMs": 2282.9829999999997,
+          "cpuRatio": 1.0006881700069212,
+          "modelCharacters": 3694
+        },
+        {
+          "pair": 4,
+          "beforeWallMs": 3468.290831999999,
+          "afterWallMs": 3122.2847509999992,
+          "wallRatio": 0.9002372933066647,
+          "beforeRootWaitedCpuMs": 2297.122,
+          "afterRootWaitedCpuMs": 2181.387,
+          "cpuRatio": 0.9496173908046679,
+          "modelCharacters": 3694
+        }
+      ],
+      "pairedWallRatio": {
+        "samples": [
+          0.9486375840434661,
+          0.9325293072956335,
+          0.9741675214836382,
+          0.952598057358878,
+          0.9002372933066647
+        ],
+        "median": 0.9486375840434661,
+        "min": 0.9002372933066647,
+        "max": 0.9741675214836382
+      },
+      "pairedRootWaitedCpuRatio": {
+        "samples": [
+          0.9962725568379782,
+          1.0038832320359785,
+          1.022193450161215,
+          1.0006881700069212,
+          0.9496173908046679
+        ],
+        "median": 1.0006881700069212,
+        "min": 0.9496173908046679,
+        "max": 1.022193450161215
+      }
+    },
+    {
+      "corpus": "empty",
+      "samples": [
+        {
+          "pair": 0,
+          "beforeWallMs": 3967.5426629999974,
+          "afterWallMs": 5377.353000000005,
+          "wallRatio": 1.355335898501467,
+          "beforeRootWaitedCpuMs": 2456.158,
+          "afterRootWaitedCpuMs": 2884.0529999999994,
+          "cpuRatio": 1.1742131410112866,
+          "modelCharacters": 3524
+        },
+        {
+          "pair": 1,
+          "beforeWallMs": 6661.123415999997,
+          "afterWallMs": 5632.9269170000025,
+          "wallRatio": 0.8456421785354901,
+          "beforeRootWaitedCpuMs": 2973.9289999999996,
+          "afterRootWaitedCpuMs": 2787.758999999999,
+          "cpuRatio": 0.9373993124919927,
+          "modelCharacters": 3524
+        },
+        {
+          "pair": 2,
+          "beforeWallMs": 3643.6319189999986,
+          "afterWallMs": 3343.3110439999964,
+          "wallRatio": 0.9175765056195836,
+          "beforeRootWaitedCpuMs": 2396.0290000000005,
+          "afterRootWaitedCpuMs": 2323.188,
+          "cpuRatio": 0.9695992828133548,
+          "modelCharacters": 3524
+        },
+        {
+          "pair": 3,
+          "beforeWallMs": 3321.288373000003,
+          "afterWallMs": 3191.6028780000006,
+          "wallRatio": 0.9609532565572251,
+          "beforeRootWaitedCpuMs": 2183.9969999999994,
+          "afterRootWaitedCpuMs": 2202.958,
+          "cpuRatio": 1.0086817884823105,
+          "modelCharacters": 3524
+        },
+        {
+          "pair": 4,
+          "beforeWallMs": 3180.1492089999956,
+          "afterWallMs": 3017.3280400000094,
+          "wallRatio": 0.9488007768505976,
+          "beforeRootWaitedCpuMs": 2085.1769999999997,
+          "afterRootWaitedCpuMs": 2080.008,
+          "cpuRatio": 0.9975210737505738,
+          "modelCharacters": 3524
+        }
+      ],
+      "pairedWallRatio": {
+        "samples": [
+          1.355335898501467,
+          0.8456421785354901,
+          0.9175765056195836,
+          0.9609532565572251,
+          0.9488007768505976
+        ],
+        "median": 0.9488007768505976,
+        "min": 0.8456421785354901,
+        "max": 1.355335898501467
+      },
+      "pairedRootWaitedCpuRatio": {
+        "samples": [
+          1.1742131410112866,
+          0.9373993124919927,
+          0.9695992828133548,
+          1.0086817884823105,
+          0.9975210737505738
+        ],
+        "median": 0.9975210737505738,
+        "min": 0.9373993124919927,
+        "max": 1.1742131410112866
+      }
+    }
+  ],
+  "launcherIdentity": {
+    "binarySha256": "5a201851aca38d038ca727546e1a29d4a2c95610b4a1db9d9815cdafcae23706",
+    "nativeSources": "64c211d963c148360b97d461f88a7c70a5738ef0ea00a9e4f0ddd9fa8238e338",
+    "readers": [
+      "39fa422f82fc4c875fa3ac239e73106c43031d71d6e5d3007ee7ee06b73266ac",
+      "c312966f2bee027579dc30c6a15fd6671e337461b235239cdc56d7aa219a0eb0"
+    ],
+    "onlyDifference": [
+      "scripts/qh-hook.sh"
+    ]
+  },
+  "limits": [
+    "Synthetic host routing; actual adopter confirmation pending.",
+    "CPU is root waited-subtree only, partial; detached work and shell-internal process coverage are unavailable.",
+    "Traced controls include observer overhead. Launcher pairs disable process instrumentation.",
+    "Completion-receipt waits are harness synchronization, not user quiet-machine waiting.",
+    "Overlapping timing ranges and CPU variation do not prove a CPU speedup.",
+    "Raw transcripts, process traces and generated absolute paths are not published."
+  ]
+}

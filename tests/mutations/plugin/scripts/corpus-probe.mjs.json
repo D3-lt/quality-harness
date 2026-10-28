@@ -150,7 +150,7 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "  if (readers(before) && readers(before) === readers(after)) return null",
+      "from": "  if (before.probe?.readers?.sha256 && JSON.stringify(readers(before)) === JSON.stringify(readers(after))) return null",
       "to": "  if (false) return null",
       "only": "^an attestation compares only an earlier reading, and counts each record once$"
     },

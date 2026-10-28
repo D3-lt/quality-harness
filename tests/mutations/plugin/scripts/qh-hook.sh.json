@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-131: a verified launch repeats platform utility invocations",
+      "file": "plugin/scripts/qh-hook.sh",
+      "tests": [
+        "tests/launcher-cost.test.mjs"
+      ],
+      "from": "platform=$(uname -sm)",
+      "to": "platform=$(uname -s); platform=\"$platform $(uname -m)\"",
+      "only": "^verified launcher avoids redundant utilities while preserving native paths, payload and checksums$"
+    },
+    {
       "label": "Go cutover: a tampered cached binary runs",
       "file": "plugin/scripts/qh-hook.sh",
       "tests": [

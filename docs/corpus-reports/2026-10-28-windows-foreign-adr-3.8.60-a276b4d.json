@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-28",
+  "at": "a276b4d684f1f7d09f64aa8a142374bd2ae92903",
+  "plugin": "3.8.60",
+  "kind": "probe",
+  "probeSha256": "a07089753b4bdd0bf580fe366e6cc49f9c54b5e3e51e08e10d32209254efc200",
+  "readers": "6d2810fad5ebf7c31916abcb9e980421477f2e19732b3af75b5cf9aa87ef2efd",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 70,
+    "undecided": 0,
+    "tasks": 177,
+    "taskDirectories": 68
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 70,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "windows-foreign-adr",
+  "found": ""
+}

@@ -43,21 +43,26 @@ export async function installCore({ version, platform, arch, dataHome, request =
   mkdirSync(directory, { recursive: true })
   const temporary = path.join(directory, `.${asset}.${randomUUID()}${platform === 'win32' ? '.exe' : '.tmp'}`)
   const checksum = temporary + '.sha256'
+  const sourceManifest = temporary + '.manifest'
   try {
     writeFileSync(temporary, bytes, { mode: 0o755, flag: 'wx' })
     chmodSync(temporary, 0o755)
     const answer = run(temporary, ['--version'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
     if (answer.error || answer.status !== 0 || String(answer.stdout).trim() !== `qh version ${version}`) throw new Error('downloaded core did not answer with this release version')
     writeFileSync(checksum, expected + '\n', { flag: 'wx' })
+    writeFileSync(sourceManifest, manifest, { flag: 'wx' })
     // A parallel installer may already have published the same immutable release.
     if (!verifiedCore(binary)) {
       renameSync(temporary, binary)
+      renameSync(sourceManifest, path.join(directory, 'SHA256SUMS.txt'))
       renameSync(checksum, binary + '.sha256')
     }
     return { binary, installed: true }
   } finally {
     rmSync(temporary, { force: true })
     rmSync(checksum, { force: true })
+    rmSync(sourceManifest, { force: true })
+
   }
 }
 if (isMainModule(import.meta.url)) {

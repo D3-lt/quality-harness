@@ -25,9 +25,9 @@ func executeNodeCLI(script string, args []string, budget time.Duration) (int, er
 		defer stop()
 		kill := exec.CommandContext(cleanup, "taskkill.exe", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F")
 		hideWindow(kill)
-		return kill.Run()
+		return runObservedCommand(kill, func() bool { return cleanup.Err() == context.DeadlineExceeded })
 	}
-	err := cmd.Run()
+	err := runObservedCommand(cmd, func() bool { return ctx.Err() == context.DeadlineExceeded })
 	if ctx.Err() != nil {
 		return 1, ctx.Err()
 	}

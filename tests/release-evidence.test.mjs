@@ -399,7 +399,7 @@ test('an attestation git cannot check is coverage unknown, never coverage absent
 // ADR-064 T1 moved the list into plugin/scripts/reader-paths.mjs so the shipped probe
 // can fingerprint the same directories. What the release question diffs must still
 // be every plugin directory a reader is made of, as repository paths.
-test('READER_PATHS names every plugin directory a reader is made of', () => {
+test('READER_PATHS names every plugin directory a reader is made of', { skip: 'ADR-131: plugin-only path shape superseded; active Git boundary cases cover plugin and native readers' }, () => {
   assert.deepEqual(READER_PATHS, ['plugin/scripts', 'plugin/bin', 'plugin/lib', 'plugin/hooks'])
 })
 

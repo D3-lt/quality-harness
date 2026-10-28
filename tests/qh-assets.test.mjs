@@ -10,6 +10,7 @@ import { world } from './helpers/release-world.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const sourceIdentity = () => ({ at: 'a'.repeat(40), sources: 'b'.repeat(64) })
 test('the workflow builds every target and names every asset, and a release missing one is not released', t => {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'qh assets '))
   t.after(() => remove(directory))
@@ -22,7 +23,7 @@ test('the workflow builds every target and names every asset, and a release miss
     writeFileSync(args[args.indexOf('-o') + 1], options.env.GOOS + '/' + options.env.GOARCH)
     return { status: 0 }
   }
-  buildReleaseAssets(directory, { version: '1.2.3', run })
+  buildReleaseAssets(directory, { version: '1.2.3', run, sourceIdentity })
   const names = releaseAssetFiles(directory).map(file => path.basename(file)).sort()
   assert.deepEqual(names, ['SHA256SUMS.txt', 'qh-darwin-amd64', 'qh-darwin-arm64', 'qh-linux-amd64', 'qh-linux-arm64', 'qh-windows-amd64.exe'])
   assert.equal(calls.length, 5)
@@ -38,8 +39,9 @@ test('the workflow builds every target and names every asset, and a release miss
 test('a failed core build or an altered native asset is never released', t => {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-assets-'))
   t.after(() => remove(directory))
-  assert.throws(() => buildReleaseAssets(directory, { version: '1.2.3', run: () => ({ status: 1, stderr: 'build failed' }) }), /build failed/)
-  buildReleaseAssets(directory, { version: '1.2.3', run: (_cmd, args) => { writeFileSync(args[args.indexOf('-o') + 1], 'native'); return { status: 0 } } })
+  assert.throws(() => buildReleaseAssets(directory, { version: '1.2.3', sourceIdentity, run: () => ({ status: 1, stderr: 'build failed' }) }), /build failed/)
+  buildReleaseAssets(directory, { version: '1.2.3', sourceIdentity, run: (_cmd, args) => { writeFileSync(args[args.indexOf('-o') + 1], 'native'); return { status: 0 } } })
+
   writeFileSync(path.join(directory, 'qh-linux-amd64'), 'changed')
   assert.throws(() => releaseAssetFiles(directory), /checksum/)
 })

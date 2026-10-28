@@ -212,7 +212,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     }
     return evidence.status === 1 ? 1 : 2
   }
-  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId)])
+  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId), sha])
   const assets = prepared.status === 0 ? parsed(prepared.stdout) : null
   const expectedAssets = [...CORE_TARGETS.map(([os, arch]) => coreAsset(os, arch)), 'SHA256SUMS.txt'].sort()
   const names = Array.isArray(assets) && assets.every(file => typeof file === 'string')

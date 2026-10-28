@@ -1,10 +1,10 @@
 # Outside runs, attested
 
-`scripts/release-evidence.mjs` refuses to clear a sha for release when any file under
-`plugin/scripts/`, `plugin/bin/`, `plugin/lib/` or `plugin/hooks/` changed since the last tag and no
-file here attests that somebody outside this repository ran those readers at a revision that carries
-every one of those changes (CLAUDE.md §18, §13.5). This directory is that evidence. It is read by a
-tool, so its shape is fixed.
+`scripts/release-evidence.mjs` requires fresh outside evidence when installed reader files or native production inputs changed
+since the previous tag. The shared scope is `plugin/scripts/`, `plugin/bin/`, `plugin/lib/`, `plugin/hooks/`, every regular
+file under `core/` except `core/bin/` and Go test sources, plus `scripts/build-core.mjs`, `scripts/native-source.mjs`, `plugin/scripts/core-assets.mjs`,
+`plugin/.claude-plugin/plugin.json` and `.github/workflows/selftest.yml` (ADR-131). A covering attestation
+names a revision carrying every reader change (CLAUDE.md §18, §13.5). This directory holds those counts-only attestations.
 
 **What goes here is an attestation, never the report.** A probe report over another repository is
 that repository's content — record ids, task names, its check command — and this repository never
@@ -18,6 +18,11 @@ release question needs:
   "plugin": "<plugin.json version at that commit, or the installed version>",
   "kind": "probe | hand",
   "probeSha256": "<probe.sha256 from the report, when kind is probe>",
+  "readers": "<historical installed-reader digest>",
+  "native": {
+    "look": "ok", "at": "<full source sha>", "sources": "<native-input sha256>",
+    "run": "<landing CI run id>", "asset": "<target asset name>", "sha256": "<executed binary sha256>"
+  },
   "platform": "<OS and version>",
   "node": "<version>",
   "python": "<version>",
@@ -71,6 +76,13 @@ writing nothing, when any key is outside the schema above, the kind is not `prob
 already filed. `--check` does all of it but the write; exit 3 means `at` is not in this clone yet.
 A `kind: hand` attestation, with no digest to check, is still written by hand. A release counts it when it keeps to the keys
 above and names a full commit in `at`.
+
+From ADR-131 onward, `native` binds the actual executed bytes to committed production inputs and the named landing CI
+artifact. The probe pins one absolute executable before entering scratch state, then checks its identity again at the end.
+Import verifies the source digest against Git and the target checksum against the successful full landing workflow.
+Keep the fetched `SHA256SUMS.txt` beside the candidate binary when running a source candidate on another machine.
+A local build, legacy checksum-only cache, missing manifest, changed binary or unavailable CI identity cannot vouch
+for native coverage. Earlier attestations retain their original semantics and cannot cover later native reader edits.
 
 **With every outside run, ask for the ledger counts too** (ADR-081, ADR-084): `node <plugin>/scripts/ledger-report.mjs
 --json` from the runner's repository root, using the installed plugin (it reads that repository's own

@@ -433,7 +433,7 @@
       "tests": [
         "tests/release-evidence.test.mjs"
       ],
-      "from": "    try { return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === '' } catch { return null }",
+      "from": "    try { return !git(['diff', '--name-only', `${at}..${sha}`, '-z', '--', ...READER_PATHS]).split('\\0').some(isReaderPath) } catch { return null }",
       "to": "    try { return true } catch { return null }",
       "only": "^(?:outsideRunEvidence anchors on the tag before the sha and refuses a run that did not see every reader change)$"
     },
@@ -450,12 +450,10 @@
     {
       "label": "readers: release-evidence diffs the reader directories as repository paths",
       "file": "scripts/release-evidence.mjs",
-      "tests": [
-        "tests/release-evidence.test.mjs"
-      ],
-      "from": "export const READER_PATHS = READER_DIRECTORIES.map(directory => `plugin/${directory}`)",
-      "to": "export const READER_PATHS = READER_DIRECTORIES.map(directory => directory)",
-      "only": "names every plugin directory"
+      "tests": ["tests/native-release.test.mjs"],
+      "from": "export const READER_PATHS = [...READER_DIRECTORIES.map(directory => `plugin/${directory}`), ...NATIVE_READER_ROOTS]",
+      "to": "export const READER_PATHS = [...READER_DIRECTORIES.map(directory => directory), ...NATIVE_READER_ROOTS]",
+      "only": "^every installed reader directory still requires outside evidence$"
     },
     {
       "label": "ADR-089 T3: a PARTIAL attestation attests a release alone (Alternative (d) dropped)",

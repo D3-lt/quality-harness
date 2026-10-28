@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "ADR-131: a real native SessionStart project-check launch is observed",
+      "file": "core/hooks/orientation.go",
+      "tests": ["tests/native-observation.test.mjs"],
+      "from": "\tsections := []string{}",
+      "to": "\tsections := []string{}\n\trun(10*time.Second, cwd, nil, \"\", \"node\", \"check.mjs\")",
+      "only": "^native baseline observation sees a real project check$"
+    },
+    {
       "label": "ADR-130: Go session orientation demands a recorded check",
       "file": "core/hooks/orientation.go",
       "tests": [

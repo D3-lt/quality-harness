@@ -63,13 +63,126 @@ const median = values => {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
 }
 
+
+// Exclusive audience totals precede marker expansion. A repeated delivery on a new
+// call is paid twice; a JSON envelope and its canonical attachment are paid once.
+// Routing: https://code.claude.com/docs/en/hooks#hook-output (2026-10-28).
+const modelStdout = new Set(['SessionStart', 'UserPromptSubmit', 'UserPromptExpansion', 'PostModelSwitch'])
+const knownEvents = new Set([...modelStdout, 'Setup', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
+  'PermissionRequest', 'Notification', 'SubagentStart', 'SubagentStop', 'TaskCompleted', 'Stop',
+  'StopFailure', 'TeammateIdle', 'ConfigChange', 'PreCompact', 'PostCompact', 'SessionEnd'])
+const modelContext = new Set([...modelStdout, 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
+  'SubagentStart', 'SubagentStop', 'Stop', 'PermissionRequest'])
+const metric = () => ({ deliveries: 0, characters: 0, bytes: 0 })
+const countText = (total, text) => {
+  total.deliveries += 1
+  total.characters += text.length
+  total.bytes += Buffer.byteLength(text, 'utf8')
+}
+const contentText = value => {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    const parts = value.map(contentText)
+    return parts.some(part => part === null) ? null : parts.join('\n')
+  }
+  return value?.type === 'text' && typeof value.text === 'string' ? value.text : null
+}
+const hookIdentity = a => {
+  const command = [a.command, ...(Array.isArray(a.args) ? a.args : [])].filter(value => typeof value === 'string').join(' ')
+  if (OURS.test(command) || /quality-harness[\\/](?:quality-harness[\\/])?(?:\d+\.\d+\.\d+[\\/])?(?:scripts[\\/]qh-hook\.sh|bin[\\/]qh-hook)(?:\s|$)/.test(command)) return 'ours'
+  // A bare interpreter in a receipt carries no script identity.
+  if (!command || /^(?:sh|bash|node|node\.exe|powershell|pwsh)(?:\.exe)?$/i.test(command.trim())) return 'unknown'
+  return 'theirs'
+}
+const callKey = a => a.toolUseID == null || a.hookEvent == null ? null : String(a.toolUseID) + '\0' + a.hookEvent
+
+export function exclusiveFootprint(records, unreadable = 0) {
+  const totals = { observedModel: metric(), userOnly: metric(), diagnosticOnly: metric(), unknownAudience: metric() }
+  const uncertain = { ambiguous: metric(), unattributed: metric(), unknownShapes: 0, cappedDeliveries: 0,
+    unpairedSummaries: 0, missingCanonical: 0, unreadableLines: unreadable }
+  const calls = new Map(), latest = new Map(), canonical = new Map(), stopCalls = new Set()
+  for (const r of records) {
+    const a = r?.type === 'attachment' ? r.attachment : null
+    if (!a || !callKey(a)) continue
+    if (typeof a.command === 'string') {
+      const seen = calls.get(callKey(a)) ?? new Set()
+      seen.add(hookIdentity(a)); calls.set(callKey(a), seen)
+    }
+  }
+  const preceding = new Map()
+  for (const r of records) {
+    const a = r?.type === 'attachment' ? r.attachment : null
+    if (!a || !callKey(a)) continue
+    if (a.type === 'hook_success' || a.type === 'hook_non_blocking_error') preceding.set(a.hookEvent, callKey(a))
+    if (a.type === 'hook_additional_context' || a.type === 'hook_system_message') {
+      const key = a.toolUseID === a.hookEvent && !calls.has(callKey(a)) ? preceding.get(a.hookEvent) : callKey(a)
+      const channels = canonical.get(key) ?? new Set()
+      if (contentText(a.content) && (typeof a.command !== 'string' || hookIdentity(a) !== 'theirs')) channels.add(a.type)
+      canonical.set(key, channels)
+      if (a.type === 'hook_additional_context' && contentText(a.content) && String(a.hookEvent).split(':')[0] === 'Stop') stopCalls.add(String(a.toolUseID))
+    }
+  }
+  for (const r of records) {
+    if (r?.type === 'system' && r.subtype === 'stop_hook_summary') {
+      if (!stopCalls.has(String(r.toolUseID))) uncertain.unpairedSummaries += 1
+      continue
+    }
+    const a = r?.type === 'attachment' ? r.attachment : null
+    if (!a) continue
+    if (!Object.hasOwn(HOOK_SHAPES, a.type)) {
+      if (typeof a.type === 'string' && a.type.startsWith('hook_') || typeof a.command === 'string' && hookIdentity(a) === 'ours') uncertain.unknownShapes += 1
+      continue
+    }
+    const event = String(a.hookEvent ?? '?').split(':')[0]
+    const receipt = a.type === 'hook_success' || a.type === 'hook_non_blocking_error'
+    if (receipt && callKey(a)) latest.set(a.hookEvent, callKey(a))
+    const key = a.toolUseID === a.hookEvent && !calls.has(callKey(a)) ? latest.get(a.hookEvent) : callKey(a)
+    const identities = typeof a.command === 'string' ? new Set([hookIdentity(a)]) : calls.get(key)
+    const text = receipt ? (a.type === 'hook_success' ? a.stdout : a.stderr) : contentText(a.content)
+    if (text == null) { if (!receipt) uncertain.unknownShapes += 1; continue }
+    if (typeof text !== 'string') { uncertain.unknownShapes += 1; continue }
+    if (!text) continue
+    if (identities?.size === 1 && identities.has('theirs')) continue
+    if (!identities || identities.size === 1 && identities.has('unknown')) { countText(uncertain.unattributed, text); continue }
+    if (identities.size !== 1) { countText(uncertain.ambiguous, text); continue }
+    if (receipt && a.type === 'hook_success' && isJsonObject(text)) {
+      const envelope = JSON.parse(text)
+      const channels = canonical.get(key) ?? new Set()
+      const context = envelope.hookSpecificOutput?.additionalContext ?? envelope.reason ?? envelope.hookSpecificOutput?.permissionDecisionReason
+      if (typeof context === 'string' && context && !channels.has('hook_additional_context')) {
+        uncertain.missingCanonical += 1; countText(totals.unknownAudience, context)
+      }
+      if (typeof envelope.systemMessage === 'string' && envelope.systemMessage && !channels.has('hook_system_message')) {
+        uncertain.missingCanonical += 1; countText(totals.unknownAudience, envelope.systemMessage)
+      }
+      continue
+    }
+    // The host may replace oversized output with a file reference and preview.
+    // The recorded original is not proof of the model's injected byte count.
+    if (text.length > 10_000) { uncertain.cappedDeliveries += 1; continue }
+    if (a.type === 'hook_system_message') countText(knownEvents.has(event) ? totals.userOnly : totals.unknownAudience, text)
+    else if (a.type === 'hook_non_blocking_error') countText(totals.diagnosticOnly, text)
+    else if (a.type === 'hook_additional_context') countText(modelContext.has(event) ? totals.observedModel : totals.unknownAudience, text)
+    else countText(modelStdout.has(event) ? totals.observedModel : knownEvents.has(event) ? totals.diagnosticOnly : totals.unknownAudience, text)
+  }
+  const reasons = []
+  if (unreadable) reasons.push('unreadable-lines')
+  for (const field of ['unknownShapes', 'cappedDeliveries', 'unpairedSummaries', 'missingCanonical']) if (uncertain[field]) reasons.push(field)
+  for (const field of ['ambiguous', 'unattributed']) if (uncertain[field].deliveries) reasons.push(field)
+  if (totals.unknownAudience.deliveries) reasons.push('unknown-audience')
+  return { totals, uncertain, coverage: { status: reasons.length ? 'partial' : 'complete', reasons }, rowsOverlap: true }
+}
 export function footprint(file) {
   const lines = readFileSync(file, 'utf8').split('\n')
   const records = []
   let unreadable = 0
   for (const line of lines) {
     if (!line.trim()) continue
-    try { records.push(JSON.parse(line)) } catch { unreadable += 1 }
+    try {
+      const record = JSON.parse(line)
+      if (!record || typeof record !== 'object' || Array.isArray(record) || typeof record.type !== 'string') unreadable += 1
+      else records.push(record)
+    } catch { unreadable += 1 }
   }
   // Which hooks ran on each (call, event): ours, another's, or both.
   const hooksOn = new Map()
@@ -100,7 +213,7 @@ export function footprint(file) {
   for (const r of records) {
     if (r.type === 'system' && r.subtype === 'compact_boundary') { compactions += 1; continue }
     const a = r.attachment
-    if (r.type !== 'attachment' || !(a?.type in HOOK_SHAPES)) continue
+    if (r.type !== 'attachment' || !Object.hasOwn(HOOK_SHAPES, a?.type)) continue
     const event = String(a.hookEvent ?? '?').split(':')[0]
     if (typeof a.command === 'string') {
       latestCall[a.hookEvent] = `${a.toolUseID}\u0000${a.hookEvent}`
@@ -121,13 +234,16 @@ export function footprint(file) {
   const durationMs = Object.fromEntries(Object.entries(durations).map(([event, values]) =>
     [event, { firings: values.length, median: median(values) }]))
   return { rows: [...rows.values()].sort((x, y) => y.characters - x.characters), unreadable, ambiguous, unattributed, compactions,
-    contexts: compactions + 1, durationMs }
+    contexts: compactions + 1, durationMs, ...exclusiveFootprint(records, unreadable) }
 }
 
 function render(result) {
   const lines = [`contexts ${result.contexts} (compactions ${result.compactions}); unreadable lines ${result.unreadable}; `
     + `ambiguous attachments ${result.ambiguous} (another plugin's hook on the same call); `
     + `unattributed attachments ${result.unattributed} (joined to no hook)`]
+  lines.push(`exclusive model context: ${result.totals.observedModel.characters} characters, ${result.totals.observedModel.bytes} bytes in ${result.totals.observedModel.deliveries} deliveries; coverage ${result.coverage.status}`)
+  if (result.coverage.reasons.length) lines.push(`coverage gaps: ${result.coverage.reasons.join(', ')}`)
+  lines.push('item rows overlap; never sum them as delivered context')
   lines.push('event              channel            item                      firings   characters')
   for (const r of result.rows) {
     lines.push(`${r.event.padEnd(19)}${r.channel.padEnd(19)}${r.item.padEnd(26)}${String(r.firings).padStart(7)}`

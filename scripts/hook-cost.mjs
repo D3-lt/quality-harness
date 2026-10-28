@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Counts what one hook event does (ADR-095 T1): the children it starts (program, arguments, directory, time inside each), the
-// ones it starts more than once with the same arguments in the same directory, and the files it reads. It runs the real hook
-// program in a hermetic home against a throwaway clone of the repository, so nothing is left in the repository it was pointed at.
+// Observes every matching registered hook in a hermetic home and disposable clone.
+// Native/Node process rows are lower bounds; CPU is the separately waited root
+// subtree. --program retains the historical, explicitly Node-only API observer.
 //
 //   node scripts/hook-cost.mjs <event> <repository> [--json] [--timeout <seconds>] [--in-place] [--plugin <dir>] [--program <file>]
 //
@@ -9,10 +9,15 @@
 // timed out or could not be started is said in the report, and a program that could not be started has no child count at all
 // (null), because "could not look" is not "started none" (ADR-005).
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
+import { coreAsset } from '../plugin/scripts/core-assets.mjs'
+import { nativeBinaryPath } from '../plugin/scripts/native-cli.mjs'
+import { runMeasured, summariseProcesses } from './observation/process.mjs'
+import { registeredHooks, registeredProgram } from './policy-replay.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const PRELOAD = path.join(here, 'hook-cost-preload.cjs')
@@ -40,7 +45,62 @@ export function summarise(lines) {
   return { children, repeats, reads: { count: reads.length, bytes: reads.reduce((sum, row) => sum + row.bytes, 0) } }
 }
 
+function measureRegistered({ event, repository, timeoutSeconds, inPlace, plugin }) {
+  const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'hook-cost-chain-')))
+  try {
+    if (!PAYLOADS[event]) return { event, error: 'unknown event ' + event, children: null }
+    const pluginDir = path.resolve(plugin ?? path.join(here, '..', 'plugin'))
+    let repo = path.resolve(repository)
+    if (!inPlace) {
+      const cloned = spawnSync('git', ['clone', '--quiet', '--no-local', repo, path.join(scratch, 'repo')],
+        { encoding: 'utf8', timeout: 300_000, windowsHide: true })
+      if (cloned.error || cloned.status !== 0) return { event, error: 'could not clone the corpus', children: null }
+      repo = path.join(scratch, 'repo')
+    }
+    const home = path.join(scratch, 'home'), data = path.join(home, 'data')
+    mkdirSync(data, { recursive: true })
+    const version = JSON.parse(readFileSync(path.join(pluginDir, '.claude-plugin', 'plugin.json'), 'utf8')).version
+    const selected = path.resolve(nativeBinaryPath(version))
+    const env = { ...process.env, HOME: home, USERPROFILE: home, TMPDIR: scratch, TMP: scratch, TEMP: scratch,
+      CLAUDE_PLUGIN_ROOT: pluginDir, CLAUDE_PLUGIN_DATA: data, CLAUDE_PROJECT_DIR: repo,
+      QUALITY_HARNESS_QH_FETCH: 'off', CLAUDE_ENV_FILE: path.join(scratch, 'exports') }
+    const registry = JSON.parse(readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8'))
+    const payload = { ...PAYLOADS[event](repo), session_id: 'hook-cost', cwd: repo }
+    const hooks = registeredHooks(registry, payload.hook_event_name, payload.tool_name)
+    if (hooks.some(hook => hook.command === 'sh')) {
+      if (!existsSync(selected)) return { event, error: 'could not look: selected native executable is missing', children: null }
+      const binary = path.join(data, 'qh', version, coreAsset(process.platform, process.arch))
+      mkdirSync(path.dirname(binary), { recursive: true }); copyFileSync(selected, binary); chmodSync(binary, 0o755)
+      writeFileSync(binary + '.sha256', createHash('sha256').update(readFileSync(binary)).digest('hex') + '\n')
+      env.QUALITY_HARNESS_QH_BIN = binary
+    }
+    const take = (name, observe) => {
+      const rows = [], registrations = [], resources = []
+      const start = performance.now(), traceFile = path.join(scratch, name + '.jsonl')
+      for (const [i, hook] of hooks.entries()) {
+        const result = runMeasured({ file: registeredProgram(hook.command, { env }),
+          args: (hook.args ?? []).map(arg => arg.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginDir)),
+          cwd: repo, env, input: JSON.stringify(payload), timeoutMs: timeoutSeconds * 1000,
+          traceFile, trial: name + '-' + i, observe })
+        rows.push(...result.rows); resources.push(result.resources)
+        registrations.push({ command: hook.command, argumentsSha256: createHash('sha256').update(JSON.stringify(hook.args)).digest('hex'),
+          exit: result.status, timedOut: result.timedOut, error: result.error, wallMs: result.wallMs })
+      }
+      return { wallMs: performance.now() - start, registrations, processes: summariseProcesses(rows), resources,
+        exit: registrations.every(row => row.exit === 0) ? 0 : registrations.find(row => row.exit !== 0)?.exit ?? null,
+        timedOut: registrations.some(row => row.timedOut) }
+    }
+    return { schema: 'quality-harness-hook-cost-v2', event, scope: 'registered-chain', children: null,
+      first: take('first', true), second: take('second', true), observerOff: take('observer-off', false),
+      coverage: { status: 'partial', reasons: ['process rows omit shell-internal descendants; waited-root CPU omits detached work',
+        'cold provisioning excluded; warm observer-on/off runs have separate state histories'] } }
+  } catch (error) {
+    return { event, error: 'could not look: ' + (error.code ?? error.message), children: null }
+  } finally { rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+}
+
 export function measure({ event, repository, timeoutSeconds = 60, inPlace = false, plugin, program }) {
+  if (!program) return measureRegistered({ event, repository, timeoutSeconds, inPlace, plugin })
   const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'hook-cost-')))
   try {
     if (!PAYLOADS[event]) return { event, error: `unknown event ${event}: one of ${Object.keys(PAYLOADS).join(', ')}`, children: null }
@@ -81,7 +141,8 @@ export function measure({ event, repository, timeoutSeconds = 60, inPlace = fals
     const bareWarm = run(false)
     const scrub = text => String(text).split(repo).join('<repo>').split(scratch).join('<scratch>').split(pluginDir).join('<plugin>')
     const timedOut = first.result.error?.code === 'ETIMEDOUT'
-    return { event, program: scrub(hook), exit: timedOut ? null : first.result.status, timedOut, wallMs: first.wallMs,
+    return { event, scope: 'node-api-only', coverage: { status: 'partial', reasons: ['explicit Node program; native and shell child visibility unavailable'] },
+      program: scrub(hook), exit: timedOut ? null : first.result.status, timedOut, wallMs: first.wallMs,
       children: summary.children.map(child => ({ ...child, cmd: scrub(child.cmd), cwd: scrub(child.cwd) })),
       repeats: summary.repeats.map(repeat => ({ ...repeat, cmd: scrub(repeat.cmd), cwd: scrub(repeat.cwd) })), reads: summary.reads,
       second: { wallMs: second.wallMs, wallWithoutPreloadMs: bareWarm.wallMs, children: secondSummary.children.length, repeats: secondSummary.repeats.length,
@@ -93,6 +154,16 @@ export function measure({ event, repository, timeoutSeconds = 60, inPlace = fals
 
 export function render(report) {
   if (report.error) return `${report.event}: ${report.error}\n`
+  if (report.scope === 'registered-chain') {
+    const lines = [report.event + ': complete matching registry chain; process coverage ' + report.coverage.status]
+    for (const name of ['first', 'second', 'observerOff']) {
+      const sample = report[name]
+      lines.push(name + ': ' + sample.wallMs.toFixed(1) + ' ms, ' + sample.registrations.length + ' registrations, '
+        + sample.processes.starts + ' observed starts (' + sample.processes.coverage + '), exit ' + sample.exit)
+    }
+    lines.push(...report.coverage.reasons)
+    return lines.join('\n') + '\n'
+  }
   const lines = [`${report.event}: first event ${report.timedOut ? 'TIMED OUT' : `exit ${report.exit}`}, ${report.wallMs} ms, ${report.children.length} children, ${report.reads.count} reads, ${(report.reads.bytes / 1024).toFixed(0)} KiB; second event ${report.second.wallMs} ms, ${report.second.children} children (${report.second.wallWithoutPreloadMs} ms without the preload)`]
   for (const child of report.children) lines.push(`  ${String(child.ms).padStart(7)} ms  ${child.cmd}`)
   for (const repeat of report.repeats) lines.push(`  REPEAT x${repeat.count} (${repeat.ms} ms)  ${repeat.cmd}`)

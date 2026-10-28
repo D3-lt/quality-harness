@@ -61,6 +61,8 @@ import { publicPath, pluginVersion } from './corpus-report.mjs'
 import { isMainModule } from './main-module.mjs'
 import { READER_DIRECTORIES } from './reader-paths.mjs'
 import { contention, loadLine, sampleLoad, shownLoad } from './load.mjs'
+import { nativeBinaryPath } from './native-cli.mjs'
+import { nativeBinaryIdentity, nativeIdentityOfRun } from './native-provenance.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bin = path.join(here, '..', 'bin')
@@ -252,6 +254,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // whose readers moved under it — a commit mid-run, a mutation campaign restoring
   // files — must not report the commit it ended at (cold review of 833ea52).
   const readersAtStart = readerFingerprint(pluginRoot)
+  // Resolve once in the caller's cwd. Scratch state and the corpus cwd must not
+  // change which executable the observation describes.
+  const nativeBinary = path.resolve(nativeBinaryPath(pluginVersion()))
+  const nativeAtStart = nativeBinaryIdentity(nativeBinary)
   // The load the run shared the machine with, at its start and its end (load.mjs): its timings say
   // nothing about a reader when other work ran beside it (the corpus-probe load lead, 2026-10-14).
   const loadAtStart = sampler()
@@ -409,7 +415,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   try {
     const hook = timed('SessionStart', null, () => node('lifecycle.mjs', [], {
       input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: `corpus-probe-${process.pid}`, cwd: resolved }),
-      env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch, QUALITY_HARNESS_STATE_DIR: path.join(scratch, 'state'), QUALITY_HARNESS_NO_MRW: '1' },
+      env: { ...process.env, QUALITY_HARNESS_QH_BIN: nativeBinary, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch, QUALITY_HARNESS_STATE_DIR: path.join(scratch, 'state'), QUALITY_HARNESS_NO_MRW: '1' },
     }))
     // A hook that crashed, was signalled, or printed something other than the
     // JSON the host expects made no observation; it is could-not-run, not an
@@ -460,6 +466,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   return {
     probe: {
       version: pluginVersion(), sha256: probeDigest(), readers: readersOfRun(readersAtStart, readerFingerprint(pluginRoot)),
+      native: nativeIdentityOfRun(nativeAtStart, nativeBinaryIdentity(nativeBinary)),
       // What an attestation carries about the run (ADR-064 T3), recorded here so
       // `--attest` can be pure over the saved report.
       date: new Date().toISOString().slice(0, 10), platform: `${os.type()} ${os.release()}`, node: process.versions.node, python: pythonVersion(),
@@ -656,6 +663,12 @@ export function diffReports(before, after, scrub = text => String(text)) {
   if (!lacks('probe.readers', ...readers) && readers[0].sha256 !== readers[1].sha256) {
     say(`readers: ${String(readers[0].sha256).slice(0, 12)}… → ${String(readers[1].sha256).slice(0, 12)}…`)
   }
+  const native = [before.probe?.native, after.probe?.native]
+  if (!lacks('probe.native', ...native)) {
+    for (const key of ['look', 'sources', 'sha256', 'asset', 'at', 'run']) {
+      if (native[0]?.[key] !== native[1]?.[key]) say('native ' + key + ': ' + String(native[0]?.[key] ?? 'unknown') + ' → ' + String(native[1]?.[key] ?? 'unknown'))
+    }
+  }
   for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected', 'specs']], ['adrState', ['read', 'governing', 'contested']]]) {
     if (absent.has(group)) continue
     for (const key of keys) {
@@ -810,8 +823,8 @@ function corpusCounts(report) {
 function verdictChanges(before, after) {
   if (!before || !comparable(before, after) || !Array.isArray(before.adrLint) || !Array.isArray(after.adrLint)) return null
   // Reports taken by the same readers say nothing about a change in them (the stand-in review of ADR-082).
-  const readers = report => report.probe?.readers?.sha256
-  if (readers(before) && readers(before) === readers(after)) return null
+  const readers = report => [report.probe?.readers?.sha256, report.probe?.native?.sources, report.probe?.native?.sha256]
+  if (before.probe?.readers?.sha256 && JSON.stringify(readers(before)) === JSON.stringify(readers(after))) return null
   const { compared, moves } = verdictMoves(before, after)
   return {
     compared,
@@ -834,13 +847,16 @@ export function attestation(report, label, { since } = {}) {
   // counts read as a clean run (a Windows chaos round of 916b515, an NTFS junction loop).
   // PARTIAL still ran every reader over what it listed, and is a run.
   const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'
-  const vouched = committed && looked
+  const native = report.probe?.native
+  const nativeKnown = !native || (native.look === 'ok' && native.at === readers.git)
+  const vouched = committed && looked && nativeKnown
   const count = list => (Array.isArray(list) ? list.length : null)
   const changes = verdictChanges(since, report)
   return {
     date: report.probe?.date ?? null,
     at: vouched ? readers.git : null,
     ...(vouched ? {} : { atReason: !looked ? 'the probe could not look at the corpus (look UNPROVEN), so its readers ran over nothing'
+      : !nativeKnown ? 'the executed native reader has no matching committed CI identity: ' + (native.reason ?? 'source revision differs')
       : !readers.git ? (readers.gitReason ? `${readers.gitReason}, so the readers' commit is unknown` : 'the plugin is not a git checkout')
         : readers.moved ? 'the readers changed while the probe ran'
           : readers.dirty === true ? 'reader files modified at HEAD'
@@ -849,6 +865,7 @@ export function attestation(report, label, { since } = {}) {
     kind: 'probe',
     probeSha256: report.probe?.sha256 ?? null,
     readers: readers.sha256 ?? null,
+    ...(native?.look === 'ok' ? { native } : {}),
     platform: report.probe?.platform ?? null,
     node: report.probe?.node ?? null,
     python: report.probe?.python ?? null,

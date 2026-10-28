@@ -1,0 +1,4 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/native-release.test.mjs	a native-only production change requires fresh outside evidence	30ec83a5464f58e3e98961a5a76fe60b8c966392ebcba63968772e1f1f482078
+body	tests/native-release.test.mjs	every installed reader directory still requires outside evidence	9527ccf301d56598b7908eeebd26da893e079b7e49e43727f07bb9011e24a824
+body	tests/native-release.test.mjs	native tests, build outputs and documentation outside core do not require an outside reader run	04c021448bb6d2dc46f32709c744bdf51edf995b665ac83b6cb31f2ff633976e

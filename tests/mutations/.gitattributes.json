@@ -8,7 +8,7 @@
       ],
       "from": "plugin/bin/* text eol=lf",
       "to": "bin/* text eol=lf",
-      "only": "^(?:what ships is the plugin and nothing else|manifest and hook configuration expose the bundled components|every catalogue entry still matches the source it mutates, exactly once|a mutation that matches across lines targets a file git checks out with LF)$"
+      "only": "^(?:what ships is the plugin and nothing else|every catalogue entry still matches the source it mutates, exactly once|a mutation that matches across lines targets a file git checks out with LF)$"
     },
     {
       "label": "windows: shipped .js and .py are pinned to LF",

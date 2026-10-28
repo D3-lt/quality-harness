@@ -4,8 +4,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as ledger from './helpers/node-hooks/check-ledger.mjs'
+import * as currentLedger from '../plugin/scripts/check-ledger.mjs'
 
-const { checkStanding, latestCheckFor } = ledger
+const { checkStanding, latestCheckFor } = { ...ledger, ...currentLedger }
 // The body `treeChecked` had (check-ledger.mjs, before ADR-101 T1).
 const removedTreeChecked = (log, tree) => latestCheckFor(log, tree)?.event === 'check.passed'
 

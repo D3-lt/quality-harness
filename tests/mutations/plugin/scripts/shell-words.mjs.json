@@ -4,21 +4,21 @@
       "label": "ADR-117 verification: a command of redirections alone is kept for what it writes",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/ledger-writes.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "    if (!empty || command.writes.length) {",
       "to": "    if (!empty) {",
-      "only": "^(?:the verification review's forms are refused, and ordinary content writes are not)$"
+      "only": "^retained shell parser"
     },
     {
       "label": "ADR-117 T1: an output redirection keeps its target",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
-        "tests/ledger-writes.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "      command.writes.push({ op, target: target.value, dynamic: /[$`]/.test(target.value) })",
       "to": "      void 0",
-      "only": "^(?:a write into the state directory is refused, and a read of it, the tools' own runs and a write elsewhere are not)$"
+      "only": "^retained shell parser"
     },
     {
       "label": "shell-words: an arithmetic command is not a heredoc (ADR-067, found by the gate)",

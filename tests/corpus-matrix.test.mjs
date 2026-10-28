@@ -21,6 +21,8 @@ import path from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { linkDirectory } from './symlink-support.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const corporaDir = path.join(repoRoot, 'tests', 'fixtures', 'corpora')

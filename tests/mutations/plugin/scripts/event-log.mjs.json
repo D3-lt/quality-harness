@@ -4,11 +4,11 @@
       "label": "event-log: an event that is not appended is an event no rule can read",
       "file": "plugin/scripts/event-log.mjs",
       "tests": [
-        "tests/observed-events.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "    appendFileSync(file, `${lead}${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
       "to": "    void file",
-      "only": "^(?:a turn end observes the tree without reading any command|one hook delivers every action it records|a check event is written by qh-check|a read-only role cannot commit or push and its other changes are reported|a command naming commit or push is warned before it runs|the scripted session advises as its step table lists|an unchecked commit is named even when its tree equals the session start|a tree the publish warning named still records unverified|many unchecked commits are one finding|writes the tree cannot see re-open the finding|a committed artifact is still validated|a compaction note sees the latest edit|the harness does not observe its own ledger|a turn that ended in a commit names the commit, not a change that is not there|a check that finishes in a later turn clears the finding then|a git query that FAILED is not a git query that found nothing|a log that could not be read whole cannot supply a passing verdict|a session that began before the first commit still sees the commits it gained|a file edited while its gate ran is not recorded as answered|a file edited while the BATCH gated it is not recorded as answered either|a torn checks\\.jsonl cannot leave an older pass standing as the verdict|a write through an in-repository link to an outside file is not observable)$"
+      "only": "^retained event append"
     },
     {
       "label": "identity: only a regular file of bounded size is read, so a FIFO cannot hang the hook",
@@ -48,7 +48,7 @@
       ],
       "from": "  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base",
       "to": "  return base",
-      "only": "leaves nothing in the probed repository"
+      "only": "^stateDir: an override keeps each repository apart$"
     },
     {
       "label": "probe: each repository keeps its own place under the state override",
@@ -64,8 +64,9 @@
       "label": "chaos 916b515 LEAD 2: an append after a torn tail starts a fresh line",
       "file": "plugin/scripts/event-log.mjs",
       "tests": [
-        "tests/publish-hook.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
+      "only": "^retained event append",
       "from": "        if (size > 0 && readSync(fd, last, 0, 1, size - 1) === 1 && last[0] !== 0x0a) lead = '\\n'",
       "to": "        if (false) lead = '\\n'"
     },
@@ -83,10 +84,11 @@
       "label": "§343 review: a sibling of the repository reads as inside it",
       "file": "plugin/scripts/event-log.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
-      "to": "return !(relative === '..' || path.isAbsolute(relative)"
+      "to": "return !(relative === '..' || path.isAbsolute(relative)",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "ADR-094 T4: a path is placed with its parent resolved before the lexical spelling is tried",

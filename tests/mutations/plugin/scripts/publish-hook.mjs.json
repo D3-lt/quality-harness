@@ -34,9 +34,9 @@
       "label": "ADR-068 T1: a scratch repository with no log anywhere still passes",
       "file": "plugin/scripts/publish-hook.mjs",
       "tests": [
-        "tests/publish-hook.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
-      "only": "a checked linked worktree commits",
+      "only": "^retained post-commit tracking",
       "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
       "to": "  if (false) return { code: 0 }"
     }

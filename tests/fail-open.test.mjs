@@ -18,7 +18,9 @@ import * as completionRules from './helpers/node-hooks/completion-rules.mjs'
 import * as sessionNotes from './helpers/node-hooks/session-notes.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { publishCommandIn } from './helpers/node-hooks/publish-command.mjs'
-const lifecycle = { ...lifecycleOwn, ...checkLedger, ...treeFacts, ...checkCommand, ...completionRules, ...sessionNotes, stateDir }
+import * as currentCheckLedger from '../plugin/scripts/check-ledger.mjs'
+import * as currentCheckCommand from '../plugin/scripts/check-command.mjs'
+const lifecycle = { ...lifecycleOwn, ...checkLedger, ...treeFacts, ...checkCommand, ...completionRules, ...sessionNotes, ...currentCheckLedger, ...currentCheckCommand, stateDir }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

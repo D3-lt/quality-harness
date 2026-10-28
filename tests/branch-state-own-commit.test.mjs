@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url'
 import { snapshotKey, unchangedButOwnCommits } from '../plugin/scripts/branch-state.mjs'
 import { readEvents, sessionLogFile } from '../plugin/scripts/event-log.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
 const green = { looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,

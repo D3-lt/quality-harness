@@ -14,6 +14,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { outsideRun } from '../scripts/release-evidence.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 test('scrubber: every absolute path is a placeholder, and a repository-relative one is untouched', () => {
   const scrub = scrubber({ root: '/Users/alice/proj', pluginRoot: '/Users/alice/.claude/plugins/qh', tmp: '/var/folders/xy/T', home: '/Users/alice' })

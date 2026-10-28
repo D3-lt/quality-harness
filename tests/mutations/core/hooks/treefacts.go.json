@@ -20,8 +20,9 @@
       "label": "ADR-120 T9: the Go index's code tree is the working tree's",
       "file": "core/hooks/treefacts.go",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/native-hooks.test.mjs"
       ],
+      "only": "^native index observation",
       "from": "strings.TrimSpace(indexTree.stdout), without)",
       "to": "strings.TrimSpace(tree.stdout), without)"
     }

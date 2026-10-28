@@ -94,12 +94,11 @@
       "label": "fail-open: a pass that started before an unobservable write does not cover it",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/fail-open.test.mjs",
-        "tests/observed-events.test.mjs"
+        "tests/fail-open.test.mjs"
       ],
       "from": "    || pass.startedAt > write.at",
       "to": "    || true",
-      "only": "^(?:a write stays outstanding by log order, not by its timestamp|writes the tree cannot see re-open the finding)$"
+      "only": "^a write stays outstanding by log order, not by its timestamp$"
     },
     {
       "label": "evidence-flip: a pass that survived a torn log certifies nothing, for any caller",
@@ -145,11 +144,11 @@
       "label": "note: an order that cannot be established is said so",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/review-2026-09-19.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (unresolved === 'say-so' && new Set(",
       "to": "  if (false && new Set(",
-      "only": "^(?:an order that cannot be established is said so, not reported as \"the failure ran last\")$"
+      "only": "^retained ledger reports unknown ordering"
     },
     {
       "label": "BACKLOG §319 D: a check record's exit is graded whatever its type",
@@ -165,11 +164,11 @@
       "label": "BACKLOG §319 D: a check record's git is graded whatever its type",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/chaos-e016066.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (typeof record.git !== 'boolean') return 'check.unproven'",
       "to": "  if (record.git == null) return 'check.unproven'",
-      "only": "a check record whose exit is not a number"
+      "only": "^retained ledger reports unknown ordering"
     },
     {
       "label": "ADR-081 T1: a write git cannot see is ignored by the skip",
@@ -185,10 +184,11 @@
       "label": "ADR-081 T2: a failed fast record exempts the commit",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (!latest || checkEventName(latest) !== 'check.passed') return null\n  if (unseenWriteSince(vetoRoot",
-      "to": "  if (!latest) return null\n  if (unseenWriteSince(vetoRoot"
+      "to": "  if (!latest) return null\n  if (unseenWriteSince(vetoRoot",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "ADR-081 review: an unseen write is judged by its clock alone",
@@ -214,28 +214,31 @@
       "label": "§343: a fast pass ignores a write git cannot see",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (unseenWriteSince(vetoRoot, { seen, seq: latestSeq, started: Date.parse(latest.before?.at) })) return null",
-      "to": "  if (false) return null"
+      "to": "  if (false) return null",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "§343 review: a write outside the repository vetoes the pass",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry)) continue",
-      "to": "if (false) continue"
+      "to": "if (false) continue",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "ADR-088 follow-up: the fast exemption reads an unterminated last line as torn",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (lines.pop().trim()) return null\n  let latest = null",
-      "to": "  ;\n  let latest = null"
+      "to": "  ;\n  let latest = null",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "ADR-094 T4: an absolute write outside the root is counted as unseen again",
@@ -271,19 +274,21 @@
       "label": "ADR-081 review: a row that is not a record is read as one by the skip",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "    if (typeof record?.id !== 'string') return null\n    byId.set(record.id, record)\n    count += 1",
-      "to": "    if (false) return null\n    byId.set(record.id, record)\n    count += 1"
+      "to": "    if (false) return null\n    byId.set(record.id, record)\n    count += 1",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "ADR-088 follow-up: qh-check's skip reads an unterminated last line as torn",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (lines.pop().trim()) return null\n  let latest = null",
-      "to": "  ;\n  let latest = null"
+      "to": "  ;\n  let latest = null",
+      "only": "^retained full and fast ledger readers"
     },
     {
       "label": "ADR-101 T2: a torn last line after a pass is refused, not dropped",
@@ -348,10 +353,11 @@
       "label": "ADR-120 T9: a pass carries to a tree under another list than the one it was taken under",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "entry.after?.codeTree === carry.codeTree && sameList(entry.prose, carry.prose)",
-      "to": "entry.after?.codeTree === carry.codeTree"
+      "to": "entry.after?.codeTree === carry.codeTree",
+      "only": "^retained ledger carry"
     },
     {
       "label": "ADR-120 T9: a pass carries to a tree whose code differs",
@@ -366,17 +372,19 @@
       "label": "ADR-120 T9: a write git cannot see no longer ends the carry-over",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null",
-      "to": "carryWith(codeTree, prose)"
+      "to": "carryWith(codeTree, prose)",
+      "only": "^retained ledger carry"
     },
     {
       "label": "ADR-120 T9: the carry stands against a write another session logged after the pass",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
-        "tests/carry-and-probe-fixes.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
+      "only": "^retained ledger carry",
       "from": "return carry && !carriedPassUnseen(log, root, carry) ? carry : null",
       "to": "return carry"
     }

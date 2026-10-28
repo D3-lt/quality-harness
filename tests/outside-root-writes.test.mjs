@@ -15,7 +15,10 @@ import * as lifecycleOwn from './helpers/node-hooks/lifecycle.mjs'
 import * as checkLedger from './helpers/node-hooks/check-ledger.mjs'
 import * as completionRules from './helpers/node-hooks/completion-rules.mjs'
 import { canonical, readEvents } from '../plugin/scripts/event-log.mjs'
-const lifecycle = { ...lifecycleOwn, ...checkLedger, ...completionRules }
+import * as currentCheckLedger from '../plugin/scripts/check-ledger.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
+const lifecycle = { ...lifecycleOwn, ...checkLedger, ...completionRules, ...currentCheckLedger }
 
 const unseen = file => ({ event: 'file.written', path: file, observable: false })
 

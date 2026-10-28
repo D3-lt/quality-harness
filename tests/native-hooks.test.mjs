@@ -7,7 +7,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { itemMarker } from '../plugin/scripts/said-per-context.mjs'
-import { readEvents } from '../plugin/scripts/event-log.mjs'
+import { canonical, readEvents } from '../plugin/scripts/event-log.mjs'
 import { TASKKILL_TIMEOUT_MS, CLEANUP_GRACE_MS, shellHookTimeoutMs } from '../plugin/scripts/run-shell-hook.mjs'
 import { sourceCore } from './helpers/source-core.mjs'
 import { remove } from './helpers/remove.mjs'
@@ -48,11 +48,11 @@ test('native hooks keep skill routing, context markers, and post-commit recordin
     assert.equal(made.status, 0, made.stdout + made.stderr)
     const sha = git('rev-parse', 'HEAD').stdout.trim()
     assert.ok([...readEvents(top, 'native')].some(row => row.event === 'commit.made' && row.sha === sha))
+  } else t.diagnostic('post-commit recording cannot run: this Git has no config-based hooks')
   assert.equal(hook('SessionEnd', { reason: 'prompt_input_exit' }).status, 0)
   const ended = JSON.parse(readFileSync(path.join(env.CLAUDE_PLUGIN_DATA, 'sessions.jsonl'), 'utf8').trim().split('\n').at(-1))
-  const real = realpathSync(top)
+  const real = realpathSync.native(top)
   assert.equal(ended.location, ['darwin', 'win32'].includes(process.platform) ? real.toLowerCase() : real)
-  } else t.diagnostic('post-commit recording cannot run: this Git has no config-based hooks')
 })
 
 test('native bridge deadlines leave room for CLI cleanup inside the host timeout', () => {
@@ -110,9 +110,114 @@ test('the native artifact pass never credits bytes changed while the runner was 
   const before = createHash('sha256').update(readFileSync(record)).digest('hex')
   hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: record } })
   hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'git push' } })
-  const gated = [...readEvents(repo, 'identity')].filter(row => row.event === 'artifact.gated' && path.resolve(row.path) === record).at(-1)
+  const gated = [...readEvents(repo, 'identity')].filter(row => row.event === 'artifact.gated' && canonical(row.path) === canonical(record)).at(-1)
   assert.ok(gated, 'the native pass recorded the runner result')
   assert.equal(gated.blob, before)
   assert.equal(gated.complete, false, 'the changed content has not been checked')
   assert.notEqual(createHash('sha256').update(readFileSync(record)).digest('hex'), before)
+})
+
+test('registered native guard sees PowerShell and preserves role boundaries', t => {
+  const top = mkdtempSync(path.join(os.tmpdir(), 'qh-native-role-'))
+  t.after(() => remove(top))
+  const registry = JSON.parse(readFileSync(path.join(plugin, 'hooks', 'hooks.json'), 'utf8')).hooks
+  for (const [tool_name, tool_input] of [
+    ['PowerShell', { command: 'git push' }],
+    ['mcp__mrw__mrw_write', { plan: '@@ note.txt 0 create\nx\n' }],
+  ]) {
+    const selected = registry.PreToolUse.filter(row => new RegExp(`^(?:${row.matcher})$`).test(tool_name))
+    assert.equal(selected.length, 1, tool_name)
+    assert.ok(selected[0].hooks.some(row => row.args.slice(1).join(' ') === 'hook PreToolUse'))
+    for (const agent_type of ['qh-correctness-reviewer', 'worker']) {
+      const ran = spawnSync(sourceCore(), ['hook', 'PreToolUse'], {
+        cwd: top, input: JSON.stringify({ cwd: top, session_id: 'roles', hook_event_name: 'PreToolUse',
+          agent_type, tool_name, tool_input }),
+        env: { ...process.env, CLAUDE_PLUGIN_ROOT: plugin, CLAUDE_PLUGIN_DATA: path.join(top, 'data') },
+        encoding: 'utf8', timeout: 30_000, windowsHide: true,
+      })
+      assert.equal(ran.status, 0, ran.stderr)
+      const decision = ran.stdout.trim() ? JSON.parse(ran.stdout).hookSpecificOutput?.permissionDecision : undefined
+      if (agent_type === 'worker') assert.notEqual(decision, 'deny')
+      else assert.equal(decision, 'deny', tool_name)
+    }
+  }
+})
+
+test('native index observation distinguishes staged code from working code', () => {
+  const ran = spawnSync('go', ['test', '-p', '2', '-count=1', '-run', '^TestNativeIndexCodeTree$', './hooks'], {
+    cwd: fileURLToPath(new URL('../core/', import.meta.url)),
+    encoding: 'utf8', timeout: 120_000, windowsHide: true,
+  })
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr)
+})
+
+function evidenceFixture(t) {
+  const binary = sourceCore()
+  const root = mkdtempSync(path.join(os.tmpdir(), 'qh-native-evidence-'))
+  t.after(() => remove(root))
+  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: plugin, CLAUDE_PLUGIN_DATA: path.join(root, '.git', 'qh-data'),
+    CLAUDE_ENV_FILE: path.join(root, '.git', 'hook-env'), CLAUDE_CODE_SESSION_ID: 'evidence',
+    QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000', QUALITY_HARNESS_QH_BIN: binary,
+    QUALITY_HARNESS_LEASE_DIR: path.join(root, '.git', 'leases'),
+    GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid',
+    GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
+  for (const key of Object.keys(env)) if (/^GIT_CONFIG_/.test(key)) delete env[key]
+  delete env.NODE_TEST_CONTEXT
+  delete env.QUALITY_HARNESS_CHECK_AGAIN
+  const git = (...args) => {
+    const ran = spawnSync('git', args, { cwd: root, env, encoding: 'utf8', timeout: 20_000, windowsHide: true })
+    assert.equal(ran.status, 0, ran.stderr)
+  }
+  git('init', '-q')
+  mkdirSync(path.join(root, 'docs', 'tasks'), { recursive: true })
+  writeFileSync(path.join(root, '.quality-harness.json'), JSON.stringify({ check: 'node --test check.test.mjs', prose: ['docs/**'] }))
+  writeFileSync(path.join(root, 'source.mjs'), 'one\n')
+  writeFileSync(path.join(root, 'check.test.mjs'), "import test from 'node:test'; import assert from 'node:assert/strict'; import fs from 'node:fs'; test('fixture', () => assert.equal(fs.readFileSync('source.mjs', 'utf8'), 'one\\n'))\n")
+  const task = path.join(root, 'docs', 'tasks', 'T1-fixture.md')
+  writeFileSync(task, '# Task fixture\n')
+  git('add', '-A')
+  git('commit', '-qm', 'fixture')
+  const hook = hook_event_name => {
+    const ran = spawnSync(binary, ['hook', hook_event_name], { cwd: root, env,
+      input: JSON.stringify({ cwd: root, session_id: 'evidence', hook_event_name, source: 'startup', last_assistant_message: 'Finished.' }),
+      encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(ran.status, 0, ran.stderr)
+    return ran.stdout + ran.stderr
+  }
+  hook('SessionStart')
+  const checked = spawnSync(process.execPath, [path.join(plugin, 'scripts', 'qh-check.mjs')], {
+    cwd: root, env, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+  })
+  assert.equal(checked.status, 0, checked.stderr)
+  return { root, task, git, hook, evidence: () => JSON.parse(readFileSync(path.join(env.CLAUDE_PLUGIN_DATA, 'claims.jsonl'), 'utf8').trim().split('\n').at(-1)).evidence }
+}
+
+test('native turn-end record nudges retain code-tree carry while checks remain optional', t => {
+  for (const codeChanged of [false, true]) {
+    const f = evidenceFixture(t)
+    writeFileSync(f.task, '# Task edited after its check\n')
+    if (codeChanged) writeFileSync(path.join(f.root, 'source.mjs'), 'two\n')
+    const said = f.hook('Stop')
+    assert.doesNotMatch(said, /work no .qh-check. has passed on|run the full check/)
+    if (codeChanged) {
+      assert.doesNotMatch(said, /Your check passed with/)
+      assert.equal(f.evidence(), 'unverified')
+    } else {
+      assert.match(said, /Your check passed with/)
+      assert.equal(f.evidence(), 'verified')
+    }
+  }
+})
+
+test('native claim evidence uses each committed code tree rather than working code', t => {
+  for (const codeChanged of [false, true]) {
+    const f = evidenceFixture(t)
+    if (codeChanged) writeFileSync(path.join(f.root, 'source.mjs'), 'two\n')
+    else writeFileSync(f.task, '# Prose-only commit\n')
+    f.git('add', '-A')
+    f.git('commit', '-qm', 'after the check')
+    if (codeChanged) writeFileSync(path.join(f.root, 'source.mjs'), 'one\n')
+    f.hook('Stop')
+    assert.equal(f.evidence(), codeChanged ? 'unverified' : 'verified')
+  }
 })

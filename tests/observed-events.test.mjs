@@ -24,7 +24,8 @@ import * as statusline from '../plugin/scripts/statusline.mjs'
 import { tally } from '../plugin/scripts/claims-rate.mjs'
 import { ABSENT, stateDir } from '../plugin/scripts/event-log.mjs'
 import { persistedEventPath } from '../plugin/scripts/run-shell-hook.mjs'
-const lifecycle = { ...lifecycleOwn, ...treeFacts, ...completionRules, ...publishVerdict, ...checkCommand, ...artifactPass, ...sessionNotes, stateDir }
+import * as currentCheckCommand from '../plugin/scripts/check-command.mjs'
+const lifecycle = { ...lifecycleOwn, ...treeFacts, ...completionRules, ...publishVerdict, ...checkCommand, ...artifactPass, ...sessionNotes, ...currentCheckCommand, stateDir }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

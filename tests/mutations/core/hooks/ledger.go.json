@@ -14,7 +14,7 @@
       "tests": ["tests/prose-pass.test.mjs"],
       "from": "strict(dig(e, \"after\", \"codeTree\"), c.codeTree) && ",
       "to": "",
-      "only": "^(?:a code change, a changed prose list or an unseen write ends the carry-over|the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar)$"
+      "only": "^(?:the Go core's carry rules hold for a list, a code tree, a newer failure, a write and the grammar)$"
     },
     {
       "label": "ADR-120 T9: the Go import drops the list a pass was taken under",

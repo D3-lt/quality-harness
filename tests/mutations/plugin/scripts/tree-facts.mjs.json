@@ -14,11 +14,11 @@
       "label": "BACKLOG §319 H: a start that could not look is a baseline",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [
-        "tests/chaos-e016066.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)",
       "to": "  return log.find(entry => entry.event === 'session.started')",
-      "only": "a session whose first look failed"
+      "only": "^retained observation separates"
     },
     {
       "label": "ADR-094 T3: a project that declares nothing gets a codeTree anyway",
@@ -80,10 +80,11 @@
       "label": "ADR-120 T9: the index's code tree is the working tree's",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "treeWithout(git, env, scratch, 'index-code', indexTree, without)",
-      "to": "treeWithout(git, env, scratch, 'index-code', tree, without)"
+      "to": "treeWithout(git, env, scratch, 'index-code', tree, without)",
+      "only": "^retained observation separates"
     }
   ]
 }

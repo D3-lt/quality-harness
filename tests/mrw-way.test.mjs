@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { mrwOnPath } from '../plugin/scripts/session-orientation.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const skills = path.join(repoRoot, 'plugin', 'skills')

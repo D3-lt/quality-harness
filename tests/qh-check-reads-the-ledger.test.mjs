@@ -11,6 +11,8 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')

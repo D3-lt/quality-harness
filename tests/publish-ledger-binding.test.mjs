@@ -18,7 +18,8 @@ import * as treeFacts from './helpers/node-hooks/tree-facts.mjs'
 import * as checkLedger from './helpers/node-hooks/check-ledger.mjs'
 import * as publishVerdict from './helpers/node-hooks/publish-verdict.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
-const lifecycle = { ...lifecycleOwn, ...treeFacts, ...checkLedger, ...publishVerdict, stateDir }
+import * as currentCheckLedger from '../plugin/scripts/check-ledger.mjs'
+const lifecycle = { ...lifecycleOwn, ...treeFacts, ...checkLedger, ...publishVerdict, ...currentCheckLedger, stateDir }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

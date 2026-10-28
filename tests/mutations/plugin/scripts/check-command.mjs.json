@@ -24,10 +24,11 @@
       "label": "ADR-113 T2: an unreadable declaration is its own origin",
       "file": "plugin/scripts/check-command.mjs",
       "tests": [
-        "tests/refusals-hold.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (problem) return { command: null, origin: 'unreadable', problem }",
-      "to": "  if (false) return { command: null, origin: 'unreadable', problem }"
+      "to": "  if (false) return { command: null, origin: 'unreadable', problem }",
+      "only": "^retained orientation CLI distinguishes"
     },
     {
       "label": "BACKLOG §383: an escaped quote does not close a multi-line basic string",

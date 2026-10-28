@@ -4,28 +4,31 @@
       "label": "ADR-120 T9: the Go claim asks HEAD's commit with its own code tree, not the working tree's",
       "file": "core/hooks/turnend.go",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/native-hooks.test.mjs"
       ],
       "from": "checkStanding(f.log, c.tree, f.carryOf(c.codeTree)) != \"passed\"",
-      "to": "checkStanding(f.log, c.tree, f.carryOf(get(observation, \"codeTree\"))) != \"passed\""
+      "to": "checkStanding(f.log, c.tree, f.carryOf(get(observation, \"codeTree\"))) != \"passed\"",
+      "only": "^native claim evidence"
     },
     {
       "label": "ADR-120 T9: the Go turn end asks the working tree without its code tree",
       "file": "core/hooks/turnend.go",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/native-hooks.test.mjs"
       ],
       "from": "treeCarry := f.carryOf(get(observation, \"codeTree\"))",
-      "to": "var treeCarry *carry"
+      "to": "var treeCarry *carry",
+      "only": "^native turn-end record nudges"
     },
     {
       "label": "ADR-120 T9: the Go turn end gives a commit the working tree's code tree",
       "file": "core/hooks/turnend.go",
       "tests": [
-        "tests/prose-pass.test.mjs"
+        "tests/native-hooks.test.mjs"
       ],
       "from": "c.codeTree = codeTreeOf(root, c.tree, list)",
-      "to": "c.codeTree = strOr(get(observation, \"codeTree\"))"
+      "to": "c.codeTree = strOr(get(observation, \"codeTree\"))",
+      "only": "^native claim evidence"
     },
     {
       "label": "ADR-120 T11: the Go probe reads a command-local assignment as no PATH change",

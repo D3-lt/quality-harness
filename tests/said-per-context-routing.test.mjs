@@ -14,6 +14,8 @@ import { revisionFor } from './helpers/node-hooks/check-ledger.mjs'
 import { remove } from './helpers/remove.mjs'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, realpathSync } from 'node:fs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const MAIN = 'repl_main_thread:outputStyle:Concise'
 const blob = (hash, role, text) => ({ type: 'api-request-blob', hash, message: { role, content: [{ type: 'text', text }] } })

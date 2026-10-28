@@ -9,6 +9,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { failedToRun, probe } from '../plugin/scripts/corpus-probe.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const OVERFLOWED = /^ran, and its output passed the probe's .+ buffer \(ENOBUFS\), so what it said was not read$/

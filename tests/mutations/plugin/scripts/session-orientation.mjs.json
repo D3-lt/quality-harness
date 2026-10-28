@@ -4,29 +4,29 @@
       "label": "ADR-130: session orientation demands a recorded check",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/optional-check.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "      + '`qh-check` optionally records a run for status and reports (ADR-130).')",
       "to": "      + 'Run it through `qh-check`.')",
-      "only": "^SessionStart neither spawns"
+      "only": "^retained orientation CLI keeps checks optional"
     },
     {
       "label": "ADR-122 T3: a standing paragraph said carries its marker",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/said-per-context-routing.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "lines.push(mark ? `${text} ${itemMarker('standing', text)}` : text)",
       "to": "lines.push(text)",
-      "only": "^(?:a standing paragraph is said once per context, not once per three days)$"
+      "only": "^retained orientation API marks each standing paragraph"
     },
     {
       "label": "lifecycle: listing-null still opens the shadow-install notice",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
-      "only": "listing-null still names a stale shadow install",
+      "only": "^retained orientation CLI reports a shadow",
       "from": "  if (check || corpusLook === true || corpusLook === 'UNPROVEN') {",
       "to": "  if (check || corpusLook === true) {"
     },
@@ -64,11 +64,11 @@
       "label": "§319 H1: SessionStart's Verification line prints the declared check raw",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/chaos-e016066.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "? `this project's own check is ${checkInCode(check)}`",
       "to": "? `this project's own check is \\`${check}\\``",
-      "only": "a declared check cannot forge a line"
+      "only": "^retained orientation CLI keeps checks optional"
     },
     {
       "label": "§321 codex render: SessionStart prints an unmarked archive's name raw",
@@ -114,11 +114,11 @@
       "label": "golden: the orientation's check sentence changes",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/hook-goldens.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "`this project's own check is ${checkInCode(check)}`",
       "to": "`this project's check is ${checkInCode(check)}`",
-      "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
+      "only": "^retained orientation CLI keeps checks optional"
     },
     {
       "label": "ADR-099 T1: the hook output names no ready task",
@@ -154,21 +154,21 @@
       "label": "ADR-107 T3: mrw is named only when it answers --version in its own shape",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/mrw-way.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "return /^mrw version v\\d+\\.\\d+/.test(version(candidate, env)) ? candidate : null",
       "to": "return candidate",
-      "only": "^a session with mrw on PATH is told it is there, and a session without it is told nothing$"
+      "only": "^retained orientation CLI names only a verified mrw"
     },
     {
       "label": "ADR-107 T3: the mrw line is said only when mrw resolves",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/mrw-way.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "if ((check || corpusLook === true) && mrwOnPath()) {",
       "to": "if (check || corpusLook === true) {",
-      "only": "^a session with mrw on PATH is told it is there, and a session without it is told nothing$"
+      "only": "^retained orientation CLI names only a verified mrw"
     },
     {
       "label": "ADR-107 T3: Windows resolves mrw.exe and POSIX does not",
@@ -184,11 +184,11 @@
       "label": "ADR-107 T3: QUALITY_HARNESS_NO_MRW asks about the project, not the machine",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/mrw-way.test.mjs"
+        "tests/retained-cli.test.mjs"
       ],
       "from": "  if (env.QUALITY_HARNESS_NO_MRW === '1') return null\n",
       "to": "",
-      "only": "^corpus-probe asks SessionStart about the corpus, not about the machine it runs on$"
+      "only": "^retained orientation CLI names only a verified mrw"
     }
   ]
 }

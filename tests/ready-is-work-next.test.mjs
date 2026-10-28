@@ -8,6 +8,8 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const temps = []

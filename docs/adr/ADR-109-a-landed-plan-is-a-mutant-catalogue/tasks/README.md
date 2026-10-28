@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Measure what the tests do not see in this repository's own landed hunks | pending | none — no spec | human-observed: the counts in the record's Follow-ups |
+| T1 | Measure what the tests do not see in this repository's own landed hunks | done | none — no spec | human-observed: the counts in the record's Follow-ups |
 | T2 | adr-verify runs a landed plan's inverses, and breaks its invariants, as mutants | pending | none — no spec | `node --test tests/inverse-plan.test.mjs` (named test passes, nothing skipped) |
 
 ## Contract Coupling

@@ -67,3 +67,4 @@ Stop and ask if the run cannot finish under load below the core count within an 
 - Any change to the plugin (permanent: boundary: T1 measures; T2 builds)
 
 ## Verification Log
+- 2026-10-28 · human-observed · Zy, 2026-10-28: signed off. Range v3.8.40..f01b174a: the 2026-10-17 run (contended) plus 5532409e^..f01b174a measured 2026-10-28 uncontended, load at most 9.12 on 10 cores. The inverse left 14 of 63 judged hunks unnoticed there (22%), 32 of 154 over the whole range (21%), against Decision 1's threshold of one in ten; the counts are a floor. Decision: keep the record and build T2. · acceptance-sha256:dcf3a6c93d90542ceed3932ed4cacc0aa2e56edeecb73bcc2b066e91fee24ca1

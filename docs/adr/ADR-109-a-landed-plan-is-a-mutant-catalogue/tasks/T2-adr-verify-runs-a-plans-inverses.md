@@ -14,7 +14,6 @@ For a plan that has landed, run each hunk's inverse as a mutant through the exis
 survived in the Mutation Log, and restore the tree; and for each of the task's `## Invariants` that names a site the plan
 touched, run the inverse of those sites together and report the invariant `unguarded` when the fence stays green, `unread`
 when it names nothing the plan touched (ADR-109, Decisions 2, 3 and 4).
-survived in the Mutation Log, and restore the tree (ADR-109, Decisions 2 and 3).
 
 ## Affected Files
 
@@ -28,7 +27,7 @@ survived in the Mutation Log, and restore the tree (ADR-109, Decisions 2 and 3).
 ## Ordered Steps
 
 1. [S1] Add the test below and record the red run.
-2. [S2] Implement `--inverse`; a plan whose hunk body is not at its address is refused as not landed, before any fence runs.
+2. [S2] Implement `--inverse`; a plan whose hunk body is not at its address is refused as not landed, before any fence runs. A plan carries only its new lines, so the original lines are read from git at `--before <ref>`, HEAD when it is not given (the owner, 2026-10-28): HEAD for a plan landed in the working tree, `<sha>^` for one landed in commit `<sha>`. A hunk whose lines at that ref are already its body has not landed there.
 3. [S3] Implement `--break-invariants`: resolve each `## Invariants` bullet's backticked names through adr-lint's existing resolver to the plan's hunks; an invariant with no resolved site is `unread`; one with sites runs their inverses together and is `unguarded` on a green fence, `guarded` on a red one. Each verdict is one Mutation Log row naming the bullet.
 4. [S4] Add the catalogue mutants (a survivor recorded as killed; a hunk left restored after exit; a not-landed plan run; an invariant with no resolved site reported unguarded) and record a killed mutant. [proof: mutation]
 
@@ -45,7 +44,10 @@ out=$(node --test --test-reporter=tap tests/inverse-plan.test.mjs 2>&1) \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `a landed plan's inverses are run one at a time, a survivor is named by its address, and the tree is restored` | `tests/inverse-plan.test.mjs` | through the CLI on a fixture: a two-hunk plan where the fence sees one hunk gives one killed row and one survived row naming the address, exit 1; every file is byte-identical after; a plan that has not landed is refused with nothing run or written; a plan whose every hunk is seen exits 0 | — | S1, S2, S3 |
+| `a plan landed in a commit is read against the ref --before names, and one whose every hunk is seen exits 0` | `tests/inverse-plan.test.mjs` | `--before HEAD~1` reads a committed plan's original lines; against HEAD the same plan has not landed | — | S2 |
+| `an invariant whose named sites reverse with the fence green is unguarded, one naming nothing the plan touched is unread` | `tests/inverse-plan.test.mjs` | `--break-invariants`: guarded, unguarded and unread on one fixture, one row per run invariant, the tree restored | — | S3 |
 
+| `a hunk's place in today's file moves by the lines the hunks above it added or deleted` | `tests/inverse-plan.test.mjs` | a hunk that grew and a delete above a third hunk: each found where today's file holds it, the delete's inverse an insert | — | S2 |
 ## Reachability
 
 | Rung | How this task shows it |
@@ -56,6 +58,7 @@ out=$(node --test --test-reporter=tap tests/inverse-plan.test.mjs 2>&1) \
 | 4 — it is used | the test drives the CLI |
 
 ## Mutation Log
+- 2026-10-28 · 2a0d6c10* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a plan whose body is not at its address is refused before any fence runs; without the check the named test's not-landed plan is run · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7
 
 ## Invariants
 
@@ -75,3 +78,8 @@ Stop and ask if `--mutant-plan`'s transaction cannot hold several sequential mut
 - Generated variants (permanent: boundary: ADR-109 alternative (a))
 
 ## Verification Log
+- 2026-10-28 · 2a0d6c10* · exit 1 · `out=$(node --test --test-reporter=tap tests/inverse-plan.test.mjs 2>&1) \ …` · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7 · ms:1841 · test-lock-sha256:35c33b4603dc1509f1090fc0d344cc2356ed7bb6e5dde506caa3fd1412abb022 · test-lock-file:docs/adr/locks/35c33b4603dc1509f1090fc0d344cc2356ed7bb6e5dde506caa3fd1412abb022.lock
+  ```
+  ```
+- 2026-10-28 · 2a0d6c10* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7 · ms:0 · test-lock-sha256:4b83f053a53255330f5293f694d59bfb1721cc2e92793849eef14864f76ce735 · test-lock-file:docs/adr/locks/4b83f053a53255330f5293f694d59bfb1721cc2e92793849eef14864f76ce735.lock · test-lock-kind:replace
+- 2026-10-28 · 2a0d6c10* · exit 0 · `out=$(node --test --test-reporter=tap tests/inverse-plan.test.mjs 2>&1) \ …` · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7 · ms:8703

@@ -213,6 +213,13 @@ you then read the result. Both spellings have put a red tree on `main`.
    names them all. `create`/`unlink`/`rename`, the `sha=`/`lines=`/`anchor=` guards and a body line
    starting with `@@` are refused.
 
+   Once a plan has landed and the fence is green, `adr-verify <task.md> --inverse <plan-file>` runs it
+   backwards, one hunk at a time, as `--mutant-plan` runs with their own rows: a `survived` hunk is a
+   change the tests do not see (ADR-109). The original lines come from git at `--before <ref>`
+   (default HEAD; `<sha>^` for a committed plan). `--break-invariants <plan-file>` does the same for
+   each `## Invariants` bullet through the hunks its backticked names reach: `unguarded` is a contract
+   the tests do not hold, `unread` one that names nothing the plan touched. Writing the test is yours.
+
    A `--mutant` run executes both fences in a worktree of the checkout, which carries tracked and
    untracked files but **no ignored one** — no `node_modules`, virtualenv or build output. A fence
    that needs one makes it itself (`npm ci` first), or the run takes `--in-place`.

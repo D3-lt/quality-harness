@@ -1,0 +1,4 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/inverse-plan.test.mjs	a landed plan's inverses are run one at a time, a survivor is named by its address, and the tree is restored	f0a48deb82b20edc2c2cb074e462711d830d0c8f11daf62846bcee752d792f54
+body	tests/inverse-plan.test.mjs	a plan landed in a commit is read against the ref --before names, and one whose every hunk is seen exits 0	92ce91467461f414ed6d255a7cda6d04f42dbdb75dec8731f8fd7b722b0bb17a
+body	tests/inverse-plan.test.mjs	an invariant whose named sites reverse with the fence green is unguarded, one naming nothing the plan touched is unread	2b203e468e2c1a6a92fca40cc702170233f852e02e2f21e4d37cbd3a67217369

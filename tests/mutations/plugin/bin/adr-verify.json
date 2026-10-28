@@ -1,6 +1,62 @@
 {
   "mutations": [
     {
+      "label": "ADR-109 T2: a survivor of --inverse is said as survived",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "        words = {0: \"killed\", 1: \"survived\", 4: \"inconclusive\"}",
+      "to": "        words = {0: \"killed\", 1: \"killed\", 4: \"inconclusive\"}"
+    },
+    {
+      "label": "ADR-109 T2: any survivor makes --inverse exit 1",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "        survived |= code == 1",
+      "to": "        survived |= False"
+    },
+    {
+      "label": "ADR-109 T2: a plan whose body is not at its address is not run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "            elif body and now[at:at + len(body)] != body:",
+      "to": "            elif False:"
+    },
+    {
+      "label": "ADR-109 T2: a hunk whose lines at --before are already its body has not landed there",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "            if body == original:",
+      "to": "            if False:"
+    },
+    {
+      "label": "ADR-109 T2: a hunk's place moves by the hunks above it",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "            shift += len(body) - (end - start)",
+      "to": "            shift += 0"
+    },
+    {
+      "label": "ADR-109 T2: --before names the ref the original lines are read from",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "                             before or \"HEAD\", invariants=",
+      "to": "                             \"HEAD\", invariants="
+    },
+    {
+      "label": "ADR-109 T2: an invariant naming nothing the plan touched is unread, never run",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "        if not reached:",
+      "to": "        if False:"
+    },
+    {
+      "label": "ADR-109 T2: an invariant reaches a hunk through a name in its lines",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "path.endswith(\"/\" + name) or any(name in line for line in lines)",
+      "to": "path.endswith(\"/\" + name)"
+    },
+    {
       "label": "ADR-129 T2: adr-verify writes a run's lock inline",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/lock-sidecar-write.test.mjs"],

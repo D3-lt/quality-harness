@@ -1782,20 +1782,33 @@ def _git_show(cwd, ref, rel):
     return r.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n") if r.returncode == 0 else None
 
 
-def _inverse_hunk(rel, at, body, original):
-    """The plan hunk that puts `original` back where `body` stands, from index `at`, in today's file."""
-    restored = "".join(f"{line}\n" for line in original)
+def _inverse_hunk(rel, at, body, original, now):
+    """(header, lines) of the plan hunk that puts `original` back where `body` stands, from index `at` of today's file
+    `now`; None when no plan hunk can, because every line of the file was deleted and an empty file has no line to
+    address (the Codex review of f6d81a58)."""
     if body and original:
-        return f"@@ {rel} {at + 1}-{at + len(body)} replace\n{restored}"
+        return f"@@ {rel} {at + 1}-{at + len(body)} replace", original
     if body:
-        return f"@@ {rel} {at + 1}-{at + len(body)} delete\n"
+        return f"@@ {rel} {at + 1}-{at + len(body)} delete", []
+    if not now:
+        return None
     if at == 0:
-        return f"@@ {rel} 1 insert-before\n{restored}"
-    return f"@@ {rel} {at} insert-after\n{restored}"
+        return f"@@ {rel} 1 insert-before", original
+    return f"@@ {rel} {at} insert-after", original
+
+
+def inverse_plan(inverses):
+    """One --mutant-plan from several inverses. Deletions that met leave one insertion point, and two hunks at one point
+    are refused as overlapping, so their restorations are one hunk, in the order the lines stood."""
+    joined = {}
+    for inverse in sorted(inverses, key=lambda each: (each["hunk"]["path"], each["start"])):
+        header, lines = inverse["inverse"]
+        joined.setdefault(header, []).extend(lines)
+    return "".join(header + "\n" + "".join(f"{line}\n" for line in lines) for header, lines in joined.items())
 
 
 def inverse_hunks(cwd, plan_text, before):
-    """[(hunk, inverse plan, original lines)] for a plan that landed on `before`, in plan order, or a refusal.
+    """[{hunk, inverse, original, start}] for a plan that landed on `before`, in plan order, or a refusal.
 
     A plan's addresses are read from the file it was written against (ADR-107), here `before`'s copy, so a hunk's
     place in today's file is its address moved by the hunks above it. It has landed when its body is at that place and
@@ -1824,6 +1837,11 @@ def inverse_hunks(cwd, plan_text, before):
                 if spans_clash(span, other):
                     problems.append(f"{rel}: the hunks at plan lines {earlier['line']} and {hunk['line']} overlap")
             spans.append((span, hunk))
+        # What the plan leaves: a hunk has landed only where today's lines around it are these (a deletion has no body
+        # to look for, so its neighbours are what show it happened; the Codex review of f6d81a58).
+        expected = list(old)
+        for (start, end), hunk in sorted(spans, key=lambda item: item[0])[::-1]:
+            expected[start:end] = [] if hunk["op"] == "delete" else hunk["body"]
         shift = 0
         for (start, end), hunk in sorted(spans, key=lambda item: item[0]):
             body = [] if hunk["op"] == "delete" else hunk["body"]
@@ -1834,12 +1852,14 @@ def inverse_hunks(cwd, plan_text, before):
                 problems.append(f"{where}: not landed on {before}: its lines there are already its body")
             elif body and now[at:at + len(body)] != body:
                 problems.append(f"{where}: not landed: its body is not at line {at + 1} of {rel}")
-            elif not body and now[at:at + len(original)] == original:
-                problems.append(f"{where}: not landed: the lines it deletes are still at line {at + 1} of {rel}")
+            elif now[max(at - 1, 0):at + len(body) + 1] != expected[max(at - 1, 0):at + len(body) + 1]:
+                problems.append(f"{where}: not landed: the lines around line {at + 1} of {rel} are not the ones the "
+                                f"plan leaves there")
             elif any(line.startswith("@@") for line in original):
                 problems.append(f"{where}: a line it replaced starts with @@, which a plan body cannot carry")
             else:
-                found[hunk["line"]] = (hunk, _inverse_hunk(rel, at, body, original), original)
+                found[hunk["line"]] = {"hunk": hunk, "inverse": _inverse_hunk(rel, at, body, original, now),
+                                       "original": original, "start": start}
     if problems:
         fail("the plan is refused, nothing was run:\n  - " + "\n  - ".join(problems))
     return [found[line] for line in sorted(found)]
@@ -1866,7 +1886,7 @@ def invariant_sites(text, inverses):
         names = [name for name in names if name]
         reached = []
         for inverse in inverses:
-            hunk, _, original = inverse
+            hunk, original = inverse["hunk"], inverse["original"]
             path = hunk["path"].replace("\\", "/")
             lines = hunk["body"] + original
             if any(name == path or path.endswith("/" + name) or any(name in line for line in lines) for name in names):
@@ -1875,21 +1895,38 @@ def invariant_sites(text, inverses):
     return sites
 
 
+# The row a --mutant-plan child prints for the verdict it reached, and the exit that verdict carries.
+VERDICT_ROW = re.compile(r"^- \S+ · \S+ · mutant (killed|survived|inconclusive) · exit -?\d+ ·", re.M)
+VERDICT_EXIT = {"killed": 0, "survived": 1, "inconclusive": 4}
+
+
 def _run_inverse_plan(task, cwd, plan_text, why):
-    """(exit, output) of one --mutant-plan child for `plan_text`, or (None, why it could not run)."""
+    """(verdict, output) of one --mutant-plan child; the verdict is None when it reached none.
+
+    The verdict is the Mutation Log row the child printed, taken only when its exit agrees: the child also exits 1 when
+    its clean fence failed before any mutant was applied, and so does a crash (the Codex review of f6d81a58). Its bound
+    is two fences and slack from the fence timeout the child itself reads, both resolved from this process's directory.
+    Past it `run_bounded` ends the child's whole process tree, fences included, and the restore journal the child wrote
+    before it mutated anything is recovered (ADR-002), so the bound never leaves a mutant in the tree or a fence behind."""
     with tempfile.TemporaryDirectory(prefix="qh-inverse-") as scratch:
         plan = Path(scratch, "inverse.plan")
         plan.write_text(plan_text, encoding="utf-8")
         argv = [sys.executable, os.path.realpath(__file__), str(task), "--cwd", str(cwd),
                 "--mutant-plan", str(plan), "--why", why]
         try:
-            r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               timeout=2 * fence_timeout(start=cwd) + INVERSE_RUN_SLACK, **NO_WINDOW)
-        except subprocess.TimeoutExpired:
-            return None, "the --mutant-plan run did not end within its bound"
+            child = run_bounded(argv, timeout=2 * fence_timeout() + INVERSE_RUN_SLACK, capture_output=True,
+                                text=True, encoding="utf-8", errors="replace")
+        except subprocess.TimeoutExpired as expired:
+            recover_mutant(cwd)
+            return None, (f"{decode_stream(expired.output or b'')}\nthe --mutant-plan run did not end within its "
+                          f"bound: its process tree was ended and its restore journal recovered")
         except OSError as exc:
             return None, os_reason(exc)
-    return r.returncode, r.stdout + r.stderr
+    output = (child.stdout or "") + (child.stderr or "")
+    found = VERDICT_ROW.findall(output)
+    if len(found) == 1 and VERDICT_EXIT[found[0]] == child.returncode:
+        return found[0], output
+    return None, output
 
 
 def run_inverse(task, text, cwd, plan_path, before, invariants):
@@ -1907,26 +1944,31 @@ def run_inverse(task, text, cwd, plan_path, before, invariants):
     if invariants:
         runs = [(bullet, reached, f"the invariant broken through {name}: {' '.join(bullet.replace('·', '-').split())}")
                 for bullet, reached in invariant_sites(text, inverses)]
-        words = {0: "guarded", 1: "unguarded", 4: "inconclusive"}
+        words = {"killed": "guarded", "survived": "unguarded", "inconclusive": "inconclusive"}
     else:
         runs = [(f"{hunk['path']} {hunk['addr']} {hunk['op']} (plan line {hunk['line']})", [inverse],
                  f"the inverse of plan line {hunk['line']} ({hunk['path']} {hunk['addr']} {hunk['op']}) of {name}")
-                for inverse in inverses for hunk in [inverse[0]]]
-        words = {0: "killed", 1: "survived", 4: "inconclusive"}
+                for inverse in inverses for hunk in [inverse["hunk"]]]
+        words = {"killed": "killed", "survived": "survived", "inconclusive": "inconclusive"}
     survived = unjudged = False
     for label, reached, why in runs:
         if not reached:
             print(f"unread       {label}")
             continue
-        code, output = _run_inverse_plan(task, cwd, "".join(inverse for _, inverse, _ in reached), why)
-        word = words.get(code, "not run")
-        print(f"{word:<12} {label}")
-        if word == "not run":
+        emptied = sorted({inverse["hunk"]["path"] for inverse in reached if inverse["inverse"] is None})
+        if emptied:
+            print(f"not run      {label}")
+            print(f"    every line of {', '.join(emptied)} was deleted, and a plan cannot address a line in an empty file")
+            unjudged = True
+            continue
+        verdict, output = _run_inverse_plan(task, cwd, inverse_plan(reached), why)
+        print(f"{words.get(verdict, 'not run'):<12} {label}")
+        if verdict is None:
             unjudged = True
             for line in output.strip().split("\n")[-5:]:
                 print(f"    {line}")
-        survived |= code == 1
-        unjudged |= code == 4
+        survived |= verdict == "survived"
+        unjudged |= verdict == "inconclusive"
     return 1 if survived else 4 if unjudged else 0
 
 

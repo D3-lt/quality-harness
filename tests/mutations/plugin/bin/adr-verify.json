@@ -4,15 +4,43 @@
       "label": "ADR-109 T2: a survivor of --inverse is said as survived",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/inverse-plan.test.mjs"],
-      "from": "        words = {0: \"killed\", 1: \"survived\", 4: \"inconclusive\"}",
-      "to": "        words = {0: \"killed\", 1: \"killed\", 4: \"inconclusive\"}"
+      "from": "        words = {\"killed\": \"killed\", \"survived\": \"survived\", \"inconclusive\": \"inconclusive\"}",
+      "to": "        words = {\"killed\": \"killed\", \"survived\": \"killed\", \"inconclusive\": \"inconclusive\"}"
     },
     {
       "label": "ADR-109 T2: any survivor makes --inverse exit 1",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/inverse-plan.test.mjs"],
-      "from": "        survived |= code == 1",
+      "from": "        survived |= verdict == \"survived\"",
       "to": "        survived |= False"
+    },
+    {
+      "label": "ADR-109 T2: a child's verdict is the row it printed, never its exit alone",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "    found = VERDICT_ROW.findall(output)",
+      "to": "    found = [{0: \"killed\", 1: \"survived\"}.get(child.returncode, \"inconclusive\")]"
+    },
+    {
+      "label": "ADR-109 T2: a deletion is landed only where its neighbours are what the plan leaves",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "            elif now[max(at - 1, 0):at + len(body) + 1] != expected[max(at - 1, 0):at + len(body) + 1]:",
+      "to": "            elif False:"
+    },
+    {
+      "label": "ADR-109 T2: restorations at one insertion point are one hunk",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "        joined.setdefault(header, []).extend(lines)",
+      "to": "        joined[f\"{header} \" * (len(joined) + 1)] = lines"
+    },
+    {
+      "label": "ADR-109 T2: a file the plan emptied is not run, and said why",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/inverse-plan.test.mjs"],
+      "from": "    if not now:\n        return None",
+      "to": "    if False:\n        return None"
     },
     {
       "label": "ADR-109 T2: a plan whose body is not at its address is not run",

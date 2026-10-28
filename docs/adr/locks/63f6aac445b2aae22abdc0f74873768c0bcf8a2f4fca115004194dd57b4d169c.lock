@@ -1,0 +1,7 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/inverse-plan.test.mjs	a child that reaches no verdict is never one: a failed clean fence, a fence past its time, an emptied file	4d734c26063eaa7f9785bf52e016ceeb3a3419018e1a1e95d360751117ba4147
+body	tests/inverse-plan.test.mjs	a deletion that never landed is refused, and deletions that met are put back as one hunk	25e6ad0a3aa343b24aab4a257543d9a13be1bf992d6dc7b6fe7bc556642d6e25
+body	tests/inverse-plan.test.mjs	a hunk's place in today's file moves by the lines the hunks above it added or deleted	de23f50f3a8bef3a195ab5d04aff1ac5706d45261b3145d1e8ddd50f3ac60c3e
+body	tests/inverse-plan.test.mjs	a landed plan's inverses are run one at a time, a survivor is named by its address, and the tree is restored	6c4753f08f3af3bb593c8fda78a4c79aa2f20bb55ec148c144926f0cc0cd9ad9
+body	tests/inverse-plan.test.mjs	a plan landed in a commit is read against the ref --before names, and one whose every hunk is seen exits 0	3c1e14dd2e186bfad7ab830dd63b305e8888ebe6df0fc62a4e641726f3a52516
+body	tests/inverse-plan.test.mjs	an invariant whose named sites reverse with the fence green is unguarded, one naming nothing the plan touched is unread	fed857ab2adfb7ce8d3b02843bb45e5bbae948386cd38c7f701dcad88840db55

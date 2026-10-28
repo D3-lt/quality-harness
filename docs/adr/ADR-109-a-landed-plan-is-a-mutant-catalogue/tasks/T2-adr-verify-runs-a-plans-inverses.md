@@ -46,8 +46,10 @@ out=$(node --test --test-reporter=tap tests/inverse-plan.test.mjs 2>&1) \
 | `a landed plan's inverses are run one at a time, a survivor is named by its address, and the tree is restored` | `tests/inverse-plan.test.mjs` | through the CLI on a fixture: a two-hunk plan where the fence sees one hunk gives one killed row and one survived row naming the address, exit 1; every file is byte-identical after; a plan that has not landed is refused with nothing run or written; a plan whose every hunk is seen exits 0 | — | S1, S2, S3 |
 | `a plan landed in a commit is read against the ref --before names, and one whose every hunk is seen exits 0` | `tests/inverse-plan.test.mjs` | `--before HEAD~1` reads a committed plan's original lines; against HEAD the same plan has not landed | — | S2 |
 | `an invariant whose named sites reverse with the fence green is unguarded, one naming nothing the plan touched is unread` | `tests/inverse-plan.test.mjs` | `--break-invariants`: guarded, unguarded and unread on one fixture, one row per run invariant, the tree restored | — | S3 |
-
 | `a hunk's place in today's file moves by the lines the hunks above it added or deleted` | `tests/inverse-plan.test.mjs` | a hunk that grew and a delete above a third hunk: each found where today's file holds it, the delete's inverse an insert | — | S2 |
+| `a child that reaches no verdict is never one: a failed clean fence, a fence past its time, an emptied file` | `tests/inverse-plan.test.mjs` | a verdict only from the row a child printed with an agreeing exit, never from its exit alone; a file emptied by the plan is not run, and said why (the Codex review of f6d81a58) | — | S2 |
+| `a deletion that never landed is refused, and deletions that met are put back as one hunk` | `tests/inverse-plan.test.mjs` | a deletion is landed only where its neighbours are what the plan leaves; two deletions at one insertion point are one restoring hunk (the Codex review of f6d81a58) | — | S2, S3 |
+
 ## Reachability
 
 | Rung | How this task shows it |
@@ -83,3 +85,4 @@ Stop and ask if `--mutant-plan`'s transaction cannot hold several sequential mut
   ```
 - 2026-10-28 · 2a0d6c10* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7 · ms:0 · test-lock-sha256:4b83f053a53255330f5293f694d59bfb1721cc2e92793849eef14864f76ce735 · test-lock-file:docs/adr/locks/4b83f053a53255330f5293f694d59bfb1721cc2e92793849eef14864f76ce735.lock · test-lock-kind:replace
 - 2026-10-28 · 2a0d6c10* · exit 0 · `out=$(node --test --test-reporter=tap tests/inverse-plan.test.mjs 2>&1) \ …` · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7 · ms:8703
+- 2026-10-28 · f6d81a58* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a8e43b2958d8b37f3f26a134323710be0b74e8ac14068132b13fbacfcbf96dc7 · ms:0 · test-lock-sha256:63f6aac445b2aae22abdc0f74873768c0bcf8a2f4fca115004194dd57b4d169c · test-lock-file:docs/adr/locks/63f6aac445b2aae22abdc0f74873768c0bcf8a2f4fca115004194dd57b4d169c.lock · test-lock-kind:replace

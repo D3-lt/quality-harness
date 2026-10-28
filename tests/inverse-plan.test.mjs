@@ -18,6 +18,7 @@ const TASK = path.join('tasks', 'T1-fixture.md')
 // The fence sees `ALPHA` and nothing else, so the inverse of the hunk that wrote it is killed and the other survives.
 const FENCE = [
   '```bash',
+  'if [ -n "$FIXTURE_SLOW" ]; then sleep "$FIXTURE_SLOW"; fi',
   'if ! grep -qx ALPHA src.txt; then echo "1 failed in 0.01s"; exit 1; fi',
   'echo "1 passed in 0.01s"',
   '```',
@@ -43,10 +44,10 @@ function corpus(t, invariants) {
   return { dir, plan }
 }
 
-function verify(dir, args) {
+function verify(dir, args, env = {}) {
   const argv = [path.join(bin, 'adr-verify'), TASK, '--cwd', '.', ...args]
   return spawnSync(process.platform === 'win32' ? 'python3' : argv[0], process.platform === 'win32' ? argv : argv.slice(1),
-    { cwd: dir, encoding: 'utf8', timeout: 300_000, windowsHide: true })
+    { cwd: dir, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 300_000, windowsHide: true })
 }
 
 /** Every file under `dir` but `.git` and the task file, by digest. */
@@ -150,4 +151,51 @@ test('an invariant whose named sites reverse with the fence green is unguarded, 
   assert.equal(rows(dir, 'survived').length, 1, mutationLog(dir))
   assert.deepEqual(snapshot(dir), before)
   lint(dir)
+})
+
+// The Codex review of f6d81a58: a child exits 1 when its clean fence failed and nothing was mutated, so its exit alone is
+// no verdict; only the row it printed is one.
+test('a child that reaches no verdict is never one: a failed clean fence, a fence past its time, an emptied file', t => {
+  const { dir, plan } = corpus(t)
+  const git = args => spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  // Without ALPHA the clean fence fails before the inverse of the GAMMA hunk is ever applied.
+  writeFileSync(path.join(dir, 'src.txt'), 'alpha\nbeta\nGAMMA\n')
+  const red = verify(dir, ['--inverse', plan('@@ src.txt 3 replace\nGAMMA\n')])
+  assert.equal(red.status, 4, red.stdout + red.stderr)
+  assert.match(red.stdout, /^not run +src\.txt 3 replace\b/m)
+  assert.equal(rows(dir, 'survived').length, 0, mutationLog(dir))
+  writeFileSync(path.join(dir, 'src.txt'), 'ALPHA\nbeta\nGAMMA\n')
+  const before = snapshot(dir)
+  // A clean fence past its time: the child's own bound ends it, and the parent's, read the same way, is longer.
+  const slow = verify(dir, ['--inverse', plan('@@ src.txt 3 replace\nGAMMA\n')], { FIXTURE_SLOW: '5', QUALITY_HARNESS_FENCE_TIMEOUT: '1' })
+  assert.equal(slow.status, 4, slow.stdout + slow.stderr)
+  assert.match(slow.stdout, /^not run +src\.txt 3 replace\b/m)
+  assert.deepEqual(snapshot(dir), before)
+  // Every line of a file deleted: no plan hunk can address an empty file, so it is not run, and said why.
+  writeFileSync(path.join(dir, 'gone.txt'), 'x\n')
+  assert.equal(git(['add', 'gone.txt']).status, 0)
+  assert.equal(git(['commit', '-qm', 'gone']).status, 0)
+  writeFileSync(path.join(dir, 'gone.txt'), '')
+  const empty = verify(dir, ['--inverse', plan('@@ gone.txt 1 delete\n')])
+  assert.equal(empty.status, 4, empty.stdout + empty.stderr)
+  assert.match(empty.stdout, /^not run +gone\.txt 1 delete\b/m)
+  assert.match(empty.stdout, /a plan cannot address a line in an empty file/)
+  assert.equal(rows(dir, 'survived').length + rows(dir, 'killed').length, 0, mutationLog(dir))
+})
+
+test('a deletion that never landed is refused, and deletions that met are put back as one hunk', t => {
+  const { dir, plan } = corpus(t, '- `beta` and `gamma` stay deleted.')
+  // Line 2 replaced, not deleted: the line is gone from its place, but what stands there is not what the plan leaves.
+  writeFileSync(path.join(dir, 'src.txt'), 'alpha\nB\ngamma\n')
+  const replaced = verify(dir, ['--inverse', plan('@@ src.txt 2 delete\n')])
+  assert.equal(replaced.status, 2, replaced.stdout + replaced.stderr)
+  assert.match(replaced.stdout, /not landed: the lines around line 2/)
+  // Lines 2 and 3 deleted: both inverses insert after line 1, which one invariant reaches together.
+  writeFileSync(path.join(dir, 'src.txt'), 'ALPHA\n')
+  const before = snapshot(dir)
+  const run = verify(dir, ['--break-invariants', plan('@@ src.txt 1 replace\nALPHA\n@@ src.txt 2 delete\n@@ src.txt 3 delete\n')])
+  assert.equal(run.status, 1, run.stdout + run.stderr)
+  assert.match(run.stdout, /^unguarded +`beta` and `gamma` stay deleted\./m)
+  assert.equal(rows(dir, 'survived').length, 1, mutationLog(dir))
+  assert.deepEqual(snapshot(dir), before)
 })

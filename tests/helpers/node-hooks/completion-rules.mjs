@@ -3,14 +3,14 @@
 // lifecycle.mjs unchanged (BACKLOG section 375, stage B3). These judges queue what they decide; the dispatcher delivers it.
 import path from 'node:path'
 import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
-import { canonical, nearestExistingDirectory, readEvents, walk } from './event-log.mjs'
-import { shellWords } from './shell-words.mjs'
+import { canonical, nearestExistingDirectory, readEvents, walk } from '../../../plugin/scripts/event-log.mjs'
+import { shellWords } from '../../../plugin/scripts/shell-words.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
 import { carriedPassUnseen, carryFor, carryWith, channelOf, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, revisionFor, thisContext, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { baselineFor } from './check-ledger.mjs'
 import { codeTreeOf, gitRepositoryLookup, headCommit, mark, sameObservation, sessionBaseline, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
-import { once } from './lazily.mjs'
+import { once } from '../../../plugin/scripts/lazily.mjs'
 import { turnEndSetting } from './project-config.mjs'
 import { sessionGeneration } from './session-notes.mjs'
 

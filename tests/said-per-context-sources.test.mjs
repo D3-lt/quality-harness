@@ -6,7 +6,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { itemMarker, saidInContext } from '../plugin/scripts/said-per-context.mjs'
+import { itemMarker } from '../plugin/scripts/said-per-context.mjs'
+import { saidInContext } from './helpers/node-hooks/said-per-context.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const blob = (hash, role, text) => ({ type: 'api-request-blob', hash, message: { role, content: [{ type: 'text', text }] } })

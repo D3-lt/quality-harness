@@ -8,7 +8,7 @@ import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
+import { runArtifactGates } from './helpers/node-hooks/artifact-pass.mjs'
 import { remove } from './helpers/remove.mjs'
 import { resolveBashExecutable } from '../plugin/scripts/run-shell-hook.mjs'
 

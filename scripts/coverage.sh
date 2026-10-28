@@ -64,6 +64,12 @@ STRICT=${QUALITY_HARNESS_COVERAGE_STRICT:-0}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
+# CLI compatibility tests use this checkout's core, shared by the coverage workers.
+QUALITY_HARNESS_QH_BIN="$WORK/qh"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) QUALITY_HARNESS_QH_BIN="$QUALITY_HARNESS_QH_BIN.exe" ;; esac
+node "$REPO/scripts/build-core.mjs" --native "$QUALITY_HARNESS_QH_BIN"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) QUALITY_HARNESS_QH_BIN=$(cygpath -w "$QUALITY_HARNESS_QH_BIN") ;; esac
+export QUALITY_HARNESS_QH_BIN
 # The floor measures the PLUGIN, not the tools that test it. mutate.mjs is a test
 # runner: it rewrites source and restores it, so importing it to exercise its
 # functions would run a mutation campaign inside the coverage run. Its own guards

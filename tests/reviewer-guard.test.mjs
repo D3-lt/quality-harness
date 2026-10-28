@@ -11,7 +11,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { verdict } from '../plugin/scripts/reviewer-guard.mjs'
+import { verdict } from './helpers/node-hooks/reviewer-guard.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -56,7 +56,7 @@ test('a payload the guard cannot read passes: a guard broken on its own bug must
 })
 
 test('the plugin-level role list is the agents that say read-only, no more and no fewer', async () => {
-  const { READ_ONLY_ROLES, readOnlyRole } = await import('../plugin/scripts/publish-verdict.mjs')
+  const { READ_ONLY_ROLES, readOnlyRole } = await import('./helpers/node-hooks/publish-verdict.mjs')
   const agents = readdirSync(join(root, 'agents')).filter(name => name.endsWith('.md'))
   const readOnly = agents.filter(name => /never edits|Read-only|read-only/i.test(readFileSync(join(root, 'agents', name), 'utf8').split('\n---')[0]))
     .map(name => name.replace(/\.md$/, '')).sort()
@@ -74,7 +74,7 @@ test('every agent that says it never edits declares the guard on every tool that
     const text = readFileSync(join(root, 'agents', name), 'utf8')
     const front = text.split('\n---')[0]
     const readOnly = /never edits|Read-only|read-only/i.test(front)
-    const declares = /hooks:\s*\n\s+PreToolUse:/.test(front) && /reviewer-guard\.mjs/.test(front)
+    const declares = front.includes("PreToolUse:") && front.includes("qh-hook.sh") && front.includes("reviewer-guard")
     if (readOnly) {
       assert.ok(declares, `${name} says it is read-only and declares no guard`)
       assert.match(front, /matcher:\s*"?Bash\|Edit\|Write\|MultiEdit\|NotebookEdit"?/, `${name}: the guard must cover every tool that writes`)

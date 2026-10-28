@@ -128,6 +128,16 @@ fi
 printf 'selftest: test files run %s; first: %s\n' "$order_how" "${test_files[0]##*/}"
 if [ "${QH_SELFTEST_DRY:-0}" = 1 ]; then exit 0; fi
 
+# Build one source core for CLI compatibility calls in the suite. Adopters receive release binaries.
+QUALITY_HARNESS_QH_BIN="$QH_LEASES/qh"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) QUALITY_HARNESS_QH_BIN="$QUALITY_HARNESS_QH_BIN.exe" ;;
+esac
+node "$REPO/scripts/build-core.mjs" --native "$QUALITY_HARNESS_QH_BIN"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) QUALITY_HARNESS_QH_BIN=$(cygpath -w "$QUALITY_HARNESS_QH_BIN") ;;
+esac
+export QUALITY_HARNESS_QH_BIN
 # The manifest/skill validation needs the Claude Code CLI. Where it is absent
 # the run says so and the final line downgrades to PARTIAL — a check that
 # silently vanishes is the failure mode this project exists to prevent. CI sets

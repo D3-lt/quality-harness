@@ -18,8 +18,8 @@ Section numbers, exit codes, dates, versions and shas are identifiers, not quant
 
 ## 1. The repository is not the plugin
 
-- `plugin/` is the product and the only thing a user downloads. Everything above it is the work
-  that produces it and never ships.
+- `plugin/` is the marketplace package. Native binaries arrive as verified release assets (ADR-116); sources
+  and repository tooling above `plugin/` produce the release and never ship.
 - In the tests, `repoRoot` is the repository and `root` is the plugin. They are different
   directories; a check that confuses them measures the wrong tree and stays green.
 - When files move, also move: `.gitignore` patterns, `.gitattributes` rules, the `file:` paths in

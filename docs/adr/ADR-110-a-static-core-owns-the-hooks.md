@@ -192,3 +192,29 @@ the tree and read the same ledgers.
 - [ ] Found executing T1, 2026-10-17: scripts/mutate.mjs cannot run a Go fence. It runs `node --test <tests>` for an entry, with no build step and no environment of its own, so a mutant in core/ would run the Node path and read GREEN; T1's Affected Files row saying it "already runs a Go fence per entry" is wrong. T1's mutants are recorded through `adr-verify --mutant`, whose fence builds the binary.
 - [ ] Paused 2026-10-18 by ADR-111 (Proposed), on the owner's "go all": T2 and T3 wait for ADR-112's verdict, and new turn-end rules are written in the Node path only until then; ADR-111 T4 names each rule the Go core lacks in the tests that run against it. Block 1's losses were decisions, not latency, so porting them first would only make them faster.
 - [ ] Unpaused for porting 2026-10-19 by ADR-113 (Accepted): the Go core takes ADR-111's rules and ADR-113's fixes, with the Node path in parity. T3's cutover still waits on T2's numbers.
+
+## Amendment, 2026-10-28: the owner selects Go hooks
+
+The owner selected: "Make hooks use Go and remove their redundant JavaScript implementation; keep the remaining Node CLI
+tools for now." The served lifecycle now selects Go through the verified launcher. The Node engine is a test-only oracle;
+its former CLI spellings transport to Go. The branch-state and edit-gate CLIs remain Node, reached through native bridge
+commands; their existing bounded refresh and gate behavior stays with those CLI tools. This narrows Decision 4 to the native
+lifecycle and preserves the explicitly retained CLI boundary.
+
+Measured 2026-10-28 on Darwin arm64, at load 2.93 to 2.94 on 10 cores, three fresh samples per mode and case. The corpus was
+a clean checkout of 81cf0221; the other fixture held no decision corpus. These medians compare the lifecycle command of the
+post-ADR-130 Node oracle with the verified native launcher, including its checksum check. They exclude the separate retained
+branch-state/edit CLI registrations, installation downloads, whole-session tokens, CPU usage and benchmark cost per attempt.
+
+| Corpus | Lifecycle event | Node ms | Native launcher ms | Model-directed bytes | Output |
+|--------|-----------------|---------|--------------------|----------------------|--------|
+| none | SessionStart | 128.03 | 61.70 | 0 | equal |
+| none | PreToolUse | 97.89 | 22.88 | 0 | equal |
+| none | Stop | 120.57 | 59.98 | 0 | equal |
+| this repository | SessionStart | 275.37 | 177.61 | 162 | equal |
+| this repository | PreToolUse | 293.01 | 23.77 | 0 | equal |
+| this repository | Stop | 350.76 | 332.47 | 0 | equal |
+
+The owner-directed cutover proceeds on these component measurements and the native contract checks. The benchmark arm's
+turns and cost per attempt remain a separate follow-up in T2; they were not measured here and are not claimed complete.
+The context reduction belongs to ADR-130; changing the implementation adds no model-directed text in these cases.

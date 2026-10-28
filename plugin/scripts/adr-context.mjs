@@ -11,7 +11,7 @@ import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 
-import { adrCorpus, decisionsGoverning, trackedPaths } from './decision-corpus.mjs'
+import { adrCorpus, decisionContext, decisionsGoverning, trackedPaths } from './decision-corpus.mjs'
 
 // The CLI is behind an import guard (BACKLOG §27). It used to run at module
 // scope, so importing this file — to test it, or from any tool that walks the
@@ -40,6 +40,10 @@ export function within(root, target) {
 // directory — read the corpus and printed a report as a side effect of the
 // import itself.
 export function main(argv, root = process.cwd()) {
+  if (argv[0] === '--hook' && argv.length === 2) {
+    process.stdout.write(decisionContext([argv[1]], root))
+    return 0
+  }
   const json = argv.includes('--json')
   const targets = argv.filter(argument => !argument.startsWith('--'))
 

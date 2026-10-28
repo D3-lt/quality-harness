@@ -13,14 +13,15 @@ import { remove } from './helpers/remove.mjs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
-import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
+import { mentionsCommitOrPush } from './helpers/node-hooks/publish-verdict.mjs'
+import { publishCommandIn } from './helpers/node-hooks/publish-command.mjs'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
 import { parseShell } from '../plugin/scripts/shell-grammar.mjs'
 import { constantSuccessCheck } from '../plugin/scripts/check-command.mjs'
 import { fixtureRepo, ledgers, normaliser, runHook, sandbox } from './hook-golden.mjs'
 import { required } from './helpers/require.mjs'
-import { itemMarker, recordSaid, saidInContext } from '../plugin/scripts/said-per-context.mjs'
+import { itemMarker } from '../plugin/scripts/said-per-context.mjs'
+import { recordSaid, saidInContext } from './helpers/node-hooks/said-per-context.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const coreDir = path.resolve(here, '..', 'core')

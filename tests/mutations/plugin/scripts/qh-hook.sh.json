@@ -1,0 +1,31 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: a tampered cached binary runs",
+      "file": "plugin/scripts/qh-hook.sh",
+      "tests": [
+        "tests/qh-launcher.test.mjs"
+      ],
+      "from": "[ \"${actual%% *}\" = \"$expected\" ]",
+      "to": "return 0"
+    },
+    {
+      "label": "Go cutover: a later hook event fetches the core",
+      "file": "plugin/scripts/qh-hook.sh",
+      "tests": [
+        "tests/qh-launcher.test.mjs"
+      ],
+      "from": "[ \"${2:-}\" = SessionStart ]",
+      "to": "[ -n \"${2:-}\" ]"
+    },
+    {
+      "label": "Go cutover: bootstrap consumes the native hook payload",
+      "file": "plugin/scripts/qh-hook.sh",
+      "tests": [
+        "tests/qh-launcher.test.mjs"
+      ],
+      "from": "\"$data\" </dev/null",
+      "to": "\"$data\""
+    }
+  ]
+}

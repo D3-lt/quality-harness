@@ -90,3 +90,25 @@ Revert the tasks' commits; with no binary present the launcher was never on the 
 
 - [x] Owner decision: Accepted with the sign-off "draft the next stages, signedoff", 2026-10-19.
 - [ ] Measure quarantine and SmartScreen on a fetched binary before ADR-110 T3 switches.
+
+## Amendment, 2026-10-28: one hook engine, with verified provisioning
+
+The owner's Go-hook selection removes Decision 3's Node-engine fallback. Registered hooks select the native lifecycle;
+the old engine remains only under tests as a comparison oracle. Existing Node CLI readers and edit gates remain explicit
+CLI dependencies, not another lifecycle implementation.
+
+Without a second engine, a cold SessionStart must finish provisioning before it can run the native guards. This replaces
+Decision 2's detached fetch with a bounded synchronous bootstrap: the network operations share a 15-second deadline and the
+downloaded binary has a bounded version probe. No other event fetches. Failure, an unsupported platform, or disabled fetching
+with no verified cache is could-not-run, never a hook verdict. A cached executable is checksum-checked before each launch.
+
+The landing's CI run builds the release assets from that commit. The release downloads and verifies the complete set and
+its checksum list before creating the release with those files attached. No native binary enters the Git tree.
+
+The native bridge preserves the retained CLI's actual output descriptors, so delivery receipts are not written merely
+because an intermediate buffer accepted text. On Windows its bound also ends its owned child tree; inherited stdio does
+not use CREATE_NO_WINDOW. Source compatibility CLIs accept the existing explicit local-binary seam; registered hooks use
+the verified cache.
+
+The installer/launcher tests execute a real native binary after the Node installer writes it, including on Windows CI.
+This checks execution in that environment; it is not a claim about every adopter's local application-control policy.

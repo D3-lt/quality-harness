@@ -1,0 +1,13 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: an unsupported platform downloads a native asset",
+      "file": "plugin/scripts/core-assets.mjs",
+      "tests": [
+        "tests/qh-fetch.test.mjs"
+      ],
+      "from": "if (!CORE_TARGETS.some(([os, cpu]) => os === goos && cpu === goarch))",
+      "to": "if (false)"
+    }
+  ]
+}

@@ -90,15 +90,15 @@ test('effect-classes: a function it cannot find, a file it cannot read, nothing 
 // The judges this stage made functions of their facts. A function joins this list when it is one, and leaves it only by a
 // decision a reader can see: the next test names the one that is NOT, and why.
 const JUDGES = [
-  'plugin/scripts/check-ledger.mjs::checkStanding',
+  'tests/helpers/node-hooks/check-ledger.mjs::checkStanding',
   'plugin/scripts/check-ledger.mjs::latestOf',
   'plugin/scripts/check-ledger.mjs::latestCheckFor',
   'plugin/scripts/check-ledger.mjs::logIncomplete',
-  'plugin/scripts/check-ledger.mjs::tornRecord',
-  'plugin/scripts/completion-rules.mjs::ledgerEvidence',
-  'plugin/scripts/completion-rules.mjs::completionClaim',
-  'plugin/scripts/completion-rules.mjs::completionJudgement',
-  'plugin/scripts/publish-command.mjs::publishCommandIn',
+  'tests/helpers/node-hooks/check-ledger.mjs::tornRecord',
+  'tests/helpers/node-hooks/completion-rules.mjs::ledgerEvidence',
+  'tests/helpers/node-hooks/completion-rules.mjs::completionClaim',
+  'tests/helpers/node-hooks/completion-rules.mjs::completionJudgement',
+  'tests/helpers/node-hooks/publish-command.mjs::publishCommandIn',
   'plugin/scripts/qh-check.mjs::checkPlan',
   'plugin/scripts/check-record.mjs::classifyRun',
   'plugin/scripts/check-record.mjs::runRecord',

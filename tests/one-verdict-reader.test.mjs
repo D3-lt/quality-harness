@@ -3,7 +3,7 @@
 // that the second spelling cannot come back.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import * as ledger from '../plugin/scripts/check-ledger.mjs'
+import * as ledger from './helpers/node-hooks/check-ledger.mjs'
 
 const { checkStanding, latestCheckFor } = ledger
 // The body `treeChecked` had (check-ledger.mjs, before ADR-101 T1).

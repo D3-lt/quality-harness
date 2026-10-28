@@ -1,7 +1,18 @@
-// What is not ported yet, and says nothing where the Node path may say something.
+// The native lifecycle delegates corpus resolution to the retained ADR reader CLI.
 package hooks
 
-// decisionContext is decision-corpus.mjs's decisionContext over adrCorpus: the governing and killed decisions for a path. It
-// is not ported (ADR-110 T1's divergences): the core hands over no decision context. No golden scenario has a record that
-// governs the file it edits, so the goldens cannot see this.
-func decisionContext(file, root string) string { return "" }
+import (
+	"path/filepath"
+	"time"
+)
+
+func decisionContext(file, root string) string {
+	if outsideRoot(root, file) || hasDecisionCorpus(trackedPaths(root)) == "false" {
+		return ""
+	}
+	answer := run(10*time.Second, root, nil, "", "node", filepath.Join(pluginRoot(), "scripts", "adr-context.mjs"), "--hook", file)
+	if answer.err != nil || answer.status != 0 {
+		return "could-not-look: the decision reader could not run, so which decisions govern this edit is unknown."
+	}
+	return answer.stdout
+}

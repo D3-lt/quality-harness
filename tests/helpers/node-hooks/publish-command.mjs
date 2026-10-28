@@ -1,8 +1,8 @@
 // Recognise executable commit/push invocations for reviewer and artifact guards.
 // ADR-130 removes classifiers used only to exempt commands from compulsory checks.
 // Recognition remains conservative over command text (ADR-067, CLAUDE.md §16).
-import { shellWords } from './shell-words.mjs'
-import { parseShell } from './shell-grammar.mjs'
+import { shellWords } from '../../../plugin/scripts/shell-words.mjs'
+import { parseShell } from '../../../plugin/scripts/shell-grammar.mjs'
 
 // The text the shell never evaluates, taken out before the arithmetic scan: a quoted here-document's
 // body, and an `echo` or `true` argument spelled in single quotes, or in double quotes with no `$`,

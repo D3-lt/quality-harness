@@ -10,14 +10,14 @@ import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
 // The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
-import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
-import * as checkLedger from '../plugin/scripts/check-ledger.mjs'
-import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
-import * as checkCommand from '../plugin/scripts/check-command.mjs'
-import * as completionRules from '../plugin/scripts/completion-rules.mjs'
-import * as sessionNotes from '../plugin/scripts/session-notes.mjs'
+import * as lifecycleOwn from './helpers/node-hooks/lifecycle.mjs'
+import * as checkLedger from './helpers/node-hooks/check-ledger.mjs'
+import * as treeFacts from './helpers/node-hooks/tree-facts.mjs'
+import * as checkCommand from './helpers/node-hooks/check-command.mjs'
+import * as completionRules from './helpers/node-hooks/completion-rules.mjs'
+import * as sessionNotes from './helpers/node-hooks/session-notes.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
-import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
+import { publishCommandIn } from './helpers/node-hooks/publish-command.mjs'
 const lifecycle = { ...lifecycleOwn, ...checkLedger, ...treeFacts, ...checkCommand, ...completionRules, ...sessionNotes, stateDir }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

@@ -7,7 +7,7 @@ import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync,
 import path from 'node:path'
 import { stateDir } from './event-log.mjs'
 import { inSeconds } from './check-child.mjs'
-import { validationVerdict } from './completion-rules.mjs'
+import { validationVerdict } from './validation-verdict.mjs'
 
 // A neighbour as the record keeps it: what its lease says, or that it could not be read.
 const recorded = seen => (seen ? [...seen.live, ...seen.unknown].map(({ file: _file, ...entry }) => entry) : null)

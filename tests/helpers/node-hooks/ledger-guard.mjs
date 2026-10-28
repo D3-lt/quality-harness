@@ -8,8 +8,8 @@
 // not a pass (scripts/side-doors.json).
 import path from 'node:path'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
-import { canonicalFile, nearestExistingDirectory, repositoryStateDir, stateDir } from './event-log.mjs'
-import { shellWords } from './shell-words.mjs'
+import { canonicalFile, nearestExistingDirectory, repositoryStateDir, stateDir } from '../../../plugin/scripts/event-log.mjs'
+import { shellWords } from '../../../plugin/scripts/shell-words.mjs'
 import { SHELL_NAMES, programName } from './publish-command.mjs'
 import { MRW_WRITE, MUTATION_TOOLS, mrwWritePaths } from './hook-record.mjs'
 import { SHELL_TOOLS } from './publish-verdict.mjs'

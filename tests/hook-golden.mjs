@@ -9,14 +9,17 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { sourceCore } from './helpers/source-core.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const pluginDir = path.resolve(here, '..', 'plugin')
 export const goldenDir = path.join(here, 'goldens')
 const UPDATE = process.env.QH_GOLDEN_UPDATE === '1'
 // ADR-110 T1: the one seam that says which implementation a scenario runs. `go` spawns the static core, `qh hook <event>`, from
 // QUALITY_HARNESS_QH_BIN or the repository's core/bin/qh; anything else runs lifecycle.mjs exactly as before.
-export const IMPL = process.env.QUALITY_HARNESS_HOOK_IMPL === 'go' ? 'go' : 'node'
-export const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || path.resolve(here, '..', 'core', 'bin', process.platform === 'win32' ? 'qh.exe' : 'qh')
+process.env.QUALITY_HARNESS_HOOK_IMPL ??= 'go'
+export const IMPL = process.env.QUALITY_HARNESS_HOOK_IMPL === 'node' ? 'node' : 'go'
+const canBuild = process.env.QUALITY_HARNESS_QH_BIN || spawnSync('go', ['version'], { timeout: 30_000, windowsHide: true }).status === 0
+export const QH_BIN = process.env.QUALITY_HARNESS_QH_BIN || (IMPL === 'go' && canBuild ? sourceCore() : '')
 
 // ADR-111 T4: the rules the Node path has and the Go core does not yet, keyed by the title of the test that exercises
 // each, with the record that added it. Under QUALITY_HARNESS_HOOK_IMPL=go those tests skip with this reason, and every other
@@ -27,7 +30,7 @@ export const GO_LACKS = new Map([
 export function goSkipFor(impl, lacks, name) {
   return impl === 'go' && lacks.has(name) ? `the Go core lacks this rule yet (${lacks.get(name)})` : false
 }
-export const goSkip = name => goSkipFor(IMPL, GO_LACKS, name)
+
 // A name the list skips that no test carries is a stale entry, and a stale entry hides nothing it can be seen hiding.
 export function staleLacks(lacks, sources) {
   return [...lacks.keys()].filter(name => !sources.some(text => text.includes(`test('${name}'`) || text.includes(`test("${name}"`)))
@@ -94,7 +97,7 @@ export function runHook(box, repo, session, payload, extraEnv = {}, implementati
   }
   const [command, args] = implementation.impl === 'go'
     ? [implementation.bin, ['hook', String(payload.hook_event_name)]]
-    : [process.execPath, [path.join(pluginDir, 'scripts', 'lifecycle.mjs')]]
+    : [process.execPath, [path.join(here, 'helpers', 'node-hooks', 'lifecycle.mjs')]]
   const run = spawnSync(command, args, {
     cwd: repo, input: JSON.stringify({ cwd: repo, session_id: session, ...payload }), encoding: 'utf8',
     timeout: 120_000, windowsHide: true, env: environment(box, extraEnv),

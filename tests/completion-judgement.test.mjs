@@ -5,9 +5,9 @@
 // as an accusation or a pass. Each property is shown FAILING on a judgement that breaks it.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { completionJudgement } from '../plugin/scripts/completion-rules.mjs'
-import { mark } from '../plugin/scripts/tree-facts.mjs'
-import { revisionFor } from '../plugin/scripts/check-ledger.mjs'
+import { completionJudgement } from './helpers/node-hooks/completion-rules.mjs'
+import { mark } from './helpers/node-hooks/tree-facts.mjs'
+import { revisionFor } from './helpers/node-hooks/check-ledger.mjs'
 
 const T = 'tree-now'
 const observations = {

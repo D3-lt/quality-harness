@@ -15,7 +15,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { listedUnderUninterestingDirectory } from '../plugin/scripts/lifecycle.mjs'
+import { listedUnderUninterestingDirectory } from '../plugin/scripts/uninteresting.mjs'
 import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
 import { observe } from '../plugin/scripts/work-next.mjs'
 

@@ -1,0 +1,13 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: a compatibility CLI executes an altered cached binary",
+      "file": "plugin/scripts/native-cli.mjs",
+      "tests": [
+        "tests/qh-launcher.test.mjs"
+      ],
+      "from": "if (!verifiedCore(binary))",
+      "to": "if (false)"
+    }
+  ]
+}

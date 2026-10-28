@@ -21,17 +21,6 @@ import { spawnSync } from 'node:child_process'
 // the owner's call, made explicitly and more than once.
 // The one line a person sees. The full text is for the agent; the person needs
 // to know a finding was made and where it went, not to read the instruction.
-export function advisoryHeadline(reason) {
-  const first = String(reason).split('\n').find(line => line.trim()) ?? String(reason)
-  // ⚠ EVERY ADVISORY BEGINS `quality-harness: `, so "the first sentence", split
-  // after a `.` or a `:`, was always that prefix and nothing else: the person read
-  // "quality-harness advised the agent: quality-harness: (full text…)" — told a
-  // finding was made and nothing about it. Two peer sessions flagged the line on
-  // 2026-09-19. The caller already says who is speaking, so the prefix goes; and
-  // only a FULL STOP ends the sentence, since these messages use `:` and `—` mid-clause.
-  const sentence = first.trim().replace(/^quality-harness:\s*/i, '').split(/(?<=\.)\s/)[0]
-  return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
-}
 
 // The gates in bin/ are `#!/usr/bin/env python3` scripts. Windows cannot exec a
 // `#!` script, so spawning one directly returns status null — and the SessionStart ready-task reader's

@@ -7,7 +7,7 @@
 **Last full audit:** 2026-10-20 — first authoring, derived from the tree at 522fce9f; no `/quality-harness:arch-write grill-only` run yet
 
 This is the current-state integral; the records under `docs/adr/` are deltas against it. Everything below was read from the
-tree at 522fce9f on 2026-10-20, and every claim names the file it was read from or the command that re-derives it. The
+initial tree at 522fce9f on 2026-10-20; hook runtime sections were updated on 2026-10-28 for the owner-directed Go cutover. Every claim names the file it was read from or the command that re-derives it. The
 document states no counts (CLAUDE.md, preamble): where a number matters, the command that produces it is given instead.
 Every rule row below was OBSERVED in code and in an Accepted record; none was minted in conversation, because no grill
 has been held on this document yet.
@@ -17,10 +17,10 @@ has been held on this document yet.
 | Question | Command |
 |----------|---------|
 | Which record governs which path, and where two records claim the same file | `node plugin/scripts/adr-state.mjs` (`--json` for every path) |
-| What governs a given path, and which tests catch it | `node plugin/scripts/adr-context.mjs plugin/scripts/lifecycle.mjs` |
+| What governs a given path, and which tests catch it | `node plugin/scripts/adr-context.mjs core/hooks/lifecycle.go` |
 | Which task of a record is next, and what proves it | `python3 plugin/bin/adr-next docs/adr/ADR-110-a-static-core-owns-the-hooks.md` |
 | Which commands the hooks register | `mrw read plugin/hooks/hooks.json` (`--grep '"command"' --count` for how many) |
-| What each event is handed to | `mrw read 'plugin/scripts/lifecycle.mjs:/^const HANDLERS/,+11'` |
+| What each event is handed to | `mrw read --outline core/hooks/lifecycle.go` |
 | Which file writes which ledger | `mrw read --grep '[a-z-]+\.jsonl' plugin/scripts plugin/bin plugin/lib` |
 | What the forge requires before main moves | `mrw read .github/rulesets/main.json` |
 | Whether this document still passes its own gate | `python3 plugin/bin/arch-lint docs/architecture.md` |
@@ -34,17 +34,17 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 |--------|-------|----------------------|-------|
 | `plugin/.claude-plugin/plugin.json` | infra | the plugin's name, version and the components a host loads | ADR-008 |
 | `plugin/hooks/hooks.json` | infra | which command each host event runs | ADR-038, ADR-060, ADR-110 T3 |
-| `plugin/scripts/lifecycle.mjs` | api | how one hook event is read, routed to its handler and answered once | ADR-060, ADR-096 |
-| `plugin/scripts/on-session-start.mjs` | domain | what a session is told when it starts | ADR-099 |
-| `plugin/scripts/on-pre-tool-use.mjs` | domain | what is said or refused before a tool runs | ADR-060, ADR-061, ADR-117 |
-| `plugin/scripts/on-turn-end.mjs` | domain | what a finished turn, subagent or task says about itself | ADR-060, ADR-096 |
-| `plugin/scripts/on-session-end.mjs` | domain | the row a session leaves for the next one | ADR-060 |
-| `plugin/scripts/on-subagent-start.mjs` | domain | the contract a spawned role is handed | ADR-060 |
-| `plugin/scripts/publish-verdict.mjs` | domain | reviewer guards, commit tracking exports and reviewer state reports | ADR-060, ADR-128, ADR-130 |
-| `plugin/scripts/publish-command.mjs` | domain | which shell commands publish | ADR-067, ADR-090 |
+| `core/hooks/lifecycle.go` | api | reading, recording and delivering one native hook event | ADR-110, ADR-122 |
+| `core/hooks/orientation.go` | domain | what a session is told when it starts | ADR-099 |
+| `core/hooks/publish.go` | domain | what is said or refused before a tool runs | ADR-060, ADR-061, ADR-117 |
+| `core/hooks/turnend.go` | domain | what a finished turn, subagent or task says about itself | ADR-060, ADR-096 |
+| `core/hooks/sessionend.go` | domain | the row a session leaves for the next one | ADR-060 |
+| `core/hooks/sessionend.go` | domain | the contract a spawned role is handed | ADR-060 |
+| `core/hooks/publish.go` | domain | reviewer guards, commit tracking exports and reviewer state reports | ADR-060, ADR-128, ADR-130 |
+| `core/hooks/publishcmd.go` | domain | which shell commands publish | ADR-067, ADR-090 |
 | `plugin/scripts/shell-words.mjs` | domain | how shell text splits into words | ADR-067 |
 | `plugin/scripts/shell-grammar.mjs` | domain | how the words of a check read as lists, pipelines, groups and definitions (Go twin: `core/hooks/shellgrammar.go`) | ADR-120 |
-| `plugin/scripts/ledger-guard.mjs` | domain | which writes into the state directory are refused | ADR-117 |
+| `core/hooks/ledger_guard.go` | domain | which writes into the state directory are refused | ADR-117 |
 | `plugin/scripts/reviewer-guard.mjs` | domain | what a read-only role may not do | ADR-060 |
 | `plugin/scripts/publish-hook.mjs` | adapter | recording the sha git committed for a session; retired publish events are no-ops | ADR-128, ADR-130 |
 | `plugin/scripts/check-ledger.mjs` | domain | how the check ledgers are read | ADR-081, ADR-101 |
@@ -52,7 +52,7 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/scripts/qh-check.mjs` | api | running the project's check and recording it | ADR-060, ADR-081, ADR-100 |
 | `plugin/scripts/event-log.mjs` | adapter | where the state directory is and how the session log is appended | ADR-060 |
 | `plugin/scripts/tree-facts.mjs` | adapter | what git says about the working tree, bounded | ADR-060, ADR-068 |
-| `plugin/scripts/artifact-pass.mjs` | domain | the detached pass of record gates over what a session changed | ADR-080 |
+| `core/hooks/artifact.go` | domain | the detached pass of record gates over what a session changed | ADR-080 |
 | `plugin/scripts/run-shell-hook.mjs` | adapter | how a shell hook is started from Node on every platform | ADR-038, ADR-080 |
 | `plugin/scripts/facts-gate-dispatch.sh` | adapter | which record gate runs on an edited file | ADR-046, ADR-053 |
 | `plugin/scripts/post-edit-check.sh` | adapter | the per-edit syntax and type checks | ADR-038, ADR-119 |
@@ -81,8 +81,13 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/agents/` | ui | the spawned roles and the capability each declares | ADR-029, ADR-060 |
 | `plugin/workflows/` | ui | the bounded multi-role workflows (consensus, review-ring, quality-cycle) | ADR-057, ADR-062 |
 | `plugin/templates/` | domain | the shapes the gates read | ADR-009, ADR-017 |
+| `plugin/scripts/qh-hook.sh` | adapter | selecting and verifying the native hook binary | ADR-110, ADR-116 |
+| `plugin/scripts/qh-fetch.mjs` | infra | bounded, checksum-verified binary installation | ADR-116 |
+| `plugin/scripts/core-assets.mjs` | domain | release asset names and supported platforms | ADR-116 |
+| `plugin/scripts/native-cli.mjs` | adapter | transporting retained CLI spellings to Go | ADR-110 |
+| `plugin/scripts/validation-verdict.mjs` | domain | interpreting the explicit Node check runner's output | ADR-081 |
 | `core/cmd/qh/main.go` | api | the static binary's command line | ADR-110 |
-| `core/hooks/` | domain | the Go twin of the hook rules | ADR-110, ADR-113 |
+| `core/hooks/` | domain | the authoritative native hook engine | ADR-110, ADR-113 |
 | `scripts/` | infra | this repository's own tooling; never ships | ADR-008 |
 | `tests/` | infra | this repository's suite and the mutation catalogue | ADR-003, ADR-091 |
 | `.github/workflows/selftest.yml` | infra | what CI runs on main, on landings and on dispatch | ADR-023, ADR-118 |
@@ -91,52 +96,39 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 
 ## Hook events
 
-Read from `plugin/hooks/hooks.json` and `plugin/scripts/lifecycle.mjs` (`HANDLERS`). Every entry runs `node` on a script
-under `${CLAUDE_PLUGIN_ROOT}/scripts/`. `lifecycle.mjs` first records the event in the session log (`hook-record.mjs`),
-imports what the artifact pass has said since the last hook (`artifact-pass.mjs`, ADR-080), then hands the event to its
-handler; every rule queues what it decides (`hook-queue.mjs`) and `deliver` writes one JSON object to stdout.
+Every registration in `plugin/hooks/hooks.json` enters `plugin/scripts/qh-hook.sh`. It selects this platform's versioned native
+binary only after its checksum verifies. SessionStart may fetch and verify a missing binary through `qh-fetch.mjs`;
+other events never start an installer. There is no JavaScript hook-engine fallback.
 
-| Event | Registered command(s) | Handler module |
-|-------|-----------------------|----------------|
-| SessionStart | `lifecycle.mjs`; `branch-state.mjs --cached 120` | `on-session-start.mjs` |
-| UserPromptSubmit | `branch-state.mjs --brief --cached 120` | none in `lifecycle.mjs` |
-| SubagentStart | `lifecycle.mjs` | `on-subagent-start.mjs` |
-| PreToolUse (Bash, PowerShell, Edit, Write, MultiEdit, NotebookEdit, mrw MCP write) | `lifecycle.mjs` | `on-pre-tool-use.mjs` |
-| PreToolUse (Skill) | `lifecycle.mjs` | counted as `skill.invoked` and nothing else (ADR-084) |
-| PostToolUse (Edit, Write, MultiEdit, NotebookEdit) | `run-shell-hook.mjs facts-gate-dispatch.sh`; `run-shell-hook.mjs post-edit-check.sh`; `lifecycle.mjs` | recorded only; no handler |
-| PostToolUse (mrw MCP write) | `lifecycle.mjs` | recorded only; no handler |
-| Stop, SubagentStop, TaskCompleted | `lifecycle.mjs` | `on-turn-end.mjs` (SubagentStop also runs `reviewChangedState`) |
-| PreCompact, SessionEnd | `lifecycle.mjs` | `on-session-end.mjs`; SessionEnd re-runs itself detached when `CLAUDE_PLUGIN_DATA` is set |
+| Event | Native entry | Implementation |
+|-------|--------------|----------------|
+| SessionStart | `qh hook SessionStart`; `qh bridge branch-state --cached 120` | Go orientation and the retained branch-state CLI |
+| UserPromptSubmit | `qh bridge branch-state --brief --cached 120` | retained Node branch-state CLI |
+| SubagentStart | `qh hook SubagentStart` | `core/hooks/sessionend.go` contract |
+| PreToolUse | `qh hook PreToolUse` | Go reviewer/evidence guards, decision context, artifact rules |
+| PostToolUse | `qh bridge shell-hook <gate>`; `qh hook PostToolUse` | existing edit-gate CLI and Go write records |
+| Stop, SubagentStop, TaskCompleted | `qh hook <event>` | Go descriptive evidence, reviewer state and artifact rules |
+| PreCompact, SessionEnd | `qh hook <event>` | Go session state; SessionEnd stays in this process |
 
-The read-only agents (`plugin/agents/qh-correctness-reviewer.md`, `qh-scope-reviewer.md`, `qh-synthesis.md`) also declare
-`reviewer-guard.mjs` in their own frontmatter; the guard that is known to fire inside a subagent is the one in
-`on-pre-tool-use.mjs` (its comment records the frontmatter guard measured inert, BACKLOG §135).
+Reviewer-agent frontmatter selects `qh-hook reviewer-guard`; the global Go PreToolUse guard also enforces the role.
 
 ## The Go core
 
-`core/` is a Go module (`core/go.mod`) with one command, `core/cmd/qh/main.go`: `qh hook <event>` answers a hook payload
-as `lifecycle.mjs` does, `qh hook --artifact-pass <request>` is the detached pass, `qh check-command <dir>` names the
-inferred check, and `qh mcp` serves read-only MCP resources (ADR-114). `core/hooks/` holds the rules, each file naming the
-Node module it ports in its first lines (`mrw read core/hooks/lifecycle.go:1-3` and so on). The core imports only Go's
-standard library and reaches `mrw` through its binary, never a Go import (ADR-110 Follow-ups, resolved 2026-10-17).
+`core/cmd/qh/main.go` selects the native commands. `core/hooks/` owns the hook engine, including event recording,
+delivery, context suppression, guards and artifact passes. It imports only Go's standard library. Historical Node hook
+modules live under `tests/helpers/node-hooks/` as an oracle and never ship; goldens and parity comparisons exercise Go
+against that oracle. `lifecycle.mjs` and `reviewer-guard.mjs` are small compatibility CLI transports to Go.
 
-**Shipped hooks run Node; nothing selects Go at runtime.** `plugin/hooks/hooks.json` runs `node` for every entry, and no
-file under `plugin/` or `core/` reads `QUALITY_HARNESS_HOOK_IMPL`. That variable is a test seam only
-(`tests/hook-golden.mjs`: `IMPL` is `go` when it says so, and the binary comes from `QUALITY_HARNESS_QH_BIN` or
-`core/bin/qh`). The status, as `adr-next` reported it on 2026-10-20:
+The Node CLI tools remain: the explicit check runner, branch-state reader, edit-gate runner and corpus readers.
+The native bridge hands their actual descriptors through, so a CLI's delivery receipt follows its write to the host.
+The existing branch-state CLI still owns its bounded cache refresh; it is not a second hook engine.
 
-- ADR-110 T1 (`qh hook` passes every golden) carries its evidence; T2 (measure the core against Node) is next and is a
-  human sign-off; T3 (`hooks.json` points at `qh`) waits on T2.
-- ADR-116 (release assets, a verified fetch into `CLAUDE_PLUGIN_DATA/qh/`, and a launcher `plugin/bin/qh-hook` that falls
-  back to Node): T1 is next; none of its three tasks has landed, and `plugin/bin/qh-hook` does not exist yet.
-- ADR-113 brought the turn-end rules into the core; `tests/hook-golden.mjs`'s `GO_LACKS` is empty and
-  `tests/go-core-parity-adr-111.test.mjs` holds it so. `core/hooks/pending.go` names what is not ported: the decision
-  context PreToolUse hands over for a governed file.
-- ADR-114's `qh mcp` is built and not registered in the plugin until a measured use (its Decision 3).
-- Not in the core at all: `branch-state.mjs`, `facts-gate-dispatch.sh` and `post-edit-check.sh`, which `hooks.json` runs
-  directly.
-
-Re-run: `python3 plugin/bin/adr-next docs/adr/ADR-110-a-static-core-owns-the-hooks.md` and the same for ADR-116.
+`scripts/build-core.mjs` builds source-check binaries and the release targets declared in `core-assets.mjs`.
+CI uploads the native binaries and `SHA256SUMS.txt` as `qh-core`; `release-assets.mjs` verifies the complete artifact
+set before `release.mjs` attaches it to the release. Installed caches live under `CLAUDE_PLUGIN_DATA/qh/<version>/`.
+An offline first installation or unsupported platform reports could-not-run; it does not run a different engine.
+`QUALITY_HARNESS_QH_FETCH=off` disables automatic fetching. The compatibility CLIs honor the existing
+`QUALITY_HARNESS_QH_BIN` source-check seam for an explicitly selected local build; registered hooks verify their cache.
 
 ## The state directory
 
@@ -156,11 +148,11 @@ repository keeps a hashed subdirectory under it); `corpus-probe` uses that to wr
 | `reviews.jsonl` | `host-review.mjs` (`REVIEWS_FILE`), one row per review it launched | `release-evidence.mjs` (ADR-100) |
 | `sessions/<session>.jsonl` | every hook (`appendEvent`, `sessionLogFile`); check events imported from `checks.jsonl` | reviewer and artifact rules, descriptive evidence, `ledger-report.mjs`, commit tracking |
 
-Beside it, under `CLAUDE_PLUGIN_DATA` (machine-local, not per repository): `claims.jsonl` (`completion-rules.mjs` writes,
-`claims-rate.mjs` reads) and `sessions.jsonl` (`on-session-end.mjs` writes, `session-notes.mjs` reads).
+Beside it, under `CLAUDE_PLUGIN_DATA` (machine-local, not per repository): `claims.jsonl` (`core/hooks/notes.go` writes,
+`claims-rate.mjs` reads) and `sessions.jsonl` (`core/hooks/sessionend.go` writes, `session-notes.mjs` reads).
 
 ADR-117 makes the state directory written only by its tools: a hook-visible write into it is refused
-(`ledger-guard.mjs`, `core/hooks/ledger_guard.go`). Its refusal text names every writer: `qh-check` (checks, fast checks,
+(`core/hooks/ledger_guard.go`). Its refusal text names every writer: `qh-check` (checks, fast checks,
 baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`) and the hooks (their session logs).
 
 ## The evidence chain
@@ -216,7 +208,7 @@ mutates.
 
 ## Repository tooling
 
-Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is the whole product.
+Repository sources do not ship. The marketplace package is `plugin/`; native binaries built from `core/` ship as verified release assets (ADR-116).
 
 - **The gate:** `scripts/selftest.sh`, which starts its test files through `scripts/run-tests.mjs` in the order
   `scripts/test-order.mjs` computes; `scripts/coverage.sh` holds the JavaScript and Python floors.
@@ -238,12 +230,12 @@ Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is t
 
 | # | Rule | Check |
 |---|------|-------|
-| D1 | What ships is `plugin/` and nothing else; the marketplace entry points there, and the plugin depends on no personal install (ADR-008) | `node --test tests/package.test.mjs` |
+| D1 | The marketplace tree is `plugin/`; native binaries are verified release assets, and no personal install is required (ADR-008, ADR-116) | `node --test tests/package.test.mjs` |
 | D2 | Every Python gate loads the record grammar from the `plugin/lib/record.py` beside its own `bin/`, and none keeps a copy (ADR-045) | `node --test tests/gates.test.mjs` |
 | D3 | Every spawned role declares the capability it needs (ADR-029) | `node --test tests/workflows.test.mjs` |
-| D4 | `qh hook` answers what `lifecycle.mjs` answers, row for row, for the same payloads (ADR-110 T1) | `node --test tests/qh-core-parity.test.mjs` |
-| D5 | ADR-111's rules and the parity scenarios answer the same in Go as in Node (ADR-113); the PreToolUse decision context is not ported yet (`core/hooks/pending.go`) | `node --test tests/go-core-parity-adr-111.test.mjs` |
-| D6 | `hooks.json` is the only thing that selects the hook implementation (ADR-110 Decision 5) | (deferred: ADR-110 T3) |
+| D4 | `qh hook` answers what the test-only Node oracle answers, row for row, for the same payloads (ADR-110 T1) | `node --test tests/qh-core-parity.test.mjs` |
+| D5 | ADR-111's rules and the parity scenarios answer the same in Go as in Node (ADR-113); decision context runs in Go | `node --test tests/go-core-parity-adr-111.test.mjs` |
+| D6 | `hooks.json` is the only thing that selects the hook implementation (ADR-110 Decision 5) | `node --test tests/qh-launcher.test.mjs` |
 
 ## Concept Ownership (DRY)
 
@@ -251,7 +243,7 @@ Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is t
 |---------|---------------|-----------|------------------|
 | The record grammar (sections, the Acceptance fence, its digest) | `plugin/lib/record.py` | every gate under `plugin/bin/`; `decision-corpus.mjs` mirrors it (ADR-092) | `node --test tests/gates.test.mjs` |
 | The order and outcome of check runs | `checks.jsonl`, written only by `check-record.mjs` | `check-ledger.mjs`, `core/hooks/ledger.go` | `node --test tests/qh-check.test.mjs` |
-| The ledger row formats both implementations read and write | `plugin/scripts/` (the Node writers) | `core/hooks/json.go`, `core/hooks/eventlog.go`, `core/hooks/ledger.go` | `node --test tests/hook-goldens.test.mjs` |
+| The ledger row formats the native hooks and explicit check runner share | Go hook writers and `check-record.mjs` | `core/hooks/json.go`, `core/hooks/eventlog.go`, `core/hooks/ledger.go` | `node --test tests/hook-goldens.test.mjs` |
 | The required checks before main moves | `.github/rulesets/main.json` (read back from the forge by `land.mjs`) | `land.mjs`, `release-evidence.mjs` | `node --test tests/land.test.mjs` |
 | What counts as a recorded review | `host-review.mjs` (`REVIEWS_FILE`, `REVIEW_COVERING`) | `release-evidence.mjs` | `node --test tests/review-ledger.test.mjs` |
 | The mutation catalogue for a source | `tests/mutations/` (one file per mutated source, ADR-091) | `scripts/mutate.mjs`, CI shards, `.githooks/pre-commit` | `node --test tests/package.test.mjs` |
@@ -261,7 +253,7 @@ Nothing here ships (ADR-008); `tests/package.test.mjs` holds that `plugin/` is t
 | Root | Constructs | Check |
 |------|------------|-------|
 | `plugin/hooks/hooks.json` | every hook command the host runs, with its matcher and timeout | `node --test tests/package.test.mjs` |
-| `plugin/scripts/lifecycle.mjs` | the event-to-handler table and the one composed answer per event | `node --test tests/hook-goldens.test.mjs` |
+| `plugin/scripts/lifecycle.mjs` | the compatibility CLI transport to Go | `node --test tests/hook-goldens.test.mjs` |
 | `core/cmd/qh/main.go` | the `qh` subcommands | `node --test tests/qh-core-parity.test.mjs` |
 | `.quality-harness.json` | the project's `check` and `fastCheck`, which `qh-check` runs | `node --test tests/qh-check.test.mjs` |
 

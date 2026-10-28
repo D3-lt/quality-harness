@@ -13,20 +13,12 @@
     {
       "label": "ADR-122 T3: a standing paragraph said carries its marker",
       "file": "plugin/scripts/session-orientation.mjs",
-      "tests": ["tests/said-per-context-routing.test.mjs"],
+      "tests": [
+        "tests/said-per-context-routing.test.mjs"
+      ],
       "from": "lines.push(mark ? `${text} ${itemMarker('standing', text)}` : text)",
       "to": "lines.push(text)",
       "only": "^(?:a standing paragraph is said once per context, not once per three days)$"
-    },
-    {
-      "label": "hook-work: emitted context avoids repeating discovery",
-      "file": "plugin/scripts/session-orientation.mjs",
-      "tests": [
-        "tests/hook-work.test.mjs"
-      ],
-      "only": "already-shown edit context",
-      "from": "  if (alreadyMentionedThisSession(input.session_id, resolved)) return ''",
-      "to": "  if (false) return ''"
     },
     {
       "label": "lifecycle: listing-null still opens the shadow-install notice",
@@ -161,7 +153,9 @@
     {
       "label": "ADR-107 T3: mrw is named only when it answers --version in its own shape",
       "file": "plugin/scripts/session-orientation.mjs",
-      "tests": ["tests/mrw-way.test.mjs"],
+      "tests": [
+        "tests/mrw-way.test.mjs"
+      ],
       "from": "return /^mrw version v\\d+\\.\\d+/.test(version(candidate, env)) ? candidate : null",
       "to": "return candidate",
       "only": "^a session with mrw on PATH is told it is there, and a session without it is told nothing$"
@@ -169,7 +163,9 @@
     {
       "label": "ADR-107 T3: the mrw line is said only when mrw resolves",
       "file": "plugin/scripts/session-orientation.mjs",
-      "tests": ["tests/mrw-way.test.mjs"],
+      "tests": [
+        "tests/mrw-way.test.mjs"
+      ],
       "from": "if ((check || corpusLook === true) && mrwOnPath()) {",
       "to": "if (check || corpusLook === true) {",
       "only": "^a session with mrw on PATH is told it is there, and a session without it is told nothing$"
@@ -177,7 +173,9 @@
     {
       "label": "ADR-107 T3: Windows resolves mrw.exe and POSIX does not",
       "file": "plugin/scripts/session-orientation.mjs",
-      "tests": ["tests/mrw-way.test.mjs"],
+      "tests": [
+        "tests/mrw-way.test.mjs"
+      ],
       "from": "const name = windows ? 'mrw.exe' : 'mrw'",
       "to": "const name = 'mrw.exe'",
       "only": "^mrw is resolved from PATH the way the platform resolves it, without a shell$"
@@ -185,7 +183,9 @@
     {
       "label": "ADR-107 T3: QUALITY_HARNESS_NO_MRW asks about the project, not the machine",
       "file": "plugin/scripts/session-orientation.mjs",
-      "tests": ["tests/mrw-way.test.mjs"],
+      "tests": [
+        "tests/mrw-way.test.mjs"
+      ],
       "from": "  if (env.QUALITY_HARNESS_NO_MRW === '1') return null\n",
       "to": "",
       "only": "^corpus-probe asks SessionStart about the corpus, not about the machine it runs on$"

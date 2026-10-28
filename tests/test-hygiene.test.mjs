@@ -128,10 +128,7 @@ test('no test outside the locked list spawns a bare bash', () => {
 
 const MOVED = ['walk', 'outsideRoot', 'GIT_LISTING_BUFFER']
 const IMPORTERS = {
-  'plugin/scripts/completion-rules.mjs': 'walk',
   'plugin/scripts/check-ledger.mjs': 'outsideRoot',
-  'plugin/scripts/artifact-pass.mjs': 'GIT_LISTING_BUFFER',
-  'plugin/scripts/tree-facts.mjs': 'GIT_LISTING_BUFFER',
   'plugin/scripts/decision-corpus.mjs': 'GIT_LISTING_BUFFER',
 }
 const importedFrom = (text, module) => [...text.matchAll(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*'\\./${module.replaceAll('.', '\\.')}'`, 'g'))]

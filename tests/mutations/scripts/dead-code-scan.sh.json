@@ -9,6 +9,15 @@
       "from": "  if [ \"${#files[@]}\" -gt 0 ]; then",
       "to": "  if true; then",
       "only": "^an empty list is UNRUN under set -u, not an unbound-variable abort$"
+    },
+    {
+      "label": "Go cutover: the release scan omits staged additions and retains staged deletions",
+      "file": "scripts/dead-code-scan.sh",
+      "tests": [
+        "tests/scan-overlay.test.mjs"
+      ],
+      "from": "  git ls-files -z --cached --others --exclude-standard |",
+      "to": "  git archive HEAD | tar -xf - -C \"$scratch\"\n  git ls-files -z -m --others --exclude-standard |"
     }
   ]
 }

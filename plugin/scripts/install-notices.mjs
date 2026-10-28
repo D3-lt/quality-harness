@@ -1,5 +1,6 @@
 // Two ways the plugin that answers is not the plugin that was meant to: a second, older copy of the toolkit, and a newer
 // version installed beside the one running. Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B4).
+import { isMainModule } from './main-module.mjs'
 import os from 'node:os'
 import { PLUGIN_ROOT } from './plugin-root.mjs'
 import { createHash } from 'node:crypto'
@@ -194,3 +195,6 @@ export function staleVersionNotice(pluginRoot = PLUGIN_ROOT, homeDirectory = os.
     + 'Every gate, skill and template it uses is the older one, and a stale copy is internally '
     + 'consistent so nothing else will say so. Restart Claude Code to pick up the newer one.'
 }
+
+// The native lifecycle uses the same standalone-install reader as the retained CLI tools.
+if (isMainModule(import.meta.url)) process.stdout.write(shadowInstallNotice())

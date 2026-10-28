@@ -13,10 +13,10 @@ import { hookSaid } from './hook-env.mjs'
 import { required } from './helpers/require.mjs'
 import { remove } from './helpers/remove.mjs'
 // The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
-import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
-import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
-import * as checkLedger from '../plugin/scripts/check-ledger.mjs'
-import * as publishVerdict from '../plugin/scripts/publish-verdict.mjs'
+import * as lifecycleOwn from './helpers/node-hooks/lifecycle.mjs'
+import * as treeFacts from './helpers/node-hooks/tree-facts.mjs'
+import * as checkLedger from './helpers/node-hooks/check-ledger.mjs'
+import * as publishVerdict from './helpers/node-hooks/publish-verdict.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 const lifecycle = { ...lifecycleOwn, ...treeFacts, ...checkLedger, ...publishVerdict, stateDir }
 

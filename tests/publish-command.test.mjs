@@ -17,9 +17,9 @@ import path from 'node:path'
 import nodeTest, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
+import { containsCommitOrPush, mentionsCommitOrPush } from './helpers/node-hooks/publish-verdict.mjs'
 // ADR-130: namespace bindings keep locked, retired test bodies loadable after their policy APIs were removed.
-import * as retiredPolicy from '../plugin/scripts/publish-command.mjs'
+import * as retiredPolicy from './helpers/node-hooks/publish-command.mjs'
 const { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } = retiredPolicy
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 import { sharded } from './helpers/shard.mjs'

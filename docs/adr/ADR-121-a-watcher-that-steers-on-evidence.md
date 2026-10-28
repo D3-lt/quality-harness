@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's direction of 2026-10-21 ("a watcher that steers on evidence … ledger, novelty, learning pair well here"), grounded in three field reports and the published work cited in Context
 **Cross-references:** docs/adr/ADR-037-advice-earns-its-place-by-being-acted-on.md, docs/adr/ADR-060-advisories-react-to-observed-events.md, docs/adr/ADR-096-turn-end-findings-reach-the-agent.md, docs/adr/ADR-110-a-static-core-owns-the-hooks.md, docs/adr/ADR-112-the-lifecycle-is-measured-where-it-can-work.md, docs/adr/ADR-116-qh-ships-as-release-assets-fetched-and-verified.md, docs/adr/ADR-120-nothing-left-out.md, docs/architecture.md
-**Governs:** `core/hooks/lifecycle.go`, `core/hooks/turnend.go`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/completion-rules.mjs`, `plugin/scripts/check-ledger.mjs`
+**Governs:** `core/hooks/lifecycle.go`, `core/hooks/turnend.go`, `core/hooks/lifecycle.go`, `core/hooks/turnend.go`, `plugin/scripts/check-ledger.mjs`
 **Enforced-by:** None — declared by its tasks. Each task adds one campaign mutation per mechanism; naming them before they exist would be a pointer to nothing.
 **Invalidates:** None — every rule keeps its record; this decides when a rule may speak, and measures whether speaking helped.
 **Served-path change:** none until T3 ships; then a hook's finding is said only when the watcher's evidence gate passes, a rule that a project's own record shows is ignored is retired for that project with a line saying so, and a confirmed lesson reaches the next session through memoryd.

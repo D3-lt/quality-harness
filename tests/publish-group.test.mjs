@@ -5,7 +5,7 @@
 // is could-not-look: it answers null, which is not the same as "not a publish" (the rows say so beside the real run).
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
+import { publishCommandIn } from './helpers/node-hooks/publish-command.mjs'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
 
 const publishes = rows => { for (const row of rows) assert.equal(publishCommandIn(row), 'git push', row) }

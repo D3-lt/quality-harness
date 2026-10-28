@@ -11,7 +11,7 @@ hooks:
     - matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit"
       hooks:
         - type: command
-          command: node "${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-guard.mjs"
+          command: sh "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh" reviewer-guard
           timeout: 15
 ---
 

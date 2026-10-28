@@ -98,7 +98,7 @@ test('an unparseable transcript line is counted as unreadable', () => {
 
 // ADR-122 T5: the routed hooks over a synthetic session, counted by T1's method. One transcript holds both what the host records
 // of each hook (the attachments T1 counts) and the requests the model received (what said-per-context reads), as a real one does.
-test('a routed session carries each item once per context', async () => {
+test('a routed session carries each item once per context', { skip: 'Go cutover: the Node unit dispatcher is retired; native delivery is covered by the Go goldens and context parity' }, async () => {
   const { appendFileSync } = await import('node:fs')
   const { deliver } = await import('../plugin/scripts/lifecycle.mjs')
   const { briefUnchanged } = await import('../plugin/scripts/branch-state.mjs')
@@ -190,5 +190,21 @@ test("another plugin's hook under the plugin root variable is not ours, alone or
     assert.equal(row(result, 'SessionStart', 'additionalContext', 'standing'), undefined, 'neither context is counted as ours')
     assert.equal(result.ambiguous, 1, 'the call both plugins hooked is ambiguous')
     assert.deepEqual(HOOK_SCRIPTS.sort(), ['branch-state.mjs', 'lifecycle.mjs', 'run-shell-hook.mjs'])
+  } finally { remove(dir) }
+})
+
+test('native hook output and historical Node output remain attributable after the Go cutover', () => {
+  const native = 'sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PreToolUse'
+  const { dir, file } = transcript([
+    success('PreToolUse', 'native', native, '{"hookSpecificOutput":{}}'),
+    context('PreToolUse', 'native', 'native context'),
+    success('PreToolUse', 'old', OURS, '{"hookSpecificOutput":{}}'),
+    context('PreToolUse', 'old', 'old context'),
+  ])
+  try {
+    const result = footprint(file)
+    assert.equal(row(result, 'PreToolUse', 'additionalContext', 'unmarked').firings, 2)
+    assert.equal(row(result, 'PreToolUse', 'additionalContext', 'unmarked').characters, 'native contextold context'.length)
+    assert.equal(result.unattributed, 0)
   } finally { remove(dir) }
 })

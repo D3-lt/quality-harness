@@ -24,7 +24,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { checkEventName } from '../plugin/scripts/check-ledger.mjs'
-import { validationVerdict } from '../plugin/scripts/completion-rules.mjs'
+import { validationVerdict } from '../plugin/scripts/validation-verdict.mjs'
 import { repositoryDiscovery } from '../plugin/scripts/qh-check.mjs'
 
 const verdict = (exit_code, stdout, command = 'sh check.sh') =>

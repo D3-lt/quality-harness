@@ -7,7 +7,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fixtureRepo, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
 import { observe } from '../plugin/scripts/tree-facts.mjs'
-import { completionJudgement } from '../plugin/scripts/completion-rules.mjs'
+import { completionJudgement } from './helpers/node-hooks/completion-rules.mjs'
 
 const skip = process.platform === 'win32' && 'the fixtures run sh checks, as the goldens do (BACKLOG section 375)'
 const pause = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)

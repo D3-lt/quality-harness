@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { slowHookNote } from '../plugin/scripts/lifecycle.mjs'
+import { slowHookNote } from './helpers/node-hooks/lifecycle.mjs'
 import { hookSaid } from './hook-env.mjs'
 
 test('a pause line is silence, and an advisory beside it is still a finding', () => {

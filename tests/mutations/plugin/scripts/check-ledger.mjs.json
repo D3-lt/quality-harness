@@ -1,14 +1,6 @@
 {
   "mutations": [
     {
-      "label": "ADR-122 T3: a row said in another generation of the session does not count in this one",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/said-per-context-routing.test.mjs"],
-      "from": "  return log.filter(entry => entry.event !== 'action.emitted' || (entry.generation ?? 0) === generation)",
-      "to": "  return log",
-      "only": "^(?:a finding said before a compaction is said again after it, and not after a resume)$"
-    },
-    {
       "label": "ADR-113 T3: a fast pass counts only for the fastCheck declared now",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
@@ -29,25 +21,11 @@
       "only": "^(?:qh-check --baseline records against the starting tree and holds no git lock)$"
     },
     {
-      "label": "Stage 5 dedupe: a P advice about a mention names this tree again",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/completion-judgement.test.mjs", "tests/hook-goldens.test.mjs"],
-      "from": "    && !(typeof entry.key === 'string' && ABOUT_ANOTHER_PUBLISH.test(entry.key))\n",
-      "to": "",
-      "only": "^(?:turn end: a publish advice about a mention, a fresh repository or another repository does not stand for this tree|a mention of push before the turn end does not silence it, and a real publish advice still does)$"
-    },
-    {
-      "label": "Stage 5 dedupe: a commit into a fresh or another repository names this tree",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/completion-judgement.test.mjs", "tests/hook-goldens.test.mjs"],
-      "from": "const ABOUT_ANOTHER_PUBLISH = /:(?:mention|fresh|foreign)$/",
-      "to": "const ABOUT_ANOTHER_PUBLISH = /:(?:mention)$/",
-      "only": "^(?:turn end: a publish advice about a mention, a fresh repository or another repository does not stand for this tree|a mention of push before the turn end does not silence it, and a real publish advice still does)$"
-    },
-    {
       "label": "ADR-103 T3: a row written after this run is not its history",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/slow-run.test.mjs"],
+      "tests": [
+        "tests/slow-run.test.mjs"
+      ],
       "from": "  return slowRunLine(rows.slice(0, at), record.command,",
       "to": "  return slowRunLine(rows.filter(row => row?.id !== record.id), record.command,",
       "only": "^(?:only the rows before this run's own are its history)$"
@@ -55,7 +33,9 @@
     {
       "label": "ADR-103 T2: five earlier passes are the floor for a slow-run line",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/slow-run.test.mjs"],
+      "tests": [
+        "tests/slow-run.test.mjs"
+      ],
       "from": "  if (times.length < 5 || !Number.isFinite(ms)) return null",
       "to": "  if (times.length < 4 || !Number.isFinite(ms)) return null",
       "only": "^(?:a run within its history, or with too little of it, says nothing)$"
@@ -63,7 +43,9 @@
     {
       "label": "ADR-103 T2: only passes make the median",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/slow-run.test.mjs"],
+      "tests": [
+        "tests/slow-run.test.mjs"
+      ],
       "from": " && record.reusedFrom === undefined && checkEventName(record) === 'check.passed')",
       "to": " && record.reusedFrom === undefined)",
       "only": "^(?:only this command's own recent full passes make the median)$"
@@ -71,7 +53,9 @@
     {
       "label": "ADR-103 T2: a row reused from another run is not a run",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/slow-run.test.mjs"],
+      "tests": [
+        "tests/slow-run.test.mjs"
+      ],
       "from": "record?.command === command && record.reusedFrom === undefined && checkEventName",
       "to": "record?.command === command && checkEventName",
       "only": "^(?:only this command's own recent full passes make the median)$"
@@ -79,7 +63,9 @@
     {
       "label": "ADR-103 T2: only this command's passes make its median",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/slow-run.test.mjs"],
+      "tests": [
+        "tests/slow-run.test.mjs"
+      ],
       "from": "    .filter(record => record?.command === command && record.reusedFrom",
       "to": "    .filter(record => record && record.reusedFrom",
       "only": "^(?:only this command's own recent full passes make the median)$"
@@ -87,29 +73,12 @@
     {
       "label": "ADR-103 T2: the median is over the last 20 passes",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/slow-run.test.mjs"],
+      "tests": [
+        "tests/slow-run.test.mjs"
+      ],
       "from": "    .slice(-20)\n",
       "to": "",
       "only": "^(?:only this command's own recent full passes make the median)$"
-    },
-    {
-      "label": "observe: a write behind an in-tree link to an outside file is not observable",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {",
-      "to": "    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {",
-      "only": "in-repository link to an outside file"
-    },
-    {
-      "label": "fail-open: a check that could not look does not refuse",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'",
-      "to": "  if (false) return 'could-not-look'"
     },
     {
       "label": "fail-open: a pass recorded before an unobservable write does not cover it",
@@ -143,15 +112,6 @@
       "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
     },
     {
-      "label": "baseline: a dirty tree is never adopted as a late baseline",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/late-baseline.test.mjs"
-      ],
-      "from": "    && observedClean(cwd, observation)",
-      "to": "    && true"
-    },
-    {
       "label": "evidence-flip: whole is something a log must SAY, so a copy that lost the flag cannot certify",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
@@ -162,16 +122,6 @@
       "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
     },
     {
-      "label": "late baseline: not adopted over a write already on record",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)\n    && !log.some(event => event.event === 'file.written' && event.observable !== false)",
-      "to": "  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)",
-      "only": "^(?:a write already on record is not forgiven by a baseline adopted after it was committed|a compact SessionStart does not hand a fresh baseline to a session with outstanding work)$"
-    },
-    {
       "label": "verdict: an unproven verdict never becomes check.passed",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
@@ -180,16 +130,6 @@
       "from": "  if (record?.verdict === 'unproven') return 'check.unproven'",
       "to": "  void 0",
       "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
-      "label": "late baseline: a write git cannot see does not block it",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "event => event.event === 'file.written' && event.observable !== false)",
-      "to": "event => event.event === 'file.written')",
-      "only": "^(?:a write OUTSIDE the repository does not stop a clean repository getting its late baseline)$"
     },
     {
       "label": "verdict: a recorded signal outranks a phrase-derived unproven",
@@ -230,26 +170,6 @@
       "from": "  if (typeof record.git !== 'boolean') return 'check.unproven'",
       "to": "  if (record.git == null) return 'check.unproven'",
       "only": "a check record whose exit is not a number"
-    },
-    {
-      "label": "BACKLOG §319 H: a late baseline is taken after the tree was already seen",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/late-baseline.test.mjs",
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "!log.some(event => event.observation?.ok === true)",
-      "to": "true",
-      "only": "a session that did start normally gets no late baseline|a tree seen before a commit is not forgiven"
-    },
-    {
-      "label": "§319 D4: a torn checks.jsonl is named as the session log",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  return log?.complete !== true ? sessionWords : '`checks.jsonl`",
-      "to": "  return true ? sessionWords : '`checks.jsonl`"
     },
     {
       "label": "ADR-081 T1: a write git cannot see is ignored by the skip",
@@ -300,15 +220,6 @@
       "to": "  if (false) return null"
     },
     {
-      "label": "§343: a write logs no fast-ledger count",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "fastSeen: ledgerRecordCount(cwd, 'fast-checks.jsonl')",
-      "to": "fastSeen: ledgerRecordCount(cwd, 'checks.jsonl')"
-    },
-    {
       "label": "§343 review: a write outside the repository vetoes the pass",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
@@ -318,15 +229,6 @@
       "to": "if (false) continue"
     },
     {
-      "label": "ADR-088 review: the importer reads an unterminated last line as torn",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "  if (lines.pop().trim()) whole = false",
-      "to": "  lines.pop()"
-    },
-    {
       "label": "ADR-088 follow-up: the fast exemption reads an unterminated last line as torn",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
@@ -334,16 +236,6 @@
       ],
       "from": "  if (lines.pop().trim()) return null\n  let latest = null",
       "to": "  ;\n  let latest = null"
-    },
-    {
-      "label": "ADR-088 follow-up: a write's ledger count skips an unterminated last line",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "  for (const line of text.split('\\n').slice(0, -1)) {",
-      "to": "  for (const line of text.split('\\n')) {",
-      "only": "^(?:a write counts only the ledger records written whole)$"
     },
     {
       "label": "ADR-094 T4: an absolute write outside the root is counted as unseen again",
@@ -396,7 +288,9 @@
     {
       "label": "ADR-101 T2: a torn last line after a pass is refused, not dropped",
       "file": "plugin/scripts/check-ledger.mjs",
-      "tests": ["tests/one-ledger-reader.test.mjs"],
+      "tests": [
+        "tests/one-ledger-reader.test.mjs"
+      ],
       "from": "  if (lines.pop().trim()) return null\n  let latest = null",
       "to": "  lines.pop()\n  let latest = null"
     },
@@ -419,16 +313,6 @@
       "from": "  if (unseenWriteSince(vetoRoot, { seen, seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  return { latest",
       "to": "  return { latest",
       "only": "^an unseen write after the original pass vetoes a reuse$"
-    },
-    {
-      "label": "ADR-094 T4: the recorder drops the spelling the tool was given",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "if (lexical !== absolute) entry.lexical = lexical",
-      "to": "void lexical",
-      "only": "^a write through a directory link is counted when the hook records it$"
     },
     {
       "label": "ADR-094 T4: a recorded write is outside by its canonical spelling alone",
@@ -461,26 +345,6 @@
       "only": "^a skip row names the pass that ran, not the reuse row that stood for it$"
     },
     {
-      "label": "ADR-096 T2: a finding said only to the user is still the agent's to hear",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/turn-end-delivery.test.mjs"
-      ],
-      "from": "  return entry.channel === 'both' || entry.channel === channel",
-      "to": "  return true",
-      "only": "^an\\ artifact\\ finding\\ imported\\ on\\ an\\ event\\ that\\ cannot\\ reach\\ the\\ agent\\ stays\\ pending\\ for\\ the\\ next\\ Stop$"
-    },
-    {
-      "label": "ADR-096 review: a finding handed to a subagent is not heard by the main agent",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/turn-end-delivery.test.mjs"
-      ],
-      "from": "  if (channel === 'agent' && recipient === 'main' && entry.recipient === 'subagent') return false\n",
-      "to": "",
-      "only": "^a\\ finding\\ handed\\ to\\ a\\ subagent\\ is\\ still\\ the\\ main\\ agent's\\ to\\ hear$"
-    },
-    {
       "label": "ADR-120 T9: a pass carries to a tree under another list than the one it was taken under",
       "file": "plugin/scripts/check-ledger.mjs",
       "tests": [
@@ -506,15 +370,6 @@
       ],
       "from": "unobservableWrites(log, root).length === 0 ? carryWith(codeTree, prose) : null",
       "to": "carryWith(codeTree, prose)"
-    },
-    {
-      "label": "ADR-120 T9: the import drops the list a pass was taken under",
-      "file": "plugin/scripts/check-ledger.mjs",
-      "tests": [
-        "tests/prose-pass.test.mjs"
-      ],
-      "from": "...(Array.isArray(record.prose) ? { prose: record.prose } : {}),",
-      "to": ""
     },
     {
       "label": "ADR-120 T9: the carry stands against a write another session logged after the pass",

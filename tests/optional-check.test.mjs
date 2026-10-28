@@ -6,11 +6,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
-import { offerPublishHook, pluginRootExport, publishHookExports } from '../plugin/scripts/publish-verdict.mjs'
+import { offerPublishHook, pluginRootExport, publishHookExports } from './helpers/node-hooks/publish-verdict.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { readEvents } from '../plugin/scripts/event-log.mjs'
 import { required } from './helpers/require.mjs'
 import { remove } from './helpers/remove.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
 
 const plugin = fileURLToPath(new URL('../plugin/', import.meta.url))
 const lifecycle = path.join(plugin, 'scripts', 'lifecycle.mjs')
@@ -26,6 +27,7 @@ function fixture(t) {
   const env = { ...base, CLAUDE_PLUGIN_ROOT: plugin, CLAUDE_ENV_FILE: path.join(top, 'env'),
     CLAUDE_PLUGIN_DATA: path.join(top, 'data'), QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: 'inline',
     QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000', QUALITY_HARNESS_LEASE_DIR: path.join(top, 'leases') }
+  env.QUALITY_HARNESS_QH_BIN = sourceCore()
   const hook = (hook_event_name, extra = {}) => {
     const ran = spawnSync(env.QH_TEST_BIN ?? process.execPath, env.QH_TEST_BIN ? ['hook', hook_event_name] : [lifecycle], { cwd: root, env, encoding: 'utf8', timeout: 60_000, windowsHide: true,
       input: JSON.stringify({ hook_event_name, cwd: root, session_id: 'optional', ...extra }) })

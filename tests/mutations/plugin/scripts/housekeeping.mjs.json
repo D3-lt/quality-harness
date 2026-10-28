@@ -3,7 +3,9 @@
     {
       "label": "2026-10-23: a week-old statusline cache stays in the temp root",
       "file": "plugin/scripts/housekeeping.mjs",
-      "tests": ["tests/lifecycle.test.mjs"],
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
       "from": "  sweep(tmp, name => LEGACY_MARKER.test(name) || STATUS_CACHE.test(name))",
       "to": "  sweep(tmp, name => LEGACY_MARKER.test(name))",
       "only": "^(?:a week-old statusline cache is swept with the markers, and nothing else of that name)$"
@@ -11,7 +13,9 @@
     {
       "label": "2026-10-23: any quality-harness-status name is swept",
       "file": "plugin/scripts/housekeeping.mjs",
-      "tests": ["tests/lifecycle.test.mjs"],
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
       "from": "const STATUS_CACHE = /^quality-harness-status-[0-9a-f]{32}$/",
       "to": "const STATUS_CACHE = /^quality-harness-status-/",
       "only": "^(?:a week-old statusline cache is swept with the markers, and nothing else of that name)$"
@@ -65,66 +69,6 @@
       "from": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n    return false\n  }",
       "to": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n  }",
       "only": "^(?:a guard that cannot be written stops the sweep instead of running unbounded)$"
-    },
-    {
-      "label": "2026-10-09: a session log holding a write git could not see is kept at any age",
-      "file": "plugin/scripts/housekeeping.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS || UNSEEN_WRITE_LINE.test(readFileSync(file, 'utf8'))) {",
-      "to": "      if (now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS) {",
-      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
-    },
-    {
-      "label": "2026-10-09: the running session's own log is never swept",
-      "file": "plugin/scripts/housekeeping.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (!name.endsWith('.jsonl') || name === own) continue",
-      "to": "    if (!name.endsWith('.jsonl')) continue",
-      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
-    },
-    {
-      "label": "2026-10-09: only session logs are swept",
-      "file": "plugin/scripts/housekeeping.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (!name.endsWith('.jsonl') || name === own) continue",
-      "to": "    if (name === own) continue",
-      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
-    },
-    {
-      "label": "2026-10-09: a recent session log is kept",
-      "file": "plugin/scripts/housekeeping.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS ||",
-      "to": "now - statSync(file).mtimeMs <= -1 ||",
-      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
-    },
-    {
-      "label": "2026-10-09: the session-log sweep runs once a day",
-      "file": "plugin/scripts/housekeeping.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (!claimDailySweep(guard, now, report)) return report\n  report.swept = true\n  const own",
-      "to": "  claimDailySweep(guard, now, report)\n  report.swept = true\n  const own",
-      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
-    },
-    {
-      "label": "2026-10-09: a session-log directory that cannot be listed is named",
-      "file": "plugin/scripts/housekeeping.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (error?.code !== 'ENOENT') report.unreadable.push(`${directory}: ${error?.code ?? error}`)",
-      "to": "    if (error?.code !== 'ENOENT') report.unreadable.push('')",
-      "only": "^a session-log sweep that cannot look says where, and never throws$"
     }
   ]
 }

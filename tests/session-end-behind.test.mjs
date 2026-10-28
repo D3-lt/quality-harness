@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
-const lifecycle = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'scripts', 'lifecycle.mjs')
+const lifecycle = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'helpers', 'node-hooks', 'lifecycle.mjs')
 const { QUALITY_HARNESS_SESSION_END_RUNNER: _inline, NODE_TEST_CONTEXT: _nested, ...baseEnv } = process.env
 
 function box(label) {

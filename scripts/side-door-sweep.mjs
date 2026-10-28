@@ -52,8 +52,14 @@ function kindOf(file, text) {
   return /python/.test(shebang) ? 'py' : /\b(?:ba|z)?sh\b/.test(shebang) ? 'sh' : /\bnode\b/.test(shebang) ? 'js' : null
 }
 
-// The command a hook entry runs, by the file it names last.
-const hookName = hook => path.basename(String((hook.args ?? []).at(-1) ?? hook.command ?? ''))
+// Name the executable boundary; native bridges retain the name of the CLI gate they select.
+const hookName = hook => {
+  const args = hook.args ?? []
+  if (String(args[0]).replaceAll('\\', '/').endsWith('/scripts/qh-hook.sh')) {
+    return args[1] === 'bridge' && args[2] === 'shell-hook' ? String(args[3]).split(/[\\/]/).pop() : 'qh-hook'
+  }
+  return String(args.at(-1) ?? hook.command ?? '').split(/[\\/]/).pop()
+}
 
 function sites({ files, read, hooks, writingTools }) {
   const found = []

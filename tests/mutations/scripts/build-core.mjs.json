@@ -1,0 +1,13 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: a failed native build is accepted",
+      "file": "scripts/build-core.mjs",
+      "tests": [
+        "tests/qh-assets.test.mjs"
+      ],
+      "from": "if (answer.error || answer.status !== 0)",
+      "to": "if (false)"
+    }
+  ]
+}

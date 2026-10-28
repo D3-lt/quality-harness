@@ -6,7 +6,7 @@ import { mkdtempSync, realpathSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { scratchOutside } from '../plugin/scripts/tree-facts.mjs'
+import { scratchOutside } from './helpers/node-hooks/tree-facts.mjs'
 import { remove } from './helpers/remove.mjs'
 
 test('a case alias of the project is the project where the file system folds case, and not where it does not', () => {

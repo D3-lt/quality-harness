@@ -5,9 +5,8 @@
 import os from 'node:os'
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, realpathSync, rmSync, statSync, utimesSync } from 'node:fs'
 import path from 'node:path'
-import { canonical, GIT_LISTING_BUFFER, nearestExistingDirectory } from './event-log.mjs'
+import { canonical, nearestExistingDirectory } from './event-log.mjs'
 import { spawnSync } from 'node:child_process'
-import { proseSpecs } from './project-config.mjs'
 
 // The OS temp roots, symlink-resolved once per call. `/tmp` is a symlink to
 // `/private/tmp` on macOS and os.tmpdir() points into /var/folders, so the
@@ -48,34 +47,6 @@ export function underTempRoot(candidate, depth = 0) {
 // case-folded where the file system folds case (macOS, Windows), so a case alias of the project is the project; and the
 // exemption needs a repository root git named. A lookup that failed, or one that answered "not a repository" (which a git that
 // exits non-zero for any reason, such as dubious ownership, also answers), gates, as before this exemption existed.
-export function scratchOutside(file, cwd, { platform = process.platform, lookup = gitRepositoryLookup } = {}) {
-  if (!underTempRoot(file)) return false
-  if (!underTempRoot(cwd)) return true
-  const directory = nearestExistingDirectory(path.resolve(cwd))
-  const found = directory ? lookup(directory) : { ok: false, root: null }
-  if (!found.ok || !found.root) return false
-  const base = found.root
-  // The native resolver, as `canonical` uses: the JS one leaves a Windows 8.3 name (C:\Users\RUNNER~1\…) in place while the
-  // root git names is long, and a project's own record under an 8.3 %TEMP% read as outside it (ultrareview of v3.8.53..main).
-  const resolved = candidate => { try { return realpathSync.native(candidate) } catch { return realpathSync(candidate) } }
-  const real = candidate => {
-    const absolute = path.resolve(candidate)
-    try { return resolved(absolute) } catch {
-      try {
-        const anchor = nearestExistingDirectory(absolute)
-        return anchor ? path.join(resolved(anchor), path.relative(anchor, absolute)) : absolute
-      } catch { return absolute }
-    }
-  }
-  const fold = text => (platform === 'win32' || platform === 'darwin' ? text.toLowerCase() : text)
-  const outside = (from, target) => {
-    const relative = path.relative(fold(from), fold(target))
-    return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
-  }
-  // The root in cwd's own spelling: git names it resolved (macOS's /private/var), and the file is spelled as cwd is.
-  const spelled = path.resolve(cwd, path.relative(real(cwd), real(base)))
-  return outside(spelled, path.resolve(file)) && outside(real(base), real(file))
-}
 
 // ADR-095 T3. The identity of a repository (its toplevel, where its index and its objects are) cannot change inside one hook
 // process, and a Stop event asked for the toplevel six times. A successful answer is kept for the life of the process, by
@@ -122,20 +93,10 @@ export function gitRepositoryLookup(directory, spawnResult) {
   return { ok: true, root: canonical(printed), reason: '' }
 }
 
-export function gitRepositoryRoot(directory) {
-  const found = gitRepositoryLookup(directory)
-  return found.ok ? found.root : null
-}
-
 // "Here" is the repository (or the directory, outside one), realpath'd so
 // /tmp and /private/tmp agree, and case-folded where the filesystem is — a
 // parameter, not an assumption (CLAUDE.md §7). A subdirectory of the same
 // repository is the same place.
-export function locationKey(root, platform = process.platform) {
-  let resolved = path.resolve(root)
-  try { resolved = realpathSync(resolved) } catch {}
-  return platform === 'win32' || platform === 'darwin' ? resolved.toLowerCase() : resolved
-}
 
 // The working tree, the index and HEAD as content hashes. Both hashes are taken
 // over a COPY of the index with objects written to a temporary directory, the
@@ -181,36 +142,12 @@ function treeWithout(git, env, scratch, name, treeSha, without) {
  * could not say: a pass is carried to a tree only on this tree's own code, so a tree whose code tree is unknown is carried to
  * by nothing (ADR-005). The repository's objects are not written to.
  */
-export function codeTreeOf(cwd, treeSha, without, budgetMs = observeBudgetMs()) {
-  if (typeof treeSha !== 'string' || !treeSha || !Array.isArray(without) || !without.length) return null
-  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
-  if (!directory) return null
-  let scratch = null
-  try {
-    const git = boundedGit(directory, Date.now(), budgetMs)
-    const objects = path.resolve(directory, git(['rev-parse', '--git-path', 'objects']).out)
-    scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-code-tree-'))
-    mkdirSync(path.join(scratch, 'objects'))
-    const env = { GIT_OBJECT_DIRECTORY: path.join(scratch, 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: objects }
-    return treeWithout(git, env, scratch, 'index', treeSha, without)
-  } catch { return null } finally {
-    if (scratch) {
-      try { rmSync(scratch, { recursive: true, force: true }) } catch { /* a leftover temp copy is not a finding */ }
-    }
-  }
-}
 
 /**
  * ADR-120 T9. The observation a hook records: `observe`, and where the project declares `prose`, also the code tree of the
  * working tree and of the index and the list they were taken under, so every reader of a pass can ask about the tree in front
  * of it. A declaration that is refused declares nothing here either (project-config.mjs says why).
  */
-export function observeCarrying(cwd, budgetMs = observeBudgetMs()) {
-  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
-  const root = directory ? gitRepositoryRoot(directory) : null
-  const specs = root ? proseSpecs(root).specs : []
-  return specs.length ? observe(cwd, budgetMs, { without: specs, carry: true }) : observe(cwd, budgetMs)
-}
 
 // `without` (ADR-094 T3, qh-check and `observeCarrying` pass it) also returns `codeTree`: the tree with those paths removed
 // from the temporary index, anchored at the top. `carry` (ADR-120 T9, only `observeCarrying`) adds the same for the index,
@@ -284,14 +221,6 @@ export function sessionBaseline(log) {
 
 // Whether git lists nothing changed under an observation that succeeded. A listing
 // that FAILED is not a clean tree (ADR-005), so it answers false.
-export function observedClean(cwd, observation) {
-  if (observation?.ok !== true) return false
-  const directory = nearestExistingDirectory(path.resolve(cwd))
-  const root = directory ? gitRepositoryRoot(directory) : null
-  if (!root) return false
-  const status = statusPaths(root)
-  return status.ok !== false && status.length === 0
-}
 
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
 // SubagentStart and SubagentStop observations, paired by agent id. A change in
@@ -311,30 +240,12 @@ export function observedClean(cwd, observation) {
 // map so a transform cannot silently drop the one field that says the answer is
 // real. `ok === false` is the only failure signal — an absent `ok` means a caller
 // that never asked git anything, not a failure.
-export function mark(lines, ok, why = '') {
-  const out = [...lines]
-  out.ok = ok
-  out.why = why
-  return out
-}
 
 // ⚠ A PATH GIT PRINTS IS QUOTED UNLESS IT IS ASKED NOT TO BE. Every call here that
 // returns paths passes `nul` and a `-z`, which has no quoting at all; the class was
 // enumerated by command on 2026-09-19 and four of seven sites were still quoted
 // after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
 // a name may end in a space.
-export function gitLines(root, args, { nul = false } = {}) {
-  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-  if (run.error || run.status !== 0) {
-    const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
-    const why = run.error ? run.error.message : `git ${verb} exited ${run.status}`
-    return mark([], false, why)
-  }
-  if (nul) return mark(run.stdout.split('\0').filter(Boolean), true)
-  // ASCII whitespace only, as the Go core trims: a git name may end in other whitespace (a remote `team/peer` + U+00A0), and
-  // trimEnd() read that one as remote `team/peer` (the sixth verification review of R2).
-  return mark(run.stdout.split('\n').map(line => line.replace(/[ \t\r\n\v\f]+$/, '')).filter(Boolean), true)
-}
 
 // The harness's own bookkeeping is not the session's work. CLAUDE_PLUGIN_DATA is
 // wherever the host puts it, and a host that puts it inside the repository makes
@@ -355,65 +266,8 @@ function harnessPathspecs(root) {
 // boundary for ever (same peer test).
 // ADR-095 T5. Off unless the entry point switches it on (a hook process does, a test or a library caller does not): one answer per
 // repository, reused for at most `lifetimeMs`, kept only when git gave it. The answer is handed out as a copy.
-let statusMemo = null
-export function rememberStatus(lifetimeMs = 2_000, now = () => performance.now()) {
-  statusMemo = { lifetimeMs, now, answers: new Map() }
-}
-
-export function statusPaths(root) {
-  if (!root) return mark([], true)
-  // A path with a `..` component can name a directory that is not there once a link or a missing component is resolved: git is asked.
-  const key = statusMemo && !String(root).split(/[\\/]/).includes('..') ? path.resolve(root) : null
-  const kept = key ? statusMemo.answers.get(key) : undefined
-  // A clock that went backwards would make an old answer look new: elapsed time below zero is not within the lifetime.
-  const elapsed = kept ? statusMemo.now() - kept.at : -1
-  if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)
-  // ⚠ `-z`, NOT A QUOTE STRIP. Porcelain v1 quotes an unusual name and escapes its
-  // bytes as octal; stripping the quotes left `na\303\257ve.md`, a path that is
-  // not on disk — shown to the user, persisted to `sessions.jsonl`, and gated by
-  // rule A at every boundary for ever, since a missing file never gets an
-  // identity (audit C2, reproduced in the field 2026-09-19). `core.quotePath=false`
-  // fixes the octal and leaves an embedded quote, backslash or newline wrong.
-  // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
-  // its own field, which is skipped — the new name is the path that exists.
-  const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
-    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-  if (run.error || run.status !== 0) {
-    return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
-  }
-  const fields = run.stdout.split('\0')
-  const paths = []
-  for (let index = 0; index < fields.length; index++) {
-    const entry = fields[index]
-    if (entry.length < 4) continue
-    paths.push(entry.slice(3))
-    if (entry[0] === 'R' || entry[0] === 'C' || entry[1] === 'R' || entry[1] === 'C') index++
-  }
-  const answer = mark(paths, true)
-  // What is kept is a copy: the array handed to the caller is the caller's, and a caller that empties it must not empty the memo.
-  if (key) statusMemo.answers.set(key, { at: statusMemo.now(), paths: mark(paths, true) })
-  return answer
-}
 
 // The commit at HEAD, when it was not reachable as the session started (ADR-128 T1: R2 is retired, and only HEAD is asked
 // about). NOT "authored here": a fetch, a merge or a checkout moves HEAD too. R1 names it as what the tree at HEAD was
 // committed as, and the claim's evidence asks whether a check passed on its tree.
-export function headCommit(log, root, head) {
-  const baseline = sessionBaseline(log)?.observation
-  const first = baseline?.head
-  if (!root || typeof head !== 'string') return mark([], true)
-  // ⚠ AN UNBORN BASELINE IS OBSERVED-AND-EMPTY, NOT UNKNOWN. `observe()` records a
-  // repository with no commits as `{ ok: true, head: null }` — looked at, and
-  // positively empty. Requiring a STRING baseline here collapsed that into "no
-  // information", so a session that started in a fresh repository and then gained
-  // its whole history reported no commit at all. `git init` then work is how a
-  // project starts, and a scaffold that commits as it goes reaches it every time.
-  const unborn = baseline?.ok === true && first === null
-  if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
-  // The newest commit of the range is HEAD; a HEAD the session start already reached (a reset back) leaves the range empty.
-  const lines = gitLines(root, ['log', '-1', '--format=%H%x09%T%x09%s', unborn ? head : `${first}..${head}`])
-  return mark(lines.map(line => {
-    const [sha, tree, ...subject] = line.split('\t')
-    return { sha, tree, subject: subject.join('\t') }
-  }).filter(commit => commit.sha && commit.tree), lines.ok, lines.why)
-}
+

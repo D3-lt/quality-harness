@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
-import { ledgerRefusal } from '../plugin/scripts/ledger-guard.mjs'
+import { ledgerRefusal } from './helpers/node-hooks/ledger-guard.mjs'
 import { runCheck } from '../plugin/scripts/qh-check.mjs'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')

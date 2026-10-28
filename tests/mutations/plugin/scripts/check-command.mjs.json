@@ -3,7 +3,9 @@
     {
       "label": "a compound command the grammar does not read is could-not-look, never constant",
       "file": "plugin/scripts/check-command.mjs",
-      "tests": ["tests/shell-grammar.test.mjs"],
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
       "from": "    || (RESERVED.has(c.argv[0] ?? '') && !c.quoted?.[0]))) return 'either'",
       "to": "    || false)) return 'either'",
       "only": "^(?:a compound command the grammar does not read is could-not-look, never a constant success)$"
@@ -11,7 +13,9 @@
     {
       "label": "Codex review of 0b129010..bca51180: only the word exit is the exit builtin",
       "file": "plugin/scripts/check-command.mjs",
-      "tests": ["tests/shell-grammar.test.mjs"],
+      "tests": [
+        "tests/shell-grammar.test.mjs"
+      ],
       "from": "  if (program === 'exit') {",
       "to": "  if (name === 'exit') {",
       "only": "^(?:only the word exit is the exit builtin, not a path named exit)$"
@@ -98,7 +102,9 @@
     {
       "label": "ADR-111 T1: pyproject.toml's [tool.pytest.ini_options] infers pytest",
       "file": "plugin/scripts/check-command.mjs",
-      "tests": ["tests/check-inference.test.mjs"],
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
       "from": "  ['pyproject.toml', /^[ \\t]*\\[tool\\.pytest\\.ini_options\\][ \\t]*(?:#.*)?$/, 'toml'],",
       "to": "  ['pyproject.toml', /^[ \\t]*\\[tool\\.pytest\\.ini_options_off\\][ \\t]*(?:#.*)?$/, 'toml'],",
       "only": "^(?:pytest configured in pyproject.toml or setup.cfg is inferred)$"
@@ -106,7 +112,9 @@
     {
       "label": "ADR-111 T1: setup.cfg's [tool:pytest] infers pytest",
       "file": "plugin/scripts/check-command.mjs",
-      "tests": ["tests/check-inference.test.mjs"],
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
       "from": "  ['setup.cfg', /^\\[tool:pytest\\][ \\t]*(?:[#;].*)?$/, 'ini'],",
       "to": "  ['setup.cfg', /^\\[tool:pytest_off\\][ \\t]*(?:[#;].*)?$/, 'ini'],",
       "only": "^(?:pytest configured in pyproject.toml or setup.cfg is inferred)$"
@@ -114,7 +122,9 @@
     {
       "label": "ADR-111 T1: the pytest header must open a line",
       "file": "plugin/scripts/check-command.mjs",
-      "tests": ["tests/check-inference.test.mjs"],
+      "tests": [
+        "tests/check-inference.test.mjs"
+      ],
       "from": "  ['pyproject.toml', /^[ \\t]*\\[tool\\.pytest\\.ini_options\\][ \\t]*(?:#.*)?$/, 'toml'],",
       "to": "  ['pyproject.toml', /[ \\t]*\\[tool\\.pytest\\.ini_options\\]/, 'toml'],",
       "only": "^(?:a manifest that does not configure pytest infers nothing from these rungs)$"
@@ -157,16 +167,6 @@
       "from": "  return typeof check === 'string' && check.trim() ? check.trim() : null",
       "to": "  return check ?? null",
       "only": "^(?:a project that declares its check is asked for that check)$"
-    },
-    {
-      "label": "checks: the DECLARED arm of the run-the-check sentence says whose word the command is",
-      "file": "plugin/scripts/check-command.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (origin === 'declared') {",
-      "to": "  if (origin === 'never') {",
-      "only": "^(?:a project that declares its check is asked for that check|every command this harness OFFERS, it also accepts as evidence)$"
     },
     {
       "label": "checks: a composer `test` script is not offered as the project's own check",
@@ -277,16 +277,6 @@
       "from": "args[0] === '-c' && args[1] !== undefined) return",
       "to": "/^-[A-Za-z]*c$/.test(args[0] ?? '') && args[1] !== undefined) return",
       "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "§319 H1: runTheCheckSentence prints the declared check raw",
-      "file": "plugin/scripts/check-command.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "it runs ${checkInCode(command)} (this project's own check)",
-      "to": "it runs \\`${command}\\` (this project's own check)",
-      "only": "a declared check cannot forge a line"
     },
     {
       "label": "checks: an inferred package check runs the script through run",

@@ -1,68 +1,9 @@
 {
-  "mutations": [
-    {
-      "label": "ADR-122 T2: only a role system message is hook text; a user message quoting a marker is not a saying",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "  if (message?.role !== 'system') return []",
-      "to": "  if (false) return []",
-      "only": "^(?:a marker in a tool result or in a side query is not a saying)$"
-    },
-    {
-      "label": "the release review of 3.8.52: a subagent's context is its own loop, never a side query",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context-sources.test.mjs"],
-      "from": "  const loop = agent ? AGENT_LOOP : MAIN_LOOP",
-      "to": "  const loop = agent ? /./ : MAIN_LOOP",
-      "only": "^(?:a subagent's side request is not its context)$"
-    },
-    {
-      "label": "ADR-122 T2: only the main loop's last request is the context, never a side query",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "  const id = [...cache.order].reverse().find(r => loop.test(cache.requests[r]?.querySource ?? ''))",
-      "to": "  const id = [...cache.order].reverse().find(r => true)",
-      "only": "^(?:a marker in a tool result or in a side query is not a saying)$"
-    },
-    {
-      "label": "ADR-122 T2: an item said after the last request is pending",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "    return { verdict: 'pending', marker, bytesRead: scanned.bytesRead }",
-      "to": "    return { verdict: 'unsaid', marker, bytesRead: scanned.bytesRead }",
-      "only": "^(?:an item said after the last request is pending until a newer request)$"
-    },
-    {
-      "label": "ADR-122 T2: with a blob missing, absence is not shown",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "  if (last.messages.some(hash => !(hash in scanned.cache.blobs))) return { verdict: 'no-evidence', marker, bytesRead: scanned.bytesRead }",
-      "to": "  if (false) return { verdict: 'no-evidence', marker, bytesRead: scanned.bytesRead }",
-      "only": "^(?:no request evidence suppresses nothing)$"
-    },
-    {
-      "label": "ADR-122 T2: a subagent's context is its own transcript",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "  if (input?.agent_id) return typeof input.agent_transcript_path === 'string' ? input.agent_transcript_path : null",
-      "to": "  if (false) return null",
-      "only": "^(?:a subagent's item is judged on its own transcript)$"
-    },
-    {
-      "label": "ADR-122 T2: the offset never passes an incomplete last line",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "  for (const line of chunk.toString('utf8').split('\\n').slice(0, -1)) {",
-      "to": "  for (const line of chunk.toString('utf8').split('\\n')) {",
-      "only": "^(?:an incomplete last line is read when it completes, and no cached blob is read twice)$"
-    },
-    {
-      "label": "ADR-122 T2: a replaced transcript drops its cache",
-      "file": "plugin/scripts/said-per-context.mjs",
-      "tests": ["tests/said-per-context.test.mjs"],
-      "from": "    if (!cache || cache.identity !== identity || cache.offset > size) cache = emptyCache(identity)",
-      "to": "    if (!cache) cache = emptyCache(identity)",
-      "only": "^(?:a replaced transcript drops its cache and an appended one keeps it)$"
-    }
-  ]
+  "mutations": [{
+    "label": "Go cutover: the retained reader emits the wrong stable context marker",
+    "file": "plugin/scripts/said-per-context.mjs",
+    "tests": ["tests/native-hooks.test.mjs"],
+    "from": ".digest('hex').slice(0, 8)",
+    "to": ".digest('hex').slice(8, 16)"
+  }]
 }

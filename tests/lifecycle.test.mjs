@@ -12,12 +12,14 @@ import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { sessionOrientation, hasDecisionCorpus } from '../plugin/scripts/session-orientation.mjs'
 import { spawnGate, resolvePython } from '../plugin/scripts/ready-lines.mjs'
 import { shadowInstallNotice, staleVersionNotice } from '../plugin/scripts/install-notices.mjs'
-import { saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs } from '../plugin/scripts/housekeeping.mjs'
-import { artifactGateTimeoutMs, budgetExhausted, runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
-import { checkCommandOrigin, projectCheckCommand, runTheCheckSentence } from '../plugin/scripts/check-command.mjs'
-import { readOnlyVerdict } from '../plugin/scripts/publish-verdict.mjs'
+import { saidMarkerDirectory, sweepStaleMarkers } from '../plugin/scripts/housekeeping.mjs'
+import { sweepStaleSessionLogs } from './helpers/node-hooks/housekeeping.mjs'
+import { artifactGateTimeoutMs, budgetExhausted, runArtifactGates } from './helpers/node-hooks/artifact-pass.mjs'
+import { checkCommandOrigin, projectCheckCommand } from '../plugin/scripts/check-command.mjs'
+import { runTheCheckSentence } from './helpers/node-hooks/check-command.mjs'
+import { readOnlyVerdict } from './helpers/node-hooks/publish-verdict.mjs'
 import { observe, observeBudgetMs } from '../plugin/scripts/tree-facts.mjs'
-import { completionClaim } from '../plugin/scripts/completion-rules.mjs'
+import { completionClaim } from './helpers/node-hooks/completion-rules.mjs'
 import { adrCorpus, decisionContext, decisionsGoverning, pathMatchesDeclaration } from '../plugin/scripts/decision-corpus.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
@@ -1137,7 +1139,7 @@ test('SessionEnd records what was left unverified, and the next startup here say
   assert.match(homeless.stderr, /CLAUDE_PLUGIN_DATA is not set/)
 })
 
-test('a location key is the realpath of the repository root, case-folded where the filesystem is', async () => {
+test('a location key is the realpath of the repository root, case-folded where the filesystem is', { skip: 'Node-only API retired; native SessionEnd location identity is checked in native-hooks.test.mjs' }, async () => {
   const { locationKey } = await import('../plugin/scripts/tree-facts.mjs')
   const dir = await mkdtemp(path.join(testTmp, 'quality-location-'))
   const mixed = path.join(dir, 'MixedCase')
@@ -1530,7 +1532,7 @@ function corruptGitIndex(dir) {
 
 function artifactGatesThrough(pluginRoot, paths, cwd) {
   const code = 'const {runArtifactGates}=await import(' +
-    JSON.stringify(pathToFileURL(path.join(pluginRoot, 'scripts', 'artifact-pass.mjs')).href) +
+    JSON.stringify(pathToFileURL(path.join(repoRoot, 'tests', 'helpers', 'node-hooks', 'artifact-pass.mjs')).href) +
     '); process.stdout.write(JSON.stringify(runArtifactGates(' +
     JSON.stringify(paths) + ',' + JSON.stringify(cwd) + ')));'
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], {

@@ -17,9 +17,9 @@ import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 // ADR-130: namespace bindings keep locked, retired test bodies loadable after their policy APIs were removed.
-import * as retiredPolicy from '../plugin/scripts/publish-command.mjs'
+import * as retiredPolicy from './helpers/node-hooks/publish-command.mjs'
 const { foreignCommitPath, freshRepositoryCommit, leavesHookInPlace } = retiredPolicy
-import { commonDirectory } from '../plugin/scripts/publish-verdict.mjs'
+import { commonDirectory } from '../plugin/scripts/git-directory.mjs'
 import { IMPL, QH_BIN } from './hook-golden.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')

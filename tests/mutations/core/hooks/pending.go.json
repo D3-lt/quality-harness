@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: governing context is discarded by the native lifecycle",
+      "file": "core/hooks/pending.go",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "return answer.stdout",
+      "to": "return \"\"",
+      "only": "^the decision context is delivered once per path per session, and never as a finding$"
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { deliver } from '../plugin/scripts/lifecycle.mjs'
+import { deliver } from './helpers/node-hooks/lifecycle.mjs'
 import { itemMarker } from '../plugin/scripts/said-per-context.mjs'
 import { remove } from './helpers/remove.mjs'
 

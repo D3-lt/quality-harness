@@ -5,7 +5,7 @@
 // null is not asserted here.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
+import { publishCommandIn } from './helpers/node-hooks/publish-command.mjs'
 
 const publishes = rows => { for (const row of rows) assert.equal(publishCommandIn(row), 'git push', row) }
 const publishesNothing = rows => { for (const row of rows) assert.equal(publishCommandIn(row), null, row) }

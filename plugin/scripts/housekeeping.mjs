@@ -4,7 +4,6 @@
 import os from 'node:os'
 import path from 'node:path'
 import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { sessionLogFile, stateDir } from './event-log.mjs'
 
 // Where the "already said this" markers live, and the sweep that bounds them
 // (BACKLOG §146). One zero-byte file per (session, generation, finding), and
@@ -116,34 +115,4 @@ function claimDailySweep(guard, now, report) {
 // the two apart, so the log is read; one that cannot be read is kept. Never throws: it
 // runs inside a hook, and a failed sweep costs disk and nothing else. `swept` false means
 // the daily guard held; `unreadable` names every place it could not look.
-const UNSEEN_WRITE_LINE = /"observable":\s*false/
 
-export function sweepStaleSessionLogs(cwd, session, now = Date.now()) {
-  const report = { swept: false, removed: 0, kept: 0, unreadable: [] }
-  const directory = path.join(stateDir(cwd), 'sessions')
-  const guard = path.join(directory, '.swept')
-  let names
-  try { names = readdirSync(directory) } catch (error) {
-    if (error?.code !== 'ENOENT') report.unreadable.push(`${directory}: ${error?.code ?? error}`)
-    return report
-  }
-  if (!claimDailySweep(guard, now, report)) return report
-  report.swept = true
-  const own = typeof session === 'string' && session ? path.basename(sessionLogFile(cwd, session)) : null
-  for (const name of names) {
-    if (!name.endsWith('.jsonl') || name === own) continue
-    const file = path.join(directory, name)
-    try {
-      if (now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS || UNSEEN_WRITE_LINE.test(readFileSync(file, 'utf8'))) {
-        report.kept += 1
-        continue
-      }
-      unlinkSync(file)
-      report.removed += 1
-    } catch (error) {
-      report.kept += 1
-      report.unreadable.push(`${name}: ${error?.code ?? error}`)
-    }
-  }
-  return report
-}

@@ -49,6 +49,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -91,6 +95,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -116,6 +124,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -155,6 +167,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -285,6 +301,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -361,6 +381,10 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - uses: actions/download-artifact@v8
         if: github.event_name != 'workflow_dispatch'
         with:
@@ -406,6 +430,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
       - name: Install the Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
       - name: Validate the manifest and skills
@@ -442,3 +470,24 @@ jobs:
           QUALITY_HARNESS_HOOK_IMPL: go
           QUALITY_HARNESS_REQUIRE: go
         run: node --test tests/hook-goldens.test.mjs tests/qh-core-parity.test.mjs tests/refusals-hold.test.mjs tests/go-core-parity-adr-111.test.mjs tests/baseline.test.mjs tests/adr-108.test.mjs tests/side-door-sweep.test.mjs tests/qh-mcp-resources.test.mjs tests/r2-remote-commits.test.mjs tests/go-format.test.mjs
+
+  core-assets:
+    name: core assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
+      - name: Build the native release assets
+        run: node scripts/build-core.mjs --assets qh-assets
+      - uses: actions/upload-artifact@v7
+        with:
+          name: qh-core
+          path: qh-assets/*
+          if-no-files-found: error

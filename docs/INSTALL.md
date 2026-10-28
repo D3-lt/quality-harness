@@ -22,6 +22,14 @@ run here, it says so.
 | Codex CLI | Only for `/quality-harness:codex-review` and `:codex-advise`. Nothing else depends on it. | Not in CI. |
 | `jq` | Optional, Windows only — advisory JSON checks. Hook dispatch does not use it. `winget install jqlang.jq` | — |
 
+The lifecycle hooks run a native Go binary fetched from this plugin's matching GitHub release. SessionStart installs it
+under `CLAUDE_PLUGIN_DATA/qh/<version>/` and checks its checksum and version. Adopters do not need a Go toolchain.
+Node remains required for bootstrap and the retained CLI tools. A first installation needs network access; an offline or
+unsupported installation reports could-not-run instead of falling back to a JavaScript hook engine.
+`QUALITY_HARNESS_QH_FETCH=off` disables automatic fetching; `node <plugin>/scripts/qh-fetch.mjs` installs explicitly.
+Contributors need the Go version declared in `core/go.mod`; the selftest builds a source binary for CLI compatibility checks.
+
+
 The plugin ships no project-specific paths, test commands or policy. It reads the repository it
 is run in.
 

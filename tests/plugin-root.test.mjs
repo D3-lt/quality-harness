@@ -10,7 +10,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
 import { RESOLVER, cacheDirectory } from '../plugin/scripts/standalone-link.mjs'
-import { offerPluginRoot, offerPublishHook } from '../plugin/scripts/publish-verdict.mjs'
+import { offerPluginRoot, offerPublishHook } from './helpers/node-hooks/publish-verdict.mjs'
 import { fixtureRepo, pluginDir, runHook, sandbox } from './hook-golden.mjs'
 import { required } from './helpers/require.mjs'
 

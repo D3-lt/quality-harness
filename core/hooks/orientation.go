@@ -453,7 +453,12 @@ func sessionOrientation(cwd string, say func(text, root string) bool, mark bool)
 		standing("mrw is on PATH: read every site you will touch in one `mrw read`, and apply every edit as one `mrw write` plan " +
 			"(the `execution` skill's \"Read and edit in batches\").")
 	}
-	// The standalone-copy notice (install-notices.mjs shadowInstallNotice) is not ported: see ADR-110 T1's divergences.
+	if check != "" || corpusLook != "false" {
+		notice := run(10*time.Second, root, nil, "", "node", filepath.Join(pluginRoot(), "scripts", "install-notices.mjs"))
+		if notice.err == nil && notice.status == 0 && notice.stdout != "" {
+			standing(notice.stdout + " Run the sync CLI before relying on a standalone copy.")
+		}
+	}
 	return strings.Join(lines, "\n\n")
 }
 

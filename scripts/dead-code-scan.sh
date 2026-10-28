@@ -62,11 +62,12 @@ echo "== knip (JavaScript)"
 if command -v npx >/dev/null 2>&1; then
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/qh-knip.XXXXXX")
   trap 'rm -rf "$scratch"' EXIT
-  git archive HEAD | tar -x -C "$scratch"
-  # The working tree as it stands: modified tracked files and new untracked ones too
-  # (CLAUDE.md §8: git ls-files plus --others --exclude-standard), or a file being
-  # added is never scanned before the commit that adds it.
-  git ls-files -z -m --others --exclude-standard | while IFS= read -r -d '' f; do mkdir -p "$scratch/$(dirname "$f")"; cp "$f" "$scratch/$f"; done
+  # Copy the listed working tree directly: an addition already staged is neither modified
+  # relative to the index nor untracked, and a staged deletion must not survive from HEAD.
+  git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d '' f; do
+    [ -f "$f" ] || [ -L "$f" ] || continue
+    printf '%s\0' "$f"
+  done | tar --null -T - -cf - | tar -xf - -C "$scratch"
   printf '%s\n' '{ "name": "qh-dead-code-scan", "private": true, "type": "module" }' > "$scratch/package.json"
   # ignoreBinaries: OS tools a test spawns, never npm packages — mkfifo (chaos-315-fifo), perl
   # (chaos-315-mutate-catalogue bounds a child's lifetime with it), go (qh-core-parity builds the Go
@@ -74,13 +75,19 @@ if command -v npx >/dev/null 2>&1; then
   # (post-edit-check's jq-dependent tests ask for it by name to skip where it is absent, ADR-119 T4).
   # knip reads an unlisted binary as a missing dependency; the repository has no package.json to list
   # them in.
+  # Frozen, retired Node-hook callbacks still spell these removed imports. Active cases run in selftest;
+  # only their unresolved-import diagnostics are exempt, never production imports or other findings.
   printf '%s\n' '{
   "entry": ["scripts/*.mjs!", "plugin/scripts/*.mjs!", "plugin/workflows/*.js!", "tests/*.test.mjs", "tests/*.mjs"],
   "project": ["scripts/**/*.mjs!", "plugin/**/*.mjs!", "plugin/workflows/*.js!", "tests/*.mjs"],
   "ignoreExportsUsedInFile": true,
   "ignoreBinaries": ["mkfifo", "perl", "go", "gofmt", "jq"],
   "ignoreDependencies": ["internal"],
-  "ignoreIssues": { "plugin/workflows/*.js": ["exports"] }
+  "ignoreIssues": {
+    "plugin/workflows/*.js": ["exports"],
+    "tests/gate-rules.test.mjs": ["unresolved"],
+    "tests/publish-hook.test.mjs": ["unresolved"]
+  }
 }' > "$scratch/knip.json"
   echo "knip $(cd "$scratch" && npx -y knip@6 --version 2>/dev/null | tail -1), --include-entry-exports, then --production"
   (cd "$scratch" && npx -y knip@6 --no-progress --include-entry-exports) || findings=1

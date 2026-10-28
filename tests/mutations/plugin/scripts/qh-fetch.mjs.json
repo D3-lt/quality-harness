@@ -1,0 +1,31 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: download checksum verification is removed",
+      "file": "plugin/scripts/qh-fetch.mjs",
+      "tests": [
+        "tests/qh-fetch.test.mjs"
+      ],
+      "from": "if (sha256(bytes) !== expected)",
+      "to": "if (false)"
+    },
+    {
+      "label": "Go cutover: a binary reporting another release is installed",
+      "file": "plugin/scripts/qh-fetch.mjs",
+      "tests": [
+        "tests/qh-fetch.test.mjs"
+      ],
+      "from": "if (answer.error || answer.status !== 0 || String(answer.stdout).trim() !== `qh version ${version}`)",
+      "to": "if (false)"
+    },
+    {
+      "label": "Go cutover: a verified cache is downloaded again",
+      "file": "plugin/scripts/qh-fetch.mjs",
+      "tests": [
+        "tests/qh-fetch.test.mjs"
+      ],
+      "from": "if (verifiedCore(binary)) return { binary, installed: false }",
+      "to": "if (false) return { binary, installed: false }"
+    }
+  ]
+}

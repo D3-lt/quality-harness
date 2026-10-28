@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { test } from 'node:test'
-import { gitLines } from '../plugin/scripts/tree-facts.mjs'
+import { gitLines } from './helpers/node-hooks/tree-facts.mjs'
 import { fixtureRepo, git, sandbox } from './hook-golden.mjs'
 
 test('a git line keeps trailing non-ASCII whitespace and loses ASCII whitespace', t => {

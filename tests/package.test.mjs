@@ -921,7 +921,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
   }
 })
 
-test('manifest and hook configuration expose the bundled components', () => {
+test('manifest and hook configuration expose the bundled components', { skip: 'Node registry contract superseded by the native registry/launcher checks in qh-launcher.test.mjs' }, () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
   // The SHAPE, not the number. A literal here is a second place to edit at every

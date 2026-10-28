@@ -7,6 +7,9 @@
 // itself is tested in tests/lifecycle.test.mjs, which sets the threshold to 0.
 // The whole pause sentence. flushOutput builds it with slowHookNote, so a wording
 // change that stops matching this fails the slow-hook test in lifecycle.test.mjs.
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
+
 export const SLOW_HOOK_NOTE = /^quality-harness: the \S+ hook took \d+\.\ds — the pause has this name$/
 
 export function stripPauseLines(text) {

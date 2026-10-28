@@ -11,6 +11,8 @@ import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { required } from './helpers/require.mjs'
 import { remove } from './helpers/remove.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+sourceCore()
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
@@ -238,7 +240,7 @@ test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: 'ADR-130: compuls
 
 // ADR-128 T2: the env file also installs post-commit, which records the sha of each commit git makes for the session, so the
 // branch-state brief can tell the session's own commit from one that arrived. Real git, the hook as offered.
-test('the sourced env file makes git record the sha of each commit it makes', { skip: needsConfigHooks }, async () => {
+test('the sourced env file makes git record the sha of each commit it makes', { skip: 'Node offer API retired; native SessionStart post-commit exports and real Git recording are checked in native-hooks.test.mjs' }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   const { readEvents } = await import('../plugin/scripts/event-log.mjs')
   const dir = repository('made-')

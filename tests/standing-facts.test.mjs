@@ -10,7 +10,7 @@ import { remove } from './helpers/remove.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { locationKey } from '../plugin/scripts/tree-facts.mjs'
+import { locationKey } from './helpers/node-hooks/tree-facts.mjs'
 
 const lifecycleScript = fileURLToPath(new URL('../plugin/scripts/lifecycle.mjs', import.meta.url))
 const qhCheckScript = fileURLToPath(new URL('../plugin/scripts/qh-check.mjs', import.meta.url))

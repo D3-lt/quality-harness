@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const tool = path.join(repoRoot, 'scripts', 'hook-cost.mjs')
-const treeFacts = pathToFileURL(path.join(repoRoot, 'plugin', 'scripts', 'tree-facts.mjs')).href
+const treeFacts = pathToFileURL(path.join(repoRoot, 'tests', 'helpers', 'node-hooks', 'tree-facts.mjs')).href
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'status-memo-')))
 after(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))
 
@@ -36,7 +36,7 @@ function measure(event, dir, { program, out } = {}) {
 const asked = (report, text) => report.children.filter(child => child.cmd.includes(text)).length
 const fixture = (name, body) => { const file = path.join(scratch, name); writeFileSync(file, `import { appendFileSync, writeFileSync } from 'node:fs'\nimport { rememberStatus, statusPaths } from ${JSON.stringify(treeFacts)}\nconst out = process.env.FIXTURE_OUT\n${body}\n`); return file }
 
-test('a turn-end event asks git for the working tree status once', () => {
+test('a turn-end event asks git for the working tree status once', { skip: 'Node preload cannot trace Go descendants; native lifecycle behavior is checked at its Go boundary' }, () => {
   const report = measure('Stop', repository())
   assert.equal(report.exit, 0)
   assert.equal(asked(report, 'status --porcelain'), 1, report.children.map(child => child.cmd).join('\n'))

@@ -6,17 +6,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "SessionStart"
             ],
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/branch-state.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "bridge",
+              "branch-state",
               "--cached",
               "120"
             ],
@@ -30,9 +34,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/branch-state.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "bridge",
+              "branch-state",
               "--brief",
               "--cached",
               "120"
@@ -47,9 +53,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "SubagentStart"
             ],
             "timeout": 10
           }
@@ -61,9 +69,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "SubagentStop"
             ],
             "timeout": 120
           }
@@ -75,9 +85,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "TaskCompleted"
             ],
             "timeout": 120
           }
@@ -89,9 +101,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "Stop"
             ],
             "timeout": 120
           }
@@ -104,9 +118,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "PreToolUse"
             ],
             "timeout": 60
           }
@@ -117,9 +133,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "PreToolUse"
             ],
             "timeout": 10
           }
@@ -132,27 +150,33 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "bridge",
+              "shell-hook",
               "facts-gate-dispatch.sh"
             ],
             "timeout": 120
           },
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "bridge",
+              "shell-hook",
               "post-edit-check.sh"
             ],
             "timeout": 120
           },
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "PostToolUse"
             ],
             "timeout": 30
           }
@@ -163,9 +187,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "PostToolUse"
             ],
             "timeout": 30
           }
@@ -177,9 +203,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "PreCompact"
             ],
             "timeout": 30
           }
@@ -191,9 +219,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "sh",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh",
+              "hook",
+              "SessionEnd"
             ],
             "timeout": 30
           }

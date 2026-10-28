@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { subagentContract } from '../plugin/scripts/completion-rules.mjs'
+import { subagentContract } from './helpers/node-hooks/completion-rules.mjs'
 import * as hostReview from '../plugin/scripts/host-review.mjs'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor

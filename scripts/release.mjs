@@ -17,6 +17,7 @@ import { spawnSync } from 'node:child_process'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
 import { land } from './land.mjs'
+import { CORE_TARGETS, coreAsset } from '../plugin/scripts/core-assets.mjs'
 
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
@@ -211,8 +212,17 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     }
     return evidence.status === 1 ? 1 : 2
   }
+  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId)])
+  const assets = prepared.status === 0 ? parsed(prepared.stdout) : null
+  const expectedAssets = [...CORE_TARGETS.map(([os, arch]) => coreAsset(os, arch)), 'SHA256SUMS.txt'].sort()
+  const names = Array.isArray(assets) && assets.every(file => typeof file === 'string')
+    ? assets.map(file => file.split(/[\\/]/).pop()).sort() : []
+  if (JSON.stringify(names) !== JSON.stringify(expectedAssets)) {
+    log(`release: native assets could not be verified ${at}: ${String(prepared.stderr ?? '').trim() || 'the complete asset set was not returned'}`)
+    return 1
+  }
   const notes = notesFile ? ['--notes-file', notesFile] : ['--generate-notes']
-  const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', ...notes], true).status
+  const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', ...notes, ...assets], true).status
   if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}`); return 1 }
   log(`release: ${tag} released at ${sha}`)
   return 0

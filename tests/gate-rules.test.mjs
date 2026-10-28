@@ -344,7 +344,7 @@ test('a cleanup that fails does not leave the hook pending until the host kills 
   assert.equal(landed.cleanupConfirmed, true, 'the real kill must close the child inside the grace')
 })
 
-test('the cleanup bounds fit inside every outer margin that waits on the runner', async () => {
+test('the cleanup bounds fit inside every outer margin that waits on the runner', { skip: 'Node hook registry arithmetic retired; native bridge host margins are checked in native-hooks.test.mjs' }, async () => {
   // Both bounds are synchronous on the timer path, so their sum is what an
   // outer caller pays after the runner\'s own timeout. lifecycle gives the runner
   // ARTIFACT_GATE_KILL_MARGIN_MS beyond the gate timeout; the direct hooks give

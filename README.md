@@ -16,6 +16,9 @@ a digest of the command into a file in your repository.
 
 Then, in your repository, run `/quality-harness:work` and ask for work as usual.
 
+Lifecycle hooks run in Go, from a checksum-verified release binary. Node remains for bootstrap and CLI tools; see
+[installation requirements](docs/INSTALL.md). Project checks stay optional.
+
 - [docs/TUTORIALS.md](docs/TUTORIALS.md): ten minutes with a throwaway repo, a real test, and a
   test that cannot fail being caught.
 - [docs/ONBOARDING.md](docs/ONBOARDING.md): the first week.

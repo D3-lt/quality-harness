@@ -2,7 +2,7 @@
 // (BACKLOG section 375, stage B4). It decides nothing: what a rule says about the event is the rule's.
 import { importCheckRecords, lateBaselineAllowed, recordFileWritten, recordUnnamedWrite } from './check-ledger.mjs'
 import { SHELL_TOOLS, containsCommitOrPush, mentionsCommitOrPush } from './publish-verdict.mjs'
-import { appendEvent, readEvents, stateDir } from './event-log.mjs'
+import { appendEvent, readEvents, stateDir } from '../../../plugin/scripts/event-log.mjs'
 import { randomUUID } from 'node:crypto'
 import { observeCarrying } from './tree-facts.mjs'
 import { statSync } from 'node:fs'

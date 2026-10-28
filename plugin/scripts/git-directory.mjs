@@ -1,5 +1,6 @@
 // Git metadata discovery shared by readers that must not start a process to read a cache.
 import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 function isGitDirectory(directory) {
@@ -44,4 +45,13 @@ export function findGitDir(start) {
     if (parent === here) return null
     here = parent
   }
+}
+
+// Git ownership for the post-commit tracker; an unreadable common directory proves nothing.
+export function commonDirectory(dir, cwd, run = spawnSync) {
+  const probe = run('git', ['-C', dir, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
+  const printed = probe?.status === 0 && !probe.error ? String(probe.stdout ?? '').trim() : ''
+  if (!printed) return null
+  try { return realpathSync.native(printed) } catch { return null }
 }

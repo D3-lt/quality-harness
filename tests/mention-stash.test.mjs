@@ -6,7 +6,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
+import { mentionsCommitOrPush } from './helpers/node-hooks/publish-verdict.mjs'
 import { required } from './helpers/require.mjs'
 
 const coreDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'core')

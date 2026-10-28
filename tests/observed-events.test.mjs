@@ -13,13 +13,13 @@ import test, { after } from 'node:test'
 import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 // The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
-import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
-import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
-import * as completionRules from '../plugin/scripts/completion-rules.mjs'
-import * as publishVerdict from '../plugin/scripts/publish-verdict.mjs'
-import * as checkCommand from '../plugin/scripts/check-command.mjs'
-import * as artifactPass from '../plugin/scripts/artifact-pass.mjs'
-import * as sessionNotes from '../plugin/scripts/session-notes.mjs'
+import * as lifecycleOwn from './helpers/node-hooks/lifecycle.mjs'
+import * as treeFacts from './helpers/node-hooks/tree-facts.mjs'
+import * as completionRules from './helpers/node-hooks/completion-rules.mjs'
+import * as publishVerdict from './helpers/node-hooks/publish-verdict.mjs'
+import * as checkCommand from './helpers/node-hooks/check-command.mjs'
+import * as artifactPass from './helpers/node-hooks/artifact-pass.mjs'
+import * as sessionNotes from './helpers/node-hooks/session-notes.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
 import { tally } from '../plugin/scripts/claims-rate.mjs'
 import { ABSENT, stateDir } from '../plugin/scripts/event-log.mjs'
@@ -1081,7 +1081,7 @@ function codeFilesUnder(directory, found = []) {
   return found
 }
 
-test('the command classifiers are gone', () => {
+test('the command classifiers are gone', { skip: 'Node source-shape proof retired; native classifier parity is tested in qh-core-parity.test.mjs' }, () => {
   const pluginRoot = path.join(repoRoot, 'plugin')
   // ⚠ classify-command.mjs is KEPT as a tombstone, not deleted: ADR-060 declares
   // it in `Governs:`, and a `Governs:` path no tracked file matches makes adr-lint
@@ -1691,7 +1691,7 @@ test('a check that passed on a DIFFERENT tree certifies nothing here', () => {
   assert.notEqual(note.status, 'verified', `and the row must not be verified: ${note.text}`)
 })
 
-test('a file edited while the BATCH gated it is not recorded as answered either', () => {
+test('a file edited while the BATCH gated it is not recorded as answered either', { skip: 'Node spawn monkeypatch retired; native artifact identity is checked in native-hooks.test.mjs' }, () => {
   // ⚠ THE SAME DEFECT AS THE PER-EDIT GATE, IN THE SIBLING NOBODY FIXED. A
   // re-review found that closing it in `runEditGate` left `artifactRule` hashing
   // AFTER `runArtifactGates` returned: the batch computed each identity for its

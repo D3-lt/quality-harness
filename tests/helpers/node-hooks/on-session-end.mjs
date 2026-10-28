@@ -1,6 +1,6 @@
 // PreCompact and SessionEnd (ADR-060 T6): the note about the tree as it is now, and the row the next session reads. Neither
 // event has a decision to make, so neither blocks. Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage D).
-import { nearestExistingDirectory, readEvents } from './event-log.mjs'
+import { nearestExistingDirectory, readEvents } from '../../../plugin/scripts/event-log.mjs'
 import path from 'node:path'
 import { gitRepositoryRoot, locationKey } from './tree-facts.mjs'
 import { observedFacts } from './completion-rules.mjs'

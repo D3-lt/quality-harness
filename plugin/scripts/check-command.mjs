@@ -6,8 +6,8 @@ import path from 'node:path'
 import { nearestExistingDirectory } from './event-log.mjs'
 import { shellWords } from './shell-words.mjs'
 import { parseShell } from './shell-grammar.mjs'
-import { SHELL_NAMES, programName } from './publish-command.mjs'
-import { checkInCode } from './corpus-text.mjs'
+const SHELL_NAMES = new Set(['bash', 'dash', 'zsh', 'ksh', 'tcsh', 'csh', 'sh', 'pwsh', 'powershell'])
+const programName = word => String(word).split(/[\\/]/).pop().replace(/\.exe$/i, '').replace(/^@/, '')
 import { gitRepositoryLookup } from './tree-facts.mjs'
 import { projectConfigProblem } from './project-config.mjs'
 
@@ -459,46 +459,3 @@ export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
 // Names the project's own check when there is one, so the gate asks for
 // something specific instead of leaving the reader to guess which invocation
 // counts. Falls back to the general phrasing when the project names none.
-export function runTheCheckSentence(cwd) {
-  const { command, origin } = checkCommandOrigin(cwd ?? process.cwd())
-  if (origin === 'refused') {
-    return 'The check declared in `.quality-harness.json` is a constant success and was refused. '
-      + 'Declare a command that can fail.'
-  }
-  if (origin === 'unreadable') {
-    return `${checkCommandOrigin(cwd ?? process.cwd()).problem}, so no check can pass here and \`qh-check\` will not guess what it declares. `
-      + 'Fix the file, then run `qh-check`.'
-  }
-  if (origin === 'unproven') {
-    return 'The repository root could not be read, so no check is named. '
-      + 'That is not the same as this project having no check.'
-  }
-  if (!command) {
-    return 'Run the smallest repository-owned test, lint, build, or validation command after the '
-      + 'final edit and report the exact command and result.'
-  }
-  // A DECLARED command is the project speaking; an INFERRED one is this tool
-  // guessing from a manifest, and a guess carries no confidence about the
-  // environment it needs. Measured 2026-08-29: an inferred `php vendor/bin/phpunit`
-  // was red on a clean tree because of a host-only failure, so a session got the
-  // same exit code whether or not it had broken anything — and a red it did not
-  // cause teaches distrust of the gate, which is what let an earlier wrong
-  // command survive so long (docs/BACKLOG.md §59).
-  if (origin === 'declared') {
-    return `Run \`qh-check\` — it runs ${checkInCode(command)} (this project's own check) and records what it `
-      + 'observed — after the final edit and report the exact command and result.'
-  }
-  // The word "environment" is deliberately NOT used here. It is reserved for a
-  // run that actually failed that way, and a standing note carrying it in every
-  // message would make the word stop meaning anything — which
-  // tests/lifecycle.test.mjs::a check that could not run is not a finding about
-  // the change asserts, and caught when the first version of this said it.
-  // Lead with undeclared: burying the caveat after "this project's own check" is
-  // how a Makefile `make test` was read as the project's check (2026-09-12).
-  return `No \`check\` is declared in \`.quality-harness.json\`. I inferred from this `
-    + `repository rather than from a declaration: ${checkInCode(command)}, so that is not this `
-    + 'project\'s own check. If it is red on an unmodified tree the finding is about this '
-    + 'machine and not about your change — say which, and declare the real command as `check`. '
-    + `Run \`qh-check\` (it runs ${checkInCode(command)} and records what it observed) after the final `
-    + 'edit and report the exact command and result.'
-}

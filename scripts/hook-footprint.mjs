@@ -38,10 +38,12 @@ export const HOOK_SHAPES = {
 // a quality-harness plugin directory. The variable alone is every plugin's (the Codex review of 979585de): another plugin's
 // `${CLAUDE_PLUGIN_ROOT}/scripts/other.mjs` was read as ours. A hook another plugin ships under one of these names still
 // would be; nothing in the record tells the two apart.
-export const HOOK_SCRIPTS = [...new Set([...readFileSync(new URL('../plugin/hooks/hooks.json', import.meta.url), 'utf8')
-  .matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([\w.-]+)/g)].map(m => m[1]))]
-const SCRIPT = HOOK_SCRIPTS.map(name => name.replace(/[.]/g, '\\.')).join('|')
-const OURS = new RegExp(`\\$\\{?CLAUDE_PLUGIN_ROOT\\}?[\\\\/]scripts[\\\\/](?:${SCRIPT})(?![\\w.-])|quality-harness[\\\\/](?:plugin[\\\\/])?scripts[\\\\/]`)
+export const HOOK_SCRIPTS = ['lifecycle.mjs', 'branch-state.mjs', 'run-shell-hook.mjs']
+const SCRIPT = [...new Set([...HOOK_SCRIPTS,
+  ...[...readFileSync(new URL('../plugin/hooks/hooks.json', import.meta.url), 'utf8')
+    .matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([\w.-]+)/g)].map(m => m[1])])]
+  .map(name => name.replace(/[.]/g, '\\.')).join('|')
+const OURS = new RegExp(`\\$\\{?CLAUDE_PLUGIN_ROOT\\}?[\\\\/]scripts[\\\\/](?:${SCRIPT})(?![\\w.-])|quality-harness[\\\\/](?:plugin[\\\\/])?scripts[\\\\/]|\\$\\{?CLAUDE_PLUGIN_ROOT\\}?[\\\\/]bin[\\\\/]qh-hook(?![\\w.-])|quality-harness[\\\\/](?:plugin[\\\\/])?bin[\\\\/]qh-hook(?![\\w.-])`)
 const MARKER = /<qh:([A-Za-z0-9_.-]+)@[0-9a-f]{8}>/g
 
 const texts = value => typeof value === 'string' ? [value]

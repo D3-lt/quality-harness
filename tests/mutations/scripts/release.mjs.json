@@ -169,8 +169,8 @@
       "label": "ADR-100 T3: the tag names the full sha and --latest",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "['release', 'create', tag, '--target', sha, '--latest', ...notes]",
-      "to": "['release', 'create', tag, '--target', sha.slice(0, 7), ...notes]"
+      "from": "['release', 'create', tag, '--target', sha, '--latest', ...notes, ...assets]",
+      "to": "['release', 'create', tag, '--target', sha.slice(0, 7), ...notes, ...assets]"
     },
     {
       "label": "ADR-100 T3: an existing dispatch is not dispatched again",

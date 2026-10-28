@@ -10,11 +10,11 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 // ADR-130: namespace bindings keep locked, retired test bodies loadable after their policy APIs were removed.
-import * as retiredPolicy from '../plugin/scripts/check-ledger.mjs'
+import * as retiredPolicy from './helpers/node-hooks/check-ledger.mjs'
 const { checkStanding, carryFor, latestCheckFor, ledgerBoundLog } = retiredPolicy
 import { readEvents } from '../plugin/scripts/event-log.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
-import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
+import { sessionLogFile } from '../plugin/scripts/event-log.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 import { fixtureRepo, git, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
 import { required } from './helpers/require.mjs'

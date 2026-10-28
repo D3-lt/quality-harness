@@ -17,7 +17,7 @@ import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { claimPassLock, passCandidates, passTargets, releasePassLock } from '../plugin/scripts/artifact-pass.mjs'
+import { claimPassLock, passCandidates, passTargets, releasePassLock } from './helpers/node-hooks/artifact-pass.mjs'
 import { contentId } from '../plugin/scripts/event-log.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')

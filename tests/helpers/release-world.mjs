@@ -84,6 +84,12 @@ export function world(overrides = {}) {
       evidenceCalls += 1
       return { status: code, stdout: state.evidenceText ?? `${code === 0 ? 'SUCCESS' : 'UNPROVEN'} — evidence\n`, stderr: '' }
     }
+    if (line.startsWith('node scripts/release-assets.mjs ')) return {
+      status: state.assetFailure ?? 0, stdout: JSON.stringify(state.assetFiles ?? [
+        'qh-assets/qh-linux-amd64', 'qh-assets/qh-linux-arm64', 'qh-assets/qh-darwin-amd64',
+        'qh-assets/qh-darwin-arm64', 'qh-assets/qh-windows-amd64.exe', 'qh-assets/SHA256SUMS.txt',
+      ]), stderr: '',
+    }
     if (line.startsWith('gh release create')) { state.released = true; return ok() }
     throw new Error(`the fake has no answer for: ${line}`)
   }

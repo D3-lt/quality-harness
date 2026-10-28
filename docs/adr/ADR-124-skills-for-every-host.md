@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's scope answer of 2026-10-22 ("more hosts from one source")
 **Cross-references:** docs/adr/ADR-001-skills-are-never-linked.md, docs/adr/ADR-004-templates-are-not-linked.md, docs/adr/ADR-123-the-product-layer.md, docs/research/2026-10-22-the-product-layer.md
-**Governs:** `plugin/scripts/sync-standalone.mjs`, `plugin/scripts/standalone-link.mjs`, `plugin/scripts/on-session-start.mjs`
+**Governs:** `plugin/scripts/sync-standalone.mjs`, `plugin/scripts/standalone-link.mjs`, `core/hooks/orientation.go`
 **Enforced-by:** None — declared by its tasks; each adds one campaign mutation per mechanism.
 **Invalidates:** ADR-001 and ADR-004, narrowly — the clauses "it never installs a skill, on any platform" (ADR-001 Decision) and "`--link` installs gates only" (ADR-004 Decision) gain one exception: `--link --agents` links each skill under the shared agent skills directory, a path Claude Code is measured (T1) not to serve. Their general rule stands unchanged for every path Claude Code serves and for templates.
 **Served-path change:** a user who runs `sync-standalone.mjs --link --agents` once gets this plugin's skills in every measured host that reads `~/.agents/skills`, and the links follow each plugin update without another run.

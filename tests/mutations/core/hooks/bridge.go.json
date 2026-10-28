@@ -1,0 +1,22 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: the native standalone guard allows a read-only write",
+      "file": "core/hooks/bridge.go",
+      "tests": [
+        "tests/qh-launcher.test.mjs"
+      ],
+      "from": "if reason := readOnlyVerdict(input); reason != \"\" {",
+      "to": "if reason := readOnlyVerdict(input); false {"
+    },
+    {
+      "label": "Go cutover: a bridge consumes the host cleanup margin",
+      "file": "core/hooks/bridge.go",
+      "tests": [
+        "tests/native-hooks.test.mjs"
+      ],
+      "from": "budget = 114 * time.Second",
+      "to": "budget = 120 * time.Second"
+    }
+  ]
+}

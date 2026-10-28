@@ -1,72 +1,6 @@
 {
   "mutations": [
     {
-      "label": "the sixth verification review of R2: git's output lines lose trailing Unicode whitespace, so a line ending in U+00A0 reads as another",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/git-lines.test.mjs"],
-      "from": "  return mark(run.stdout.split('\\n').map(line => line.replace(/[ \\t\\r\\n\\v\\f]+$/, '')).filter(Boolean), true)",
-      "to": "  return mark(run.stdout.split('\\n').map(line => line.trimEnd()).filter(Boolean), true)",
-      "only": "^(?:a git line keeps trailing non-ASCII whitespace and loses ASCII whitespace)$"
-    },
-    {
-      "label": "the Codex review of v3.8.53..42a903a8: paths are compared case-sensitively where the file system folds case",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/scratch-outside.test.mjs"],
-      "from": "  const fold = text => (platform === 'win32' || platform === 'darwin' ? text.toLowerCase() : text)",
-      "to": "  const fold = text => text",
-      "only": "^(?:a case alias of the project is the project where the file system folds case, and not where it does not)$"
-    },
-    {
-      "label": "the Codex review of v3.8.53..42a903a8: a failed repository lookup narrows ownership to the session directory",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/scratch-outside.test.mjs"],
-      "from": "  if (!found.ok || !found.root) return false\n",
-      "to": "  if (!found.ok) return false\n",
-      "only": "^(?:a repository git could not answer about is gated, never narrowed to the session directory)$"
-    },
-    {
-      "label": "BACKLOG §409: a temp path is scratch only while the session's directory is outside the temp root",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/lifecycle.test.mjs"],
-      "from": "  if (!underTempRoot(cwd)) return true\n  const directory = nearestExistingDirectory(path.resolve(cwd))",
-      "to": "  return !underTempRoot(cwd)\n  const directory = nearestExistingDirectory(path.resolve(cwd))",
-      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
-    },
-    {
-      "label": "BACKLOG §409: a path spelled inside the session's directory, through a link out of it, is scratch",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/lifecycle.test.mjs"],
-      "from": "  return outside(spelled, path.resolve(file)) && outside(real(base), real(file))",
-      "to": "  return outside(real(base), real(file))",
-      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
-    },
-    {
-      "label": "BACKLOG §409: a path whose real location is inside the session's directory is scratch",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/lifecycle.test.mjs"],
-      "from": "  return outside(spelled, path.resolve(file)) && outside(real(base), real(file))",
-      "to": "  return outside(spelled, path.resolve(file))",
-      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
-    },
-    {
-      "label": "BACKLOG §409: a session in a subdirectory owns only that subdirectory",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/lifecycle.test.mjs"],
-      "from": "  const base = found.root\n",
-      "to": "  const base = path.resolve(cwd)\n",
-      "only": "^(?:a scratch corpus beside a project under the temp root does not pull the record gates; one inside it does)$"
-    },
-    {
-      "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-paths.test.mjs"
-      ],
-      "from": "  if (nul) return mark(run.stdout.split('\\0').filter(Boolean), true)",
-      "to": "  if (false) return mark(run.stdout.split('\\0').filter(Boolean), true)",
-      "only": "^(?:no hook names, or tries to gate, a path spelled in octal escapes)$"
-    },
-    {
       "label": "§314: observe()'s budget is read from the environment",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [
@@ -134,33 +68,6 @@
       "to": "const tree = identity(['write-tree']).out"
     },
     {
-      "label": "ADR-095 T5: a status answer is reused for its lifetime",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-memo.test.mjs"
-      ],
-      "from": "if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)",
-      "to": "if (false) return mark(kept.paths, true)"
-    },
-    {
-      "label": "ADR-095 T5: an older answer is asked again",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-memo.test.mjs"
-      ],
-      "from": "if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return",
-      "to": "if (kept) return"
-    },
-    {
-      "label": "ADR-095 T5: the memo is off unless switched on",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-memo.test.mjs"
-      ],
-      "from": "let statusMemo = null",
-      "to": "let statusMemo = { lifetimeMs: 2_000, now: Date.now, answers: new Map() }"
-    },
-    {
       "label": "ADR-095 review: the identity memo is keyed by the resolved directory",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [
@@ -170,41 +77,6 @@
       "to": "const key = `${String(directory)}\\0${args.join('\\0')}`"
     },
     {
-      "label": "ADR-095 review: a backwards clock does not keep a status answer alive",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-memo.test.mjs"
-      ],
-      "from": "if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)",
-      "to": "if (kept && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)"
-    },
-    {
-      "label": "ADR-095 review 2: what the status memo keeps is its own copy",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-memo.test.mjs"
-      ],
-      "from": "if (key) statusMemo.answers.set(key, { at: statusMemo.now(), paths: mark(paths, true) })",
-      "to": "if (key) statusMemo.answers.set(key, { at: statusMemo.now(), paths: answer })"
-    },
-    {
-      "label": "ADR-095 T6: the status memo is not used for a path with a dot-dot component",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/status-memo.test.mjs"
-      ],
-      "from": "statusMemo && !String(root).split(/[\\\\/]/).includes('..') ? path.resolve(root) : null",
-      "to": "statusMemo ? path.resolve(root) : null",
-      "only": "^a path with a \"..\" component is asked of git every time, and an invalid one is not reported as a clean tree$"
-    },
-    {
-      "label": "git index lock: tree-facts' working-tree status read takes the lock",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": ["tests/git-optional-locks.test.mjs"],
-      "from": "    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })",
-      "to": "    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })"
-    },
-    {
       "label": "ADR-120 T9: the index's code tree is the working tree's",
       "file": "plugin/scripts/tree-facts.mjs",
       "tests": [
@@ -212,24 +84,6 @@
       ],
       "from": "treeWithout(git, env, scratch, 'index-code', indexTree, without)",
       "to": "treeWithout(git, env, scratch, 'index-code', tree, without)"
-    },
-    {
-      "label": "ADR-120 T9: a commit has no code tree",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/prose-pass.test.mjs"
-      ],
-      "from": "return treeWithout(git, env, scratch, 'index', treeSha, without)",
-      "to": "return null"
-    },
-    {
-      "label": "ADR-120 T9: a hook records an observation without the code tree",
-      "file": "plugin/scripts/tree-facts.mjs",
-      "tests": [
-        "tests/prose-pass.test.mjs"
-      ],
-      "from": "specs.length ? observe(cwd, budgetMs, { without: specs, carry: true }) : observe(cwd, budgetMs)",
-      "to": "observe(cwd, budgetMs)"
     }
   ]
 }

@@ -1,0 +1,139 @@
+{
+  "mutations": [
+    {
+      "label": "qh-core, 2026-10-27: a Go summary under a wrapper is not read, so make check is no-work",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (text.split('\\n').some(line => /^ok\\s+\\S+\\s+(?:\\d+(?:\\.\\d+)?s|\\(cached\\))(?:\\s|$)/.test(line) && !line.includes('[no tests to run]'))) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "qh-core, 2026-10-27: a Go package line that matched nothing counts as work under a wrapper",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "(?:\\s|$)/.test(line) && !line.includes('[no tests to run]'))) return false",
+      "to": "(?:\\s|$)/.test(line))) return false"
+    },
+    {
+      "label": "the review of c0c7eaeb: a cargo summary anywhere in the output, a quoted one included, stands for cargo",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (/^test result: ok\\. [1-9]\\d* passed; \\d+ failed\\b/m.test(text)) return false",
+      "to": "  if (/test result: ok\\. [1-9]\\d* passed; \\d+ failed\\b/m.test(text)) return false"
+    },
+    {
+      "label": "qh-core, 2026-10-27: a cargo summary under a wrapper is not read",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (/^test result: ok\\. [1-9]\\d* passed; \\d+ failed\\b/m.test(text)) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "verdict: a command that never started is not a failure",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'",
+      "to": "  if (false) return 'unstarted'"
+    },
+    {
+      "label": "verdict: a killed run is not a failure either",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (exitCode === 124) return 'timeout'",
+      "to": "  if (false) return 'timeout'"
+    },
+    {
+      "label": "verdict: the environment is checked before the exit code",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'"
+    },
+    {
+      "label": "verdict: Windows says none of what POSIX says",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  'the system cannot find the file specified', 'the system cannot find the path specified',",
+      "to": ""
+    },
+    {
+      "label": "verdict: cmd.exe reports 9009, not 127",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "const NEVER_STARTED_EXITS = new Set([126, 127, 9009])",
+      "to": "const NEVER_STARTED_EXITS = new Set([126, 127])"
+    },
+    {
+      "label": "verdict: an explicit exit 0 is authoritative",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (exitCode === 0) {\n    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
+      "to": ""
+    },
+    {
+      "label": "verdict: a suite that ran is not `unstarted` because an assertion quoted an error",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (saidLittle(text) && (NEVER_STARTED.test(text)",
+      "to": "  if ((NEVER_STARTED.test(text)"
+    },
+    {
+      "label": "verdict: an interpreter that could not open its script did not run the tests",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  'could not open input file',",
+      "to": "  'qh-no-such-phrase',"
+    },
+    {
+      "label": "verdict: a phrase alone is unproven, not unstarted",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "KILLED_ON_TIME.test(text))) return 'unproven'",
+      "to": "KILLED_ON_TIME.test(text))) return 'unstarted'"
+    },
+    {
+      "label": "qh-check: under go test -json a test-level pass or an ok Output line is work (\u00a7273 round 2)",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      if (!line.startsWith('{')) return false",
+      "to": "      if (!line.startsWith('{')) return false\n      return false"
+    },
+    {
+      "label": "qh-check: a split go test -json summary fragment is not a summary (\u00a7273 round 3)",
+      "file": "plugin/scripts/validation-verdict.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      return output !== undefined && /^ok\\s/.test(output) && output.endsWith('\\\\n') && !output.includes('[no tests to run]')",
+      "to": "      return output !== undefined && /^ok\\s/.test(output) && !output.includes('[no tests to run]')"
+    }
+  ]
+}

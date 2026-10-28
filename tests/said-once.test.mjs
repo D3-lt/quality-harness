@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { readSessionNote, replaceSessionNote } from '../plugin/scripts/session-notes.mjs'
+import { readSessionNote, replaceSessionNote } from './helpers/node-hooks/session-notes.mjs'
 
 const lifecycleScript = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'plugin', 'scripts', 'lifecycle.mjs')
 

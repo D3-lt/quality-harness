@@ -5,7 +5,7 @@ import { bumpSessionGeneration, claimCompaction, firstMentionHere, previousSessi
 import { sweepStaleSessionLogs } from './housekeeping.mjs'
 import { offerPluginRoot, offerPublishHook } from './publish-verdict.mjs'
 import { sessionOrientation } from './session-orientation.mjs'
-import { appendEvent, readEvents } from './event-log.mjs'
+import { appendEvent, readEvents } from '../../../plugin/scripts/event-log.mjs'
 import { logIncomplete } from './check-ledger.mjs'
 import { emitJson } from './hook-queue.mjs'
 

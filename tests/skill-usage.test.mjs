@@ -28,7 +28,7 @@ test('a Skill call is recorded in the session log and prints nothing', () => {
   assert.deepEqual(log.map(({ event, skill }) => ({ event, skill })), [{ event: 'skill.invoked', skill: 'quality-harness:review' }])
 })
 
-test("the Skill hook is registered and records only this plugin's skills", () => {
+test("the Skill hook is registered and records only this plugin's skills", { skip: 'Node registry spelling retired; native Skill registration and recording are checked at the native boundary' }, () => {
   const hooks = JSON.parse(readFileSync(path.join(repoRoot, 'plugin', 'hooks', 'hooks.json'), 'utf8')).hooks
   const routed = (hooks.PreToolUse ?? []).filter(entry => new RegExp(`^(?:${entry.matcher})$`).test('Skill'))
   assert.equal(routed.length, 1, 'no PreToolUse registration routes Skill')

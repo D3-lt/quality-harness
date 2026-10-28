@@ -1,15 +1,15 @@
 // The standing paragraphs a session starts with and the decisions handed over at the moment a file is touched: what verifies
 // this project, and what governs the path about to change. Which ADR task is ready is work-next's to say (ADR-099). Moved out
 // of lifecycle.mjs (BACKLOG section 375, stage B4).
-import { decisionContext, listedPath, trackedPaths, unmarkedArchives } from './decision-corpus.mjs'
+import { listedPath, trackedPaths, unmarkedArchives } from './decision-corpus.mjs'
 import path from 'node:path'
 import { lstatSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { canonical, nearestExistingDirectory } from './event-log.mjs'
+import { nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryLookup } from './tree-facts.mjs'
 import { checkCommandOrigin } from './check-command.mjs'
 import { checkInCode, pathInCode } from './corpus-text.mjs'
-import { alreadyMentionedThisSession, firstMentionHere, firstMentionThisSession } from './session-notes.mjs'
+import { firstMentionHere } from './session-notes.mjs'
 import { shadowInstallNotice, staleVersionNotice } from './install-notices.mjs'
 import { itemMarker } from './said-per-context.mjs'
 
@@ -170,21 +170,3 @@ function mrwVersion(file, env) {
 
 // The governing and killed decisions for whatever this call is about to touch.
 // Wrapped so a corpus this tool cannot read costs the edit nothing.
-export function decisionContextFor(input) {
-  const cwd = typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd()
-  const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
-  if (typeof target !== 'string' || !target) return ''
-  const resolved = canonical(path.resolve(cwd, target))
-  // Only skip work for context already emitted. A miss or failed discovery must
-  // remain eligible when a governing record is added later in the same session.
-  if (alreadyMentionedThisSession(input.session_id, resolved)) return ''
-  const directory = nearestExistingDirectory(path.resolve(cwd))
-  const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
-  if (directory && !found.ok) return 'could-not-look: the repository root could not be read, so which decisions govern this edit is unknown.'
-  const root = directory ? canonical(found.root ?? directory) : null
-  if (!root) return ''
-  let context
-  try { context = decisionContext([resolved], root) } catch { return '' }
-  if (!context) return ''
-  return firstMentionThisSession(input.session_id, resolved) ? context : ''
-}

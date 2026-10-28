@@ -1,12 +1,19 @@
 {
   "_": "ADR-113 T3: every side door scripts/side-door-sweep.mjs finds, with its reason and what governs it. A site not here fails the gate, and so does an entry no site matches. `doors` is the class as mapped on 2026-10-19; since ADR-117 T3 each is caught, or a boundary with where it closes, and an open one fails the gate.",
-  "writingTools": ["Edit", "Write", "MultiEdit", "NotebookEdit", "mcp__mrw__mrw_write", "Bash", "PowerShell"],
+  "writingTools": [
+    "Edit",
+    "Write",
+    "MultiEdit",
+    "NotebookEdit",
+    "mcp__mrw__mrw_write",
+    "Bash",
+    "PowerShell"
+  ],
   "sites": {
     "writer": {
       "plugin/scripts/check-record.mjs": "the one writer of checks.jsonl, fast-checks.jsonl and baseline.jsonl, called by qh-check alone (ADR-101, ADR-081, ADR-111)",
-      "plugin/bin/adr-verify": "the one writer of a task's Verification Log and Mutation Log (CLAUDE.md §4)",
+      "plugin/bin/adr-verify": "the one writer of a task's Verification Log and Mutation Log (CLAUDE.md \u00a74)",
       "plugin/bin/adr-lint": "names the Mutation Log in its advice; what it writes is its own cache, by write_text and replace (ADR-113)",
-      "plugin/scripts/completion-rules.mjs": "names the Verification Log in a turn-end sentence; what it writes is claims.jsonl (ADR-113)",
       "plugin/lib/record.py": "write_receipts, the one writer of receipts.jsonl, called by adr-verify's append_entry alone (ADR-117 T2)",
       "core/hooks/prose_test.go": "a Go test that writes a fixture checks.jsonl into its own temporary repository's state directory (ADR-120 T9); it is never built into qh and never reaches a user's ledger"
     },
@@ -20,21 +27,58 @@
       "PostToolUse facts-gate-dispatch.sh PowerShell": "a shell command's writes are not named paths; the turn end observes the tree it left (ADR-060)",
       "PostToolUse post-edit-check.sh Bash": "a shell command's writes are not named paths; the turn end observes the tree it left (ADR-060)",
       "PostToolUse post-edit-check.sh PowerShell": "a shell command's writes are not named paths; the turn end observes the tree it left (ADR-060)",
-      "PostToolUse lifecycle.mjs Bash": "a shell command's writes are not named paths; PreToolUse reads its command and the turn end observes the tree it left (ADR-060, ADR-061)",
-      "PostToolUse lifecycle.mjs PowerShell": "a shell command's writes are not named paths; PreToolUse reads its command and the turn end observes the tree it left (ADR-060, ADR-061)"
+      "PostToolUse qh-hook Bash": "a shell command's writes are not named paths; PreToolUse reads its command and the turn end observes the tree it left (ADR-060, ADR-061)",
+      "PostToolUse qh-hook PowerShell": "a shell command's writes are not named paths; PreToolUse reads its command and the turn end observes the tree it left (ADR-060, ADR-061)"
     }
   },
   "doors": [
-    { "id": "forged-ledger-row", "status": "caught", "why": "a write into the state directory the hook can see (an Edit, Write or mrw write, a redirection or tee) is refused (ADR-117 T1)" },
-    { "id": "forged-ledger-row-by-a-program", "status": "boundary", "where": "CI, and the forge's required checks once main has them: the pushed tree's suite is run again there, and a forged local row stands in for nothing", "why": "a program that writes checks.jsonl itself, or a shell form the guard does not read (a target built from a variable, a string a command builds and runs, the forms in BACKLOG §387), is not a command the hook can read; a local gate cannot tell a run from a transcription (ADR-005, ADR-117)" },
-    { "id": "script-commit", "status": "caught", "why": "refused by git's own hook where it is armed (ADR-066); said as R2 at the turn end otherwise (ADR-060)" },
-    { "id": "plumbing-commit", "status": "caught", "why": "commit-tree with update-ref, merge, cherry-pick and revert make commits R2 names at the turn end; advice, not a refusal (ADR-060)" },
-    { "id": "push-no-verify-from-a-script", "status": "boundary", "where": "the forge: ruleset 25462988 on main requires the selftest checks with no bypass (ADR-118 T2), which release-evidence and land --dry-run read back", "why": "--no-verify skips git's pre-push hook, and the text refusal reads only the command the hook is shown (ADR-061, ADR-066, ADR-117 T3); a sha whose checks have not passed is rejected by the forge (GH013), whoever pushes it" },
-    { "id": "workflow-edited-to-skip", "status": "boundary", "where": "review: a change to .github/workflows is a behaviour change, reviewed before the tag (CLAUDE.md §12)", "why": "the forge counts skipped and neutral as passing a required check and runs the workflow the pushed sha carries, so a sha whose workflow skips a required job passes the ruleset; land stops on anything but success (ADR-118)" },
-    { "id": "partial-stage", "status": "caught", "why": "qh-check --commit refuses an index unlike the working tree (ADR-100)" },
-    { "id": "hand-typed-log-row", "status": "caught", "why": "an uncommitted Verification or Mutation Log row no adr-verify receipt names is refused by adr-lint, and the receipts file is in the guarded state directory (ADR-117 T2); a row committed by hand is in the commit its reviewer reads (ADR-088)" },
-    { "id": "receipts-removed", "status": "caught", "why": "deleting receipts.jsonl, an rm the guard does not read, leaves every uncommitted row unreceipted and so refused: it fails closed (ADR-117 T2)" },
-    { "id": "mrw-mcp-write", "status": "caught", "why": "the reviewer guard and the write record see it (ADR-113 T2); the per-edit gates see it at the turn end" },
-    { "id": "fast-pass-command", "status": "caught", "why": "a fast pass counts only for the fastCheck the project declares now (ADR-113 T3)" }
+    {
+      "id": "forged-ledger-row",
+      "status": "caught",
+      "why": "a write into the state directory the hook can see (an Edit, Write or mrw write, a redirection or tee) is refused (ADR-117 T1)"
+    },
+    {
+      "id": "forged-ledger-row-by-a-program",
+      "status": "boundary",
+      "where": "CI, and the forge's required checks once main has them: the pushed tree's suite is run again there, and a forged local row stands in for nothing",
+      "why": "a program that writes checks.jsonl itself, or a shell form the guard does not read (a target built from a variable, a string a command builds and runs, the forms in BACKLOG \u00a7387), is not a command the hook can read; a local gate cannot tell a run from a transcription (ADR-005, ADR-117)"
+    },
+    {
+      "id": "plumbing-commit",
+      "status": "caught",
+      "why": "commit-tree with update-ref, merge, cherry-pick and revert make commits R2 names at the turn end; advice, not a refusal (ADR-060)"
+    },
+    {
+      "id": "workflow-edited-to-skip",
+      "status": "boundary",
+      "where": "review: a change to .github/workflows is a behaviour change, reviewed before the tag (CLAUDE.md \u00a712)",
+      "why": "the forge counts skipped and neutral as passing a required check and runs the workflow the pushed sha carries, so a sha whose workflow skips a required job passes the ruleset; land stops on anything but success (ADR-118)"
+    },
+    {
+      "id": "partial-stage",
+      "status": "caught",
+      "why": "qh-check --commit refuses an index unlike the working tree (ADR-100)"
+    },
+    {
+      "id": "hand-typed-log-row",
+      "status": "caught",
+      "why": "an uncommitted Verification or Mutation Log row no adr-verify receipt names is refused by adr-lint, and the receipts file is in the guarded state directory (ADR-117 T2); a row committed by hand is in the commit its reviewer reads (ADR-088)"
+    },
+    {
+      "id": "receipts-removed",
+      "status": "caught",
+      "why": "deleting receipts.jsonl, an rm the guard does not read, leaves every uncommitted row unreceipted and so refused: it fails closed (ADR-117 T2)"
+    },
+    {
+      "id": "mrw-mcp-write",
+      "status": "caught",
+      "why": "the reviewer guard and the write record see it (ADR-113 T2); the per-edit gates see it at the turn end"
+    },
+    {
+      "id": "unchecked-publish",
+      "status": "boundary",
+      "where": "the repository owns its publishing policy, including its forge checks",
+      "why": "ADR-130 removes plugin check-ledger publishing refusal; explicit qh-check --commit retains its own pass and index contract"
+    }
   ]
 }

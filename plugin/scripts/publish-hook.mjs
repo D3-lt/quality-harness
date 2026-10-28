@@ -2,7 +2,7 @@
 // Record commits made by this session for branch-state suppression (ADR-128).
 // Retired publish events return success without inspecting check evidence (ADR-130).
 import { spawnSync } from 'node:child_process'
-import { commonDirectory } from './publish-verdict.mjs'
+import { commonDirectory } from './git-directory.mjs'
 
 import { appendEvent, readEvents } from './event-log.mjs'
 import { isMainModule } from './main-module.mjs'

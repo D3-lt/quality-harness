@@ -1,11 +1,10 @@
 // What the ledgers say was checked: the latest check event for a tree, whether it certifies, whether an order could be
 // established, which writes git could not see, and the records a session log imports from the check ledger. Moved out of
 // lifecycle.mjs unchanged (BACKLOG section 375, stage B3). A log read in part is never read as a log with nothing in it.
-import { closeSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { appendEvent, canonical, canonicalFile, nearestExistingDirectory, outsideRoot, readEvents, stateDir } from './event-log.mjs'
-import { spawnSync } from 'node:child_process'
-import { gitRepositoryRoot, observe, observeBudgetMs, observedClean, sameObservation } from './tree-facts.mjs'
+import { outsideRoot, stateDir } from './event-log.mjs'
+import { observe, observeBudgetMs, sameObservation } from './tree-facts.mjs'
 import { fastCheckCommand } from './check-command.mjs'
 
 // ADR-111 T3: the baseline kept for a tree and a command, or null: the last bound row of baseline.jsonl, the ledger a
@@ -228,7 +227,7 @@ export function slowRunLineAfter(root, record) {
 /**
  * Import what `qh-check` wrote, and say whether the source could be read WHOLE.
  *
- * ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. `readEvents` was taught that
+ * ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. The session-log reader was taught that
  * an incomplete read must not supply a positive verdict; this one still swallowed
  * a torn line with `catch { continue }` and had its return value discarded by the
  * caller. So a newer FAILURE whose line is truncated never reached the session log
@@ -242,46 +241,6 @@ export function slowRunLineAfter(root, record) {
  * line and is unparseable with it. Measured by the reader. That is why this
  * reports a state rather than trying to recover the tail.
  */
-export function importCheckRecords(cwd, session) {
-  let text
-  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
-    // Never written is not the same as could-not-read.
-    return { imported: 0, complete: error?.code === 'ENOENT' }
-  }
-  const seen = new Set(readEvents(cwd, session).filter(entry => typeof entry.record === 'string').map(entry => entry.record))
-  let imported = 0
-  let whole = true
-  // ⚠ `checks.jsonl` IS THE AUTHORITY ON THE ORDER CHECKS RAN. It is append-only,
-  // written by qh-check, so a record's INDEX in it is the one ordering nothing can
-  // race. Stamping it here is what lets `latestCheckFor` refuse to be fooled by the
-  // order two interleaved importers happen to append in — a wall clock can tie and
-  // can run backwards, so `startedAt` could never be the authority.
-  let sequence = 0
-  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
-  // whole even when it parses — a pass cut right after its `}` is valid JSON. It is torn, and
-  // never imported (a Codex review of ADR-088).
-  const lines = text.split('\n')
-  if (lines.pop().trim()) whole = false
-  for (const line of lines) {
-    if (!line.trim()) continue
-    let record
-    try { record = JSON.parse(line) } catch { whole = false; continue }
-    if (typeof record?.id !== 'string') { whole = false; continue }
-    sequence += 1
-    if (seen.has(record.id)) continue
-    appendEvent(cwd, session, {
-      event: checkEventName(record), record: record.id, seq: sequence,
-      startedAt: record.before?.at ?? null,
-      before: record.before ?? null, after: record.after ?? null, exit: record.exit ?? null,
-      signal: record.signal ?? null, command: record.command ?? null, origin: record.origin ?? null,
-      // ADR-120 T9: the list a pass's code tree was taken under travels with the event, or the pass carries nowhere.
-      ...(Array.isArray(record.prose) ? { prose: record.prose } : {}),
-    })
-    seen.add(record.id)
-    imported += 1
-  }
-  return { imported, complete: whole }
-}
 
 /**
  * The session log `publishVerdict` judges, with every check event `checks.jsonl` does not hold
@@ -313,83 +272,18 @@ export function importCheckRecords(cwd, session) {
  * forgave it (Codex review of fe918bb, P1). An earlier look that succeeded, a baseline that
  * looked included, means this is not the first one, and what changed since is not known.
  */
-export function lateBaselineAllowed(log, cwd, observation) {
-  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)
-    && !log.some(event => event.event === 'file.written' && event.observable !== false)
-    && observedClean(cwd, observation)
-}
 
-export function recordFileWritten(input) {
-  const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
-  if (typeof target !== 'string' || !target) return null
-  // Canonical, so this path and rule A's candidate for the same file are one key.
-  const absolute = canonicalFile(path.resolve(input.cwd, target))
-  // How many records each ledger held when this write happened. Only a pass recorded
-  // AFTER it can cover it; the importer may append an earlier pass later in the log.
-  const entry = { event: 'file.written', path: absolute, observable: false, ...ledgerCounts(input.cwd) }
-  // The spelling the tool was given, kept when canonicalising changed it: a path under a directory link that leads out
-  // of the tree is canonicalised to its target, and the inside spelling is the only evidence the write was ours to see
-  // (a Codex review of ADR-094).
-  const lexical = path.resolve(input.cwd, target)
-  if (lexical !== absolute) entry.lexical = lexical
-  const directory = nearestExistingDirectory(path.resolve(input.cwd))
-  const root = directory ? gitRepositoryRoot(directory) : null
-  const parent = nearestExistingDirectory(absolute)
-  if (root && parent) {
-    const resolved = path.join(canonical(parent), path.relative(parent, absolute))
-    const relative = path.relative(root, resolved)
-    // A symlink inside the tree to a file outside it: git lists the link, and the
-    // link does not change when the file behind it does, so the tree hash cannot
-    // see this write. Recorded as observable, a check that ran BEFORE the write
-    // would be read as covering it (BACKLOG §201). A path that does not exist yet
-    // has nothing behind it and keeps the ordinary rule.
-    let behind = null
-    try { behind = realpathSync(resolved) } catch { behind = null }
-    const escapes = behind !== null && (() => {
-      const inside = path.relative(canonical(root), behind)
-      return inside.startsWith('..') || path.isAbsolute(inside)
-    })()
-    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {
-      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-      if (!ignored.error && ignored.status === 1) {
-        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
-        entry.observable = true
-        entry.blob = !hashed.error && hashed.status === 0 ? hashed.stdout.trim() : null
-      }
-    }
-  }
-  appendEvent(input.cwd, input.session_id, entry)
-  return entry
-}
 
 // A write whose files its input does not name (an mrw grep/sub write): recorded with no path, which every reader of an unseen
 // write counts until a check passes after it (`unobservableWrites`, `unseenWriteSince`).
-export function recordUnnamedWrite(input) {
-  const entry = { event: 'file.written', path: null, observable: false, tool: input.tool_name, ...ledgerCounts(input.cwd) }
-  appendEvent(input.cwd, input.session_id, entry)
-  return entry
-}
 
 // How many records each ledger held when a write happened. Only a pass recorded AFTER it can cover it; the importer may append
 // an earlier pass later in the log.
-const ledgerCounts = cwd => ({ checksSeen: ledgerRecordCount(cwd, 'checks.jsonl'), fastSeen: ledgerRecordCount(cwd, 'fast-checks.jsonl') })
 
 // The number of records in a ledger (`checks.jsonl` or `fast-checks.jsonl`), counted
 // the way `importCheckRecords` numbers `seq`. Null when the file exists and cannot be
 // read: a count that was not taken is not zero (ADR-005). A last line with no terminating
 // newline was not written whole, and the importer does not number it, so neither does this.
-function ledgerRecordCount(cwd, file) {
-  let text
-  try { text = readFileSync(path.join(stateDir(cwd), file), 'utf8') } catch (error) {
-    return error?.code === 'ENOENT' ? 0 : null
-  }
-  let count = 0
-  for (const line of text.split('\n').slice(0, -1)) {
-    if (!line.trim()) continue
-    try { if (typeof JSON.parse(line)?.id === 'string') count += 1 } catch { /* the importer skips it too */ }
-  }
-  return count
-}
 
 // "Checked" for a tree: its latest check event is check.passed. A check event
 // belongs to the tree of its `after` observation, and the evidence revision of a
@@ -523,23 +417,8 @@ export function latestOf(events, { unresolved = 'not-a-pass' } = {}) {
 // 'passed' certifies. 'unresolved' is an order that could not be established:
 // it must not be said as "no check has passed", and it must not clear the tree.
 // 'unknown' is a log that was not read whole.
-export function checkStanding(log, tree, carry = null) {
-  if (logIncomplete(log)) return 'unknown'
-  const descriptive = latestOf(checkEventsFor(log, tree, carry), { unresolved: 'say-so' })
-  if (!descriptive) return 'none'
-  if (descriptive.event === 'check.unresolved') return 'unresolved'
-  if (descriptive.event === 'check.passed') return 'passed'
-  // A check that timed out, never started, or could not observe its tree said
-  // nothing about the tree. It is not a failure, and it must not refuse (ADR-061).
-  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'
-  return 'not-passed'
-}
 
-const COULD_NOT_LOOK = new Set(['check.unproven', 'check.timeout', 'check.unstarted'])
 
-export function checkRevision(log, tree) {
-  return checkEventsFor(log, tree).length
-}
 
 // ---- ADR-060's completion rules. They read the event log and git, never the
 // transcript. R1 is work no check has passed on, R4 is an observation that
@@ -548,34 +427,15 @@ export function checkRevision(log, tree) {
 // while nothing has moved.
 // Who a finding is for (ADR-096): on Stop and PreToolUse the agent, whose context those events reach; on every other event only
 // the user. A finding a rule decides whether to say is checked against what that audience has already heard.
-export function channelOf(event, turnEnd = 'agent') {
-  if (event === 'Stop') return turnEnd === 'notify' ? 'user' : 'agent'
-  return event === 'PreToolUse' ? 'agent' : 'user'
-}
 // Who a delivery reached: Stop (unless the project keeps turn-end findings user-only) and PreToolUse reach the agent's context and
 // the user's screen together, so a finding said there is not said again to either; every other event reaches the user alone.
-export function deliveredTo(event, turnEnd = 'agent') {
-  return channelOf(event, turnEnd) === 'agent' ? 'both' : 'user'
-}
 // A row counts for an audience when its delivery reached it. A row written before ADR-096 carries no channel and counts for every
 // audience, so nothing said before the upgrade is said again; with no audience asked for, every row counts.
-export function reachedChannel(entry, channel, recipient = null) {
-  if (channel === null || entry.channel === undefined) return true
-  // A subagent's context is not the main agent's: a finding handed to a subagent has not been heard by the main agent.
-  if (channel === 'agent' && recipient === 'main' && entry.recipient === 'subagent') return false
-  return entry.channel === 'both' || entry.channel === channel
-}
 
 // ADR-122 T3: what was said in an earlier context of this session is not in this one. A session's generation is bumped by a
 // compaction and a clear (session-notes.mjs), each `action.emitted` row carries the generation it was said in, and the guards
 // read only this generation's rows; a row written before rows carried one counts as generation 0. A resume keeps the generation.
-export function thisContext(log, generation = 0) {
-  return log.filter(entry => entry.event !== 'action.emitted' || (entry.generation ?? 0) === generation)
-}
 
-export function emittedFor(log, rule, key, channel = null, recipient = null) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key && reachedChannel(entry, channel, recipient))
-}
 
 // P already said this tree is unchecked, before the command ran. Saying it again
 // at the end of the same turn is the repetition ADR-060 closed (BACKLOG §217).
@@ -583,12 +443,6 @@ export function emittedFor(log, rule, key, channel = null, recipient = null) {
 // into a repository the command creates, or one into another repository says "if
 // it does publish, run qh-check first", which the agent reads as not met, and
 // counting it kept a changed tree's turn end silent (Stage 5, 2026-10-18).
-const ABOUT_ANOTHER_PUBLISH = /:(?:mention|fresh|foreign)$/
-export function namedByPublish(log, tree, revision) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P'
-    && !(typeof entry.key === 'string' && ABOUT_ANOTHER_PUBLISH.test(entry.key))
-    && entry.detail?.tree === tree && entry.detail?.revision === revision)
-}
 
 // A write git cannot see stays outstanding until a check.passed in a log that
 // was read whole covers it, and a pass covers it only when BOTH orders agree.
@@ -621,11 +475,6 @@ export function unobservableWrites(log, root = null) {
 
 // The evidence revision where nothing can be observed: every check event is one,
 // since there is no tree to attach it to (ADR-005 — unknown is not "the same").
-export function revisionFor(log, observation) {
-  return observation?.ok === true
-    ? checkRevision(log, observation.tree)
-    : log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).length
-}
 
 /**
  * Whether what this session recorded could not be read whole.
@@ -655,6 +504,3 @@ export function logIncomplete(log) {
  * commits): the verdict, unknown, was right and the file it named was not. `sessionWords` is
  * how the calling sentence spells the session log, kept when that is what tore.
  */
-export function tornRecord(log, sessionWords = null) {
-  return log?.complete !== true ? sessionWords : '`checks.jsonl`, where `qh-check` records its runs,'
-}

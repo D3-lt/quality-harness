@@ -7,7 +7,7 @@ import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
+import { runArtifactGates } from './helpers/node-hooks/artifact-pass.mjs'
 import { resolveBashExecutable } from '../plugin/scripts/run-shell-hook.mjs'
 
 const dispatcher = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'plugin', 'scripts', 'facts-gate-dispatch.sh')

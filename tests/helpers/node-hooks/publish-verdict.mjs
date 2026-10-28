@@ -3,7 +3,7 @@
 import { decodedPowerShell, publishCommandIn, withoutSinkBodies } from './publish-command.mjs'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { appendEvent, nearestExistingDirectory, readEvents } from './event-log.mjs'
+import { appendEvent, nearestExistingDirectory, readEvents } from '../../../plugin/scripts/event-log.mjs'
 import { appendFileSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { gitLines, gitRepositoryLookup, sameObservation } from './tree-facts.mjs'
@@ -79,10 +79,10 @@ export function readOnlyRole(agentType) {
 
 // SessionStart offers post-commit tracking through the host env file (ADR-128, ADR-130).
 // A config hook is offered only where git lists it; older git keeps the rest of the session usable.
-const PUBLISH_HOOK_SCRIPT = fileURLToPath(new URL('./publish-hook.mjs', import.meta.url))
+const PUBLISH_HOOK_SCRIPT = fileURLToPath(new URL('../../../plugin/scripts/publish-hook.mjs', import.meta.url))
 // ADR-120 T4: the copy this session's hooks run, named to every forwarder the session's shell starts, so an older writer
 // and a newer hook no longer meet (BACKLOG section 389). Its own line, ahead of and apart from the git block below.
-const PLUGIN_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+const PLUGIN_ROOT = path.resolve(fileURLToPath(new URL('../../../plugin', import.meta.url)))
 
 /** The POSIX shell line that names the plugin copy for the session's shell. Forward slashes, as git's block does. */
 export const pluginRootExport = (root = PLUGIN_ROOT) => `export QH_PLUGIN_ROOT='${String(root).replace(/\\/g, '/').replace(/'/g, `'\\''`)}'\n`

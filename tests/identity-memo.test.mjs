@@ -36,7 +36,7 @@ function measure(event, dir, { program, out } = {}) {
 const asked = (report, text) => report.children.filter(child => child.cmd.includes(text)).length
 const fixture = (name, body) => { const file = path.join(scratch, name); writeFileSync(file, `import { appendFileSync, writeFileSync } from 'node:fs'\nimport { gitRepositoryLookup, observe } from ${JSON.stringify(treeFacts)}\nconst out = process.env.FIXTURE_OUT\n${body}\n`); return file }
 
-test('a Stop event asks git for the repository toplevel once', () => {
+test('a Stop event asks git for the repository toplevel once', { skip: 'Node preload cannot trace Go descendants; native lifecycle behavior is checked at its Go boundary' }, () => {
   const report = measure('Stop', repository())
   assert.equal(report.exit, 0)
   assert.equal(asked(report, 'rev-parse --show-toplevel'), 1, report.children.map(child => child.cmd).join('\n'))

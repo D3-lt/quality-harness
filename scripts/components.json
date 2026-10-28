@@ -1,77 +1,78 @@
 {
   "files": [
-    { "path": "plugin/.claude-plugin/plugin.json", "consumer": "host" },
-    { "path": "plugin/hooks/hooks.json", "consumer": "host" },
-    { "path": "plugin/evals/**", "consumer": "host", "note": "plugin.json declares them as experimental evals (ADR-032)" },
-    { "path": "plugin/README.md", "consumer": "on-demand" },
-    { "path": "plugin/agents/*.md", "consumer": "on-demand" },
-    { "path": "plugin/skills/**", "consumer": "on-demand" },
-    { "path": "plugin/workflows/*.js", "consumer": "on-demand" },
-    { "path": "plugin/templates/**", "consumer": "on-demand" },
-    { "path": "plugin/bin/qh-mcp*", "consumer": "opt-in", "note": "registered by the adopter (the operating skill)" },
-    { "path": "plugin/bin/*", "consumer": "command", "note": "a gate: its exit code is the contract; each .cmd is its Windows twin" },
-    { "path": "plugin/lib/*.py", "consumer": "reached" },
-    { "path": "plugin/scripts/statusline.mjs", "consumer": "opt-in", "note": "configured by the adopter as a status line" },
-    { "path": "plugin/scripts/classify-command.mjs", "consumer": "tombstone",
-      "reason": "empty since ADR-060 T7; kept because ADR-060's Governs: names it and a record is never rewritten (its own header)" },
-    { "path": "plugin/scripts/*", "consumer": "reached" }
+    {"path": "plugin/.claude-plugin/plugin.json", "consumer": "host"},
+    {"path": "plugin/hooks/hooks.json", "consumer": "host"},
+    {"path": "plugin/evals/**", "consumer": "host", "note": "plugin.json declares them as experimental evals (ADR-032)"},
+    {"path": "plugin/README.md", "consumer": "on-demand"},
+    {"path": "plugin/agents/*.md", "consumer": "on-demand"},
+    {"path": "plugin/skills/**", "consumer": "on-demand"},
+    {"path": "plugin/workflows/*.js", "consumer": "on-demand"},
+    {"path": "plugin/templates/**", "consumer": "on-demand"},
+    {"path": "plugin/bin/qh-mcp*", "consumer": "opt-in", "note": "registered by the adopter (the operating skill)"},
+    {"path": "plugin/bin/*", "consumer": "command", "note": "a gate: its exit code is the contract; each .cmd is its Windows twin"},
+    {"path": "plugin/lib/*.py", "consumer": "reached"},
+    {"path": "plugin/scripts/statusline.mjs", "consumer": "opt-in", "note": "configured by the adopter as a status line"},
+    {"path": "plugin/scripts/classify-command.mjs", "consumer": "tombstone", "reason": "empty since ADR-060 T7; kept because ADR-060's Governs: names it and a record is never rewritten (its own header)"},
+    {"path": "plugin/scripts/publish-hook.mjs", "consumer": "command", "note": "post-commit CLI exported by the native core; no publish refusal (ADR-130)"},
+    {"path": "plugin/scripts/reviewer-guard.mjs", "consumer": "command", "note": "legacy CLI spelling delegates to the native reviewer guard"},
+    {"path": "plugin/scripts/*", "consumer": "reached"}
   ],
   "hooks": {
-    "SessionStart · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "refusal", "by": "plugin/scripts/on-session-start.mjs", "token": "offerPublishHook" },
-      { "kind": "tool", "by": "plugin/scripts/tree-facts.mjs", "token": "'session.started'" },
-      { "kind": "agent-context", "by": "plugin/scripts/on-session-start.mjs", "token": "additionalContext" }
+    "SessionStart \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook SessionStart": { "consumers": [
+      {"kind": "tool", "by": "core/hooks/orientation.go", "token": "offerPublishHook"},
+      {"kind": "tool", "by": "plugin/scripts/tree-facts.mjs", "token": "'session.started'"},
+      {"kind": "agent-context", "by": "core/hooks/orientation.go", "token": "additionalContext"}
     ] },
-    "SessionStart · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/branch-state.mjs --cached 120": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write" }
-    ], "reason": "CLAUDE.md §15: a branch whose CI was not read is UNKNOWN, and nothing else says so at the start" },
-    "UserPromptSubmit · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/branch-state.mjs --brief --cached 120": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write" }
-    ], "reason": "CLAUDE.md §15 and ADR-094: said again only when the line changed or CI is red; ADR-097 kept it on a measure that did not fit an orientation note" },
-    "SubagentStart · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.started'" },
-      { "kind": "agent-context", "by": "plugin/scripts/on-subagent-start.mjs", "token": "additionalContext" }
+    "SessionStart \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge branch-state --cached 120": { "consumers": [
+      {"kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write"}
+    ], "reason": "CLAUDE.md \u00a715: a branch whose CI was not read is UNKNOWN, and nothing else says so at the start" },
+    "UserPromptSubmit \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge branch-state --brief --cached 120": { "consumers": [
+      {"kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write"}
+    ], "reason": "CLAUDE.md \u00a715 and ADR-094: said again only when the line changed or CI is red; ADR-097 kept it on a measure that did not fit an orientation note" },
+    "SubagentStart \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook SubagentStart": { "consumers": [
+      {"kind": "tool", "by": "core/hooks/lifecycle.go", "token": "subagent.started"},
+      {"kind": "agent-context", "by": "core/hooks/lifecycle.go", "token": "additionalContext"}
     ] },
-    "SubagentStop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/publish-verdict.mjs", "token": "'subagent.ended'" },
-      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
-      { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
+    "SubagentStop \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook SubagentStop": { "consumers": [
+      {"kind": "tool", "by": "core/hooks/lifecycle.go", "token": "subagent.ended"},
+      {"kind": "user-message", "by": "core/hooks/lifecycle.go", "token": "systemMessage"},
+      {"kind": "tool", "by": "core/hooks/artifact.go", "token": "artifactRule"}
     ] },
-    "TaskCompleted · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
-      { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
+    "TaskCompleted \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook TaskCompleted": { "consumers": [
+      {"kind": "user-message", "by": "core/hooks/lifecycle.go", "token": "systemMessage"},
+      {"kind": "tool", "by": "core/hooks/artifact.go", "token": "artifactRule"}
     ] },
-    "Stop · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/lifecycle.mjs", "token": "stopReachesAgent" },
-      { "kind": "user-message", "by": "plugin/scripts/lifecycle.mjs", "token": "systemMessage" },
-      { "kind": "tool", "by": "plugin/scripts/on-turn-end.mjs", "token": "artifactRule" }
+    "Stop \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook Stop": { "consumers": [
+      {"kind": "agent-context", "by": "core/hooks/lifecycle.go", "token": "stopReachesAgent"},
+      {"kind": "user-message", "by": "core/hooks/lifecycle.go", "token": "systemMessage"},
+      {"kind": "tool", "by": "core/hooks/artifact.go", "token": "artifactRule"}
     ], "reason": "ADR-096: a turn-end finding reaches the agent and continues its turn once; ADR-096's Follow-up measures whether a continued turn acts" },
-    "PreToolUse · Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "refusal", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "permissionDecision" },
-      { "kind": "tool", "by": "plugin/scripts/on-pre-tool-use.mjs", "token": "'publish.requested'" }
+    "PreToolUse \u00b7 Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|mcp__mrw__mrw_write \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PreToolUse": { "consumers": [
+      {"kind": "refusal", "by": "core/hooks/publish.go", "token": "permissionDecision"},
+      {"kind": "tool", "by": "core/hooks/publish.go", "token": "publish.requested"}
     ] },
-    "PreToolUse · Skill · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/ledger-report.mjs", "token": "'skill.invoked'" }
+    "PreToolUse \u00b7 Skill \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PreToolUse": { "consumers": [
+      {"kind": "tool", "by": "plugin/scripts/ledger-report.mjs", "token": "'skill.invoked'"}
     ] },
-    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs facts-gate-dispatch.sh": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "additionalContext" },
-      { "kind": "tool", "by": "plugin/scripts/artifact-pass.mjs", "token": "'artifact.gated'" }
+    "PostToolUse \u00b7 Edit|Write|MultiEdit|NotebookEdit \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge shell-hook facts-gate-dispatch.sh": { "consumers": [
+      {"kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "additionalContext"},
+      {"kind": "tool", "by": "core/hooks/artifact.go", "token": "artifact.gated"}
     ] },
-    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs post-edit-check.sh": { "consumers": [
-      { "kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "scriptName === 'post-edit-check.sh'" }
-    ], "reason": "a syntax error from the file's own parser, told to the agent at the edit that broke it (ADR-102); a clean file says nothing, and it costs 28 to 75 ms per edit (BACKLOG §378, 2026-10-14)" },
-    "PostToolUse · Edit|Write|MultiEdit|NotebookEdit · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'" }
+    "PostToolUse \u00b7 Edit|Write|MultiEdit|NotebookEdit \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge shell-hook post-edit-check.sh": { "consumers": [
+      {"kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "scriptName === 'post-edit-check.sh'"}
+    ], "reason": "a syntax error from the file's own parser, told to the agent at the edit that broke it (ADR-102); a clean file says nothing, and it costs 28 to 75 ms per edit (BACKLOG \u00a7378, 2026-10-14)" },
+    "PostToolUse \u00b7 Edit|Write|MultiEdit|NotebookEdit \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PostToolUse": { "consumers": [
+      {"kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'"}
     ] },
-    "PostToolUse · mcp__mrw__mrw_write · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/hook-record.mjs", "token": "mrwWritePaths" }
+    "PostToolUse \u00b7 mcp__mrw__mrw_write \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PostToolUse": { "consumers": [
+      {"kind": "tool", "by": "core/hooks/lifecycle.go", "token": "mrwWritePaths"}
     ], "reason": "an mrw MCP write is recorded with the paths it names, as an Edit's is, and one whose files its input does not name with none (ADR-113 T2, the Codex review of 6641c951..4db47214)" },
-    "PreCompact · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "readSessionNote" },
-      { "kind": "tool", "by": "plugin/scripts/on-session-start.mjs", "token": "'context.compacting'" }
+    "PreCompact \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PreCompact": { "consumers": [
+      {"kind": "tool", "by": "core/hooks/orientation.go", "token": "readSessionNote"},
+      {"kind": "tool", "by": "core/hooks/orientation.go", "token": "context.compacting"}
     ] },
-    "SessionEnd · * · node ${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs": { "consumers": [
-      { "kind": "tool", "by": "plugin/scripts/session-notes.mjs", "token": "sessions.jsonl" }
+    "SessionEnd \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook SessionEnd": { "consumers": [
+      {"kind": "tool", "by": "core/hooks/sessionend.go", "token": "sessions.jsonl"}
     ] }
   }
 }

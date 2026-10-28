@@ -33,9 +33,9 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
-import { sessionStateNote } from '../plugin/scripts/session-notes.mjs'
+import { sessionStateNote } from './helpers/node-hooks/session-notes.mjs'
 import { latestCheckFor } from '../plugin/scripts/check-ledger.mjs'
-import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
+import { observedFacts } from './helpers/node-hooks/completion-rules.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -193,30 +193,12 @@ const READERS = {
   // onSessionEnd. SessionStart's two reads were under the same entry without being what it drove: the compaction note is
   // served only from a log read whole (`tied` asks logIncomplete first), and the arming note reads awaitingArming, where a
   // lost line can only make the note appear. NOT executed: no fixture tears the log under a SessionStart.
-  onSessionEnd: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
-  onSessionStart: { unexecuted: 'BACKLOG 375 stage D — needs a fixture that tears the log at a compact SessionStart' },
-  completionFacts: { unexecuted: 'ADR-130: descriptive claims are persisted; torn-record persistence is tested below' },
   // ADR-130: git hooks record commits; they no longer judge checks.
   runPublishHook: { unexecuted: 'ADR-130: commit tracking reads only session ownership, never a check verdict' },
   // ADR-068 T1. NOT executed. A torn log in the main checkout counts as OWNED (the
   // worktree is then judged, and a torn worktree log warns), so a lost line can only
   // add a judgement, never remove one.
   sessionOwnsRepository: { unexecuted: 'ADR-068 T1 — needs a fixture that tears the main checkout log under a worktree commit' },
-  reviewChangedState: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
-  // Both run inside every hook, so every row of the table runs them; the `head`
-  // tear is the one that loses the baseline `recordHookEvent` would re-find.
-  importCheckRecords: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
-  recordHookEvent: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
-  // NOT executed, and said so rather than dressed as safe: no fixture here holds
-  // an artifact, so nothing runs rule A against a torn log. The claim — a lost
-  // `artifact.gated` re-gates, a lost `action.emitted` re-fires — is still prose.
-  artifactRule: { unexecuted: 'docs/audits/2026-09-18-adr-060.md — needs a fixture with a gated artifact' },
-  // ADR-080. NOT executed. Both read the log only to say a thing once: a lost
-  // `artifact.gated` is imported again from the pass's ledger, a lost
-  // `action.emitted` says a finding or an UNRUN again. A torn log can add a line
-  // to what is said, never remove one, and neither builds a verdict.
-  importPassVerdicts: { unexecuted: 'ADR-080 T1 — needs a fixture that tears the log beside a pass ledger' },
-  startArtifactPass: { unexecuted: 'ADR-080 T1 — needs a fixture that tears the log when a pass cannot start' },
   // ADR-084 T2. Not a hook, so no boundary drives it: `tested` names the test that tears its log, where
   // a torn session log is named UNPROVEN and the look is PARTIAL — a lost line can lower a count, never
   // pass for one read whole.
@@ -238,7 +220,7 @@ test('every reader of the session log is driven above, or says why a lost line c
       found.add(at >= 0 ? lines[at].match(/function (\w+)\(/)[1] : `${file}:${index + 1} (top level)`)
     })
   }
-  assert.ok(sites >= 8, `the sweep must find the call sites it is about, found ${sites}`)
+  assert.ok(sites > 0, 'the sweep must find the retained CLI readers')
   assert.deepEqual([...found].filter(name => !(name in READERS)), [],
     'a new reader of the session log: drive it in SURFACES, or record here why a torn log cannot make it answer positively')
   assert.deepEqual(Object.keys(READERS).filter(name => !found.has(name)), [],
@@ -258,35 +240,16 @@ test('every reader of the session log is driven above, or says why a lost line c
   // much as NAMES the reader, and every export that takes a `log`.
   const FILES = {
     'event-log.mjs': 'defines it',
-    'lifecycle.mjs': 'by function, above',
-    'hook-record.mjs': 'by function, above',
-    'on-session-start.mjs': 'by function, above',
-    'on-session-end.mjs': 'by function, above',
-    'artifact-pass.mjs': 'by function, above',
-    'check-ledger.mjs': 'by function, above',
-    'completion-rules.mjs': 'by function, above',
-    'publish-verdict.mjs': 'by function, above',
     'statusline.mjs': { driven: 'statusline reading -> render' },
     'publish-hook.mjs': 'by function, above',
     'ledger-report.mjs': 'by function, above (ledgerReport)',
-    'branch-state.mjs': 'ADR-128 T2: ownCommitOnly and heardNow refuse a log not read whole (complete === false), so a lost line re-sends the brief and never suppresses it',
+    'branch-state.mjs': 'complete-log guards keep a torn ledger from suppressing a brief',
   }
   const LOG_TAKERS = {
-    observedFacts: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
     latestCheckFor: { driven: 'latestCheckFor' },
     logIncomplete: 'is the qualifier itself',
     unobservableWrites: 'ordered by the log; an incomplete log leaves every such write outstanding',
     sessionBaseline: 'the first start that looked; a lost line can only remove it, which every caller reads as unchecked, because a late baseline is adopted only from a log read whole',
-    tornRecord: 'names which record tore, asked only once logIncomplete is true; a lost session-log line makes it name the session log, and it answers nothing positive',
-    answeredBlobs: 'reads only complete artifact.gated rows; a lost line removes an answer, so the path is gated again, which is the safe direction (ADR-005)',
-    lateBaselineAllowed: 'its first condition is logIncomplete; a log not read whole never lets a late baseline be adopted',
-    checkStanding: 'its first line is logIncomplete, answered \'unknown\'; a log not read whole certifies nothing',
-    checkRevision: 'a count of the tree\'s check events; a lost line can only lower it, and it certifies nothing',
-    revisionFor: 'a count of check events (checkRevision, or every check event where nothing can be observed); it certifies nothing',
-    thisContext: 'keeps the current generation\'s action.emitted rows for emittedFor and its siblings; a lost line removes a row, so a finding speaks again, the same safe direction as emittedFor',
-    emittedFor: 'asks whether a finding was already said; a lost line makes the finding speak again, which is the safe direction',
-    namedByPublish: 'the same question for rule P, with the same direction: a lost line makes the tree be named again',
-    headCommit: 'names the commit at HEAD when this session made it reachable, and with no baseline none; completionRules says R4 (could not look) whenever logIncomplete, so a torn log is never read as "HEAD did not move"',
     carryFor: 'asks unobservableWrites, so a log not read whole leaves every write outstanding and the carry is refused; it certifies nothing itself, only lets checkStanding look at a second tree (ADR-120 T9)',
     carriedPassUnseen: 'can only refuse a carry, never grant one: it answers whether a write git cannot see, in any session\'s log, follows the pass a carry would stand on, so a lost line can only remove a pass it asks about (ADR-120 T9)',
   }

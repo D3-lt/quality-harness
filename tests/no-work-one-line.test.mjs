@@ -8,7 +8,7 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { fixtureRepo, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
-import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
+import { sessionLogFile } from '../plugin/scripts/event-log.mjs'
 import { required } from './helpers/require.mjs'
 import { remove } from './helpers/remove.mjs'
 

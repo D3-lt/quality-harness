@@ -7,7 +7,7 @@ the two-copies-drift failure this project has accepted decisions about (ADR-001,
 
 The rules whose cost of missing is not a wasted hour are repeated here:
 
-- **`plugin/` is the product; everything above it is the work that produces it and never ships.**
+- **`plugin/` is the marketplace package; native binaries arrive as verified release assets (ADR-116). Sources above it produce the release and never ship.**
   In the tests, `repoRoot` is the repository and `root` is the plugin — different directories.
 - **Never commit while a gate is red, and never pipe or filter a gate.** `bash scripts/selftest.sh` must exit
   0 after your last edit. `| tail` and `|| true` hide the exit code; `grep -v advice` hides the findings. Never chain a commit after a

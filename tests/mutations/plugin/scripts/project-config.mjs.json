@@ -131,19 +131,11 @@
       "only": "^a config that starts with a byte-order mark is refused and says so \\(a Windows run of 3.8.18\\)$"
     },
     {
-      "label": "ADR-096 T3: an unreadable configuration means the default",
-      "file": "plugin/scripts/project-config.mjs",
-      "tests": [
-        "tests/turn-end-delivery.test.mjs"
-      ],
-      "from": "catch { return 'agent' }",
-      "to": "catch { return 'notify' }",
-      "only": "^an\\ unreadable\\ project\\ configuration\\ means\\ the\\ default,\\ said\\ as\\ such$"
-    },
-    {
       "label": "ADR-120 T15: an ignore declaration that could hide too much is refused",
       "file": "plugin/scripts/project-config.mjs",
-      "tests": ["tests/spec-ignore.test.mjs"],
+      "tests": [
+        "tests/spec-ignore.test.mjs"
+      ],
       "from": "if (problem) return refused(key, problem)",
       "to": "if (false) return refused(key, problem)",
       "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"
@@ -151,7 +143,9 @@
     {
       "label": "ADR-120 T15: the ignore key is what ignoreSpecs reads",
       "file": "plugin/scripts/project-config.mjs",
-      "tests": ["tests/spec-ignore.test.mjs"],
+      "tests": [
+        "tests/spec-ignore.test.mjs"
+      ],
       "from": "declaredPathspecs(root, 'ignore')",
       "to": "declaredPathspecs(root, 'prose')",
       "only": "^a generated or ignored spec is not gated, and the same spec elsewhere still is$"

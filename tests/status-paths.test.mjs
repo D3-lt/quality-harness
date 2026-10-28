@@ -18,7 +18,7 @@ import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
+import { observedFacts } from './helpers/node-hooks/completion-rules.mjs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 

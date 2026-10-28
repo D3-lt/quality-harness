@@ -11,15 +11,6 @@
       "only": "^(?:a Windows python3 that is not Python is refused, not believed)$"
     },
     {
-      "label": "advisory: the headline a person sees names the finding, not the prefix",
-      "file": "plugin/scripts/ready-lines.mjs",
-      "tests": [
-        "tests/advisory-headline.test.mjs"
-      ],
-      "from": "  const sentence = first.trim().replace(/^quality-harness:\\s*/i, '').split(/(?<=\\.)\\s/)[0]",
-      "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]"
-    },
-    {
       "label": "win: spawnGate hides the gate it starts on Windows",
       "file": "plugin/scripts/ready-lines.mjs",
       "tests": [
@@ -28,16 +19,6 @@
       "from": "  return spawnSync(command, [...prefix, tool, ...args], { windowsHide: true, ...options })",
       "to": "  return spawnSync(command, [...prefix, tool, ...args], options)",
       "only": "passes windowsHide"
-    },
-    {
-      "label": "ADR-099 T1: nothing shipped names the removed code",
-      "file": "plugin/scripts/ready-lines.mjs",
-      "tests": [
-        "tests/ready-is-work-next.test.mjs"
-      ],
-      "from": "export function advisoryHeadline(reason) {",
-      "to": "export const readyCache = null;\nexport function advisoryHeadline(reason) {",
-      "only": "^(?:the ready-task cache and its recorder are not shipped and nothing shipped names what only they used)$"
     }
   ]
 }

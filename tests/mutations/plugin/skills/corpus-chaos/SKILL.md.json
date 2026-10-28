@@ -48,7 +48,7 @@
       ],
       "from": "`gtimeout -s KILL 120 <command>`",
       "to": "`gtimeout 120 <command>`",
-      "only": "^corpus guidance uses a GNU timeout"
+      "only": "^corpus guidance explicitly selects KILL"
     }
   ]
 }

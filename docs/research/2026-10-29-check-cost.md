@@ -43,7 +43,7 @@ The traced candidate's largest event groups were the retained three-registration
 - CPU is waited-root subtree usage. Detached work and shell-internal process visibility remain partial; nested CPU is never added to a parent's subtree total.
 - Completion-receipt waits are synchronization in this harness. Historical manual quiet-machine waits and refusal false-positive rates were not recorded and cannot be reconstructed.
 - The environment was Darwin 27.0.0 arm64, Node v26.12.1, Go go1.27.3 and Python 3.15.2. Local native builds used the same compiler and explicit build flags; cold download/provisioning was outside this experiment.
-- Recounting every saved replay with the corrected footprint parser retained all totals. The fixtures are public generated data. Raw process/transcript files stay local.
+- Recounting every saved replay with the corrected footprint parser retained all totals. Corrected exec-completion accounting found no unresolved images in the saved observed traces. The fixtures are public generated data. Raw process/transcript files stay local.
 - Actual Claude Code 2.1.312 receipt shapes and counts on Windows and another platform are requested. That confirmation and the candidate's outside corpus run remain release work.
 - QH hook-body savings do not measure memoryd, other plugins, host instruction dumps or tool-output volume.
 

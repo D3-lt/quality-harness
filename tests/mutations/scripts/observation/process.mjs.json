@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-131: exec images without a terminal receipt remain unresolved",
+      "file": "scripts/observation/process.mjs",
+      "tests": [
+        "tests/process-observation.test.mjs"
+      ],
+      "only": "^exec completion needs a terminal image or a wait for that exact PID$",
+      "from": "!has('exec-error') && !has('self-end') && !waitedPids.has(pid)",
+      "to": "false"
+    }
+  ]
+}

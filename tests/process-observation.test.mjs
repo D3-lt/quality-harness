@@ -183,3 +183,21 @@ test('POSIX Node exec replacement changes image without adding a process', { ski
   assert.equal(result.processes.completed, 1)
   assert.equal(result.processes.execReplacements, 1)
 })
+
+test('exec completion needs a terminal image or a wait for that exact PID', () => {
+  const schema = 'quality-harness-process-trace-v1'
+  const image = phase => ({ schema, invocation: 'exec', phase, pid: 20, childPid: null })
+  const owner = (phase, childPid = 20) => ({ schema, invocation: 'owner', phase, pid: 10, childPid })
+  const pending = [image('exec-attempt'), image('self-start')]
+  for (const rows of [[image('exec-attempt')], pending, [...pending, owner('ended', 21)]]) {
+    const result = summariseProcesses(rows)
+    assert.equal(result.incomplete, 1)
+    assert.ok(result.reasons.includes('exec-image-transition-has-no-terminal-observation'))
+  }
+  const completed = summariseProcesses([...pending, image('self-end')])
+  assert.deepEqual([completed.attempts, completed.starts, completed.completed, completed.incomplete, completed.execReplacements], [0, 0, 0, 0, 1])
+  const waited = summariseProcesses([...pending, owner('attempt'), owner('started'), owner('ended')])
+  assert.deepEqual([waited.attempts, waited.starts, waited.completed, waited.incomplete, waited.execReplacements], [1, 1, 1, 0, 1])
+  assert.equal(summariseProcesses([image('exec-attempt'), image('exec-error')]).incomplete, 0)
+  assert.ok(summariseProcesses([...pending, owner('attempt'), owner('started'), owner('released')]).incomplete > 0)
+})

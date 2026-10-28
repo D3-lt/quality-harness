@@ -45,11 +45,17 @@ export function summariseProcesses(rows) {
   }
   let attempts = 0, starts = 0, completed = 0, incomplete = 0, execReplacements = 0
   const reasons = new Set()
+  // A waited PID settles every image it replaced, including uninstrumented exec targets.
+  const waitedPids = new Set([...spans.values()].flat().filter(row => row.phase === 'ended'
+    && Number.isInteger(row.childPid) && row.childPid > 0).map(row => row.childPid))
   for (const group of spans.values()) {
     const has = phase => group.some(row => row.phase === phase)
     if (has('exec-attempt')) {
       if (has('self-start') || has('self-end')) execReplacements++
-      else if (!has('exec-error')) reasons.add('exec-image-transition-has-no-terminal-observation')
+      const pid = group.find(row => row.phase === 'exec-attempt').pid
+      if (!has('exec-error') && !has('self-end') && !waitedPids.has(pid)) {
+        incomplete++; reasons.add('exec-image-transition-has-no-terminal-observation')
+      }
       continue
     }
     const started = has('started') || has('self-start') || has('self-end')

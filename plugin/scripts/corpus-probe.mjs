@@ -466,7 +466,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   return {
     probe: {
       version: pluginVersion(), sha256: probeDigest(), readers: readersOfRun(readersAtStart, readerFingerprint(pluginRoot)),
-      native: nativeIdentityOfRun(nativeAtStart, nativeBinaryIdentity(nativeBinary)),
+      native: sessionStart?.exit === 0 ? nativeIdentityOfRun(nativeAtStart, nativeBinaryIdentity(nativeBinary))
+        : { look: 'UNPROVEN', reason: 'native SessionStart did not produce a successful observation' },
       // What an attestation carries about the run (ADR-064 T3), recorded here so
       // `--attest` can be pure over the saved report.
       date: new Date().toISOString().slice(0, 10), platform: `${os.type()} ${os.release()}`, node: process.versions.node, python: pythonVersion(),
@@ -848,7 +849,7 @@ export function attestation(report, label, { since } = {}) {
   // PARTIAL still ran every reader over what it listed, and is a run.
   const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'
   const native = report.probe?.native
-  const nativeKnown = !native || (native.look === 'ok' && native.at === readers.git)
+  const nativeKnown = !native || (native.look === 'ok' && native.at === readers.git && report.sessionStart?.exit === 0)
   const vouched = committed && looked && nativeKnown
   const count = list => (Array.isArray(list) ? list.length : null)
   const changes = verdictChanges(since, report)
@@ -856,6 +857,7 @@ export function attestation(report, label, { since } = {}) {
     date: report.probe?.date ?? null,
     at: vouched ? readers.git : null,
     ...(vouched ? {} : { atReason: !looked ? 'the probe could not look at the corpus (look UNPROVEN), so its readers ran over nothing'
+      : native && report.sessionStart?.exit !== 0 ? 'native SessionStart did not produce a successful observation'
       : !nativeKnown ? 'the executed native reader has no matching committed CI identity: ' + (native.reason ?? 'source revision differs')
       : !readers.git ? (readers.gitReason ? `${readers.gitReason}, so the readers' commit is unknown` : 'the plugin is not a git checkout')
         : readers.moved ? 'the readers changed while the probe ran'
@@ -878,7 +880,7 @@ export function attestation(report, label, { since } = {}) {
     readinessUnproven: count(report.workNext?.readinessUnproven),
     // What the run saw (ADR-089): its look, so a PARTIAL run never attests like an ok one, and how many
     // records listed in either report were not compared, null whenever nothing was compared.
-    look: runLook(report),
+    look: native && !nativeKnown ? 'UNPROVEN' : runLook(report),
     notCompared: changes ? verdictMoves(since, report).notCompared : null,
     verdictChanges: changes,
     runner: label,

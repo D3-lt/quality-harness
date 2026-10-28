@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-131: checksum identity cannot vouch a native invocation that failed",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/native-probe-path.test.mjs"
+      ],
+      "only": "^a manifested native image that cannot execute cannot attest native coverage$",
+      "from": "native.at === readers.git && report.sessionStart?.exit === 0",
+      "to": "native.at === readers.git"
+    },
+    {
+      "label": "ADR-131: an unavailable native invocation is UNPROVEN in the probe",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/native-probe-path.test.mjs"
+      ],
+      "only": "^a manifested native image that cannot execute cannot attest native coverage$",
+      "from": "native: sessionStart?.exit === 0 ? nativeIdentityOfRun",
+      "to": "native: true ? nativeIdentityOfRun"
+    },
+    {
       "label": "probe load: the end of the run is sampled as well as its start",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [
@@ -658,7 +678,7 @@
       "tests": [
         "tests/probe-attest-partial.test.mjs"
       ],
-      "from": "    look: runLook(report),\n",
+      "from": "    look: native && !nativeKnown ? 'UNPROVEN' : runLook(report),\n",
       "to": "",
       "only": "an attestation carries the look of its run"
     },

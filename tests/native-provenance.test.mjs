@@ -114,6 +114,7 @@ test('attestation covers the actual stable native reader and compares native-onl
     probe: { version: '3.8.61', readers: { git: at, sha256: 'c'.repeat(64), dirty: false }, native },
     look: 'ok', corpora: ['fixture'], adrLint: [{ file: 'a.md', verdict: 'PASS' }],
     workNext: { records: 1, tasks: 1, readinessUnproven: [] }, adrNext: [],
+    sessionStart: { exit: 0, lines: [] },
     couldNotRun: [], disagreements: [],
   }
   assert.equal(attestation(report, 'fixture').at, at)

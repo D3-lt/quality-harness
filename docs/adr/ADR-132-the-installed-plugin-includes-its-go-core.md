@@ -96,6 +96,17 @@ The scoped `--case 'package: the '` run noticed 3/3 mutations; the moved agent-a
 catalogue regex scan found no narrowed selector still selecting either retired title. These are local scoped results;
 the corrected candidate still requires its complete landing campaign.
 
+Windows CI also exposed an archive fixture whose bytes depended on core.autocrlf, and a Node --import receiving a drive
+path instead of a file URL. The CLI test now passes pathToFileURL(preload).href. The packager pins core.autocrlf=false
+and tar.umask=0022 for both assembly and verification, so a Windows checkout or private tar mode cannot redefine the
+expected release bytes or permissions. The conflicting-config regression failed before the fix on macOS with the
+same README byte mismatch reported by Windows. Scoped catalogue cases independently remove each configuration pin.
+
+The bounded audit command
+`mrw read --grep 'pathToFileURL|core.autocrlf|--import' tests/plugin-bundle.test.mjs tests/helpers/release-world.mjs scripts/build-plugin.mjs scripts/marketplace-source.mjs`
+identified the one new CLI preload site. The packaging fixture now fixes its initial committed LF bytes, then the
+regression deliberately sets conflicting archive configuration. Platform CI remains the Windows execution evidence.
+
 ## Consequences
 
 Installation downloads a larger complete package once. Session hooks need no provisioning request or startup wait.

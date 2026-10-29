@@ -17,6 +17,20 @@
       ],
       "from": "  releaseAssetFiles(assets, { at, run })",
       "to": "  // native artifact verification removed"
+    },
+    {
+      "label": "ADR-132: packaging inherits checkout line endings",
+      "file": "scripts/build-plugin.mjs",
+      "tests": ["tests/plugin-bundle.test.mjs"],
+      "from": "'-c', 'core.autocrlf=false', ",
+      "to": ""
+    },
+    {
+      "label": "ADR-132: packaging inherits local tar permissions",
+      "file": "scripts/build-plugin.mjs",
+      "tests": ["tests/plugin-bundle.test.mjs"],
+      "from": "'-c', 'tar.umask=0022', ",
+      "to": ""
     }
   ]
 }

@@ -21,7 +21,7 @@ export function pluginBundle(assets, output, { root = repository, at, run, verif
   const options = { cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 1 << 20, windowsHide: true }
   try {
     const source = path.join(directory, 'plugin.tar')
-    const git = spawnSync('git', ['archive', '--format=tar', '--output', source, at + ':plugin'], options)
+    const git = spawnSync('git', ['-c', 'core.autocrlf=false', '-c', 'tar.umask=0022', 'archive', '--format=tar', '--output', source, at + ':plugin'], options)
     if (git.error || git.status !== 0) throw new Error('plugin source could not be archived: ' + (git.error?.message ?? git.stderr))
     const [python, ...prefix] = pythonArgv()
     const packaged = spawnSync(python, [...prefix, fileURLToPath(new URL('plugin-bundle.py', import.meta.url)),

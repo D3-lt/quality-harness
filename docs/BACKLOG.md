@@ -4009,7 +4009,8 @@ combined-diff offsets. None accepts a bad archive or bypasses the public pin ver
   scripts/plugin-bundle.py copies the resulting member modes into both build and verification expectations. A read-only
   archive of a13a088e with tar.umask=002 gave plugin.json mode 0664; tar.umask=077 gave 0600. The releaser's config is
   currently unset, matching the CI default, but differing Git configuration can falsely reject a correct CI ZIP.
-  Open: pin tar.umask=022 or derive 0644/0755 from the executable bit; add the cross-config regression.
+  Resolved before publication: the Windows CI README mismatch exposed the same configuration class for line endings.
+  The packager now pins core.autocrlf=false and tar.umask=0022; the conflicting-config test reproduces the old failure.
 - Policy replay's explicit binary selection: scripts/policy-replay.mjs:122-128 seeds a private version cache and sets
   QUALITY_HARNESS_QH_BIN. A plugin containing native/ or its bundle marker makes qh-hook.sh select the bundled binary
   instead. hook-cost now handles that boundary, but replay can still describe a different explicit binary than its

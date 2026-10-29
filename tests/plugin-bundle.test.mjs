@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFi
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { pluginBundle, PLUGIN_ARCHIVE, PLUGIN_RECEIPT } from '../scripts/build-plugin.mjs'
 import { releasePluginFiles } from '../scripts/release-assets.mjs'
 import { coreManifest } from '../scripts/native-source.mjs'
@@ -31,6 +31,7 @@ function fixture(t) {
     return answer.stdout.trim()
   }
   git('init', '-q'); git('config', 'user.email', 'fixture@example.invalid'); git('config', 'user.name', 'Fixture')
+  git('config', 'core.autocrlf', 'false')
   git('add', '.'); git('commit', '-qm', 'fixture')
   const at = git('rev-parse', 'HEAD'), run = '123'
   const sums = CORE_TARGETS.map(([os, arch]) => {
@@ -69,6 +70,20 @@ test('the bundle contains exactly the committed plugin and all verified native t
   assert.throws(() => releasePluginFiles(f.dist, f.assets, f), /receipt differs/)
   writeFileSync(path.join(f.assets, 'qh-linux-amd64'), 'altered native bytes')
   assert.throws(() => pluginBundle(f.assets, path.join(f.top, 'invalid.zip'), f), /checksum/)
+})
+
+test('bundle source bytes and modes ignore checkout line endings and tar umask', t => {
+  const f = fixture(t)
+  f.git('config', 'core.autocrlf', 'true')
+  f.git('config', 'tar.umask', '0077')
+  pluginBundle(f.assets, f.output, f)
+  const checked = runPython(['-c', [
+    'import sys,zipfile',
+    'with zipfile.ZipFile(sys.argv[1]) as z:',
+    ' assert z.read("README.md") == b"Only the committed plugin ships.\\n"',
+    ' assert z.getinfo("README.md").external_attr >> 16 & 0o777 == 0o644',
+  ].join('\n'), f.output], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  assert.equal(checked.status, 0, checked.stderr)
 })
 
 test('missing, duplicate, injected, altered and nonexecutable archive entries are refused before release', t => {
@@ -202,7 +217,7 @@ test('the marketplace CLI checks the public catalogue instead of trusting an unl
     '}',
   ].join('\n'))
   const invoke = (catalogue, args, missing = '') => spawnSync(process.execPath,
-    ['--import', preload, path.join(top, 'scripts', 'marketplace-source.mjs'), version, ...args],
+    ['--import', pathToFileURL(preload).href, path.join(top, 'scripts', 'marketplace-source.mjs'), version, ...args],
     { encoding: 'utf8', timeout: 10_000, windowsHide: true,
       env: { ...process.env, QH_PUBLIC_CATALOGUE: JSON.stringify(catalogue), QH_PUBLIC_MISSING: missing } })
   const old = { ...current, plugins: [{ name: 'quality-harness', version: '1.2.2', source: './plugin' }] }

@@ -81,10 +81,10 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/agents/` | ui | the spawned roles and the capability each declares | ADR-029, ADR-060 |
 | `plugin/workflows/` | ui | the bounded multi-role workflows (consensus, review-ring, quality-cycle) | ADR-057, ADR-062 |
 | `plugin/templates/` | domain | the shapes the gates read | ADR-009, ADR-017 |
-| `plugin/scripts/qh-hook.sh` | adapter | selecting and verifying the native hook binary | ADR-110, ADR-116 |
-| `plugin/scripts/qh-fetch.mjs` | infra | bounded, checksum-verified binary installation | ADR-116 |
+| `plugin/scripts/qh-hook.sh` | adapter | selecting and verifying the bundled native hook binary | ADR-110, ADR-132 |
+| `plugin/scripts/qh-fetch.mjs` | infra | bounded native installation for source checkouts | ADR-116, ADR-132 |
 | `plugin/scripts/core-assets.mjs` | domain | release asset names and supported platforms | ADR-116 |
-| `plugin/scripts/native-cli.mjs` | adapter | transporting retained CLI spellings to Go | ADR-110 |
+| `plugin/scripts/native-cli.mjs` | adapter | transporting retained CLI spellings to the same bundled Go core | ADR-110, ADR-132 |
 | `plugin/scripts/validation-verdict.mjs` | domain | interpreting the explicit Node check runner's output | ADR-081 |
 | `core/cmd/qh/main.go` | api | the static binary's command line | ADR-110 |
 | `core/hooks/` | domain | the authoritative native hook engine | ADR-110, ADR-113 |
@@ -96,9 +96,9 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 
 ## Hook events
 
-Every registration in `plugin/hooks/hooks.json` enters `plugin/scripts/qh-hook.sh`. It selects this platform's versioned native
-binary only after its checksum verifies. SessionStart may fetch and verify a missing binary through `qh-fetch.mjs`;
-other events never start an installer. There is no JavaScript hook-engine fallback.
+Every registration in `plugin/hooks/hooks.json` enters `plugin/scripts/qh-hook.sh`. It selects this platform's bundled native
+binary only after its checksum verifies. Installed bundles never start an installer or fall back to a cache. A source
+checkout retains SessionStart provisioning through `qh-fetch.mjs`; other events never install. There is no JavaScript hook engine.
 
 | Event | Native entry | Implementation |
 |-------|--------------|----------------|
@@ -124,11 +124,16 @@ The native bridge hands their actual descriptors through, so a CLI's delivery re
 The existing branch-state CLI still owns its bounded cache refresh; it is not a second hook engine.
 
 `scripts/build-core.mjs` builds source-check binaries and the release targets declared in `core-assets.mjs`.
-CI uploads the native binaries and `SHA256SUMS.txt` as `qh-core`; `release-assets.mjs` verifies the complete artifact
-set before `release.mjs` attaches it to the release. Installed caches live under `CLAUDE_PLUGIN_DATA/qh/<version>/`.
-An offline first installation or unsupported platform reports could-not-run; it does not run a different engine.
-`QUALITY_HARNESS_QH_FETCH=off` disables automatic fetching. The compatibility CLIs honor the existing
-`QUALITY_HARNESS_QH_BIN` source-check seam for an explicitly selected local build; registered hooks verify their cache.
+CI uploads the native binaries and source manifest as `qh-core`. `build-plugin.mjs` archives the exact commit's plugin tree
+and adds those verified binaries, checksum sidecars and retained source manifest under `native/`. Python's standard ZIP
+library preserves executable modes; it also verifies downloaded archives entry by entry against the committed files
+and native assets. The complete ZIP and its source/checksum receipt are uploaded as `qh-plugin`.
+
+`release-assets.mjs` verifies both artifacts before `release.mjs` publishes them. `marketplace-source.mjs` verifies an
+unauthenticated public download before producing a versioned archive URL and checksum. The catalogue pin lands separately,
+after a cold install; it cannot be part of the archive's source commit because the archive includes that commit's identity.
+Source-checkout caches remain under `CLAUDE_PLUGIN_DATA/qh/<version>/`, and the explicit `QUALITY_HARNESS_QH_BIN` seam remains
+available to source checks. Neither path replaces a damaged installed bundle.
 
 ## The state directory
 
@@ -208,7 +213,7 @@ mutates.
 
 ## Repository tooling
 
-Repository sources do not ship. The marketplace package is `plugin/`; native binaries built from `core/` ship as verified release assets (ADR-116).
+Repository sources do not ship. The release bundle contains the committed `plugin/` tree and verified native binaries built from `core/` (ADR-132).
 
 - **The gate:** `scripts/selftest.sh`, which starts its test files through `scripts/run-tests.mjs` in the order
   `scripts/test-order.mjs` computes; `scripts/coverage.sh` holds the JavaScript and Python floors.
@@ -230,7 +235,7 @@ Repository sources do not ship. The marketplace package is `plugin/`; native bin
 
 | # | Rule | Check |
 |---|------|-------|
-| D1 | The marketplace tree is `plugin/`; native binaries are verified release assets, and no personal install is required (ADR-008, ADR-116) | `node --test tests/package.test.mjs` |
+| D1 | The archive contains only the committed plugin and verified native assets; no personal install is required (ADR-008, ADR-132) | `node --test tests/plugin-bundle.test.mjs tests/bundled-core.test.mjs` |
 | D2 | Every Python gate loads the record grammar from the `plugin/lib/record.py` beside its own `bin/`, and none keeps a copy (ADR-045) | `node --test tests/gates.test.mjs` |
 | D3 | Every spawned role declares the capability it needs (ADR-029) | `node --test tests/workflows.test.mjs` |
 | D4 | `qh hook` answers what the test-only Node oracle answers, row for row, for the same payloads (ADR-110 T1) | `node --test tests/qh-core-parity.test.mjs` |

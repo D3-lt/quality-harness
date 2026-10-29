@@ -18,8 +18,8 @@ Section numbers, exit codes, dates, versions and shas are identifiers, not quant
 
 ## 1. The repository is not the plugin
 
-- `plugin/` is the marketplace package. Native binaries arrive as verified release assets (ADR-116); sources
-  and repository tooling above `plugin/` produce the release and never ship.
+- The release bundle contains `plugin/` and its verified native binaries (ADR-132); sources and repository tooling
+  above `plugin/` produce the release and never ship. Binaries are release artifacts, never tracked source files.
 - In the tests, `repoRoot` is the repository and `root` is the plugin. They are different
   directories; a check that confuses them measures the wrong tree and stays green.
 - When files move, also move: `.gitignore` patterns, `.gitattributes` rules, the `file:` paths in
@@ -225,7 +225,7 @@ A reader change waiting on its outside run (§18) is a named leftover, not a par
 required before the tag.
 
 **`node scripts/release.mjs` runs steps 3 to 7 from what it observes**, so a second run resumes where the first
-stopped (ADR-100). Exit 0 released, 1 a step failed, 2 a step needs an action it does not take (it names it), 3 a
+stopped (ADR-100). Exit 0 released and advertised, 1 a step failed, 2 a step needs an action it does not take (it names it), 3 a
 wait reached its deadline. The steps stay numbered because records and source comments cite them.
 
 1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check --again` itself, and takes its pass only from a machine not contended across it: its load at the start, and once the run's own load has decayed, at or below the core count, ADR-115);
@@ -254,6 +254,9 @@ wait reached its deadline. The steps stay numbered because records and source co
 6. It never dispatches while another dispatched run on the ref is in flight: the workflow's concurrency group keys on
    the event (`.github/workflows/selftest.yml:20-22`), so a second dispatch cancels the first, while a push does not.
 7. It runs `gh release create vX.Y.Z --target <full sha> --latest` — `--latest` is not the default.
+   It verifies the public bundle and catalogue pin (ADR-132). A published ZIP awaiting catalogue promotion exits 2. Verify
+   a cold install, generate the pin with `node scripts/marketplace-source.mjs <version>`, then check, commit and land that
+   metadata through `scripts/land.mjs`; keep the previous available release advertised until then.
 
 Why: `.claude/rules/13-releasing.md`
 

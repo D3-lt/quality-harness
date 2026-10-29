@@ -1,22 +1,14 @@
 {
   "mutations": [
     {
-      "label": "Go cutover: an incomplete native asset set is accepted",
+      "label": "ADR-132: a receipt naming another bundle or run is accepted",
+      "from": "!Object.entries(verified).every(([key, value]) => receipt[key] === value)",
+      "to": "false",
       "file": "scripts/release-assets.mjs",
       "tests": [
-        "tests/qh-assets.test.mjs"
-      ],
-      "from": "if (JSON.stringify(found) !== JSON.stringify(expected))",
-      "to": "if (false)"
-    },
-    {
-      "label": "Go cutover: a changed native release asset is accepted",
-      "file": "scripts/release-assets.mjs",
-      "tests": [
-        "tests/qh-assets.test.mjs"
-      ],
-      "from": "createHash('sha256').update(readFileSync(file)).digest('hex') !== entries[0][1]",
-      "to": "false"
+        "tests/plugin-bundle.test.mjs"
+      ]
     }
   ]
 }
+

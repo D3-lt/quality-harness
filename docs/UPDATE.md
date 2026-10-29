@@ -37,6 +37,10 @@ The first refreshes the catalogue; the second installs what it now lists. `claud
 says it itself: **restart required to apply**. In a running session, `/reload-plugins` does the
 same, and `/reload-plugins --force` if it warns about the prompt cache.
 
+The marketplace pins a complete release ZIP and its checksum. A new version is advertised only after that ZIP is public
+and a cold install has been checked; the previous bundle remains selected while a candidate is building. Updating the
+catalogue and plugin brings the matching native core with it. Hooks perform no separate core download.
+
 ## Check it took
 
 ```bash

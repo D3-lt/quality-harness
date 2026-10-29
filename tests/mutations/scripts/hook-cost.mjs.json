@@ -17,6 +17,16 @@
       ],
       "from": "exit: null, children: null }",
       "to": "exit: null, children: [] }"
+    },
+    {
+      "label": "ADR-132: the cost collector selects the cache instead of the measured bundle",
+      "file": "scripts/hook-cost.mjs",
+      "tests": [
+        "tests/bundled-core.test.mjs"
+      ],
+      "from": "const selected = path.resolve(nativeBinaryPath(version, selectionEnv, { root: pluginDir }))",
+      "to": "const selected = path.resolve(nativeBinaryPath(version))",
+      "only": "^the cost collector measures the selected bundle with no cache or ambient source override$"
     }
   ]
 }

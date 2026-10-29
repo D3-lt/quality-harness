@@ -15,7 +15,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { coreAsset } from '../plugin/scripts/core-assets.mjs'
-import { nativeBinaryPath } from '../plugin/scripts/native-cli.mjs'
+import { isBundledPlugin, nativeBinaryPath } from '../plugin/scripts/native-cli.mjs'
 import { runMeasured, summariseProcesses } from './observation/process.mjs'
 import { registeredHooks, registeredProgram } from './policy-replay.mjs'
 
@@ -60,19 +60,24 @@ function measureRegistered({ event, repository, timeoutSeconds, inPlace, plugin 
     const home = path.join(scratch, 'home'), data = path.join(home, 'data')
     mkdirSync(data, { recursive: true })
     const version = JSON.parse(readFileSync(path.join(pluginDir, '.claude-plugin', 'plugin.json'), 'utf8')).version
-    const selected = path.resolve(nativeBinaryPath(version))
+    const bundled = isBundledPlugin(pluginDir)
+    const selectionEnv = bundled ? { ...process.env, QUALITY_HARNESS_QH_BIN: '' } : process.env
+    const selected = path.resolve(nativeBinaryPath(version, selectionEnv, { root: pluginDir }))
     const env = { ...process.env, HOME: home, USERPROFILE: home, TMPDIR: scratch, TMP: scratch, TEMP: scratch,
       CLAUDE_PLUGIN_ROOT: pluginDir, CLAUDE_PLUGIN_DATA: data, CLAUDE_PROJECT_DIR: repo,
+      QUALITY_HARNESS_QH_BIN: selectionEnv.QUALITY_HARNESS_QH_BIN,
       QUALITY_HARNESS_QH_FETCH: 'off', CLAUDE_ENV_FILE: path.join(scratch, 'exports') }
     const registry = JSON.parse(readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8'))
     const payload = { ...PAYLOADS[event](repo), session_id: 'hook-cost', cwd: repo }
     const hooks = registeredHooks(registry, payload.hook_event_name, payload.tool_name)
     if (hooks.some(hook => hook.command === 'sh')) {
       if (!existsSync(selected)) return { event, error: 'could not look: selected native executable is missing', children: null }
-      const binary = path.join(data, 'qh', version, coreAsset(process.platform, process.arch))
-      mkdirSync(path.dirname(binary), { recursive: true }); copyFileSync(selected, binary); chmodSync(binary, 0o755)
-      writeFileSync(binary + '.sha256', createHash('sha256').update(readFileSync(binary)).digest('hex') + '\n')
-      env.QUALITY_HARNESS_QH_BIN = binary
+      if (!bundled) {
+        const binary = path.join(data, 'qh', version, coreAsset(process.platform, process.arch))
+        mkdirSync(path.dirname(binary), { recursive: true }); copyFileSync(selected, binary); chmodSync(binary, 0o755)
+        writeFileSync(binary + '.sha256', createHash('sha256').update(readFileSync(binary)).digest('hex') + '\n')
+        env.QUALITY_HARNESS_QH_BIN = binary
+      }
     }
     const take = (name, observe) => {
       const rows = [], registrations = [], resources = []

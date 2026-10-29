@@ -1,0 +1,22 @@
+{
+  "mutations": [
+    {
+      "label": "Go cutover: an incomplete native asset set is accepted",
+      "file": "scripts/core-release-assets.mjs",
+      "tests": [
+        "tests/qh-assets.test.mjs"
+      ],
+      "from": "if (JSON.stringify(readdirSync(directory).sort()) !== JSON.stringify(expected))",
+      "to": "if (false)"
+    },
+    {
+      "label": "Go cutover: a changed native release asset is accepted",
+      "file": "scripts/core-release-assets.mjs",
+      "tests": [
+        "tests/qh-assets.test.mjs"
+      ],
+      "from": "createHash('sha256').update(readFileSync(file)).digest('hex') !== manifest.sums[name]",
+      "to": "false"
+    }
+  ]
+}

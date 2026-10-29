@@ -14,7 +14,7 @@ run here, it says so.
 
 | | Required | What is actually tested |
 |---|---|---|
-| Claude Code | 2.1.154 or newer — the build dynamic workflows shipped in. On Pro, enable them in `/config`. | Developed against 2.1.260. Older builds are not re-tested. |
+| Claude Code | 2.1.224 or newer for archive-based plugin installation, according to Claude Code's marketplace reference. | Archive installation must be checked against the deployed host; CI tests the packaged files and launchers. |
 | Python | 3.9 or newer, by syntax: the gates use `list[str]`-style annotations under `from __future__ import annotations` and no `match` statement. | **3.12** — the only version CI runs, on all three operating systems. |
 | Node.js | Any current release. | **24**, in CI. |
 | Bash | Any. On Windows: Git for Windows (Git Bash). The hook runner finds it from `CLAUDE_CODE_GIT_BASH_PATH`, then `PATH` (skipping the System32 WSL stub), then the per-user and system Git for Windows installs. | Windows CI runs the whole suite through it. |
@@ -22,12 +22,17 @@ run here, it says so.
 | Codex CLI | Only for `/quality-harness:codex-review` and `:codex-advise`. Nothing else depends on it. | Not in CI. |
 | `jq` | Optional, Windows only — advisory JSON checks. Hook dispatch does not use it. `winget install jqlang.jq` | — |
 
-The lifecycle hooks run a native Go binary fetched from this plugin's matching GitHub release. SessionStart installs it
-under `CLAUDE_PLUGIN_DATA/qh/<version>/` and checks its checksum and version. Adopters do not need a Go toolchain.
-Node remains required for bootstrap and the retained CLI tools. A first installation needs network access; an offline or
-unsupported installation reports could-not-run instead of falling back to a JavaScript hook engine.
-`QUALITY_HARNESS_QH_FETCH=off` disables automatic fetching; `node <plugin>/scripts/qh-fetch.mjs` installs explicitly.
-Contributors need the Go version declared in `core/go.mod`; the selftest builds a source binary for CLI compatibility checks.
+The marketplace installs a checksum-pinned ZIP containing the plugin and precompiled Go binaries for macOS and Linux
+on Intel and ARM, and Windows on Intel. Hooks select and verify the bundled executable. They do not download a core at
+SessionStart, and work offline after installation. Adopters do not need a Go toolchain. Node remains required for the
+retained CLI tools. A missing or damaged bundled core reports could-not-run and asks for a plugin reinstall; it never
+silently switches to another cache or a JavaScript hook engine.
+
+A source checkout is a development path, not the installed bundle. It retains the matching-version cache under
+`CLAUDE_PLUGIN_DATA/qh/<version>/` and SessionStart provisioning through `qh-fetch.mjs`.
+`QUALITY_HARNESS_QH_FETCH=off` disables that source-checkout fetch; `node <plugin>/scripts/qh-fetch.mjs` installs explicitly.
+An unpublished source version has no public binary to fetch. Contributors need the Go version in `core/go.mod`;
+the selftest builds a source binary for CLI compatibility checks. To test the release layout locally, use the CI bundle.
 
 
 The plugin ships no project-specific paths, test commands or policy. It reads the repository it

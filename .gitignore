@@ -40,3 +40,5 @@ __pycache__/
 .mutate-lock
 # ADR-110 T1: the qh binary built from core/ (go build -C core -o bin/qh ./cmd/qh); a build output, never a source.
 core/bin/
+# ADR-132: a locally extracted release bundle remains generated output.
+plugin/native/

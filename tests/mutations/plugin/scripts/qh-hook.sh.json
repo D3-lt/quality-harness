@@ -36,6 +36,24 @@
       ],
       "from": "\"$data\" </dev/null",
       "to": "\"$data\""
+    },
+    {
+      "label": "ADR-132: installed bundles use a cache instead of their own binary",
+      "file": "plugin/scripts/qh-hook.sh",
+      "tests": [
+        "tests/bundled-core.test.mjs"
+      ],
+      "from": "binary=\"$root/native/$asset\"",
+      "to": "binary=\"$data/qh/$version/$asset\""
+    },
+    {
+      "label": "ADR-132: a missing bundled native directory becomes a source-checkout fetch",
+      "file": "plugin/scripts/qh-hook.sh",
+      "tests": [
+        "tests/bundled-core.test.mjs"
+      ],
+      "from": "[ -f \"$root/.claude-plugin/bundle.json\" ] || [ -d \"$root/native\" ]",
+      "to": "[ -d \"$root/native\" ]"
     }
   ]
 }

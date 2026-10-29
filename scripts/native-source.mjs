@@ -7,7 +7,7 @@ import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
 import { parseCoreManifest } from '../plugin/scripts/native-provenance.mjs'
 
 // Include embedded data and assembly; only tests and explicit build outputs are excluded.
-const NATIVE_BUILD_FILES = ['scripts/build-core.mjs', 'scripts/native-source.mjs', 'plugin/scripts/core-assets.mjs', 'plugin/.claude-plugin/plugin.json', '.github/workflows/selftest.yml']
+const NATIVE_BUILD_FILES = ['scripts/build-core.mjs', 'scripts/build-plugin.mjs', 'scripts/plugin-bundle.py', 'scripts/core-release-assets.mjs', 'scripts/native-source.mjs', 'plugin/scripts/core-assets.mjs', 'plugin/.claude-plugin/plugin.json', '.github/workflows/selftest.yml']
 export const NATIVE_READER_ROOTS = ['core', ...NATIVE_BUILD_FILES]
 export function isNativeReaderPath(file) {
   const name = String(file).replaceAll('\\', '/')

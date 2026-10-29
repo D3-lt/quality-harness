@@ -4,11 +4,11 @@
       "label": "package: the boundary between the plugin and the repository holds",
       "file": ".claude-plugin/marketplace.json",
       "tests": [
-        "tests/package.test.mjs"
+        "tests/plugin-bundle.test.mjs"
       ],
-      "from": "\"source\": \"./plugin\"",
-      "to": "\"source\": \".\"",
-      "only": "^(?:what ships is the plugin and nothing else|every catalogue entry still matches the source it mutates, exactly once)$"
+      "from": "\"plugins\": [",
+      "to": "\"plugins\": [{\"name\":\"quality-harness\",\"source\":\".\"},",
+      "only": "^the catalogue selects one immutable release package and cannot expose the repository or a live checkout$"
     }
   ]
 }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# ADR-110/116: one verified native hook engine. Only SessionStart may bootstrap it.
+# ADR-132: installed bundles run offline; only a source checkout may bootstrap a cached core.
 set -eu
 script=$0
 # Git Bash may receive a native Windows path from the host.
@@ -45,6 +45,11 @@ else
   export CLAUDE_PLUGIN_ROOT="$root"
 fi
 binary="$data/qh/$version/$asset"
+bundled=false
+if [ -f "$root/.claude-plugin/bundle.json" ] || [ -d "$root/native" ]; then
+  bundled=true
+  binary="$root/native/$asset"
+fi
 verified() {
   [ -f "$binary" ] && [ -f "$binary.sha256" ] || return 1
   IFS= read -r expected < "$binary.sha256" || return 1
@@ -60,6 +65,10 @@ verified() {
   [ "${actual%% *}" = "$expected" ]
 }
 if ! verified; then
+  if [ "$bundled" = true ]; then
+    echo 'quality-harness: could not run: the bundled Go core is missing or its checksum differs; reinstall the plugin' >&2
+    exit 1
+  fi
   if [ "${1:-}" = hook ] && [ "${2:-}" = SessionStart ] && [ "${QUALITY_HARNESS_QH_FETCH:-}" != off ]; then
     node "$root/scripts/qh-fetch.mjs" "$data" </dev/null || exit 1
   fi

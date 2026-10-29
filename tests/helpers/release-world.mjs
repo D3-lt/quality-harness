@@ -88,9 +88,11 @@ export function world(overrides = {}) {
       status: state.assetFailure ?? 0, stdout: JSON.stringify(state.assetFiles ?? [
         'qh-assets/qh-linux-amd64', 'qh-assets/qh-linux-arm64', 'qh-assets/qh-darwin-amd64',
         'qh-assets/qh-darwin-arm64', 'qh-assets/qh-windows-amd64.exe', 'qh-assets/SHA256SUMS.txt',
+        'qh-plugin/quality-harness.zip', 'qh-plugin/quality-harness.zip.json',
       ]), stderr: '',
     }
     if (line.startsWith('gh release create')) { state.released = true; return ok() }
+    if (line.startsWith('node scripts/marketplace-source.mjs ')) return { status: state.marketplace ?? 0, stdout: 'marketplace checked\n', stderr: '' }
     throw new Error(`the fake has no answer for: ${line}`)
   }
   let clock = 0

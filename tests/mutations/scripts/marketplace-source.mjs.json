@@ -1,0 +1,13 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-132: a public archive with the wrong digest is promoted",
+      "from": "createHash('sha256').update(bytes).digest('hex') !== receipt.sha256",
+      "to": "false",
+      "file": "scripts/marketplace-source.mjs",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ]
+    }
+  ]
+}

@@ -7,7 +7,14 @@
   "plugins": [
     {
       "name": "quality-harness",
-      "source": "./plugin",
+      "version": "3.8.61",
+      "source": {
+        "source": "git-subdir",
+        "url": "D3-lt/quality-harness",
+        "path": "plugin",
+        "ref": "v3.8.61",
+        "sha": "30f7638bfe760b5b83e6d5c7360383a124bfb13e"
+      },
       "description": "Development lifecycle, ADR, executable evidence, retirement, and review gates.",
       "category": "development",
       "tags": ["adr", "architecture", "review", "verification"]

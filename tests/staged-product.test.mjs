@@ -92,7 +92,7 @@ const evidencedTask = id =>
   `# Task ADR-${id}\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n`
   + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n'
 
-test('marketplace source is the plugin directory', () => {
+test('marketplace source is the plugin directory', { skip: 'ADR-132: directory-only distribution replaced by immutable release sources' }, () => {
   const text = readFileSync(path.join(repoRoot, '.claude-plugin', 'marketplace.json'), 'utf8')
   assert.match(text, /"source"\s*:\s*"\.\/plugin"/)
   assert.ok(existsSync(path.join(pluginDir, 'bin')))

@@ -484,10 +484,22 @@ jobs:
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - name: Build the native release assets
         run: node scripts/build-core.mjs --assets qh-assets
       - uses: actions/upload-artifact@v7
         with:
           name: qh-core
           path: qh-assets/*
+          if-no-files-found: error
+      - name: Package the complete offline plugin
+        run: |
+          mkdir qh-plugin
+          node scripts/build-plugin.mjs qh-assets qh-plugin/quality-harness.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: qh-plugin
+          path: qh-plugin/*
           if-no-files-found: error

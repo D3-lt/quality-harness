@@ -13,6 +13,9 @@ copy: `node ~/.claude/plugins/cache/quality-harness/quality-harness/<version>/sc
 It reports the root, the version, what ships, whether each home gate is a forwarder or a stale
 copy, and how many lint findings fail versus only advise, all measured when it runs.
 
+The installed release includes its precompiled Go core. Hooks verify and run the bundled binary without a startup
+download. A missing or damaged bundled binary requires a plugin reinstall. Node remains for the CLI tools.
+
 ## The status line
 
 It shows the gates' reading of the session: `QH ✓ checked`, `QH ✗ 3 unverified`,

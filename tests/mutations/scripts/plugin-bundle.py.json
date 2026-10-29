@@ -1,0 +1,32 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-132: an archive with missing or injected entries is accepted",
+      "from": "if len(set(names)) != len(names) or set(names) != set(expected):",
+      "to": "if False:",
+      "file": "scripts/plugin-bundle.py",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ]
+    },
+    {
+      "label": "ADR-132: changed archive bytes of the same length are accepted",
+      "from": "actual != content",
+      "to": "False",
+      "file": "scripts/plugin-bundle.py",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ]
+    },
+    {
+      "label": "ADR-132: a nonexecutable bundled binary is accepted",
+      "from": "stat.S_IMODE(mode_bits) != permissions",
+      "to": "False",
+      "file": "scripts/plugin-bundle.py",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ]
+    }
+  ]
+}
+

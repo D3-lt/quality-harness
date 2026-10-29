@@ -8,16 +8,17 @@
 // Usage: node scripts/release.mjs [--wait-max <minutes>] [--notes-file <path>]
 //
 // Exit codes:
-//   0  released (or already released at this version)
+//   0  released and its verified bundle is advertised by the public marketplace
 //   1  a step failed: a red check, a dead-code finding, a push or a gh call that failed, release-evidence exit 1
 //   2  a step needs an action this command does not take: an unclean tree, a version to bump, release-evidence's
-//      UNPROVEN (an outside run or a review to get), a tag without a release
+//      UNPROVEN (an outside run or a review to get), a tag without a release, or a catalogue pin still to promote
 //   3  a wait reached its deadline; it names what it waited for, and running again resumes
 import { spawnSync } from 'node:child_process'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
 import { land } from './land.mjs'
 import { CORE_TARGETS, coreAsset } from '../plugin/scripts/core-assets.mjs'
+import { PLUGIN_ARCHIVE, PLUGIN_RECEIPT } from './build-plugin.mjs'
 
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
@@ -88,6 +89,14 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const version = parsed(text('git', ['show', `HEAD:${MANIFEST}`]) ?? '')?.version
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) { log(`release: ${MANIFEST} names no version ${at}`); return 1 }
   const tag = `v${version}`
+  const catalogue = () => {
+    const checked = ran('node', ['scripts/marketplace-source.mjs', version, '--check'])
+    for (const line of String(checked.stdout ?? '').trim().split('\n')) if (line) log(line)
+    if (checked.status === 0) return 0
+    log('release: ' + tag + ' is published; verify a cold archive install, then generate and land the catalogue pin with: node scripts/marketplace-source.mjs ' + version)
+    if (checked.stderr) log(String(checked.stderr).trim())
+    return checked.status === 2 ? 2 : 1
+  }
   // The forge's tags too: `gh release create` makes its tag there, and a clone that never fetched it reads the version as
   // unreleased (an advisor's review of e6a00957). The branch is fetched in the same call, for the push decision below.
   const fetched = ran('git', ['fetch', '-q', '--tags', 'origin', 'main']).status
@@ -98,7 +107,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const tags = listed.split('\n').filter(Boolean)
   if (tags.includes(tag)) {
     const view = ran('gh', ['release', 'view', tag, '--json', 'tagName'])
-    if (view.status === 0) { log(`release: ${tag} is already released`); return 0 }
+    if (view.status === 0) { log(`release: ${tag} is already released`); return catalogue() }
     // Only gh's own "release not found" is absence; an auth or network failure is a question nobody answered.
     if (!/release not found/i.test(String(view.stderr ?? ''))) {
       log(`release: gh release view ${tag} failed (${String(view.stderr ?? '').trim().split('\n')[0] || `exit ${view.status}`}); whether it is released could not be read`)
@@ -214,7 +223,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   }
   const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId), sha])
   const assets = prepared.status === 0 ? parsed(prepared.stdout) : null
-  const expectedAssets = [...CORE_TARGETS.map(([os, arch]) => coreAsset(os, arch)), 'SHA256SUMS.txt'].sort()
+  const expectedAssets = [...CORE_TARGETS.map(([os, arch]) => coreAsset(os, arch)), 'SHA256SUMS.txt', PLUGIN_ARCHIVE, PLUGIN_RECEIPT].sort()
   const names = Array.isArray(assets) && assets.every(file => typeof file === 'string')
     ? assets.map(file => file.split(/[\\/]/).pop()).sort() : []
   if (JSON.stringify(names) !== JSON.stringify(expectedAssets)) {
@@ -225,7 +234,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', ...notes, ...assets], true).status
   if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}`); return 1 }
   log(`release: ${tag} released at ${sha}`)
-  return 0
+  return catalogue()
 }
 
 function option(argv, name) {

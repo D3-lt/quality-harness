@@ -1,0 +1,22 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-132: packaging ignores the named source commit",
+      "file": "scripts/build-plugin.mjs",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ],
+      "from": "at + ':plugin'",
+      "to": "'HEAD:plugin'"
+    },
+    {
+      "label": "ADR-132: packaging accepts unchecked native assets",
+      "file": "scripts/build-plugin.mjs",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ],
+      "from": "  releaseAssetFiles(assets, { at, run })",
+      "to": "  // native artifact verification removed"
+    }
+  ]
+}

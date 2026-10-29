@@ -83,7 +83,11 @@ function filesBelow(directory) {
 // Both ends are named independently on purpose. Deriving the expected set from
 // the manifest as well would pass against any tree at all, which is this
 // repository's own signature defect (ADR-003, ADR-006).
-test('what ships is the plugin and nothing else', () => {
+test('what ships is the plugin and nothing else', {
+  skip: typeof JSON.parse(readFileSync(join(repoRoot, '.claude-plugin', 'marketplace.json'), 'utf8')).plugins
+    .find(entry => entry.name === 'quality-harness').source === 'object'
+    ? 'ADR-132: directory-only distribution replaced by immutable release sources' : false,
+}, () => {
   const marketplace = JSON.parse(readFileSync(join(repoRoot, '.claude-plugin', 'marketplace.json'), 'utf8'))
   const source = marketplace.plugins.find(entry => entry.name === 'quality-harness').source
   const shipRoot = resolve(repoRoot, source)

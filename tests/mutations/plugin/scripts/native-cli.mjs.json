@@ -8,6 +8,15 @@
       ],
       "from": "if (!process.env.QUALITY_HARNESS_QH_BIN && !verifiedCore(binary))",
       "to": "if (false)"
+    },
+    {
+      "label": "ADR-132: compatibility CLIs ignore the bundled core",
+      "file": "plugin/scripts/native-cli.mjs",
+      "tests": [
+        "tests/bundled-core.test.mjs"
+      ],
+      "from": "if (bundled) return path.join(root, 'native', coreAsset(platform, arch))",
+      "to": "if (false) return path.join(root, 'native', coreAsset(platform, arch))"
     }
   ]
 }

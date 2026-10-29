@@ -124,7 +124,10 @@ export function exclusiveFootprint(records, unreadable = 0) {
   }
   for (const r of records) {
     if (r?.type === 'system' && r.subtype === 'stop_hook_summary') {
-      if (!stopCalls.has(String(r.toolUseID))) uncertain.unpairedSummaries += 1
+      const empty = r.hasOutput === false && Array.isArray(r.hookErrors) && r.hookErrors.length === 0
+        && Array.isArray(r.hookAdditionalContext) && r.hookAdditionalContext.length === 0
+        && r.preventedContinuation === false && r.stopReason === ''
+      if (!empty && !stopCalls.has(String(r.toolUseID))) uncertain.unpairedSummaries += 1
       continue
     }
     const a = r?.type === 'attachment' ? r.attachment : null
@@ -138,7 +141,7 @@ export function exclusiveFootprint(records, unreadable = 0) {
     if (receipt && callKey(a)) latest.set(a.hookEvent, callKey(a))
     const key = a.toolUseID === a.hookEvent && !calls.has(callKey(a)) ? latest.get(a.hookEvent) : callKey(a)
     const identities = typeof a.command === 'string' ? new Set([hookIdentity(a)]) : calls.get(key)
-    const text = receipt ? (a.type === 'hook_success' ? a.stdout : a.stderr) : contentText(a.content)
+    let text = receipt ? (a.type === 'hook_success' ? a.stdout : a.stderr) : contentText(a.content)
     if (text == null) { if (!receipt) uncertain.unknownShapes += 1; continue }
     if (typeof text !== 'string') { uncertain.unknownShapes += 1; continue }
     if (!text) continue
@@ -160,6 +163,9 @@ export function exclusiveFootprint(records, unreadable = 0) {
     // The host may replace oversized output with a file reference and preview.
     // The recorded original is not proof of the model's injected byte count.
     if (text.length > 10_000) { uncertain.cappedDeliveries += 1; continue }
+    // Current hosts record delivered plain text separately from newline-terminated stdout.
+    if (a.type === 'hook_success' && modelStdout.has(event) && typeof a.content === 'string') text = a.content
+    if (!text) continue
     if (a.type === 'hook_system_message') countText(knownEvents.has(event) ? totals.userOnly : totals.unknownAudience, text)
     else if (a.type === 'hook_non_blocking_error') countText(totals.diagnosticOnly, text)
     else if (a.type === 'hook_additional_context') countText(modelContext.has(event) ? totals.observedModel : totals.unknownAudience, text)
@@ -220,7 +226,8 @@ export function footprint(file) {
       if (!OURS.test(a.command)) continue
       if (typeof a.durationMs === 'number') (durations[event] ??= []).push(a.durationMs)
       const out = a.type === 'hook_success' ? a.stdout : a.stderr
-      if (out && !isJsonObject(out)) add(event, HOOK_SHAPES[a.type], out)
+      if (out && !isJsonObject(out)) add(event, HOOK_SHAPES[a.type],
+        a.type === 'hook_success' && modelStdout.has(event) && typeof a.content === 'string' ? a.content : out)
       continue
     }
     const own = `${a.toolUseID}\u0000${a.hookEvent}`

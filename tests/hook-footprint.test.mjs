@@ -335,3 +335,41 @@ test('an unrelated canonical attachment cannot vouch for this hook and prototype
   assert.equal(result.uncertain.unknownShapes, 1)
   assert.equal(result.coverage.status, 'partial')
 })
+
+test('explicitly empty Stop summaries are known zero but missing and contradictory output stays uncertain', t => {
+  const empty = { type: 'system', subtype: 'stop_hook_summary', toolUseID: 'empty',
+    hasOutput: false, hookErrors: [], hookAdditionalContext: [], preventedContinuation: false, stopReason: '' }
+  const { dir, file } = transcript([empty])
+  t.after(() => remove(dir))
+  assert.equal(footprint(file).coverage.status, 'complete')
+  assert.equal(footprint(file).totals.observedModel.characters, 0)
+  for (const change of [
+    { hasOutput: true }, { hasOutput: undefined }, { hookErrors: ['unseen error'] },
+    { hookErrors: undefined }, { hookAdditionalContext: ['unseen context'] },
+    { hookAdditionalContext: undefined }, { preventedContinuation: true }, { stopReason: 'unseen reason' },
+  ]) {
+    writeFileSync(file, JSON.stringify({ ...empty, ...change }) + '\n')
+    const result = footprint(file)
+    assert.equal(result.coverage.status, 'partial', JSON.stringify(change))
+    assert.equal(result.uncertain.unpairedSummaries, 1)
+  }
+})
+
+test('exclusive totals use recorded delivered text without counting JSON wrappers or trimming legacy receipts', t => {
+  const plain = success('SessionStart', 'plain', BRIEF, 'ą\n')
+  plain.attachment.content = 'ą'
+  const envelope = success('SessionStart', 'json', OURS, '{"hookSpecificOutput":{"additionalContext":"standing"}}')
+  envelope.attachment.content = ''
+  const { dir, file } = transcript([
+    plain, success('UserPromptSubmit', 'legacy', BRIEF, 'keep\n'),
+    envelope, context('SessionStart', 'SessionStart', 'standing'),
+  ])
+  t.after(() => remove(dir))
+  const result = footprint(file)
+  assert.equal(result.totals.observedModel.characters, 'ąkeep\nstanding'.length)
+  assert.equal(result.totals.observedModel.bytes, Buffer.byteLength('ąkeep\nstanding'))
+  assert.equal(result.totals.observedModel.deliveries, 3)
+  assert.equal(row(result, 'SessionStart', 'stdout', 'unmarked').characters, 1)
+  assert.equal(result.totals.userOnly.characters, 0)
+  assert.equal(result.uncertain.missingCanonical, 0)
+})

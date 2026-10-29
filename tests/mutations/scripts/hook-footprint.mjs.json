@@ -62,9 +62,29 @@
       "label": "ADR-122 T1: a JSON stdout is the attachments' envelope, not a channel",
       "file": "scripts/hook-footprint.mjs",
       "tests": ["tests/hook-footprint.test.mjs"],
-      "from": "      if (out && !isJsonObject(out)) add(event, HOOK_SHAPES[a.type], out)",
-      "to": "      if (out) add(event, HOOK_SHAPES[a.type], out)",
+      "from": "      if (out && !isJsonObject(out)) add(event, HOOK_SHAPES[a.type],\n        a.type === 'hook_success' && modelStdout.has(event) && typeof a.content === 'string' ? a.content : out)",
+      "to": "      if (out) add(event, HOOK_SHAPES[a.type],\n        a.type === 'hook_success' && modelStdout.has(event) && typeof a.content === 'string' ? a.content : out)",
       "only": "^(?:hook-footprint counts this plugin's hook text by item and channel)$"
+    },
+    {
+      "label": "Windows receipts: contradictory empty Stop metadata must remain uncertain",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": [
+        "tests/hook-footprint.test.mjs"
+      ],
+      "from": "r.hasOutput === false && Array.isArray(r.hookErrors) && r.hookErrors.length === 0",
+      "to": "r.hasOutput === false",
+      "only": "^explicitly empty Stop summaries are known zero but missing and contradictory output stays uncertain$"
+    },
+    {
+      "label": "Windows receipts: plain delivered content excludes the transport newline",
+      "file": "scripts/hook-footprint.mjs",
+      "tests": [
+        "tests/hook-footprint.test.mjs"
+      ],
+      "from": "if (a.type === 'hook_success' && modelStdout.has(event) && typeof a.content === 'string') text = a.content",
+      "to": "if (false) text = a.content",
+      "only": "^exclusive totals use recorded delivered text without counting JSON wrappers or trimming legacy receipts$"
     }
   ]
 }

@@ -6,7 +6,8 @@ commit, not a moving main. The owner said this host is available in the evening.
 
 ## Fetch and verify the candidate
 
-In a disposable quality-harness checkout, fetch the candidate's land/<full-sha> ref and check out that exact commit.
+In a disposable quality-harness checkout, fetch origin main and check out the exact candidate commit. Successful landing
+deletes land/<full-sha>; the candidate remains reachable from main. Do not substitute main's moving HEAD for that commit.
 Choose its completed green selftest.yml run from:
 
     gh run list --commit <full-sha> --workflow selftest.yml

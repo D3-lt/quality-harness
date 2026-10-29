@@ -112,6 +112,13 @@ ZipInfo.compress_type as unused. zipfile reads these fixed standard-library conf
 archive; they cannot be renamed. The explicit keep declarations in scripts/vulture-allowlist.py record that reason
 (CLAUDE.md §13). Re-running the complete dead-code scan returned 0 with every scanner run and no findings.
 
+Published v3.8.62 binds the archive to 7bdb0be3fd24f94c518da05e9c15087202fa4c1f and CI run 40861695329.
+All jobs concluded success. The Windows bundle boundary passed with the verified CI binary; attest-import filed its
+counts-only outside receipt in docs/corpus-reports/2026-10-29-windows-bundle-3.8.62-3.8.62-7bdb0be.json.
+A cold Claude Code installation from the public HTTPS archive passed in an isolated configuration. Its installed
+macOS binary retained mode 0755 and the CI checksum; --version and SessionEnd passed with fetching disabled and a
+fresh plugin data directory, which remained empty. Catalogue promotion pins that same public archive and digest.
+
 ## Consequences
 
 Installation downloads a larger complete package once. Session hooks need no provisioning request or startup wait.
@@ -136,5 +143,5 @@ cache evidence. Reverting to the old directory source restores its separate prov
 
 ## Follow-ups
 
-- [ ] Complete independent review, platform CI, cold archive installation and catalogue promotion.
-- [ ] Run the Windows bundle boundary when the owner's Windows host is available.
+- [x] Complete independent review, platform CI, cold archive installation and catalogue promotion.
+- [x] Run the Windows bundle boundary when the owner's Windows host is available.

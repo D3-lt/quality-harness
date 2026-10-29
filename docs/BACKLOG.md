@@ -4021,3 +4021,28 @@ combined-diff offsets. None accepts a bad archive or bypasses the public pin ver
   instruction for both pending promotion (exit 2) and public-download or digest failure (exit 1). Exit 1 still fails the
   release, and marketplace-source refuses the invalid pin. Open: print promotion guidance only for exit 2; for exit 1
   report the public verification failure and test the diagnostic separately.
+
+## 434. OPEN 2026-10-29 — plugin reviewer frontmatter hooks are ignored by the host
+
+The Windows v3.8.62 bundle boundary on Claude Code 2.1.312 found debug warnings that plugin agents ignore hooks:
+frontmatter. The bounded enumeration `mrw read --grep '^hooks:' plugin/agents` names qh-correctness-reviewer.md,
+qh-scope-reviewer.md and qh-synthesis.md, each at line 9; their blocks occupy lines 9–15. The host printed three
+warnings per test run in its debug file, with no hook or CLI stderr. That is not evidence of three model-context deliveries.
+
+The reviewer write guard is still enforced by the global PreToolUse registry in plugin/hooks/hooks.json and
+core/hooks/publish.go:123; core/hooks/lifecycle.go recognises these read-only roles. Open: remove only the ignored
+frontmatter blocks, preserve the global guard, and verify actual plugin-agent role enforcement in a fresh host session.
+Do not weaken the guard to silence the warnings.
+
+## 435. OPEN 2026-10-29 — GitHub jobs lookup failure repeats the release's full local check
+
+For landed 7bdb0be3, release-evidence first returned SUCCESS for run 40861695329. The release controller then passed
+the full local check and dead-code scan but stopped before tagging when GitHub's default run-jobs endpoint answered
+HTTP 502. Querying the same run with the observed explicit latest attempt returned its complete successful job list.
+A private, reviewed process-local adapter fenced that query with latest attempt and head SHA reads before and after,
+preserved GitHub's JSON, and allowed the unchanged release chain to finish publication. The adapter does not ship.
+
+Open: make scripts/release-evidence.mjs:207-234 robust to this observed endpoint failure through the supported
+explicit-attempt query, with failure and changing-attempt regressions. Separately assess the full preflight cost of a
+network-only retry in scripts/release.mjs:129-174 against ADR-100 and ADR-115 before changing reuse policy. A stale,
+failed, missing or incomplete run must never become approval; an HTTP failure is could-not-look.

@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-29",
+  "at": "7bdb0be3fd24f94c518da05e9c15087202fa4c1f",
+  "plugin": "3.8.62",
+  "kind": "probe",
+  "probeSha256": "5bf5ac0a5caf5bf945494acc67881242fbe23a4e95a3de546ab5687f3678eed7",
+  "readers": "1b4b1d90cf17f67ec0195283a528b207732c0158183e23343930fdff0cbfa5f5",
+  "native": {
+    "look": "ok",
+    "at": "7bdb0be3fd24f94c518da05e9c15087202fa4c1f",
+    "sources": "81cd07a84290b2cc05361f3bb04b61a7e23b7354e9fc00e311910fa6bf3e1eab",
+    "run": "40861695329",
+    "asset": "qh-windows-amd64.exe",
+    "sha256": "232cfc4dd78ef013c8b5ee0f5e8d66190e589034da8fa39c5f2417407cd41b7b"
+  },
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 70,
+    "undecided": 0,
+    "tasks": 177,
+    "taskDirectories": 68
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 70,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "windows-bundle-3.8.62",
+  "found": ""
+}

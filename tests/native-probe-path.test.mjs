@@ -15,7 +15,14 @@ import { remove } from './helpers/remove.mjs'
 
 test('corpus probe executes the absolute candidate it identifies while keeping state in scratch', t => {
   const top = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-probe-selection-')))
-  t.after(() => remove(top))
+  const oldCwd = process.cwd()
+  const keys = ['QUALITY_HARNESS_QH_BIN', 'CLAUDE_PLUGIN_DATA']
+  const old = keys.map(key => process.env[key])
+  t.after(() => {
+    process.chdir(oldCwd)
+    keys.forEach((key, i) => old[i] === undefined ? delete process.env[key] : process.env[key] = old[i])
+    remove(top)
+  })
   const repo = path.join(top, 'corpus')
   mkdirSync(repo)
   assert.equal(spawnSync('git', ['init', '-q', repo], { timeout: 10_000, windowsHide: true }).status, 0)
@@ -27,13 +34,6 @@ test('corpus probe executes the absolute candidate it identifies while keeping s
   writeFileSync(path.join(top, 'SHA256SUMS.txt'), coreManifest({ at: 'a'.repeat(40), sources: 'b'.repeat(64), run: '123' }, [[asset, sha]]))
   // A different image at the child's relative path must never be selected.
   copyFileSync(process.execPath, path.join(repo, asset))
-  const oldCwd = process.cwd()
-  const keys = ['QUALITY_HARNESS_QH_BIN', 'CLAUDE_PLUGIN_DATA']
-  const old = keys.map(key => process.env[key])
-  t.after(() => {
-    process.chdir(oldCwd)
-    keys.forEach((key, i) => old[i] === undefined ? delete process.env[key] : process.env[key] = old[i])
-  })
   process.chdir(top)
   process.env.QUALITY_HARNESS_QH_BIN = '.' + path.sep + asset
   let report = probe(repo, { timeoutMs: 10_000 })

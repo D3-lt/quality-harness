@@ -206,6 +206,11 @@ func (t *processTrace) target() (string, error) {
 		if err != nil {
 			return "", err
 		}
+		// Resolved paths on different volumes cannot contain one another (Windows
+		// commonly keeps the checkout and the private trace on different drives).
+		if !strings.EqualFold(filepath.VolumeName(guarded), filepath.VolumeName(target)) {
+			continue
+		}
 		relative, err := filepath.Rel(guarded, target)
 		if err != nil {
 			return "", err

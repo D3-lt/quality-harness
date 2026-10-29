@@ -3998,3 +3998,25 @@ rather than the reviewer's diff offsets:
   Edit at 309.37 ms for the post-ADR-130 Node oracle and 343.50 ms through the verified Go launcher. SessionStart was
   125.90 to 131.59 ms; Stop was 388.13 to 311.94 ms. Model-directed text matched in each measured case. These are lifecycle
   component timings, not whole-session CPU or token savings, and supersede the earlier prototype timing comparison.
+
+## 433. OPEN 2026-10-29 — non-blocking findings from the bundled Go release review
+
+The recorded Claude Opus 5.5 fallback review of 30f7638b..a13a088e returned clean with these advisories. Codex hit its
+600-second budget without a verdict; it is not approval evidence. Confirmed against source rather than the reviewer's
+combined-diff offsets. None accepts a bad archive or bypasses the public pin verifier.
+
+- Archive mode reproducibility: scripts/build-plugin.mjs:24 runs git archive without pinning tar.umask, and
+  scripts/plugin-bundle.py copies the resulting member modes into both build and verification expectations. A read-only
+  archive of a13a088e with tar.umask=002 gave plugin.json mode 0664; tar.umask=077 gave 0600. The releaser's config is
+  currently unset, matching the CI default, but differing Git configuration can falsely reject a correct CI ZIP.
+  Open: pin tar.umask=022 or derive 0644/0755 from the executable bit; add the cross-config regression.
+- Policy replay's explicit binary selection: scripts/policy-replay.mjs:122-128 seeds a private version cache and sets
+  QUALITY_HARNESS_QH_BIN. A plugin containing native/ or its bundle marker makes qh-hook.sh select the bundled binary
+  instead. hook-cost now handles that boundary, but replay can still describe a different explicit binary than its
+  registered shell hooks execute. The published ADR-131 comparison used unbundled controls; this finding does not
+  invalidate those measurements. Open: reject that incompatible combination or explicitly observe and record the
+  bundled binary, with a regression. Keep replay controls unbundled until that contract is settled.
+- Release guidance after failed public verification: scripts/release.mjs:92-100 prints the cold-install/promotion
+  instruction for both pending promotion (exit 2) and public-download or digest failure (exit 1). Exit 1 still fails the
+  release, and marketplace-source refuses the invalid pin. Open: print promotion guidance only for exit 2; for exit 1
+  report the public verification failure and test the diagnostic separately.

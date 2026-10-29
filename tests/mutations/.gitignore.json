@@ -4,11 +4,12 @@
       "label": "package: the ignore rule follows the eval results when they move",
       "file": ".gitignore",
       "tests": [
-        "tests/package.test.mjs"
+        "tests/package.test.mjs",
+        "tests/plugin-bundle.test.mjs"
       ],
       "from": "plugin/evals/results\n",
       "to": "evals/results\n",
-      "only": "^(?:what ships is the plugin and nothing else|every path an eval run writes to is ignored, wherever it is run from|every catalogue entry still matches the source it mutates, exactly once)$"
+      "only": "^(?:archive packages retain eval-ignore and LF checkout anchors|every path an eval run writes to is ignored, wherever it is run from|every catalogue entry still matches the source it mutates, exactly once)$"
     }
   ]
 }

@@ -26,6 +26,15 @@
       "tests": [
         "tests/plugin-bundle.test.mjs"
       ]
+    },
+    {
+      "label": "agents: a new shipped directory is admitted, never leaked past",
+      "file": "scripts/plugin-bundle.py",
+      "tests": [
+        "tests/plugin-bundle.test.mjs"
+      ],
+      "from": "\"agents\", ",
+      "to": ""
     }
   ]
 }

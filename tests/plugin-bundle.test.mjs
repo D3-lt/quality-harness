@@ -22,6 +22,8 @@ function fixture(t) {
   for (const dir of [path.join(root, 'plugin', '.claude-plugin'), assets, dist]) mkdirSync(dir, { recursive: true })
   writeFileSync(path.join(root, 'plugin', '.claude-plugin', 'plugin.json'), '{"name":"quality-harness","version":"1.2.3"}\n')
   writeFileSync(path.join(root, 'plugin', 'README.md'), 'Only the committed plugin ships.\n')
+  mkdirSync(path.join(root, 'plugin', 'agents'))
+  writeFileSync(path.join(root, 'plugin', 'agents', 'qh-fixture.md'), 'A shipped agent fixture.\n')
   writeFileSync(path.join(root, 'private.txt'), 'repository-only')
   const git = (...args) => {
     const answer = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 10_000, windowsHide: true })
@@ -50,7 +52,7 @@ test('the bundle contains exactly the committed plugin and all verified native t
   const receipt = pluginBundle(f.assets, f.output, f)
   writeFileSync(path.join(f.dist, PLUGIN_RECEIPT), JSON.stringify(receipt))
   assert.deepEqual(releasePluginFiles(f.dist, f.assets, f), [f.output, path.join(f.dist, PLUGIN_RECEIPT)])
-  assert.equal(receipt.files, 14)
+  assert.equal(receipt.files, 15)
   assert.equal(receipt.version, '1.2.3')
   const checked = runPython(['-c', [
     'import sys,zipfile',
@@ -145,7 +147,7 @@ test('the catalogue selects one immutable release package and cannot expose the 
   const entries = marketplace.plugins.filter(entry => entry.name === 'quality-harness')
   assert.equal(entries.length, 1)
   assertReleaseSource(entries[0])
-  for (const surface of ['bin', 'hooks/hooks.json', 'skills']) {
+  for (const surface of ['.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks/hooks.json', 'lib', 'scripts', 'skills', 'templates', 'workflows']) {
     assert.ok(existsSync(fileURLToPath(new URL('../plugin/' + surface, import.meta.url))), surface + ' remains in the product source')
   }
   for (const source of ['.', './plugin', { ...entries[0].source, path: '.' }]) {
@@ -216,4 +218,19 @@ test('the marketplace CLI checks the public catalogue instead of trusting an unl
   const generated = invoke(old, [])
   assert.equal(generated.status, 0, generated.stderr)
   assert.deepEqual(JSON.parse(generated.stdout), current)
+})
+
+test('archive packages retain eval-ignore and LF checkout anchors', t => {
+  const f = fixture(t)
+  for (const name of ['.gitignore', '.gitattributes']) {
+    copyFileSync(fileURLToPath(new URL('../' + name, import.meta.url)), path.join(f.root, name))
+  }
+  f.git('config', 'core.excludesFile', os.devNull)
+  const options = { cwd: f.root, encoding: 'utf8', timeout: 10_000, windowsHide: true }
+  const ignored = spawnSync('git', ['check-ignore', '-q', 'plugin/evals/results/probe.json'], options)
+  assert.equal(ignored.status, 0, 'eval results stay ignored under the product source')
+  const ordinary = spawnSync('git', ['check-ignore', '-q', 'plugin/evals/probe.mjs'], options)
+  assert.equal(ordinary.status, 1, 'an ordinary shipped eval is not ignored')
+  assert.match(f.git('check-attr', 'eol', '--', 'plugin/bin/adr-lint'), /eol: lf$/)
+  assert.match(f.git('check-attr', 'eol', '--', 'LICENSE'), /eol: unspecified$/)
 })

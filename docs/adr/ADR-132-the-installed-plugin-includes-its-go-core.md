@@ -84,6 +84,18 @@ The packager and runtime boundary regressions run through the repository gate. E
 remain exercised after moving the shared verifier; new archive and bundle-selection mutations cover the changed path.
 The catalogue changes only after the release and cold-install checks, using the generated, reviewable manifest.
 
+The first landing campaign at 69374807 found a stale narrowed selector: mutation shard 9/48 named the now-skipped
+directory-only boundary test. Auditing the class with
+`mrw read --grep 'what ships is the plugin and nothing else|marketplace source is the plugin directory' tests/mutations`
+listed these catalogues: .gitignore.json, .gitattributes.json and tests/package.test.mjs.json. The first two selectors now
+name an active archive test that copies the real rules into an owned Git fixture and verifies both ignored/unignored
+paths and LF/unspecified attributes. The agent-admission mutant moved from the retired test's array to the actual bundle
+whitelist, with an agent in the committed fixture. Historical callbacks remain unchanged.
+
+The scoped `--case 'package: the '` run noticed 3/3 mutations; the moved agent-admission case noticed 1/1. A complete
+catalogue regex scan found no narrowed selector still selecting either retired title. These are local scoped results;
+the corrected candidate still requires its complete landing campaign.
+
 ## Consequences
 
 Installation downloads a larger complete package once. Session hooks need no provisioning request or startup wait.

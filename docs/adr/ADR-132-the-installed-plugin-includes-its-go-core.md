@@ -107,6 +107,11 @@ The bounded audit command
 identified the one new CLI preload site. The packaging fixture now fixes its initial committed LF bytes, then the
 regression deliberately sets conflicting archive configuration. Platform CI remains the Windows execution evidence.
 
+The first release preflight ran `bash scripts/dead-code-scan.sh`: Vulture 2.16 named only ZipInfo.create_system and
+ZipInfo.compress_type as unused. zipfile reads these fixed standard-library configuration names while writing the
+archive; they cannot be renamed. The explicit keep declarations in scripts/vulture-allowlist.py record that reason
+(CLAUDE.md §13). Re-running the complete dead-code scan returned 0 with every scanner run and no findings.
+
 ## Consequences
 
 Installation downloads a larger complete package once. Session hooks need no provisioning request or startup wait.

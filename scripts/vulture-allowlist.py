@@ -16,3 +16,8 @@ dont_write_bytecode
 # plugin/bin/spec-verify runs_nothing: shlex's own configuration attributes, read by shlex.shlex as it tokenizes.
 whitespace
 commenters
+
+# scripts/plugin-bundle.py: ZipInfo configuration read by zipfile when writing Unix executable modes and compressed entries.
+# These standard-library attribute names cannot be renamed.
+create_system
+compress_type

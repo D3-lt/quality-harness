@@ -7,7 +7,8 @@ import (
 	"syscall"
 )
 
-func syscallNotDirectory() error { return syscall.ERROR_DIRECTORY }
+// Win32 ERROR_DIRECTORY is 267; Go's syscall package does not export its name.
+func syscallNotDirectory() error { return syscall.Errno(267) }
 
 func processTraceSingleLink(file *os.File, _ os.FileInfo) bool {
 	var info syscall.ByHandleFileInformation

@@ -7,18 +7,19 @@ Session pre-grade only. The owner's blinded grade is the S4 proof; until then no
 - Preregistration frozen at `0400f070`, selection-proof amendment at `38233e95`, both before the first graded receipt.
 - Host Claude Code 2.1.314 headless, model `claude-opus-5-5`, effort high, macOS. Both arms loaded through `--plugin-dir`
   with user settings excluded; every init event named exactly one quality-harness plugin, at its arm's directory.
-- 2 smoke runs (passed, not graded) and 16 graded runs, 8 cases × 2 arms, balanced order, no retries, none unavailable.
+- 2 smoke runs (passed, not graded) and 16 graded runs, 8 cases × 2 arms, balanced order, no retries. The C2 candidate
+  run executed no fixture tool (see limits); whether it counts as graded or unavailable is the owner's call.
 - Cost: USD 1.73 baseline, 1.84 candidate, 0.25 smoke; USD 3.82 against the approved 32. Wall 21–54 s per run.
 
 ## Results
 
 | Measure | Baseline | Candidate |
 |---------|----------|-----------|
-| Unsupported positive claims (16 reports) | 0 | 0 |
+| Unsupported positive claims (16 reports; C7 open, see limits) | 0 | 0 |
 | Required distinction fully present | 4 of 8 (C2 C3 C5 C8) | 4 of 8 (C2 C3 C5 C8) |
 | Partial | 3 (C1 C4 C6) | 3 (C1 C4 C6) |
 | Absent | 1 (C7) | 1 (C7) |
-| Median final-report characters | 2147 | 1928 (shorter in 6 of 8 pairs) |
+| Median final-report characters (informative only; T3's criterion is on an adopter trace) | 2147 | 1928 (shorter in 6 of 8 pairs) |
 
 Both negative controls (all-success; omits every distinction) fail every case under the key.
 
@@ -33,6 +34,8 @@ three reports (C2 C5 C8); that is an observed difference in form, not in graded 
   discounted the printed facts as stub output, so a "supported" half could not be credited (C1 C4 C6) and C7's current
   delivery was refused outright in both arms (also because `example.invalid` cannot resolve). The partial and absent
   grades measure the fixtures as much as the guidance. Cases were not changed after seeing results.
+- C7's U=0 is contestable: both reports treat the old "pending" checkpoint as the latest real information, which the
+  key lists as unsupported. Graded U=1 in both, the arms still tie.
 - **The allowlist denied compound commands.** `Bash(./tools/*)` refused `./tools/x; echo` and absolute paths. 15 runs
   still executed every fixture tool; the C2 candidate run executed none, read the scripts, and said so.
 - Both arms loaded the owner's user-level instruction file. Same in both arms, but it is not an adopter's session.

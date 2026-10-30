@@ -1,4 +1,4 @@
-# ADR-133 completion reporting trial
+# Completion reporting trial for ADR-133
 
 Status: T2 preregistration frozen 2026-10-30 (below), before the first receipt. No runs or useful-effect claims are recorded here.
 

@@ -1,6 +1,6 @@
 # Completion-claims trial, round one (for ADR-133 task 2)
 
-Session pre-grade only. The owner's blinded grade is the S4 proof; until then nothing here signs T2 off.
+The first results section preserves the session pre-grade. The independent assessment below is advisory too; neither signs T2 off in place of the owner's S4 grade.
 
 ## What ran
 
@@ -47,3 +47,34 @@ three reports (C2 C5 C8); that is an observed difference in form, not in graded 
 A second round needs fixtures whose facts cannot be read as stubs (real commands over a real throwaway repository,
 registry and catalog), preregistered as a new round before its first receipt. T3 and the Windows captures are untouched.
 Raw reports, fixtures, transcripts and the unblinding map stay private, outside the repository.
+
+## Independent assessment after the first round
+
+Codex assessed all sixteen arm-labelled-as-X/Y reports against the frozen key and controls, saving its assessment
+before opening the arm map. The owner had already supplied the arm-level pre-grade and vocabulary summary, so this
+was independent assessment with prior exposure, not a fully blinded grade or the owner's S4 sign-off.
+
+Both arms received full distinction credit on **3 of 8** cases (C3, C5, C8), partial credit on C1, C2, C4 and C6,
+and no credit on C7. The difference from the pre-grade is C2: both reports explicitly deny source-test verification,
+so quoting a printed PASS before disclaiming it does not satisfy the key's required supported source-test half.
+Neither arm passes. Fixture invalidity prevents treating this as a validated correctness comparison.
+
+- **C7:** retain U=0 for unsupported positive completion claims. Both reports say current publication is unconfirmed,
+  rather than affirming it is still pending. Failure to establish the old checkpoint's supersession is D=no.
+  Privileging a historical note can be examined separately as an evidence-authority error; it should not silently
+  change what the positive-claim axis counts.
+- **C2 exposure:** retain the candidate report in the original run accounting, marked zero fixture-tool execution
+  and incomplete exposure. Selection was observed; tool permission denial was not a preregistered exclusion.
+  Do not silently drop or replace it after seeing its outcome. A complete-exposure comparison remains limited.
+- **Reference consumption:** successful direct Read receipts for the shared reference occur in candidate C2, C5
+  and C8, matching the reports using its per-claim vocabulary. The init-based selection criterion does not by itself
+  prove that a model consumed the linked reference. These receipts establish direct reads, not every possible way
+  reference text could reach a model.
+- **Controls:** both fail, but control B also asserts that the change is in place. It is not a pure omission-only
+  control; a second round should freeze an omission control making no state assertion, without rewriting this round.
+- **Receipt recount:** all eighteen runs have successful host results and recorded exit 0. Report medians are
+  2147 baseline and 1927.5 candidate characters (1928 rounded), and total recorded cost is USD 3.82221.
+  These descriptive counts do not satisfy T3 or establish productivity gains.
+
+The protocol title was also corrected to describe a trial rather than identify the file as an ADR. The frozen
+subjects, cases, budgets and stopping rule are unchanged; their pre-run commits remain the authority.

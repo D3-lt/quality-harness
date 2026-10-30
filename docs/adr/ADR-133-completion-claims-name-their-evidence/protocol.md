@@ -42,8 +42,11 @@ If a route cannot be exercised, record that case as unavailable rather than usin
 - Budget: 16 graded runs, `--max-budget-usd 2` and `timeout 900` each (at most USD 32), no retries; plus two declared
   pre-sampling smoke runs (one per arm, `--max-budget-usd 0.5`, prompt `/quality-harness:work Name the skill you loaded
   and stop.`) that check the init receipt names the arm's plugin directory and the skill is invoked. Smoke output is not graded.
-- Selection proof: the stream-json init event (plugin path, model) and the Skill invocation in each transcript.
-  A run without both is recorded unavailable, not resampled.
+- Selection proof: the stream-json init event naming exactly one `quality-harness` plugin at the arm's directory, the
+  model, and the case's slash command in the prompt. A run without these is recorded unavailable, not resampled.
+  Amended after both smoke runs passed and before the first graded receipt: in `-p` mode a slash command expands its
+  skill inline and emits no Skill tool event, so the protocol's original "Skill invocation" item cannot be observed.
+  Known shared confound: the owner's user-level CLAUDE.md still loads in both arms (setting sources do not exclude it).
 - Stopping rule: stop on the 16th run, on a failed smoke check, or when a receipt cannot show selection.
 - Grader: the owner, on reports with arm identity removed, against the frozen case facts and both controls.
   The session's own pre-grade is advisory.

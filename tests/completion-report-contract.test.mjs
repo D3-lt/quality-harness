@@ -32,7 +32,12 @@ function findings(sources) {
       result.push(`${file}: completion section must select the reference once`)
       continue
     }
-    const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), links[0].replaceAll('\\', '/')))
+    const href = links[0].replace(/\\/g, '/')
+    if (path.posix.isAbsolute(href) || href.includes(':')) {
+      result.push(file + ': completion selector must be relative')
+      continue
+    }
+    const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), href))
     if (target !== reference) result.push(`${file}: selected target is not the shared completion reference`)
   }
   return result
@@ -117,4 +122,18 @@ print(json.dumps(result))
     assert.equal(packed.reference, sources.get(reference))
     assert.equal(packed.missingReferenceRejected, true)
   } finally { remove(fixture) }
+})
+
+test('completion selectors reject rooted and drive-prefixed links', () => {
+  const sources = actualSources()
+  assert.deepEqual(findings(sources), [])
+  for (const { file, heading } of producers) {
+    const source = sources.get(file)
+    const href = selectedLinks(source, heading)[0]
+    const backslash = href.replaceAll('/', '\\')
+    for (const rooted of ['/' + href, '\\' + backslash, 'C:/../' + href, 'c:\\..\\' + backslash, 'C:' + href, '//' + href]) {
+      const changed = new Map(sources).set(file, source.replace(href, rooted))
+      assert.ok(findings(changed).some(finding => finding === file + ': completion selector must be relative'), rooted)
+    }
+  }
 })

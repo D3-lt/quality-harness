@@ -121,6 +121,11 @@ The release packager includes the actual shared reference and rejects its remova
 was independently noticed in an isolated worktree. These checks establish structural selection and packaging only;
 T2 model compliance and T3 adopter usefulness remain pending. Runtime hooks and evidence schemas did not change.
 
+The implementation review reproduced rooted and drive-prefixed links normalizing into an apparently local target in the
+test checker. A separate regression was added beside the original locked bodies; both original hashes remain unchanged.
+The checker now normalizes separators and rejects roots and drive prefixes before joining. Its first assertion-red,
+passing fence and isolated guard-removal kill are recorded in T1, with an explicit relock adding only the new test.
+
 ## Consequences
 
 The user can distinguish verified source work, active integration, delivery and benefit. Reports retain unknowns without

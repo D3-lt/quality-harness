@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-133 T1: rooted completion selectors cannot be joined into apparent local links",
+      "file": "tests/completion-report-contract.test.mjs",
+      "tests": [
+        "tests/completion-report-contract.test.mjs"
+      ],
+      "from": "if (path.posix.isAbsolute(href) || href.includes(':')) {",
+      "to": "if (false) {",
+      "only": "^completion selectors reject rooted and drive-prefixed links$"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/completion-report-contract.test.mjs	completion producers select the shared reference through their real completion sections	e8a2d70efc243af983c8cc374bf0a2df9d5ac18e2c327b134e7760ffa38bffdc
+body	tests/completion-report-contract.test.mjs	completion selectors reject rooted and drive-prefixed links	21adc65c808963e8aeeee8d92fa4bb34e99d3fa6e18103d25a8c03387ee036fb
+body	tests/completion-report-contract.test.mjs	the release packager admits the selected shared completion reference	7ccad387558baf3fe4879343a204bdc4511ff54ba1836a3895cbeb14c1c62855

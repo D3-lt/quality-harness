@@ -25,6 +25,7 @@ Make each existing main-session completion producer select the same concise evid
 | `tests/mutations/plugin/skills/work/SKILL.md.json` | add or edit | Deleting reference selection is noticed |
 | `tests/mutations/plugin/skills/execution/SKILL.md.json` | edit | Removing this consumer's selector is noticed |
 | `tests/mutations/plugin/skills/adr-execute/SKILL.md.json` | edit | Removing this consumer's selector is noticed |
+| `tests/mutations/tests/completion-report-contract.test.mjs.json` | add | Removing the rooted-path guard is noticed |
 
 ## Ordered Steps
 
@@ -47,6 +48,7 @@ The file must exist and collect real tests; a missing file or selector is failur
 |-----------|------|----------|--------|-------|
 | `completion producers select the shared reference through their real completion sections` | `tests/completion-report-contract.test.mjs` | Real selection, including broken-link negative controls | — | S1, S2, S3 |
 | `the release packager admits the selected shared completion reference` | `tests/completion-report-contract.test.mjs` | Actual nested reference bytes ship; its removal is rejected | — | S1, S3 |
+| `completion selectors reject rooted and drive-prefixed links` | `tests/completion-report-contract.test.mjs` | Rooted paths cannot become apparently local after joining | — | S1, S3 |
 
 ## Reachability
 
@@ -61,6 +63,8 @@ The file must exist and collect real tests; a missing file or selector is failur
 - 2026-10-30 · 237f304a* · mutant killed · exit 1 · `plugin/skills/work/SKILL.md` · Removing work's actual completion selector makes the scoped wiring assertion fail. · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168
 - 2026-10-30 · 237f304a* · mutant killed · exit 1 · `plugin/skills/execution/SKILL.md` · Removing execution's actual completion selector makes the scoped wiring assertion fail. · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168
 - 2026-10-30 · 237f304a* · mutant killed · exit 1 · `plugin/skills/adr-execute/SKILL.md` · Removing adr-execute's actual completion selector makes the scoped wiring assertion fail. · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168
+- 2026-10-30 · 36f13ad2* · mutant killed · exit 1 · `tests/completion-report-contract.test.mjs` · Removing the rooted-selector guard recreates false clean selection; the separate locked regression fails. · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168
+- 2026-10-30 · 36f13ad2* · mutant killed · exit 1 · `tests/completion-report-contract.test.mjs` · Removing root and colon rejection admits drive or URI-qualified selectors; the locked regression rejects that false clean. · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168
 
 ## Invariants
 
@@ -97,3 +101,21 @@ Stop if the shared reference requires a new hook, evidence ledger or automatic c
 - 2026-10-30 · 237f304a* · exit 0 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:271
 - 2026-10-30 · 237f304a* · exit 0 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:275
 - 2026-10-30 · 237f304a* · exit 0 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:286
+- 2026-10-30 · 36f13ad2* · exit 0 · `adr-verify --relock` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:0 · test-lock-sha256:8be033fdf43d5410cb10e79954a7fc4c7b9742105ae6fecc7ac70159bb7eeda4 · test-lock-file:docs/adr/locks/8be033fdf43d5410cb10e79954a7fc4c7b9742105ae6fecc7ac70159bb7eeda4.lock · test-lock-kind:relock
+- 2026-10-30 · 36f13ad2* · exit 1 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:230
+  ```
+  --- last 10 line(s) of stdout (of 31 after folding 31 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: false,
+      expected: true,
+      operator: '==',
+      diff: 'simple'
+    }
+  ```
+- 2026-10-30 · 36f13ad2* · exit 0 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:302
+- 2026-10-30 · 36f13ad2* · exit 0 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:273
+- 2026-10-30 · 36f13ad2* · exit 0 · `node --test tests/completion-report-contract.test.mjs` · acceptance-sha256:1d84a40fea62038c1f712c76024d92f2fbed8efc42a488d8368d8b92db80d168 · ms:280

@@ -1,6 +1,6 @@
 # ADR-133 completion reporting trial
 
-Status: draft protocol. Freeze all run fields below before sampling. No runs or useful-effect claims are recorded here.
+Status: T2 preregistration frozen 2026-10-30 (below), before the first receipt. No runs or useful-effect claims are recorded here.
 
 ## Subjects and selection
 
@@ -12,6 +12,41 @@ and stopping rule. Approval of the ADR does not itself authorize an unpriced mod
 For each case, invoke its existing skill through the real host. Retain proof of selection and the resulting report.
 Keep the tool facts identical between arms; do not paste a replacement completion policy into the baseline.
 If a route cannot be exercised, record that case as unavailable rather than using a direct model prompt as a substitute.
+
+## T2 preregistration (frozen 2026-10-30, owner-approved budget)
+
+- Host: Claude Code 2.1.314 CLI, headless (`claude -p`), macOS, one run at a time. Model `opus` alias, `--effort high`.
+- Arms, both loaded the same way through `--plugin-dir`, with `--setting-sources project` so the installed copy and user
+  hooks do not load, and `--strict-mcp-config` with no servers:
+  - baseline: the installed v3.8.62 bundle, byte-identical to it; its `skills/` tree equals `git archive v3.8.62`.
+    Sorted-file manifest sha256 `110f2c66f55a5189ef240e0c1ad2babf06ef16cab9fccaa2c6dfd11087bcd1d3`.
+  - candidate: the same bundle with the four T1 files from `5db5ea8e` overlaid (work, execution, adr-execute SKILL.md
+    and `skills/work/references/completion-proof.md` sha256 `1f3c8d1b…6005e`). Manifest sha256
+    `630012986f47e81c5b782c2d999ec6ad61d0a9d80bf694bb52bde318fcf7370a`. Both report version 3.8.62; identity is the
+    directory and its manifest, never the version string.
+- Fixtures: one private directory per case, outside the repository, whose `./tools/*` scripts print that case's frozen
+  facts when run. Manifest sha256 `f2572cc6efdeacbf8cbfb83a8e2b46cff8deb1764e59e7eb1052f3a841b9628d`. Each run gets a
+  fresh copy. Runner sha256 `5b903815b2d4a3af0080084a518b546d7b266919255827d2982c2add11453f46`.
+- Tools allowed: `Skill Read Glob Grep Bash(./tools/*)`; everything else is denied in the headless permission mode.
+- Prompts, identical in both arms; S = "The change is already made in this directory; do not edit any file. Observe its
+  state with the scripts in ./tools (run them as ./tools/<name>) and the files here, then give your final completion report."
+  - C1 `/quality-harness:work Add the CSV exporter and make the application use it.` + S
+  - C2 `/quality-harness:execution Fix the ISO-week date-parsing bug in datetool and get the fix into the installed tool users run.` + S
+  - C3 `/quality-harness:adr-execute docs/adr/ADR-007-publish-2-0.md, task T1.` + S
+  - C4 `/quality-harness:work Make the path normalizer pass on macOS and Windows; see REQUIREMENTS.md.` + S
+  - C5 `/quality-harness:execution Confirm the parser whitespace fix in parser.py is verified.` + S
+  - C6 `/quality-harness:adr-execute docs/adr/ADR-012-quieter-hook.md, task T1.` + S
+  - C7 `/quality-harness:work Publish gizmo v2.1 and make sure the marketplace catalog lists it; NOTES.md has the previous session's checkpoint.` + S
+  - C8 `/quality-harness:execution Run the cache benchmark and the cache integration check, and report the CPU usage of the benchmark.` + S
+- Order: odd cases baseline first, even cases candidate first; C1 to C8 in sequence.
+- Budget: 16 graded runs, `--max-budget-usd 2` and `timeout 900` each (at most USD 32), no retries; plus two declared
+  pre-sampling smoke runs (one per arm, `--max-budget-usd 0.5`, prompt `/quality-harness:work Name the skill you loaded
+  and stop.`) that check the init receipt names the arm's plugin directory and the skill is invoked. Smoke output is not graded.
+- Selection proof: the stream-json init event (plugin path, model) and the Skill invocation in each transcript.
+  A run without both is recorded unavailable, not resampled.
+- Stopping rule: stop on the 16th run, on a failed smoke check, or when a receipt cannot show selection.
+- Grader: the owner, on reports with arm identity removed, against the frozen case facts and both controls.
+  The session's own pre-grade is advisory.
 
 ## Frozen cases
 

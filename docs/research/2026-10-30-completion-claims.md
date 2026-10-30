@@ -1,4 +1,4 @@
-# ADR-133 T2 — paired completion-report trial, first round
+# Completion-claims trial, round one (for ADR-133 task 2)
 
 Session pre-grade only. The owner's blinded grade is the S4 proof; until then nothing here signs T2 off.
 

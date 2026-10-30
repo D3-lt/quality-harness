@@ -168,3 +168,32 @@ func TestArtifactImportReadsOncePerPath(t *testing.T) {
 		}
 	}
 }
+
+func TestArtifactImportSkipsSingleIdentityReads(t *testing.T) {
+	for _, paths := range []int{1, 15, 50} {
+		t.Run(strconv.Itoa(paths), func(t *testing.T) {
+			dir := t.TempDir()
+			entries := []any{}
+			for n := range paths {
+				file := filepath.Join(dir, strconv.Itoa(n)+".md")
+				for range 51 {
+					entries = append(entries, O("event", "pass.gated", "path", file, "blob", "only-recorded-identity"))
+				}
+			}
+			reads := 0
+			superseded := passFindingSuperseded(entries, func(string) any {
+				reads++
+				return "different-current-identity"
+			})
+			for _, row := range entries {
+				if superseded(row) {
+					t.Fatal("one recorded identity cannot establish supersession")
+				}
+			}
+			if reads != 0 {
+				t.Fatalf("%d unnecessary identity reads across %d single-identity paths", reads, paths)
+			}
+			t.Logf("%d verdicts, %d paths, zero identity reads without a competing identity", len(entries), paths)
+		})
+	}
+}

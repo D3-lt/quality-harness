@@ -399,6 +399,10 @@ func passFindingSuperseded(entries []any, identify func(string) any) func(any) b
 			return false
 		}
 		path := strOr(get(e, "path"))
+		// A single recorded identity cannot prove a change, whatever is on disk.
+		if len(observed[path]) < 2 {
+			return false
+		}
 		current, read := identities[path]
 		if !read {
 			current = identify(path)

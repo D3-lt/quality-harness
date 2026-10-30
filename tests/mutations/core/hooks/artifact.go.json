@@ -36,6 +36,15 @@
       ],
       "from": "\t\tif !read {",
       "to": "\t\tif !read || current != nil {"
+    },
+    {
+      "label": "artifact reconciliation: one recorded identity needs no filesystem observation",
+      "file": "core/hooks/artifact.go",
+      "tests": [
+        "tests/native-artifact-delivery.test.mjs"
+      ],
+      "from": "if len(observed[path]) < 2 {",
+      "to": "if len(observed[path]) < 1 {"
     }
   ]
 }

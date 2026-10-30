@@ -46,13 +46,17 @@ The Node suite explicitly requires each named Go test to pass, so an empty test 
 | 765 | 15 | 15 |
 | 2550 | 50 | 50 |
 
+With only one recorded identity per path, supersession cannot be established and no observation is needed. A separate
+regression first measured 1, 15 and 50 avoidable identity callbacks for those cardinalities; the shortcut now makes zero
+calls while preserving the same findings. This is a decision/operation-count control, not a filesystem timing benchmark.
+
 The read-budget matrix covers both real readable files and an injected unavailable-identity result. The latter measures
 observation attempts, not successful filesystem reads. The native importer tests separately use a real non-regular
 path to reproduce an unavailable identity.
 
-All four entries in the artifact.go mutation catalogue were exercised: its existing scratch exclusion and the three
-new guards for reordered results, unknown current identity and repeated identity reads. Each was noticed. The matching
-native scratch-path campaign also noticed its sibling mutation. The previous locked tests were not changed.
+All five entries in the artifact.go mutation catalogue were exercised: its existing scratch exclusion and the four
+new guards for reordered results, unknown current identity, repeated reads and the single-identity shortcut. Each was
+noticed. The matching native scratch-path campaign also noticed its sibling mutation. Locked tests were not changed.
 
 ## What this establishes
 

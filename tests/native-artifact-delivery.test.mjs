@@ -15,7 +15,7 @@ test('native artifact reconciliation rejects stale arrivals and preserves curren
   })
   assert.equal(result.error, undefined, result.error?.message)
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  for (const name of ['TestArtifactImportArrivalOrder', 'TestArtifactImportKeepsUncertainAndCurrent', 'TestArtifactImportReadsOncePerPath']) {
+  for (const name of ['TestArtifactImportArrivalOrder', 'TestArtifactImportKeepsUncertainAndCurrent', 'TestArtifactImportReadsOncePerPath', 'TestArtifactImportSkipsSingleIdentityReads']) {
     assert.match(result.stdout, new RegExp('^--- PASS: ' + name + '\\b', 'm'), result.stdout)
   }
 })

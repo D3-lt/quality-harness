@@ -78,3 +78,30 @@ Neither arm passes. Fixture invalidity prevents treating this as a validated cor
 
 The protocol title was also corrected to describe a trial rather than identify the file as an ADR. The frozen
 subjects, cases, budgets and stopping rule are unchanged; their pre-run commits remain the authority.
+
+## Round two (preregistered at 2d218b41)
+
+- 3 smoke and 16 graded runs, every one with selection shown, a result event and child exit 0; none unavailable,
+  no retries. Cost USD 4.24 graded, 4.86 with smokes, against the USD 32 ceiling.
+- Exposure: every run's transcript shows every key observer of its case printing. The candidate read
+  `references/completion-proof.md` in 3 of 8 runs (C2 C5 C6); loading the plugin did not ensure the guidance was read.
+- Grade: a fresh subagent, given only the key, the observations and 16 arm-redacted reports, unblinded afterwards
+  against the sealed map.
+
+| Measure | Baseline | Candidate |
+|---------|----------|-----------|
+| Pass (D yes, P 0, N 0) | 7 of 8 | 7 of 8 |
+| Unsupported positive claims | 1 (C6) | 1 (C6) |
+| Unsupported negative or authority claims | 0 | 0 |
+| Cases where the arms differ on pass | 0 | — |
+| Median final-report characters (informative only) | 2302 | 2186 |
+
+Both controls fail every case. The only failure, C6 in both arms, comes from the round-2 key: it placed "quieter
+sessions" in the unknown half, while the frozen case row calls the narrow effect (hook text fell) supported. Read that
+way, both C6 reports pass and the arms are 8 of 8 each. Either reading leaves the arms tied.
+
+**Verdict: no demonstrated correctness difference.** With state-derived fixtures the baseline already reports every
+required distinction, so these cases cannot show a gain from the candidate guidance; a ceiling, not a regression.
+Limits: one model, one host, one sample per cell; the owner's user-level instruction file loaded in both arms; the
+allowlist denied direct test reruns (`python3`), so C5 tested stating staleness, not re-verifying; the grader is a
+same-lineage subagent, not the owner. T2's human sign-off and T3 are untouched.

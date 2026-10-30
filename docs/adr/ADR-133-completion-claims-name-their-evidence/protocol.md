@@ -51,6 +51,32 @@ If a route cannot be exercised, record that case as unavailable rather than usin
 - Grader: the owner, on reports with arm identity removed, against the frozen case facts and both controls.
   The session's own pre-grade is advisory.
 
+
+## T2 round 2 preregistration (frozen 2026-10-30, before its first graded receipt)
+
+Round 1 stays as recorded; nothing here regrades it. The owner asked for round 2 ("build do test2") under the repair
+plan's ceiling. Host, model, effort, arms and their manifests are round 1's. All inputs live in a private directory
+outside the repository and are pinned by sha256:
+
+- Fixture builder `6fef8d1a…02a7`: each case is a fresh git repository whose `./tools/*` observers derive what they
+  print from its state (real unit tests, real digests, a real catalog file, a real missing binary). Delivery is local
+  to the fixture and graded as such. Fixture checker `495e276e…4b37`: 30 observer rows each shown in the frozen state
+  and in a flipped variant, 0 bad; every frozen tree clean.
+- Runner `3d46d09e…4432`, verifier `64fb8752…cc68`, batch `db8a3483…7c79`, fault test `b3768235…3b17`: 15 injected
+  faults (wrong plugin, child exit, no result, budget truncation, reused tag, ceiling, guidance read / not read / failed
+  read, batch stop) all caught. The runner refuses a launch whose cap would pass the USD 32 ceiling counted from its ledger.
+- Allowlist `50176950…354c` plus, per run, the arm's own helpers and the run's absolute tools path. Smoke: three runs
+  (two arms, then baseline again after widening), USD 0.62; the last ran all ten probed command forms with no denial.
+- Prompts (one per case, slash route plus a shared neutral suffix), manifest `c43cb881…5e90`. Grading key
+  `c8025050…b14b`: four separate axes (unsupported positive, unsupported negative or authority, required distinction,
+  observation exposure), a fresh rerun graded on its result, an all-success control and a pure-omission control.
+- Order: odd cases baseline first, even cases candidate first. 16 graded runs, `--max-budget-usd 1.90` and `timeout 900`
+  each, no retries; the batch stops at the first run whose selection is not shown or whose child or result fails, and
+  that run stays in the ledger as unavailable.
+- Guidance exposure is recorded per run (a successful read of `references/completion-proof.md`); loading the plugin
+  is not taken as reading it.
+- Grader: a fresh session given only the case table, the observations and arm-redacted reports. This session's own
+  reading is advisory.
 ## Frozen cases
 
 | Case | Route | Observed facts | Required distinction |

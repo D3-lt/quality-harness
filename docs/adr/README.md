@@ -134,3 +134,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-130](ADR-130-checks-are-optional-tools.md) | Keep explicit checks and evidence; remove compulsory publishing checks, nags and automatic baselines | Accepted |
 | [ADR-131](ADR-131-native-reader-identity-and-measured-cost.md) | Bind native reader identity and measure actual optional-check work and context reductions | Accepted |
 | [ADR-132](ADR-132-the-installed-plugin-includes-its-go-core.md) | Install the plugin and verified Go core together from an immutable release archive | Accepted |
+| [ADR-133](ADR-133-completion-claims-name-their-evidence.md) | Completion claims name their evidence, scope and observed target | Accepted |

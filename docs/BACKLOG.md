@@ -4046,3 +4046,10 @@ Open: make scripts/release-evidence.mjs:207-234 robust to this observed endpoint
 explicit-attempt query, with failure and changing-attempt regressions. Separately assess the full preflight cost of a
 network-only retry in scripts/release.mjs:129-174 against ADR-100 and ADR-115 before changing reuse policy. A stale,
 failed, missing or incomplete run must never become approval; an HTTP failure is could-not-look.
+
+## 436. OPEN 2026-10-30 — ADR-133 preserves the existing watcher and productivity research obligation
+
+ADR-133 separates completion claims and explicitly leaves general watcher/productivity research with ADR-121 and
+ADR-128. Its reporting slice does not establish their outcome or settle ADR-128 T4's existing ownership decision.
+Keep those records' original criteria and evidence; do not close them from a shared completion reference or a green
+structural check. ADR-133 T2 and T3 own the narrower actual-report and adopter-cost observations for this reporting change.

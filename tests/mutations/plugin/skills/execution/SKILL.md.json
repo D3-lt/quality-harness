@@ -15,6 +15,16 @@
       "from": "An edit that matched nothing is a failure, never a quiet success",
       "to": "An edit that matched nothing is worth a second look",
       "only": "^the implementing skills teach one read of every site, one batch of edits, and a check that each edit landed$"
+    },
+    {
+      "label": "ADR-133 T1: execution selects the shared completion contract",
+      "file": "plugin/skills/execution/SKILL.md",
+      "tests": [
+        "tests/completion-report-contract.test.mjs"
+      ],
+      "from": "Read and apply [completion proof](../work/references/completion-proof.md) for substantive completion reports and explicit status requests.",
+      "to": "",
+      "only": "^completion producers select the shared reference through their real completion sections$"
     }
   ]
 }

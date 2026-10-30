@@ -155,6 +155,8 @@ so when there is none): project facts scoped to the project, cross-project craft
 
 ## Completion report
 
+Read and apply [completion proof](references/completion-proof.md) for substantive completion reports and explicit status requests.
+
 - Classification, frozen scope/non-goals, and risk tier.
 - Stages run and why skipped stages were unnecessary.
 - Exact verification commands, exit codes, and evidence limitations.

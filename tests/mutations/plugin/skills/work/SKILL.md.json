@@ -29,6 +29,16 @@
       "from": "by invoking it with the Skill tool, not by reading its file, ",
       "to": "",
       "only": "^(?:work tells the coordinator to invoke quality-policy with the Skill tool)$"
+    },
+    {
+      "label": "ADR-133 T1: work selects the shared completion contract",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/completion-report-contract.test.mjs"
+      ],
+      "from": "Read and apply [completion proof](references/completion-proof.md) for substantive completion reports and explicit status requests.",
+      "to": "",
+      "only": "^completion producers select the shared reference through their real completion sections$"
     }
   ]
 }

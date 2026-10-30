@@ -29,6 +29,16 @@
       "from": "## Audit the class, not the instance",
       "to": "## Notes",
       "only": "^(?:the record skills audit the class, not the instance)$"
+    },
+    {
+      "label": "ADR-133 T1: adr-execute selects the shared completion contract",
+      "file": "plugin/skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/completion-report-contract.test.mjs"
+      ],
+      "from": "Read and apply [completion proof](../work/references/completion-proof.md) for substantive completion reports and explicit status requests.",
+      "to": "",
+      "only": "^completion producers select the shared reference through their real completion sections$"
     }
   ]
 }

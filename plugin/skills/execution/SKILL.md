@@ -49,6 +49,8 @@ File count alone does not require an ADR. An existing accepted plan or ADR remai
 
 ## Return
 
+Read and apply [completion proof](../work/references/completion-proof.md) for substantive completion reports and explicit status requests.
+
 - Changed files and why each was necessary.
 - Exact checks and their results.
 - Confirmed remaining risk or evidence limitations.

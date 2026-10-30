@@ -434,6 +434,8 @@ It is a supporting file so that this skill's instructions are not buried under a
 
 ## Completion Report
 
+Read and apply [completion proof](../work/references/completion-proof.md) for substantive completion reports and explicit status requests.
+
 When all tasks are done:
 
 1. If the ADR has a spec: run `spec-verify --implemented <spec>` — every

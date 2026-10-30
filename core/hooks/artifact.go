@@ -374,6 +374,45 @@ var passFindingsQueued = map[string]bool{}
 
 type finding struct{ key, text string }
 
+// Snapshot identities once for this import. Arrival order alone cannot supersede
+// a verdict: an expired worker can append old bytes after the current bytes were gated.
+func passFindingSuperseded(entries []any, identify func(string) any) func(any) bool {
+	lastBlob := map[string]any{}
+	observed := map[string]map[string]bool{}
+	for _, e := range entries {
+		path, ok := get(e, "path").(string)
+		if !ok || !strict(get(e, "event"), "pass.gated") {
+			continue
+		}
+		lastBlob[path] = get(e, "blob")
+		if blob, known := get(e, "blob").(string); known {
+			if observed[path] == nil {
+				observed[path] = map[string]bool{}
+			}
+			observed[path][blob] = true
+		}
+	}
+	identities := map[string]any{}
+	return func(e any) bool {
+		blob, ok := get(e, "blob").(string)
+		if !ok {
+			return false
+		}
+		path := strOr(get(e, "path"))
+		current, read := identities[path]
+		if !read {
+			current = identify(path)
+			identities[path] = current
+		}
+		currentBlob, known := current.(string)
+		if !known || currentBlob == blob {
+			return false
+		}
+		last, lastKnown := lastBlob[path].(string)
+		return (lastKnown && last != blob) || observed[path][currentBlob]
+	}
+}
+
 // importPassVerdicts copies the pass ledger's new verdicts into the session log and queues each finding as rule A once.
 func (h *hookRun) importPassVerdicts(channel, recipient string) {
 	cwd, session := h.cwd, jsString(h.session)
@@ -415,18 +454,7 @@ func (h *hookRun) importPassVerdicts(channel, recipient string) {
 			entries = append(entries, entry)
 		}
 	}
-	lastBlob := map[string]any{}
-	for _, e := range entries {
-		if p, ok := get(e, "path").(string); ok && strict(get(e, "event"), "pass.gated") {
-			lastBlob[p] = orNull(get(e, "blob"))
-		}
-	}
-	superseded := func(e any) bool {
-		blob, ok := get(e, "blob").(string)
-		p := strOr(get(e, "path"))
-		last, lastOK := lastBlob[p].(string)
-		return ok && lastOK && last != blob && !strict(contentId(p), blob)
-	}
+	superseded := passFindingSuperseded(entries, contentId)
 	findings := []finding{}
 	ended := map[string]bool{}
 	for _, e := range entries {

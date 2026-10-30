@@ -3,10 +3,39 @@
     {
       "label": "BACKLOG §409: the Go core's deferred pass gates a scratch corpus",
       "file": "core/hooks/artifact.go",
-      "tests": ["tests/lifecycle.test.mjs"],
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
       "from": "\t\tif filepath.IsAbs(p) && !scratchOutside(p, cwd) && !alreadyAnswered(answered, p, identities[p]) {",
       "to": "\t\tif filepath.IsAbs(p) && !alreadyAnswered(answered, p, identities[p]) {",
       "only": "^(?:the Go core's scratch rule answers as the Node one does)$"
+    },
+    {
+      "label": "artifact reconciliation: a late old result cannot override a verdict for current bytes",
+      "file": "core/hooks/artifact.go",
+      "tests": [
+        "tests/native-artifact-delivery.test.mjs"
+      ],
+      "from": "return (lastKnown && last != blob) || observed[path][currentBlob]",
+      "to": "return lastKnown && last != blob"
+    },
+    {
+      "label": "artifact reconciliation: unreadable current identity is not supersession",
+      "file": "core/hooks/artifact.go",
+      "tests": [
+        "tests/native-artifact-delivery.test.mjs"
+      ],
+      "from": "if !known || currentBlob == blob {",
+      "to": "if currentBlob == blob {"
+    },
+    {
+      "label": "artifact reconciliation: repeated verdicts read each current file only once",
+      "file": "core/hooks/artifact.go",
+      "tests": [
+        "tests/native-artifact-delivery.test.mjs"
+      ],
+      "from": "\t\tif !read {",
+      "to": "\t\tif !read || current != nil {"
     }
   ]
 }

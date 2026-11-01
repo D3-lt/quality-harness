@@ -1,0 +1,19 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/shell-hook-native.test.mjs	a failing gate is recorded incomplete	6f5f2aecd92fcf989d6ff2903c47e54ef483be54dafb44d54712c2ea08393756
+body	tests/shell-hook-native.test.mjs	a file edited while its gate ran is recorded incomplete, under the bytes the gate read	7adae90c0e526b7af0595939c924bc11f38ef55f8e6d0ba9a797a8c23490a25b
+body	tests/shell-hook-native.test.mjs	a gate killed by a signal is unchecked, not clean	5f40bd853b8bfe79ba912ae3f7e8c916a0ab222a5f64c2088be6c26a0c8ed975
+body	tests/shell-hook-native.test.mjs	a gate that exits non-zero is reported and blocks nothing	6df16a21d3a134cc4ce62bdd9a8c7d143753d3c4f1e07b5a136f0a9a5d35bef4
+body	tests/shell-hook-native.test.mjs	a passing gate over a file it left alone is recorded complete	c870d4caed5b28304f4c01bfb3872ce0a26d64d0b69722ce6aaea2653b817816
+body	tests/shell-hook-native.test.mjs	a passing gate that prints is handed to the agent as additionalContext	8336345b2db3b9876ac155ca93e8db1e68f34bc6abc8280894c2f7ff3d795b4c
+body	tests/shell-hook-native.test.mjs	a passing gate that prints nothing says nothing	2716d50ed9b6d430efb8d75edc00d6b196e633435c5a839b4ebfb4cf31e89a78
+body	tests/shell-hook-native.test.mjs	an MSYS crash banner outranks the exit code	50449a0f4077158eb4d2a63e3307986ade7d85fc3fc610ff0b58755494dfb06c
+body	tests/shell-hook-native.test.mjs	an UNPROVEN gate is recorded incomplete	4f83319ec2ac1af87f2a3473882c5261476f6e462be7ba1cff7fa5d7da0fad1a
+body	tests/shell-hook-native.test.mjs	an uninteresting path is not gated and is recorded answered	389b5cde6611d6a8013ab1cc04f798a147734d48f057966fa02242ad373f6136
+body	tests/shell-hook-native.test.mjs	an unknown script is refused with exit 2	7f0cf8910cb69ecc6047af2b16449795d7a9f2c462f87c200398df31c671345a
+body	tests/shell-hook-native.test.mjs	no cwd, no row	10fd58f5d53d11071d0504e64a9d34c7766693d4a9a84a51999e539674b68c8a
+body	tests/shell-hook-native.test.mjs	no session_id, no row	e1cd92ba1f3a31c2a4bb23228eee7888a6cc95a7aeaaf11e0de3b685701ec5d8
+body	tests/shell-hook-native.test.mjs	the edit-gate registrations spawn no node	07005fe1fb6b3513c66e568acf553f9a914ed62b2bccba41fad7f020eba186c7
+body	tests/shell-hook-native.test.mjs	the native edit gate records what the Node one records	04fea0b76fb372d89c545a74579398b1271e0dfcc508c4a0750077807e71eb92
+body	tests/shell-hook-native.test.mjs	the native shell hook decodes a gate's invalid UTF-8 as Node does	515536be60d120ee56587b82f40ecf8ed1bdbf5ee9783a2754d05018716049fa
+body	tests/shell-hook-native.test.mjs	the native shell hook says what the Node runner says in every scenario	4ac755f08ed452c24d5d09179f1eaa18568fb082d7db9bc2a14bc1c310e219cc
+body	tests/shell-hook-native.test.mjs	what a gate prints outside PostToolUse is passed on as it came	4ea3caa81ae1bbed3b2f97c53383a6e0157a4c3939aea6317f116220a208b88a

@@ -1,8 +1,8 @@
 // ADR-136 T2 and T3: the core runs a registered shell hook as plugin/scripts/run-shell-hook.mjs's runShellHook does: the same
 // bash, the same arguments, stdin and environment, the same timeout, and what it prints (the PostToolUse additionalContext
 // wrapping, the failure messages) and exits; and the facts gate as its runEditGate does, with the same artifact.gated row.
-// tests/shell-hook-native.test.mjs runs every scenario through both runners. Until ADR-136 T4 the core answers only under
-// QH_SHELL_HOOK_NATIVE=1.
+// tests/shell-hook-native.test.mjs runs every scenario through both runners. Since ADR-136 T4 the core answers both registered
+// runs; `--batch` and any other name still reach the Node runner.
 package hooks
 
 import (
@@ -32,7 +32,7 @@ const shkFactsGate = "facts-gate-dispatch.sh"
 // shkNative is whether `qh bridge shell-hook <args>` is answered by the core. Any other call (the artifact pass's `--batch`, an
 // unregistered name) still runs the Node runner (ADR-136 Decision 2), which also owns the unknown-script refusal.
 func shkNative(args []string) bool {
-	if os.Getenv("QH_SHELL_HOOK_NATIVE") != "1" || len(args) == 0 {
+	if len(args) == 0 {
 		return false
 	}
 	return args[0] == "post-edit-check.sh" || (args[0] == shkFactsGate && !(len(args) > 1 && args[1] == "--batch"))
@@ -86,6 +86,8 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = inR, outW, errW
 	hideWindow(cmd)
 	shkOwnTree(cmd)
+	// Traced as the core's other spawns are (ADR-131): attempt, started, and how it ended.
+	trace := startProcessTrace(cmd, "", "attempt")
 	err := cmd.Start()
 	inR.Close()
 	outW.Close()
@@ -95,8 +97,10 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 		outR.Close()
 		errR.Close()
 		res.err = err
+		trace.ended(cmd, err, false)
 		return res
 	}
+	trace.started(cmd)
 	go func() {
 		_, _ = io.WriteString(inW, input)
 		inW.Close()
@@ -146,6 +150,11 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 		}
 	}
 	outR.Close()
+	if res.cleanupUnconfirmed {
+		trace.ended(cmd, nil, true)
+	} else {
+		trace.ended(cmd, waitErr, res.timedOut)
+	}
 	errR.Close()
 	mu.Lock()
 	res.stdout, res.stderr = shkDecodeUTF8(out.Bytes()), shkDecodeUTF8(errOut.Bytes())

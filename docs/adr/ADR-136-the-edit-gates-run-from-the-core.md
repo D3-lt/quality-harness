@@ -7,7 +7,7 @@
 **Spec:** None — the owner directed the port in conversation; the runner's own tests are the contract
 **Cross-references:** docs/adr/ADR-110-a-static-core-owns-the-hooks.md, docs/adr/ADR-131-native-reader-identity-and-measured-cost.md, docs/adr/ADR-135-branch-state-runs-in-the-core.md
 **Governs:** None — declared by its tasks
-**Enforced-by:** None — the parity and native tests are written by T1 to T3; this header names them once they exist
+**Enforced-by:** tests/shell-hook-parity.test.mjs::the core answers every shell-hook row as the Node functions do, tests/shell-hook-native.test.mjs::the native shell hook says what the Node runner says in every scenario, tests/shell-hook-native.test.mjs::the edit-gate registrations spawn no node
 **Invalidates:** none — checked; ADR-110's and ADR-135's boundary is amended below, no task changes state
 **Amends:** ADR-110 2026-10-28 amendment ("The branch-state and edit-gate CLIs remain Node", docs/adr/ADR-110-a-static-core-owns-the-hooks.md:200) and ADR-135's Out of Scope entry keeping the edit-gate CLIs Node (docs/adr/ADR-135-branch-state-runs-in-the-core.md:128) — for the two registered PostToolUse runs only; the artifact batch and the hand-run CLI stay Node
 **Served-path change:** After every Edit, Write, MultiEdit or NotebookEdit, the two PostToolUse registrations (`qh bridge shell-hook facts-gate-dispatch.sh` and `… post-edit-check.sh`) run their bash scripts from the Go core instead of through `node plugin/scripts/run-shell-hook.mjs`.
@@ -93,11 +93,19 @@ log is tool-written and stands; this is the correction. And reviewing T2 found t
 through as bytes where Node decodes it, one U+FFFD per maximal ill-formed subsequence; `shkDecodeUTF8` now does the same
 (`the native shell hook decodes a gate's invalid UTF-8 as Node does`, and a catalogue mutant is RED).
 
+T4 switched the registered runs on 2026-11-01: both registrations answer with no flag and no node on PATH (`the edit-gate
+registrations spawn no node`; a mutant sending them back to Node is RED), while `--batch` and other names still reach Node, so
+tests/native-observation.test.mjs's Go→Node example (`bridge shell-hook` with no script) and tests/qh-launcher.test.mjs pass
+unchanged. Reviewing the switch found the native runner wrote no process trace: ADR-131's cost readers lost every gate run,
+and the locked trace-sink refusal test passed with nothing to refuse. The runner now traces its bash child as the core's other
+spawns do (`the native shell hook traces the bash it runs`, mutant RED). Separately, the Go uninteresting-directory rule the
+edit gate reuses matched paths the Node rule does not (ſ folding, line terminators); it was fixed in this branch (BACKLOG §439).
+
 ## Consequences
 
 Two Node starts leave every edit. The costs: two runners exist until the batch is ported, held together by the parity test;
-the Node runner's operation trace (`shell/<script>`, performance-trace.mjs) is not written by the core, so ADR-131's cost
-readers lose it for these two runs unless T2 adds one.
+the Node runner's operation trace (`shell/<script>`, performance-trace.mjs) is not written by the core; the process trace of
+the bash child is, so ADR-131's readers see each gate's process but not the operation span around it.
 
 ## Out of Scope
 
@@ -117,4 +125,5 @@ Point `RunBridge`'s registered scripts back at `executeNodeCLI` (bridge.go); run
 
 ## Follow-ups
 
-- [ ] T1 to T4, then a release with an outside run.
+- [x] T1 to T4, each with its first red, passing fence and killed mutants.
+- [ ] A release with an outside run on Windows (ADR-131), where bash resolution and `taskkill /T` cannot be run here.

@@ -106,7 +106,7 @@ checkout retains SessionStart provisioning through `qh-fetch.mjs`; other events 
 | UserPromptSubmit | `qh bridge branch-state --brief --cached 120` | Go branch state, refreshed inline under a 2 s budget |
 | SubagentStart | `qh hook SubagentStart` | `core/hooks/sessionend.go` contract |
 | PreToolUse | `qh hook PreToolUse` | Go reviewer/evidence guards, decision context, artifact rules |
-| PostToolUse | `qh bridge shell-hook <gate>`; `qh hook PostToolUse` | existing edit-gate CLI and Go write records |
+| PostToolUse | `qh bridge shell-hook <gate>`; `qh hook PostToolUse` | Go edit-gate runner over the bash gates (ADR-136) and Go write records |
 | Stop, SubagentStop, TaskCompleted | `qh hook <event>` | Go descriptive evidence, reviewer state and artifact rules |
 | PreCompact, SessionEnd | `qh hook <event>` | Go session state; SessionEnd stays in this process |
 

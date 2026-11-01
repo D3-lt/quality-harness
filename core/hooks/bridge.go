@@ -16,7 +16,7 @@ func RunBridge(tool string, args []string) int {
 		// ADR-135: branch state is answered by the core; plugin/scripts/branch-state.mjs remains the hand-run CLI.
 		return RunBranchState(args, os.Stdin, os.Stdout)
 	case "shell-hook":
-		// ADR-136: a registered edit gate is answered by the core under QH_SHELL_HOOK_NATIVE=1; the rest stays Node.
+		// ADR-136: the two registered edit gates are answered by the core; `--batch` and any other name stay Node.
 		if shkNative(args) {
 			return RunShellHookNative(args[0], os.Stdin, os.Stdout, os.Stderr)
 		}

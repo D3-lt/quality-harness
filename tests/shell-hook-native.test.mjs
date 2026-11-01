@@ -319,3 +319,38 @@ test('the native shell hook decodes a gate\'s invalid UTF-8 as Node does', t => 
   assert.equal(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, 'ok � x � y �')
   assert.equal(node.text.stderr, 'err ��� z\n')
 })
+
+// ADR-136 T4: both registrations' own commands are answered by the core with no flag set. The fixture's PATH has bash and its
+// tools but no node, so a bridge that still spawned the Node runner fails here with "could not run the hook CLI".
+test('the edit-gate registrations spawn no node', t => {
+  const f = fixture(t)
+  writeFileSync(path.join(f.scripts, 'facts-gate-dispatch.sh'), FACTS_GATE)
+  const file = path.join(f.project, 'hook.sh')
+  writeFileSync(file, 'echo gated\n')
+  const edit = { hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-t4', cwd: f.project, tool_input: { file_path: file } }
+  for (const [script, said] of [['post-edit-check.sh', /^post-edit-check Edit\|/], ['facts-gate-dispatch.sh', /^facts-gate /]]) {
+    const ran = f.run('default', script, edit, { env: { STUB_MODE: 'print', STUB_MARK: path.join(f.scratch, 'mark'), STUB_PIDFILE: f.pidFile('default') } })
+    const out = ran.stdout.toString('utf8')
+    const err = ran.stderr.toString('utf8')
+    assert.equal(ran.status, 0, `${script}: ${out}\n${err}`)
+    assert.doesNotMatch(err, /could not run the hook CLI/, err)
+    assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, said, out)
+  }
+})
+
+// The core's other spawns write a process trace (ADR-131), and the Node runner's spawn was traced by the native launcher's
+// exec. The native runner traced nothing, so ADR-131's cost readers lost every gate run, and the trace-sink refusal test in
+// tests/native-observation.test.mjs passed without a trace to refuse (found reviewing T4, 2026-11-01).
+test('the native shell hook traces the bash it runs', t => {
+  const f = fixture(t)
+  const trace = path.join(f.scratch, 'trace.jsonl')
+  const edit = { hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-tr', cwd: f.project,
+    tool_input: { file_path: path.join(f.project, 'hook.sh') } }
+  const ran = f.run('default', 'post-edit-check.sh', edit, { env: { STUB_MODE: 'silent', QUALITY_HARNESS_TRACE_FILE: trace,
+    QUALITY_HARNESS_TRACE_UNTIL: String(Date.now() + 120_000), QUALITY_HARNESS_TRACE_TRIAL: 'shell-hook-native' } })
+  assert.equal(ran.status, 0, ran.stderr.toString('utf8'))
+  const rows = existsSync(trace) ? readFileSync(trace, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []
+  const phases = rows.map(row => row.phase)
+  assert.ok(phases.includes('attempt') && phases.includes('started'), `the bash child was traced: ${JSON.stringify(phases)}`)
+  assert.ok(rows.every(row => row.schema === 'quality-harness-process-trace-v1'), JSON.stringify(rows))
+})

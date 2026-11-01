@@ -55,11 +55,11 @@
       {"kind": "tool", "by": "plugin/scripts/ledger-report.mjs", "token": "'skill.invoked'"}
     ] },
     "PostToolUse \u00b7 Edit|Write|MultiEdit|NotebookEdit \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge shell-hook facts-gate-dispatch.sh": { "consumers": [
-      {"kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "additionalContext"},
+      {"kind": "agent-context", "by": "core/hooks/shellhook_run.go", "token": "\"additionalContext\""},
       {"kind": "tool", "by": "core/hooks/artifact.go", "token": "artifact.gated"}
     ] },
     "PostToolUse \u00b7 Edit|Write|MultiEdit|NotebookEdit \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge shell-hook post-edit-check.sh": { "consumers": [
-      {"kind": "agent-context", "by": "plugin/scripts/run-shell-hook.mjs", "token": "scriptName === 'post-edit-check.sh'"}
+      {"kind": "agent-context", "by": "core/hooks/shellhook_run.go", "token": "args[0] == \"post-edit-check.sh\""}
     ], "reason": "a syntax error from the file's own parser, told to the agent at the edit that broke it (ADR-102); a clean file says nothing, and it costs 28 to 75 ms per edit (BACKLOG \u00a7378, 2026-10-14)" },
     "PostToolUse \u00b7 Edit|Write|MultiEdit|NotebookEdit \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook PostToolUse": { "consumers": [
       {"kind": "tool", "by": "plugin/scripts/check-ledger.mjs", "token": "'file.written'"}

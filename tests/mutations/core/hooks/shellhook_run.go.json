@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-136 T4: the registered edit gates reach the Node runner again",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\tif len(args) == 0 {\n\t\treturn false\n\t}",
+      "to": "\tif true {\n\t\treturn false\n\t}",
+      "only": "^(?:the edit-gate registrations spawn no node)$"
+    },
+    {
+      "label": "ADR-136 T4 review: the native runner traces the bash it starts",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\ttrace.started(cmd)\n",
+      "to": "",
+      "only": "^(?:the native shell hook traces the bash it runs)$"
+    },
+    {
       "label": "ADR-136 T2 review: an ill-formed UTF-8 subsequence is one U+FFFD, as Node decodes it",
       "file": "core/hooks/shellhook_run.go",
       "tests": [

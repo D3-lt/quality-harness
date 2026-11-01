@@ -56,6 +56,7 @@ node --test tests/shell-hook-native.test.mjs tests/native-observation.test.mjs t
 | 4 — used | Every Edit, Write, MultiEdit and NotebookEdit |
 
 ## Mutation Log
+- 2026-11-01 · 9fedc933* · mutant killed · exit 1 · `core/hooks/shellhook_run.go` · Sending the registered gates back to the Node runner makes the registration fail where node is not on PATH; the no-node test fails. · acceptance-sha256:09a4154dbdb7c3602580c18a8d121d94cd2fe3d33c94b2b17051f2658ccc8456
 
 ## Invariants
 
@@ -74,3 +75,19 @@ Stop if the outside run or a CI platform disagrees with the native output.
 - The rest of BACKLOG §438.
 
 ## Verification Log
+- 2026-11-01 · 9fedc933* · exit 1 · `set -o pipefail …` · acceptance-sha256:09a4154dbdb7c3602580c18a8d121d94cd2fe3d33c94b2b17051f2658ccc8456 · ms:4028 · test-lock-sha256:ba80df441dc39ed8087627474778195f8ae9b0c95f5378352c73c2dc14bbf003 · test-lock-file:docs/adr/locks/ba80df441dc39ed8087627474778195f8ae9b0c95f5378352c73c2dc14bbf003.lock
+  ```
+  --- last 10 line(s) of stdout (of 58 after folding 59 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: 1,
+      expected: 0,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-01 · 9fedc933* · exit 0 · `set -o pipefail …` · acceptance-sha256:09a4154dbdb7c3602580c18a8d121d94cd2fe3d33c94b2b17051f2658ccc8456 · ms:4088
+- 2026-11-01 · 9fedc933* · exit 0 · `set -o pipefail …` · acceptance-sha256:09a4154dbdb7c3602580c18a8d121d94cd2fe3d33c94b2b17051f2658ccc8456 · ms:4206

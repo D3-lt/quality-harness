@@ -138,3 +138,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-134](ADR-134-an-override-pass-names-its-test.md) | A spec-verify Cmd override passes only when its output names the bound test | Accepted |
 | [ADR-135](ADR-135-branch-state-runs-in-the-core.md) | Branch state runs in the Go core, refreshed inline under a budget | Accepted |
 | [ADR-136](ADR-136-the-edit-gates-run-from-the-core.md) | The two per-edit gate runs are run from the Go core, not through Node | Accepted |
+| [ADR-137](ADR-137-the-decision-context-hook-runs-in-the-core.md) | The per-edit decision-context hook is answered by the Go core, a second record mirror | Accepted |

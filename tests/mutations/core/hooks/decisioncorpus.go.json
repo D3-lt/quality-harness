@@ -1,0 +1,134 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-137 T1: a status written Active governs",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\"accepted\": \"governing\", \"active\": \"governing\",",
+      "to": "\t\"accepted\": \"governing\",",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: the glob folds ASCII case",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\tif c >= 'a' && c <= 'z' {",
+      "to": "\t\tif false {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: the glob folds no non-ASCII letter into ASCII",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\tif up < 0x80 || up > 0xffff {",
+      "to": "\tif up > 0xffff {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: a character whose full uppercase expands keeps itself",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\tcase r >= 0x1f80 && r <= 0x1faf, r == 0x1fb3, r == 0x1fbc, r == 0x1fc3, r == 0x1fcc, r == 0x1ff3, r == 0x1ffc:",
+      "to": "\tcase r == 0x1fb3, r == 0x1fbc, r == 0x1fc3, r == 0x1fcc, r == 0x1ff3, r == 0x1ffc:",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: a catalog listing a record twice leaves it unproven",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\tcase len(effects) > 1:",
+      "to": "\tcase len(effects) > 2:",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: a catalog row's link must be a plain relative path",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\t\t\t\tif !dcCatalogHref.MatchString(href) {",
+      "to": "\t\t\t\t\tif false {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: ADR-<n> is a reference only after a non-word character",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\tif i+4 <= len(u) && (i == 0 || !dcWordUnit(u[i-1])) && dcUnitsFold(u[i:i+4], \"adr-\") {",
+      "to": "\t\tif i+4 <= len(u) && true && dcUnitsFold(u[i:i+4], \"adr-\") {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: ADR_FILE's lookahead refuses a dated name",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\tif dcASCIIDateShaped(base) {",
+      "to": "\tif false {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: a multiline $ matches before U+2028, U+2029 and CR",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\treturn dcAssert(func(s []uint16, i int) bool { return i == len(s) || multiline && dcLineTerminator(rune(s[i])) })",
+      "to": "\treturn dcAssert(func(s []uint16, i int) bool { return i == len(s) || multiline && s[i] == '\\n' })",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: U+0130 lowers to two characters, as JavaScript lowers it",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\tif r == 0x130 {",
+      "to": "\t\tif false {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: the Governs block is read from the first place its header text occurs",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\tat := strings.Index(text, whole)",
+      "to": "\tat := strings.LastIndex(text, whole)",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: WHOLE_CELL_NAME's emphasis closes as it opened",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\tif !strings.HasPrefix(after, prefix) {",
+      "to": "\t\tif false {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    },
+    {
+      "label": "ADR-137 T1: an ill-formed UTF-8 subpart is one U+FFFD, never raw bytes",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\tif whole {",
+      "to": "\t\tif true {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
+    }
+  ]
+}

@@ -55,6 +55,8 @@ node --test tests/decision-context-parity.test.mjs 2>&1 | tee "$out" && grep -q 
 | 4 — used | T3 |
 
 ## Mutation Log
+- 2026-11-01 · 8056208e7* · mutant killed · exit 1 · `core/hooks/decisioncorpus.go` · the status-kind table loses active: the parity row recordStatusKind("Active") read governing in Node and null in Go, 1 of 6602 rows disagreed · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4
+- 2026-11-01 · 8056208e7* · mutant killed · exit 1 · `core/hooks/decisioncorpus.go` · the hand-written lookbehind of NUMBERED_REF_RE is dropped: referencesIn rows disagreed, xADR-4, _ADR-3 and ADR-001ADR-002 named records in Go and none in Node, 5 of 6602 rows · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4
 
 ## Invariants
 
@@ -73,3 +75,20 @@ Stop if a rule cannot be reproduced in Go without changing the Node reader; name
 - Reading a corpus (T2).
 
 ## Verification Log
+- 2026-11-01 · 8056208e7* · exit 1 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:840 · test-lock-sha256:ad03255a70e9b3f09c5a6d10c3570e8f8209a2a1e9ee22d751cbc0c370b057ee · test-lock-file:docs/adr/locks/ad03255a70e9b3f09c5a6d10c3570e8f8209a2a1e9ee22d751cbc0c370b057ee.lock
+  ```
+  --- last 10 line(s) of stdout (of 45 after folding 46 raw)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: 1,
+      expected: 0,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-01 · 8056208e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:956
+- 2026-11-01 · 8056208e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:1774
+- 2026-11-01 · 8056208e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:1529

@@ -173,6 +173,15 @@ func TestDecisionCorpusParity(t *testing.T) {
 			}
 		case "corpusRecord":
 			got = dcpCorpusRecord(str(0), str(1), dcpStrings(arg(3)), str(4))
+		case "listedPath":
+			got = listedPath(str(0), str(1))
+		case "hasDecisionCorpus":
+			switch look := hasDecisionCorpus(dcpStrings(arg(1)), str(2)); look {
+			case "true", "false":
+				got = look == "true"
+			default:
+				got = look
+			}
 		default:
 			t.Fatalf("row %d names a function this test does not answer: %q", i, fn)
 		}

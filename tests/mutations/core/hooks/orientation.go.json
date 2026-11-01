@@ -77,6 +77,16 @@
       "from": "\ttemplatesDirectory   = regexp.MustCompile(`^templates$`)",
       "to": "\ttemplatesDirectory   = regexp.MustCompile(`(?i)^templates$`)",
       "only": "^(?:the core names unmarked archives as Node does, folding no letter outside ASCII)$"
+    },
+    {
+      "label": "ADR-137 T4: a backslash in a listed name separates on win32",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\treturn posixListed(rel)",
+      "to": "\t\treturn rel",
+      "only": "^(?:the core answers every per-platform record row as Node does)$"
     }
   ]
 }

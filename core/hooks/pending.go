@@ -18,7 +18,7 @@ func decisionContext(file, root string) string {
 		return ""
 	}
 	listing := trackedPaths(root)
-	if hasDecisionCorpus(listing) == "false" {
+	if hasDecisionCorpus(listing, dcPlatform()) == "false" {
 		return ""
 	}
 	return decisionReaderWithin(decisionReaderBudget, func() string { return dcDecisionContext(file, root, listing) })

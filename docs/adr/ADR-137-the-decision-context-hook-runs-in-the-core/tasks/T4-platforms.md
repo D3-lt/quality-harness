@@ -19,7 +19,11 @@ darwin rows as Node does on this machine.
 | File | Change | Why |
 |------|--------|-----|
 | `core/hooks/decisioncorpus.go` | edit | Platform parameters |
-| `core/hooks/orientation.go` | edit | listedPath takes the platform |
+| `core/hooks/orientation.go` | edit | listedPath and hasDecisionCorpus take the platform |
+| `core/hooks/decisioncorpus_read.go` | edit | dcListedPath folds into listedPath; the running-platform reads that mirror Node's are said to be deliberate |
+| `core/hooks/pending.go` | edit | The gate passes the platform |
+| `core/hooks/decisioncorpus_parity_test.go` | edit | Answers the listedPath and hasDecisionCorpus rows |
+| `tests/mutations/core/hooks/orientation.go.json` | edit | The win32 separator arm is noticed |
 | `tests/decision-context-parity.test.mjs` | edit | win32 and darwin rows: backslash names, case-variant READMEs |
 
 ## Ordered Steps
@@ -52,6 +56,7 @@ node --test tests/decision-context-parity.test.mjs 2>&1 | tee "$out" && grep -q 
 | 4 — used | every platform's hook |
 
 ## Mutation Log
+- 2026-11-01 · f75c3cce0* · mutant killed · exit 1 · `core/hooks/orientation.go` · listedPath's win32 arm dropped: on win32 Node lists docs\adr\ADR-001-x.md as docs/adr/ADR-001-x.md and the core kept the backslashes, so hasDecisionCorpus and the backslash-listed record rows disagree · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe
 
 ## Invariants
 
@@ -70,3 +75,19 @@ Stop if a platform answer cannot be reproduced without the real platform; name i
 - Python's reader.
 
 ## Verification Log
+- 2026-11-01 · f75c3cce0* · exit 1 · `set -o pipefail …` · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe · ms:1136 · test-lock-sha256:395477d5f9c7a71582ae8a1d6b6a34d10acc7a6579c1d01249e88242073960ff · test-lock-file:docs/adr/locks/395477d5f9c7a71582ae8a1d6b6a34d10acc7a6579c1d01249e88242073960ff.lock
+  ```
+  --- last 10 line(s) of stdout (of 75 after folding 77 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: 1,
+      expected: 0,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-01 · f75c3cce0* · exit 0 · `set -o pipefail …` · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe · ms:1631
+- 2026-11-01 · f75c3cce0* · exit 0 · `set -o pipefail …` · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe · ms:1683

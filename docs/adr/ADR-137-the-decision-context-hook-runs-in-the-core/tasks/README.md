@@ -11,7 +11,7 @@ Implementation tasks for ADR-137: The decision-context hook runs in the core.
 | T1 | The core's record rules answer as Node's do | done | none — no spec | `node --test tests/decision-context-parity.test.mjs` |
 | T2 | The core's decision context matches Node's over real corpora | done | none — no spec | `node --test tests/decision-context-replay.test.mjs` |
 | T3 | PreToolUse asks the core, not Node | done | none — no spec | `node --test tests/decision-context-replay.test.mjs tests/native-hooks.test.mjs` |
-| T4 | The core's decision context answers per platform | pending | none — no spec | `node --test tests/decision-context-parity.test.mjs` |
+| T4 | The core's decision context answers per platform | done | none — no spec | `node --test tests/decision-context-parity.test.mjs` |
 
 ## Contract Coupling
 

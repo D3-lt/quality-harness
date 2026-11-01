@@ -6,6 +6,9 @@
 // adrNumber, the ADR_FILE name arm) are reached through adrCorpus over a scratch corpus with an injected listing, so no git
 // runs. The Go test (TestDecisionCorpusParity in core/hooks/decisioncorpus_parity_test.go) answers each row and says how many
 // it compared. Nothing is stored: both implementations run live. Skipped, with the reason, where `go` is not on PATH.
+// ADR-137 T4 adds the rows whose answer depends on the platform, with the platform passed in on both sides: listedPath,
+// hasDecisionCorpus and adrCorpus over listings with backslash names, case-variant archive READMEs, a record directory reached
+// through a link, and a listed spelling whose case differs from the disk's.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -16,9 +19,10 @@ import { fileURLToPath } from 'node:url'
 import { remove } from './helpers/remove.mjs'
 import { required } from './helpers/require.mjs'
 import {
-  adrCorpus, corpusEligible, declaredEnforcement, gfmTableRows, nameArmSpelling, pathMatchesDeclaration, RECORD_DIRECTORY,
+  adrCorpus, corpusEligible, declaredEnforcement, gfmTableRows, listedPath, nameArmSpelling, pathMatchesDeclaration, RECORD_DIRECTORY,
   recognisedAsRecord, recordId, recordStatus, recordStatusKind, referencesIn, screenAdmits, titleLine,
 } from '../plugin/scripts/decision-corpus.mjs'
+import { hasDecisionCorpus } from '../plugin/scripts/session-orientation.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
@@ -305,9 +309,10 @@ const catalogCases = [
 const catalogRow = (link, effect, title = 'X') => `| [ADR-001](${link}) | ${title} | ${effect} | 2026-10-07 |`
 const archiveRecord = '# ADR-001: Archived\n\n**Status:** Accepted\n**Governs:** `src/a.js`\n\n## Decision\n\nx\n'
 
-// `tasks` is for the Go side, which is handed the task files a record owns; adrCorpus finds them itself.
-function corpusAnswer(root, file, tasks, tracked) {
-  const corpus = adrCorpus(root, { tracked })
+// `tasks` is for the Go side, which is handed the task files a record owns; adrCorpus finds them itself. `platform` is passed
+// to adrCorpus as the Go side is handed it (process.platform on every T1 row).
+function corpusAnswer(root, file, tasks, tracked, platform) {
+  const corpus = adrCorpus(root, { tracked, platform })
   const record = corpus.find(entry => entry.file === file)
   if (record) {
     return {
@@ -517,5 +522,87 @@ test('the core answers every record-rule row as the Node reader does', { skip: n
   const said = `${ran.stdout}\n${ran.stderr}`
   assert.equal(ran.status, 0, `the Go record rules disagree with the Node ones (or did not run):\n${said.split('\n').slice(-80).join('\n')}`)
   // A Go test that skipped, or matched nothing, exits 0 too: the count it compared is what says it ran, over every row.
+  assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
+})
+
+// ADR-137 T4: the platform as a parameter. Node takes it in listedPath, hasDecisionCorpus and adrCorpus (which hands it to
+// listedPath only); its separatorsOf(process.platform) at decision-corpus.mjs:1372, directoriesOf's default at :1383,
+// recognisedAsRecord's default at :1577 and relativeWithinRoot's case fold at :1836 read the running platform, so on this
+// machine they answer as this platform does whatever is passed, on both sides. Realpath case is the filesystem's, not a
+// parameter: the case-variant spelling row is answered by this machine's disk on both sides, never faked.
+const PLATFORMS = ['win32', 'darwin', 'linux']
+const listedNames = [
+  'docs/adr/ADR-001-x.md', 'docs\\adr\\ADR-001-x.md', 'docs\\adr/ADR-001-x.md', 'adr\\x.md', 'specs\\', '\\docs\\adr', 'x\\y\\z',
+  'docs\\\\adr', 'x.md', '',
+]
+const corpusListings = [
+  ['docs\\adr\\ADR-001-x.md'], ['docs/adr/ADR-001-x.md'], ['src\\docs\\adr\\x.md'], ['README.md', 'adr\\x.md'], ['docs\\decisions'],
+  ['specs\\a\\b.md'], ['docs\\adrs\\x.md'], ['docs\\specs'], [],
+]
+
+function platformCorpusRows(scratch) {
+  const rows = []
+  const add = (files, subject, ...listings) => {
+    const root = layOut(scratch, files)
+    if (!root) return
+    const file = path.join(root, ...subject.split('/'))
+    for (const tracked of listings) {
+      for (const platform of PLATFORMS) rows.push(run('corpusRecord', corpusAnswer, root, file, [], tracked, platform))
+    }
+  }
+  const governing = recordWith('**Governs:** `src/a.js`')
+  const record = [{ path: 'docs/adr/ADR-001-x.md', text: governing }, { path: 'src/a.js', text: 'x\n' }]
+  // A record and the file it governs, listed with backslashes, with mixed separators, and with `/`.
+  add(record, 'docs/adr/ADR-001-x.md', ['docs\\adr\\ADR-001-x.md', 'src\\a.js'], ['docs\\adr/ADR-001-x.md', 'src/a.js'],
+    ['docs/adr/ADR-001-x.md', 'src/a.js'])
+  // A record directory that exists only once a backslash separates, and a screen-only record behind one.
+  add([{ path: 'notes/decisions/x.md', text: governing }], 'notes/decisions/x.md', ['notes\\decisions\\x.md'], ['notes/decisions/x.md'])
+  add([{ path: 'notes/zz.md', text: governing }], 'notes/zz.md', ['notes\\zz.md'], ['notes/zz.md'])
+  // A root-level file whose one NAME holds backslashes: it can be made only where a backslash is not a separator.
+  if (!onWindows) add([{ path: 'docs\\adr\\ADR-002-y.md', text: governing }], 'docs\\adr\\ADR-002-y.md', ['docs\\adr\\ADR-002-y.md'])
+  // Case-variant archive READMEs: exactly `README.md`, one other spelling (marked), and two spellings at once, each listed
+  // with `/` and with backslashes.
+  for (const [readme, spellings] of [['README.md', ['README.md']], ['readme.md', ['readme.md']], ['Readme.md', ['Readme.md', 'README.md']]]) {
+    const files = [{ path: 'docs/adr-archive/ADR-001-x.md', text: archiveRecord }, { path: 'src/a.js', text: 'x\n' },
+      { path: `docs/adr-archive/${readme}`, text: [...catalogHeader, catalogRow('ADR-001-x.md', 'withdrawn'), ''].join('\n') }]
+    const listed = ['docs/adr-archive/ADR-001-x.md', ...spellings.map(name => `docs/adr-archive/${name}`), 'src/a.js']
+    add(files, 'docs/adr-archive/ADR-001-x.md', listed, listed.map(rel => rel.replaceAll('/', '\\')))
+  }
+  // A record directory reached through a link (its real path is asked), listed with `/` and with backslashes.
+  add([{ path: 'decisions/x.md', text: governing }, { path: 'notes/link', link: path.join('..', 'decisions') }], 'notes/link/x.md',
+    ['notes/link/x.md'], ['notes\\link\\x.md'])
+  // A listed spelling whose case differs from the disk's: one file where the filesystem folds case, none where it does not.
+  add(record, 'Docs/ADR/ADR-001-x.md', ['Docs/ADR/ADR-001-x.md'], ['Docs\\ADR\\ADR-001-x.md'])
+  return rows
+}
+
+test('the core answers every per-platform record row as Node does', { skip: noGo }, t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-dcplatform-'))
+  t.after(() => remove(scratch))
+  const rows = []
+  for (const name of listedNames) for (const platform of PLATFORMS) rows.push(run('listedPath', listedPath, name, platform))
+  for (const listing of corpusListings) {
+    for (const platform of PLATFORMS) rows.push(run('hasDecisionCorpus', hasDecisionCorpus, scratch, listing, platform))
+  }
+  rows.push(...platformCorpusRows(scratch))
+  // The platform decides some answers, or these rows test nothing about it.
+  for (const fn of ['listedPath', 'hasDecisionCorpus', 'corpusRecord']) {
+    const byRow = new Map()
+    for (const row of rows.filter(r => r.fn === fn)) {
+      const key = JSON.stringify(row.args.filter(arg => !PLATFORMS.includes(arg)))
+      byRow.set(key, new Set([...(byRow.get(key) ?? []), JSON.stringify(row.want)]))
+    }
+    assert.ok([...byRow.values()].some(answers => answers.size > 1), `no ${fn} row answers differently on win32 and elsewhere`)
+  }
+  for (const where of ['record', 'unreadable', null]) {
+    assert.ok(rows.some(r => r.fn === 'corpusRecord' && r.want.in === where), `no per-platform corpus row lands in ${where}`)
+  }
+  const corpus = path.join(scratch, 'platform.json')
+  writeFileSync(corpus, JSON.stringify({ rows }))
+  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestDecisionCorpusParity$', './hooks/'], {
+    cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true, env: { ...process.env, QH_DECISION_CORPUS_ROWS: corpus },
+  })
+  const said = `${ran.stdout}\n${ran.stderr}`
+  assert.equal(ran.status, 0, `the core's per-platform answers disagree with Node's (or did not run):\n${said.split('\n').slice(-80).join('\n')}`)
   assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
 })

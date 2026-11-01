@@ -37,14 +37,6 @@ func dcPlatform() string {
 	return runtime.GOOS
 }
 
-// dcListedPath is listedPath with the platform a parameter: a backslash separates only on Windows.
-func dcListedPath(rel, platform string) string {
-	if platform == "win32" {
-		return posixListed(rel)
-	}
-	return rel
-}
-
 // dcErrorCode is the code Node gives a failed file call, `unreadable` where it gives none.
 func dcErrorCode(err error) string {
 	var errno syscall.Errno
@@ -312,6 +304,8 @@ func dcAnyRecordDirectory(parts []string) bool {
 func dcRecordFilesFromListing(root string, tracked []string, screenBudget int, platform string) dcDiscovery {
 	d := dcDiscovery{byName: map[string]bool{}}
 	realRoot, rootErr := dcRealpath(root)
+	// The running platform, not the parameter: decision-corpus.mjs:1372 splits a placed path with separatorsOf(process.platform)
+	// whatever platform recordFilesFromListing was handed, and this mirrors that quirk exactly (ADR-137 T4).
 	splitPlaced := func(placed string) []string {
 		if dcPlatform() == "win32" {
 			return dcSplitSlashes(placed)
@@ -344,11 +338,12 @@ func dcRecordFilesFromListing(root string, tracked []string, screenBudget int, p
 			return false
 		}
 		placed, ok := dcInside(realRoot, real)
+		// The running platform, as decision-corpus.mjs:1383's directoriesOf(placed) takes it by default (ADR-137 T4).
 		return ok && dcAnyRecordDirectory(dcDirectoriesOf(placed, dcPlatform()))
 	}
 	budget := screenBudget
 	for _, rel := range tracked {
-		norm := dcListedPath(rel, platform)
+		norm := listedPath(rel, platform)
 		if !dcCorpusEligible(norm) {
 			continue
 		}
@@ -720,6 +715,8 @@ func dcAdrCorpus(root string, tracked []string, screenBudget int, platform strin
 			partial(dcUnreadable{file: file, reason: "it holds a NUL byte, so it is not text this reader can read"})
 			continue
 		}
+		// The running platform, not adrCorpus's parameter: decision-corpus.mjs:1577 calls recognisedAsRecord(root, file, text)
+		// and its platform defaults to process.platform; mirrored exactly (ADR-137 T4).
 		if !dcRecognisedAsRecord(root, file, text, dcPlatform()).recognised {
 			continue
 		}

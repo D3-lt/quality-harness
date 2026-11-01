@@ -30,10 +30,12 @@ func pluginRoot() string {
 
 var corpusDirNames = []string{"docs/adr", "docs/specs", "docs/decisions", "adr", "specs"}
 
-// listedPath is a path as git listed it, in `/` form.
-func listedPath(rel string) string {
-	if runtime.GOOS == "windows" {
-		return strings.ReplaceAll(rel, `\`, "/")
+// listedPath is a path as git listed it, in `/` form: decision-corpus.mjs's listedPath(rel, platform), with the platform a
+// parameter as it is there, so both arms are tested on every machine (CLAUDE.md §7). Git lists `/` everywhere, so a backslash
+// separates directories only on Windows; elsewhere it is part of one name.
+func listedPath(rel, platform string) string {
+	if platform == "win32" {
+		return posixListed(rel)
 	}
 	return rel
 }
@@ -59,13 +61,14 @@ func trackedPaths(root string) []string {
 	return found
 }
 
-// hasDecisionCorpus: "UNPROVEN" when the listing could not be taken, else "true" or "false".
-func hasDecisionCorpus(listing []string) string {
+// hasDecisionCorpus is session-orientation.mjs's: "UNPROVEN" when the listing could not be taken, else "true" or "false", with
+// the platform a parameter as it is there.
+func hasDecisionCorpus(listing []string, platform string) string {
 	if listing == nil {
 		return "UNPROVEN"
 	}
 	for _, rel := range listing {
-		norm := listedPath(rel)
+		norm := listedPath(rel, platform)
 		for _, dir := range corpusDirNames {
 			if norm == dir || strings.HasPrefix(norm, dir+"/") {
 				return "true"
@@ -458,7 +461,7 @@ func sessionOrientation(cwd string, say func(text, root string) bool, mark bool)
 	}
 	corpusLook := "false"
 	if inside {
-		corpusLook = hasDecisionCorpus(listing)
+		corpusLook = hasDecisionCorpus(listing, dcPlatform())
 	}
 	if corpusLook == "true" {
 		for _, archive := range unmarkedArchives(root, listing) {

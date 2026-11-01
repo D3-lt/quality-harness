@@ -14,6 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { canonicalFile } from '../plugin/scripts/event-log.mjs'
 import { remove } from './helpers/remove.mjs'
 import { sourceCore } from './helpers/source-core.mjs'
 
@@ -152,6 +153,10 @@ function gone(pid) {
 }
 
 const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// The path form both runners hand bash: on Windows the payload's paths are rewritten to `C:/…` (run-shell-hook.mjs:16-45), so
+// what a gate prints names them that way. Expectations written with the OS path failed on CI's Windows job while both runners
+// agreed (land/5ee65f96, 2026-11-01).
+const asBash = p => (process.platform === 'win32' ? p.replaceAll('\\', '/') : p)
 
 test('the native shell hook says what the Node runner says in every scenario', async t => {
   const f = fixture(t)
@@ -167,7 +172,7 @@ test('the native shell hook says what the Node runner says in every scenario', a
     assert.deepEqual(Object.keys(said.hookSpecificOutput), ['hookEventName', 'additionalContext'])
     assert.equal(said.hookSpecificOutput.hookEventName, 'PostToolUse')
     const context = said.hookSpecificOutput.additionalContext
-    assert.match(context, new RegExp(`^post-edit-check Edit\\|${escapeRegExp(file)}\\|shn-1\\n`), 'arguments and session reach the gate')
+    assert.match(context, new RegExp(`^post-edit-check Edit\\|${escapeRegExp(asBash(file))}\\|shn-1\\n`), 'arguments and session reach the gate')
     assert.match(context, /ls \u2028 end\nstdin \{"hook_event_name":"PostToolUse"/, 'the payload reaches its stdin')
     assert.ok(context.endsWith('}'), 'the report is trimmed')
     assert.equal(node.text.stderr, '')
@@ -175,7 +180,7 @@ test('the native shell hook says what the Node runner says in every scenario', a
 
   await t.test('what a gate prints outside PostToolUse is passed on as it came', () => {
     const { node } = both(f, 'unwrapped', SCRIPT, { tool_name: 'Write', tool_input: { file_path: file } }, { env: { STUB_MODE: 'print' } })
-    assert.match(node.text.stdout, new RegExp(`^post-edit-check Write\\|${escapeRegExp(file)}\\|\\n`))
+    assert.match(node.text.stdout, new RegExp(`^post-edit-check Write\\|${escapeRegExp(asBash(file))}\\|\\n`))
     assert.ok(node.text.stdout.endsWith('\n\n  \n'))
   })
 
@@ -195,7 +200,7 @@ test('the native shell hook says what the Node runner says in every scenario', a
     await t.test(`a timeout ends the gate's whole tree (${mode})`, () => {
       const runs = both(f, mode, SCRIPT, edit, { env: { STUB_MODE: mode, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(TIMEOUT_MS) } })
       assert.equal(runs.node.status, 0)
-      assert.match(runs.node.text.stderr, new RegExp(`quality-harness: post-edit-check\\.sh timed out after ${TIMEOUT_MS}ms, so the gates have no verdict on ${escapeRegExp(file)}\\. Nothing is blocked\\.\\n$`))
+      assert.match(runs.node.text.stderr, new RegExp(`quality-harness: post-edit-check\\.sh timed out after ${TIMEOUT_MS}ms, so the gates have no verdict on ${escapeRegExp(asBash(file))}\\. Nothing is blocked\\.\\n$`))
       for (const impl of ['node', 'native']) {
         assert.ok(runs[impl].ms < HANG_GUARD_MS, `${impl} returned in ${runs[impl].ms} ms, past its ${HANG_GUARD_MS} ms hang guard`)
         const pid = Number(readFileSync(f.pidFile(impl), 'utf8'))
@@ -264,13 +269,14 @@ test('the native edit gate records what the Node one records', async t => {
   const gate = (name, payload, mode) => both(f, name, 'facts-gate-dispatch.sh', payload, { env: { STUB_MODE: mode, STUB_MARK: mark }, reset, observe })
   const edit = (file, extra = {}) => ({ hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-gate', cwd: f.project, tool_input: { file_path: file }, ...extra })
   const blob = createHash('sha256').update(ORIGINAL).digest('hex')
-  const row = (file, complete) => `{"at":"AT","event":"artifact.gated","path":${JSON.stringify(path.join(realpathSync(path.dirname(file)), path.basename(file)))},"blob":"${blob}","complete":${complete}}\n`
+  // The row's key is Node's canonical form: realpathSync keeps a Windows 8.3 name (RUNNER~1) that canonicalFile expands.
+  const row = (file, complete) => `{"at":"AT","event":"artifact.gated","path":${JSON.stringify(canonicalFile(file))},"blob":"${blob}","complete":${complete}}\n`
 
   await t.test('a passing gate over a file it left alone is recorded complete', () => {
     const { node } = gate('tracked', edit(record), 'print')
     assert.equal(node.status, 0)
-    assert.equal(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, `facts-gate ${record}|PostToolUse`)
-    assert.deepEqual(node.observed, { ran: `${record}|PostToolUse\n`, logs: { 'shn-gate.jsonl': row(record, true) } })
+    assert.equal(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, `facts-gate ${asBash(record)}|PostToolUse`)
+    assert.deepEqual(node.observed, { ran: `${asBash(record)}|PostToolUse\n`, logs: { 'shn-gate.jsonl': row(record, true) } })
   })
 
   await t.test('a file edited while its gate ran is recorded incomplete, under the bytes the gate read', () => {
@@ -286,12 +292,12 @@ test('the native edit gate records what the Node one records', async t => {
 
   await t.test('no session_id, no row', () => {
     const { node } = gate('no session', edit(record, { session_id: undefined }), 'print')
-    assert.deepEqual(node.observed, { ran: `${record}|PostToolUse\n`, logs: {} })
+    assert.deepEqual(node.observed, { ran: `${asBash(record)}|PostToolUse\n`, logs: {} })
   })
 
   await t.test('no cwd, no row', () => {
     const { node } = gate('no cwd', edit(record, { cwd: undefined }), 'print')
-    assert.deepEqual(node.observed, { ran: `${record}|PostToolUse\n`, logs: {} })
+    assert.deepEqual(node.observed, { ran: `${asBash(record)}|PostToolUse\n`, logs: {} })
   })
 
   await t.test('a failing gate is recorded incomplete', () => {

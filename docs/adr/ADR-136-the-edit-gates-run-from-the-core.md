@@ -111,6 +111,12 @@ the Windows translation is tested only on Windows (`TestShellHookWindowsSpawnCod
 codes libuv names for a failed spawn of a resolved bash; any other error keeps Go's text, a limit stated here rather than a
 code guessed.
 
+CI's Windows job on land/5ee65f96 failed eleven subtests of tests/shell-hook-native.test.mjs while both runners agreed in
+every one (each `both()` comparison passed first): the test's own expectations used the OS path, where both runners hand
+bash the payload's paths as `C:/…` on Windows, and built the event row's key with realpathSync, which keeps an 8.3 name
+(RUNNER~1) that Node's canonicalFile, and the core's, expands. The expectations now use that path form and canonicalFile;
+T2 to T4 were relocked with `--replace-hashes` for the edited bodies. No product code changed for it.
+
 ## Consequences
 
 Two Node starts leave every edit. The costs: two runners exist until the batch is ported, held together by the parity test;

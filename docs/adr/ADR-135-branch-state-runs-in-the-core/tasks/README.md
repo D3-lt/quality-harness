@@ -10,7 +10,7 @@ Implementation tasks for ADR-135: Branch state runs in the core.
 |----|-------|--------|--------|------------|
 | T1 | The core's pure branch-state functions answer as Node's do | done | none — no spec | `node --test tests/branch-state-parity.test.mjs` |
 | T2 | The core collects the git, release and CI halves under one budget | done | none — no spec | `go test ./hooks -run BranchStateCollect` |
-| T3 | The core serves, suppresses and refreshes branch state inline | pending | none — no spec | `node --test tests/branch-state-native.test.mjs` |
+| T3 | The core serves, suppresses and refreshes branch state inline | done | none — no spec | `node --test tests/branch-state-native.test.mjs` |
 | T4 | The hooks call the core's branch state | pending | none — no spec | `node --test tests/branch-state-native.test.mjs tests/qh-launcher.test.mjs` |
 
 ## Contract Coupling

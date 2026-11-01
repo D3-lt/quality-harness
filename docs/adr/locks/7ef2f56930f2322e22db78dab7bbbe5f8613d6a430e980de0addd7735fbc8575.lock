@@ -1,0 +1,14 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/branch-state-native.test.mjs	a corrupt or future-dated snapshot is refreshed	f105b9fea7b717b815d3692060400e8b716ac5ed6a12355de37e117d85e8a6c4
+body	tests/branch-state-native.test.mjs	a due snapshot whose HEAD moved says so (Decision 2 path)	aae47c5a1aecb00fc1a84334e9d0ad816b9e269013337dca6e49f437adc78ec8
+body	tests/branch-state-native.test.mjs	a fresh hit is said, an unchanged or dirty-count-only one is not	8a06a34e66bd1e9c3e3bc5b689810a49e2f298b2cbaad16d45f2c5f7916fcacd
+body	tests/branch-state-native.test.mjs	a git discovery override is asked of git, not of the files	168d458567de3fa0ffe63bab9a65b57565f3ee2d4c7f5cf73bb1e009fa935bbf
+body	tests/branch-state-native.test.mjs	a missing snapshot is collected, written, then served	b8d6345de4da1b17d8e662811bd1b65ed498f648427ea124cdc4c5e6c61dd364
+body	tests/branch-state-native.test.mjs	a red run is said in full, then as the one unchanged line	c5da28490d4ed879ec2101219ce2fe1d76ae842ab842d09473fc4c4fff72a6d0
+body	tests/branch-state-native.test.mjs	a stale cache past the budget is served marked stale and nothing outlives the hook	c3cf75e914fb9ed9514359aac979b7acf222c7122e391d5c491159cdf29aff92
+body	tests/branch-state-native.test.mjs	an unknown is said once, then as the head and one word	c9d1fbba3ce031d23a87a23fa68c3d711ab1b196a90f43ba0bfb2110a4d3876c
+body	tests/branch-state-native.test.mjs	no GitHub remote is said once per session	6160dfb48d3a0b9c0a79385b82100cd56ce49baef5edfa57d3a793b79ff5ecdd
+body	tests/branch-state-native.test.mjs	the full report is collected	e695e5398ea3c4a856545803cc93cdd07d8f9e2b4410728031b7d61c445b353a
+body	tests/branch-state-native.test.mjs	the native branch state says what the Node one says in every locked scenario	673a06cfc89982d9d0caa2e5340e85515e1985c66f484aa7add4ad8d74b20ca4
+body	tests/branch-state-native.test.mjs	the payload's cwd is the session's directory	4f37cdf2265bc06e7e29a07423dcc28e09c2bf5fc555d2af026f0e1424d50181
+body	tests/branch-state-native.test.mjs	the session's own commit is not news	ff6b3581e887253a6ddf52dbdd7040e2243c1537571f1219e62b8b45fad060fa

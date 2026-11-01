@@ -284,7 +284,12 @@ func readEvents(cwd string, session any) Log {
 	if !ok || id == "" {
 		return Log{E: []any{}, Complete: true}
 	}
-	text, err := os.ReadFile(sessionLogFile(cwd, id))
+	return readEventLog(sessionLogFile(cwd, id))
+}
+
+// readEventLog reads one session log file, as readEvents does.
+func readEventLog(file string) Log {
+	text, err := os.ReadFile(file)
 	if err != nil {
 		return Log{E: []any{}, Complete: errors.Is(err, fs.ErrNotExist)}
 	}

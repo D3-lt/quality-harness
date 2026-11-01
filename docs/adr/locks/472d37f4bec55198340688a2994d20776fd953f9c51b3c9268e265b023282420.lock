@@ -1,0 +1,9 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/shell-hook-native.test.mjs	a gate killed by a signal is unchecked, not clean	5f40bd853b8bfe79ba912ae3f7e8c916a0ab222a5f64c2088be6c26a0c8ed975
+body	tests/shell-hook-native.test.mjs	a gate that exits non-zero is reported and blocks nothing	6df16a21d3a134cc4ce62bdd9a8c7d143753d3c4f1e07b5a136f0a9a5d35bef4
+body	tests/shell-hook-native.test.mjs	a passing gate that prints is handed to the agent as additionalContext	8336345b2db3b9876ac155ca93e8db1e68f34bc6abc8280894c2f7ff3d795b4c
+body	tests/shell-hook-native.test.mjs	a passing gate that prints nothing says nothing	2716d50ed9b6d430efb8d75edc00d6b196e633435c5a839b4ebfb4cf31e89a78
+body	tests/shell-hook-native.test.mjs	an MSYS crash banner outranks the exit code	50449a0f4077158eb4d2a63e3307986ade7d85fc3fc610ff0b58755494dfb06c
+body	tests/shell-hook-native.test.mjs	an unknown script is refused with exit 2	7f0cf8910cb69ecc6047af2b16449795d7a9f2c462f87c200398df31c671345a
+body	tests/shell-hook-native.test.mjs	the native shell hook says what the Node runner says in every scenario	4ac755f08ed452c24d5d09179f1eaa18568fb082d7db9bc2a14bc1c310e219cc
+body	tests/shell-hook-native.test.mjs	what a gate prints outside PostToolUse is passed on as it came	4ea3caa81ae1bbed3b2f97c53383a6e0157a4c3939aea6317f116220a208b88a

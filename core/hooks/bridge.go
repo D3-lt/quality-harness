@@ -16,6 +16,10 @@ func RunBridge(tool string, args []string) int {
 		// ADR-135: branch state is answered by the core; plugin/scripts/branch-state.mjs remains the hand-run CLI.
 		return RunBranchState(args, os.Stdin, os.Stdout)
 	case "shell-hook":
+		// ADR-136: a registered edit gate is answered by the core under QH_SHELL_HOOK_NATIVE=1; the rest stays Node.
+		if shkNative(args) {
+			return RunShellHookNative(args[0], os.Stdin, os.Stdout, os.Stderr)
+		}
 		script = "run-shell-hook.mjs"
 	default:
 		fmt.Fprintln(os.Stderr, "qh: unknown hook CLI")

@@ -55,6 +55,8 @@ node --test tests/shell-hook-native.test.mjs 2>&1 | tee "$out" && grep -q '✔ t
 | 4 — used | T4 |
 
 ## Mutation Log
+- 2026-11-01 · fe982baf* · mutant killed · exit 1 · `core/hooks/shellhook_run.go` · mutate.mjs --case ADR-136 T2 measured RED: with the gate left in qh's own process group the timeout scenario (hang) failed, the grandchild outliving the deadline · acceptance-sha256:378900aa416332584068a9f0e6704e4e730a8a626aee543a15e9ae5f92e0cbb0
+- 2026-11-01 · fe982baf* · mutant killed · exit 1 · `core/hooks/shellhook_run.go` · mutate.mjs --case ADR-136 T2 measured RED: wrapping a non-zero exit's stdout as additionalContext failed the non-zero-exit and signal scenarios against Node's bytes · acceptance-sha256:378900aa416332584068a9f0e6704e4e730a8a626aee543a15e9ae5f92e0cbb0
 
 ## Invariants
 
@@ -73,3 +75,20 @@ Stop if a scenario cannot be compared without editing a locked test.
 - The facts gate's event row (T3).
 
 ## Verification Log
+- 2026-11-01 · fe982baf* · exit 1 · `set -o pipefail …` · acceptance-sha256:378900aa416332584068a9f0e6704e4e730a8a626aee543a15e9ae5f92e0cbb0 · ms:2118 · test-lock-sha256:472d37f4bec55198340688a2994d20776fd953f9c51b3c9268e265b023282420 · test-lock-file:docs/adr/locks/472d37f4bec55198340688a2994d20776fd953f9c51b3c9268e265b023282420.lock
+  ```
+  --- last 10 line(s) of stdout (of 278 after folding 278 raw)
+        at TestContext.<anonymous> (file://~/CursorProjects/qh-adr136/tests/shell-hook-native.test.mjs:205:11)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: { status: 1, stdout: '', stderr: 'qh: could not run the hook CLI: exec: "node": executable file not found in $PATH\n' },
+      expected: { status: 0, stdout: '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"partial"}}', stderr: '      2 [main] bash (46688) C:\\Program Files\\Git\\bin\\bash.exe: *** fatal error - add_item ("\\??\\C:\\Program Files\\Git", "/", ...) failed, errno 1\nquality-harness: the shell running post-edit-check.sh aborted before the gate could report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n' },
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-01 · fe982baf* · exit 0 · `set -o pipefail …` · acceptance-sha256:378900aa416332584068a9f0e6704e4e730a8a626aee543a15e9ae5f92e0cbb0 · ms:3214
+- 2026-11-01 · fe982baf* · exit 0 · `set -o pipefail …` · acceptance-sha256:378900aa416332584068a9f0e6704e4e730a8a626aee543a15e9ae5f92e0cbb0 · ms:3346
+- 2026-11-01 · fe982baf* · exit 0 · `set -o pipefail …` · acceptance-sha256:378900aa416332584068a9f0e6704e4e730a8a626aee543a15e9ae5f92e0cbb0 · ms:3359

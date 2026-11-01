@@ -1,0 +1,260 @@
+// ADR-136 T2: the core runs a registered shell hook as plugin/scripts/run-shell-hook.mjs's runShellHook does: the same bash, the
+// same arguments, stdin and environment, the same timeout, and what it prints (the PostToolUse additionalContext wrapping, the
+// failure messages) and exits. tests/shell-hook-native.test.mjs runs every scenario through both runners. Until ADR-136 T4 the
+// core answers only under QH_SHELL_HOOK_NATIVE=1.
+package hooks
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strconv"
+	"sync"
+	"time"
+)
+
+// shkCleanupGrace is CLEANUP_GRACE_MS: after the deadline's kill, how long the runner waits for the child's pipes to close
+// before it settles anyway, with the cleanup unconfirmed.
+const shkCleanupGrace = time.Second
+
+// shkNative is whether `qh bridge shell-hook <args>` is answered by the core. Any other call (the artifact pass's `--batch`, an
+// unregistered name) still runs the Node runner (ADR-136 Decision 2), which also owns the unknown-script refusal.
+func shkNative(args []string) bool {
+	return os.Getenv("QH_SHELL_HOOK_NATIVE") == "1" && len(args) >= 1 && args[0] == "post-edit-check.sh"
+}
+
+// shkPlatform is process.platform for the questions the helpers ask.
+func shkPlatform() string {
+	if runtime.GOOS == "windows" {
+		return "win32"
+	}
+	return runtime.GOOS
+}
+
+// shkResult is what runWithTimeout settles with, for a direct hook: no output limit.
+type shkResult struct {
+	status             int    // -1 when the child gave no exit status
+	signal             string // the signal that killed the child, as Node names it
+	stdout, stderr     string
+	err                error // the child could not be started
+	timedOut           bool
+	cleanupUnconfirmed bool // the deadline's kill was not followed by the child's close within the grace
+}
+
+// shkRun is runWithTimeout: the child in a tree of its own, its stdin written and closed, and at the deadline the whole tree
+// ended and the child given shkCleanupGrace to close. The child's output pipes are the runner's own, not exec's copy goroutines,
+// because Node waits for `close` (exit and every pipe shut) until the deadline, where Cmd.Wait gives a pipe a grandchild keeps
+// open only its WaitDelay counted from the child's exit.
+func shkRun(executable string, args []string, input string, timeout time.Duration, env []string) shkResult {
+	res := shkResult{status: -1}
+	var files []*os.File
+	pipe := func() (*os.File, *os.File) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			res.err = errors.Join(res.err, err)
+			return nil, nil
+		}
+		files = append(files, r, w)
+		return r, w
+	}
+	inR, inW := pipe()
+	outR, outW := pipe()
+	errR, errW := pipe()
+	if res.err != nil {
+		for _, f := range files {
+			f.Close()
+		}
+		return res
+	}
+	cmd := exec.Command(executable, args...)
+	cmd.Env = env
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = inR, outW, errW
+	hideWindow(cmd)
+	shkOwnTree(cmd)
+	err := cmd.Start()
+	inR.Close()
+	outW.Close()
+	errW.Close()
+	if err != nil {
+		inW.Close()
+		outR.Close()
+		errR.Close()
+		res.err = err
+		return res
+	}
+	go func() {
+		_, _ = io.WriteString(inW, input)
+		inW.Close()
+	}()
+	var mu sync.Mutex
+	var out, errOut bytes.Buffer
+	var readers sync.WaitGroup
+	capture := func(dst *bytes.Buffer, src *os.File) {
+		defer readers.Done()
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := src.Read(buf)
+			if n > 0 {
+				mu.Lock()
+				dst.Write(buf[:n])
+				mu.Unlock()
+			}
+			if err != nil {
+				return
+			}
+		}
+	}
+	readers.Add(2)
+	go capture(&out, outR)
+	go capture(&errOut, errR)
+	var waitErr error
+	closed := make(chan struct{})
+	go func() {
+		waitErr = cmd.Wait()
+		readers.Wait()
+		close(closed)
+	}()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	select {
+	case <-closed:
+	case <-deadline.C:
+		res.timedOut = true
+		shkEndTree(cmd)
+		grace := time.NewTimer(shkCleanupGrace)
+		defer grace.Stop()
+		select {
+		case <-closed:
+		case <-grace.C:
+			// Settle with the truth, as Node's grace does: no status, and the pipes let go.
+			res.cleanupUnconfirmed = true
+		}
+	}
+	outR.Close()
+	errR.Close()
+	mu.Lock()
+	res.stdout, res.stderr = out.String(), errOut.String()
+	mu.Unlock()
+	if res.cleanupUnconfirmed {
+		return res
+	}
+	var exitErr *exec.ExitError
+	switch {
+	case errors.As(waitErr, &exitErr):
+		res.status = exitErr.ExitCode()
+		res.signal = shkSignalName(exitErr.ProcessState)
+	case waitErr != nil:
+		res.err = waitErr
+	default:
+		res.status = 0
+	}
+	return res
+}
+
+// shkSpawnMessage is the message of Node's spawn error for the same failure.
+func shkSpawnMessage(executable string, err error) string {
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) {
+		return "spawn " + executable + " ENOENT"
+	}
+	return "spawn " + executable + " " + err.Error()
+}
+
+var shkUnproven = regexp.MustCompile(`\b(?:UNPROVEN|UNRUN)\b`)
+
+// shkRunShellHook is runShellHook for a direct hook (no batch window, no output limit). readRaw reads the payload, and is called
+// only once bash was found, as Node reads stdin only then. verdict, when not nil, is set to whether the gate reached a verdict
+// about this content (ADR-060 T6): false on every arm that is the harness failing to run.
+func shkRunShellHook(scriptName string, readRaw func() string, stdout, stderr io.Writer, verdict *bool) int {
+	if verdict != nil {
+		*verdict = false
+	}
+	platform := shkPlatform()
+	scriptPath := filepath.Join(pluginRoot(), "scripts", scriptName)
+	if platform == "win32" {
+		scriptPath = shkWindowsPathForBash(scriptPath)
+	}
+	executable, found := shkResolveBash(platform, os.LookupEnv, func(candidate string) bool {
+		_, err := os.Stat(candidate)
+		return err == nil
+	})
+	if !found {
+		io.WriteString(stderr, "quality-harness: Git Bash was not found, so the artifact gates did not "+
+			"run. Set CLAUDE_CODE_GIT_BASH_PATH to Git for Windows bin/bash.exe. Your edit is "+
+			"untouched — this is the harness reporting its own absence.\n")
+		return 0
+	}
+	raw := readRaw()
+	args, err := shkHookArguments(scriptName, raw, platform)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	payload := shkParsedHookPayload(raw, platform)
+	extra := map[string]string{}
+	if session, ok := get(payload, "session_id").(string); ok && session != "" {
+		extra["QUALITY_HARNESS_SESSION_ID"] = session
+	}
+	timeoutMs := shkShellHookTimeoutMs(os.LookupEnv)
+	run := shkRun(executable, append([]string{scriptPath}, args...), shkNormalizeHookPayload(raw, platform),
+		time.Duration(timeoutMs)*time.Millisecond, environ(extra))
+	// A deferral notice or a syntax finding printed on exit-0 stdout reaches nobody at PostToolUse unless it is handed to the
+	// agent as additionalContext (run-shell-hook.mjs:382-402, ADR-102).
+	report := jsTrim(run.stdout)
+	if strOr(get(payload, "hook_event_name")) == "PostToolUse" && run.status == 0 && !run.timedOut && run.err == nil && report != "" {
+		io.WriteString(stdout, stringify(O("hookSpecificOutput", O("hookEventName", "PostToolUse", "additionalContext", report))))
+	} else if run.stdout != "" {
+		io.WriteString(stdout, run.stdout)
+	}
+	if run.stderr != "" {
+		io.WriteString(stderr, run.stderr)
+	}
+	edited, _ := shkHookFilePathFromPayload(raw, platform)
+	thisEdit := edited
+	if thisEdit == "" {
+		thisEdit = "this edit"
+	}
+	if run.cleanupUnconfirmed {
+		io.WriteString(stderr, "\nquality-harness: process cleanup could not be confirmed for "+thisEdit+"; its checker may still be running.\n")
+	}
+	// Everything below is the harness failing to run, not a finding about the edit, and none of it blocks the edit.
+	switch {
+	case run.timedOut:
+		io.WriteString(stderr, "quality-harness: "+scriptName+" timed out after "+strconv.FormatFloat(timeoutMs, 'f', -1, 64)+"ms, so the "+
+			"gates have no verdict on "+thisEdit+". Nothing is blocked.\n")
+	case run.err != nil:
+		io.WriteString(stderr, "quality-harness: could not run "+scriptName+": "+shkSpawnMessage(executable, run.err)+". "+
+			"The gates did not report; nothing is blocked.\n")
+	case shkShellRuntimeCrashed(run.stderr):
+		io.WriteString(stderr, "quality-harness: the shell running "+scriptName+" aborted before the gate "+
+			"could report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n")
+	case run.signal != "":
+		// A child the OS killed made no observation (ADR-005), whatever its cleanup.
+		io.WriteString(stderr, "quality-harness: "+scriptName+" was killed by "+run.signal+" before it could "+
+			"report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n")
+	case run.status != 0 && run.status != -1:
+		io.WriteString(stderr, "quality-harness: "+scriptName+" exited "+strconv.Itoa(run.status)+", which it should "+
+			"never do — the gates report, they do not refuse. Nothing is blocked; please report this.\n")
+	default:
+		// `complete` requires an observed zero exit and no word of the dispatcher's for a gate that could not answer.
+		if verdict != nil {
+			*verdict = run.status == 0 && !shkUnproven.MatchString(run.stderr+run.stdout)
+		}
+	}
+	return 0
+}
+
+// RunShellHookNative answers `qh bridge shell-hook <script>` for a script shkNative accepts.
+func RunShellHookNative(scriptName string, stdin io.Reader, stdout, stderr io.Writer) int {
+	readRaw := func() string {
+		raw, _ := io.ReadAll(stdin)
+		return string(raw)
+	}
+	return shkRunShellHook(scriptName, readRaw, stdout, stderr, nil)
+}

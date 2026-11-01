@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-136 T2: only a gate that exited 0 is handed to the agent as additionalContext",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\tif strOr(get(payload, \"hook_event_name\")) == \"PostToolUse\" && run.status == 0 && !run.timedOut && run.err == nil && report != \"\" {",
+      "to": "\tif strOr(get(payload, \"hook_event_name\")) == \"PostToolUse\" && !run.timedOut && run.err == nil && report != \"\" {",
+      "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    },
+    {
+      "label": "ADR-136 T2: a gate that printed nothing hands the agent nothing",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\tif strOr(get(payload, \"hook_event_name\")) == \"PostToolUse\" && run.status == 0 && !run.timedOut && run.err == nil && report != \"\" {",
+      "to": "\tif strOr(get(payload, \"hook_event_name\")) == \"PostToolUse\" && run.status == 0 && !run.timedOut && run.err == nil {",
+      "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    },
+    {
+      "label": "ADR-136 T2: the timeout message names the timeout in force",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\" timed out after \"+strconv.FormatFloat(timeoutMs, 'f', -1, 64)+\"ms, so the \"",
+      "to": "\" timed out after 110000ms, so the \"",
+      "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    },
+    {
+      "label": "ADR-136 T2: the gate runs in a tree of its own, which the deadline ends",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\tshkOwnTree(cmd)\n",
+      "to": "",
+      "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    },
+    {
+      "label": "ADR-136 T2: the deadline ends the gate's tree",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\t\tshkEndTree(cmd)\n",
+      "to": "",
+      "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    },
+    {
+      "label": "ADR-136 T2: a child killed by a signal is named by it",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\t\tres.signal = shkSignalName(exitErr.ProcessState)\n",
+      "to": "",
+      "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    }
+  ]
+}

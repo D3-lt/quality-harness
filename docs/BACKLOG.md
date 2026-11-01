@@ -4094,3 +4094,11 @@ natively. Parity rows avoid those inputs today. The fix spells the folding and t
 and adds those rows to tests/shell-hook-parity.test.mjs.
 **Fixed 2026-11-01:** `uninterestingDir` is now case-sensitive over an ASCII-lowered name (`asciiLower`) with `.` spelled out;
 the eleven inputs above are rows in tests/shell-hook-parity.test.mjs (red before the fix), and two catalogue mutants are RED.
+
+## 440. OPEN 2026-11-01 — on Windows a timed-out edit gate's tree is not ended, by Node or by the core
+
+Measured on CI's Windows job at land/c5a296af (2026-11-01): in tests/shell-hook-native.test.mjs's hang scenario, a `sleep`
+started by the bash gate outlived the deadline under the Node runner's `taskkill /T /F`, and both runners printed "process
+cleanup could not be confirmed". The core matches Node (ADR-136 Decision 3). The likely cause is that taskkill walks the
+Windows parent links, which MSYS's process starts do not keep for every child. The fix is to start the gate inside a job
+object with kill-on-close, which ends every process it created whatever its parent link; it needs a Windows run to verify.

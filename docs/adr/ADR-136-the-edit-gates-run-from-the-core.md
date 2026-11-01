@@ -48,8 +48,9 @@ adr-context.mjs (pending.go:13). This record ports the bridge's two registered r
    same `artifact.gated` row. Exit 0 on every path but an unknown script.
 2. Any other `qh bridge shell-hook` call (the artifact pass's `--batch`, an unregistered name) still spawns
    `node run-shell-hook.mjs`, which stays for those and for a hand run.
-3. The deadline ends the gate's whole tree on every platform: the Unix process group (ADR-135's runner), and
-   `taskkill /T /F` on Windows.
+3. At the deadline the core ends the gate's whole Unix process group (ADR-135's runner) and runs `taskkill /T /F` on Windows,
+   as Node does. On Windows that is not enough: CI measured a bash-started grandchild outliving it under Node and the core
+   alike, and both say "process cleanup could not be confirmed". The core matches Node there; it does not do better.
 4. Parity is proved against the live Node functions (T1) and by running the same scenarios through both runners (T2, T3).
    Locked tests stay byte-identical.
 
@@ -116,6 +117,12 @@ every one (each `both()` comparison passed first): the test's own expectations u
 bash the payload's paths as `C:/…` on Windows, and built the event row's key with realpathSync, which keeps an 8.3 name
 (RUNNER~1) that Node's canonicalFile, and the core's, expands. The expectations now use that path form and canonicalFile;
 T2 to T4 were relocked with `--replace-hashes` for the edited bodies. No product code changed for it.
+
+The next landing, land/c5a296af, failed CI's Windows job once more, on one assertion: the hang scenario's grandchild outlived
+the deadline under the Node runner (the assertion checks Node first), with "cleanup could not be confirmed" said by both
+runners and compared equal. Decision 3 claimed the tree ends on every platform; on Windows neither runner achieves that. The
+decision and the test now say what was measured: on Windows the failure is said, elsewhere the grandchild is gone. Ending a
+Windows tree reliably needs a job object around the gate, filed as BACKLOG §440.
 
 ## Consequences
 

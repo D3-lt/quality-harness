@@ -106,3 +106,5 @@ Stop if a locked scenario cannot be reproduced against the native command withou
 - 2026-11-01 · 17c620dd* · exit 0 · `set -o pipefail …` · acceptance-sha256:61d85e49ee2922b3d2583574d68472f6d8e837c861551243fd4714c037d2a55d · ms:20014
 - 2026-11-01 · 17c620dd* · exit 0 · `set -o pipefail …` · acceptance-sha256:61d85e49ee2922b3d2583574d68472f6d8e837c861551243fd4714c037d2a55d · ms:20139
 - 2026-11-01 · 17c620dd* · exit 0 · `set -o pipefail …` · acceptance-sha256:61d85e49ee2922b3d2583574d68472f6d8e837c861551243fd4714c037d2a55d · ms:20174
+- 2026-11-01 · 01e54810* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:61d85e49ee2922b3d2583574d68472f6d8e837c861551243fd4714c037d2a55d · ms:0 · test-lock-sha256:7ef2f56930f2322e22db78dab7bbbe5f8613d6a430e980de0addd7735fbc8575 · test-lock-file:docs/adr/locks/7ef2f56930f2322e22db78dab7bbbe5f8613d6a430e980de0addd7735fbc8575.lock · test-lock-kind:replace
+- 2026-11-01 · 01e54810* · exit 0 · `set -o pipefail …` · acceptance-sha256:61d85e49ee2922b3d2583574d68472f6d8e837c861551243fd4714c037d2a55d · ms:20089

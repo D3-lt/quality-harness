@@ -155,7 +155,8 @@ function agree(f, name, play) {
       writeFileSync(f.lock, String(process.pid))
       const ran = f.spawnOne(impl, argv, options)
       assert.equal(ran.status, 0, `${impl}, ${name}: exit ${ran.status}\n${ran.stderr}`)
-      said.push({ out: normalOut(ran.stdout), snapshot: normalSnapshot(f.stored()) })
+      // Stringified, so the snapshot's key order is compared too: Node's statusline reads the file the core writes.
+      said.push({ out: normalOut(ran.stdout), snapshot: JSON.stringify(normalSnapshot(f.stored())) })
       return ran.stdout
     }
     play(run, impl)

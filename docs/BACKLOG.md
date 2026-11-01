@@ -4066,3 +4066,11 @@ Found by the full selftest on 2026-11-01 while ADR-134 was being checked: `tests
 repository's objects, so a 4-character request can print 5. The same test passed 3 of 3 runs alone afterwards. The test is
 locked by ADR-088 T1, so the fix (accept a width of at least `core.abbrev`, or pin objects whose 4-character prefixes are
 unique) needs a relock with `--replace-hashes`. Not caused by ADR-134: adr-verify and the readers are unchanged.
+
+## 438. OPEN 2026-11-01 — Node processes the Go hooks still start, after ADR-135
+
+ADR-135 ports branch-state into the core. Enumerated 2026-11-01 with `git grep -n -E '"node"|\.mjs"' -- 'core/*.go' ':!*_test.go'`,
+the rest of the class stays Node: run-shell-hook.mjs (core/hooks/bridge.go:18, and the artifact pass at artifact.go:82,
+:151, :672), install-notices.mjs (orientation.go:457), publish-hook.mjs (orientation.go:489) and adr-context.mjs --hook
+(pending.go:13). plugin/scripts/statusline.mjs also keeps a Node copy of the branch-state cache key. Each is a candidate
+for its own record, measured by what it costs an adopter's session (CLAUDE.md §19).

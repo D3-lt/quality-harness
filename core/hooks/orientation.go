@@ -81,12 +81,26 @@ var (
 	archiveDirectoryName = regexp.MustCompile(`(?i)(?:^|[-_])archived?s?$|^archives?[-_](?:adrs?|decisions?|records?)$`)
 	recordShaped         = regexp.MustCompile(`(?i)^(?:adr[-_]?\d+|\d{3,4}-|\d{4}-\d{2}-\d{2}-)`)
 	templatesDirectory   = regexp.MustCompile(`(?i)^templates$`)
-	uninterestingDir     = regexp.MustCompile(`(?i)^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata|golden(?:[-_].*)?)$`)
 	markdownFile         = regexp.MustCompile(`(?i)\.md$`)
 	readmeFile           = regexp.MustCompile(`(?i)(?:^|/)readme\.md$`)
 	tasksSegment         = regexp.MustCompile(`(?:^|/)tasks/`)
 	lineBreaks           = regexp.MustCompile(`\r?\n`)
 )
+
+// uninterestingDir is case-sensitive over an ASCII-lowered name, with `.` spelled out: uninteresting.mjs's /i without `u`
+// folds no non-ASCII letter into ASCII (U+017F, U+212A), and its `.` stops at \r, U+2028 and U+2029, where Go's (?i) and `.`
+// did neither (BACKLOG §439).
+var uninterestingDir = regexp.MustCompile(`^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata|golden(?:[-_][^\n\r\x{2028}\x{2029}]*)?)$`)
+
+// asciiLower lowers A to Z only, as JavaScript's case-insensitive match without the `u` flag treats letters.
+func asciiLower(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, s)
+}
 
 var decimalDigitRanges = [][2]rune{
 	{0x30, 0x39}, {0x660, 0x669}, {0x6F0, 0x6F9}, {0x7C0, 0x7C9}, {0x966, 0x96F}, {0x9E6, 0x9EF},
@@ -132,7 +146,7 @@ func specName(name string) bool {
 
 func listedUnderUninterestingDirectory(dirParts []string) bool {
 	for _, part := range dirParts {
-		if uninterestingDir.MatchString(part) {
+		if uninterestingDir.MatchString(asciiLower(part)) {
 			return true
 		}
 	}

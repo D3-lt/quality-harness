@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §439: the uninteresting rule lowers ASCII only, as JavaScript's /i without u does",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\tif uninterestingDir.MatchString(asciiLower(part)) {",
+      "to": "\t\tif uninterestingDir.MatchString(part) {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "BACKLOG §439: the uninteresting rule's golden suffix stops where JavaScript's dot does",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "golden(?:[-_][^\\n\\r\\x{2028}\\x{2029}]*)?)$`)",
+      "to": "golden(?:[-_].*)?)$`)",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
       "label": "ADR-131: a real native SessionStart project-check launch is observed",
       "file": "core/hooks/orientation.go",
       "tests": ["tests/native-observation.test.mjs"],

@@ -4084,7 +4084,7 @@ read, compare and replace are separate steps across processes, so two hooks can 
 `said` stamp rewrites the snapshot it read (the fix is a short cross-process lock around publish and stamp, bounded by the hook
 budget); and `TestBranchStateRefreshPublishable` tests the helper, not its call site, so bypassing it there is not noticed.
 
-## 439. OPEN 2026-11-01 — the Go uninteresting-directory rule matches what the Node one does not
+## 439. CLOSED 2026-11-01 (fixed in ADR-136's branch) — the Go uninteresting-directory rule matches what the Node one does not
 
 Found implementing ADR-136 T1, measured with node and go one-liners: `uninterestingDir` (core/hooks/orientation.go:84) uses
 Go's `(?i)` and `.`, where uninteresting.mjs uses JavaScript's `/i` without `u`. Go folds `ſ` (U+017F) to `s` and its `.`
@@ -4092,3 +4092,5 @@ matches `\r`, U+2028 and U+2029, so `fixtureſ`, `ſnapshots` and `golden-a\rb` 
 ADR-136's `shkRelativePathIsUninteresting` reuses the Go rule, so a path the facts gate would run on in Node is skipped
 natively. Parity rows avoid those inputs today. The fix spells the folding and the line terminators out (`[sS]`, `[^\n\r  ]`)
 and adds those rows to tests/shell-hook-parity.test.mjs.
+**Fixed 2026-11-01:** `uninterestingDir` is now case-sensitive over an ASCII-lowered name (`asciiLower`) with `.` spelled out;
+the eleven inputs above are rows in tests/shell-hook-parity.test.mjs (red before the fix), and two catalogue mutants are RED.

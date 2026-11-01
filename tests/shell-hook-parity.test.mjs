@@ -211,6 +211,10 @@ const relatives = [
   'x/../fixtures/a', '', '/', '//fixtures//a', '\\\\vendor\\a', 'Build/x', 'dist', 'dist/x', 'target/sub/x', 'coverage/x',
   '__pycache__/x', '__snapshots__/x', 'testdata/x', 'test/x', 'tests/adr/x', 'a/b/c/vendor/d/e', '.../vendor/x',
   './vendor/x', 'vendor./x', ' vendor/x', 'é/vendor/😀',
+  // BACKLOG §439: JavaScript's /i without `u` folds no non-ASCII letter into ASCII (U+017F long s, U+212A Kelvin sign), and its
+  // `.` stops at \r, U+2028 and U+2029; Go's (?i) and `.` did neither.
+  'fixtureſ/x', 'ſnapshots/x', '__ſnapshots__/x', 'teſtdata/x', 'golden-a\rb/x', 'golden-a b/x', 'golden-a b/x',
+  'golden-a\u0085b/x', 'golden-K/x', 'FİXTURES/x', 'golden-a\tb/x',
 ]
 
 function rowsFor() {

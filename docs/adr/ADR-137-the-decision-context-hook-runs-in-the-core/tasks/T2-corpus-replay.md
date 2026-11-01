@@ -94,3 +94,4 @@ Stop if a corpus cannot be replayed without editing a locked test.
 - 2026-11-01 · 77d6a9545* · exit 0 · `set -o pipefail …` · acceptance-sha256:af2cf55b1d7cd3c64738d418eb4beb3d1a42d20958d218bb03b837f3d2604ab1 · ms:46426
 - 2026-11-01 · 77d6a9545* · exit 0 · `set -o pipefail …` · acceptance-sha256:af2cf55b1d7cd3c64738d418eb4beb3d1a42d20958d218bb03b837f3d2604ab1 · ms:44962
 - 2026-11-01 · 77d6a9545* · exit 0 · `set -o pipefail …` · acceptance-sha256:af2cf55b1d7cd3c64738d418eb4beb3d1a42d20958d218bb03b837f3d2604ab1 · ms:44540
+- 2026-11-01 · b43a2242c* · exit 0 · `set -o pipefail …` · acceptance-sha256:af2cf55b1d7cd3c64738d418eb4beb3d1a42d20958d218bb03b837f3d2604ab1 · ms:44575

@@ -106,7 +106,8 @@ function corpora(scratch) {
   out.push({ name: 'synthetic-limits', root: limitsCorpus(scratch) })
   // This repository's own corpus, as the branch committed it: a clone into this test's directory (CLAUDE.md §9).
   const clone = path.join(scratch, 'this-repository')
-  git(scratch, ['clone', '-q', repoRoot, clone])
+  // `-c` after `clone`, so the setting is stored in the clone: archived paths here pass MAX_PATH in a deep Windows directory (CLAUDE.md §7).
+  git(scratch, ['clone', '-q', '-c', 'core.longpaths=true', repoRoot, clone])
   assert.equal(git(clone, ['rev-parse', 'HEAD']).trim(), git(repoRoot, ['rev-parse', 'HEAD']).trim(), 'the clone is of this branch')
   out.push({ name: 'this-repository', root: clone, self: true })
   return out

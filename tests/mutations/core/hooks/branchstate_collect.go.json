@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-135 T3: the deadline ends the command's whole process group",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\tbsEndTree(cmd)\n",
+      "to": "",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
       "label": "ADR-135 T2: the real runner pins LC_ALL=C",
       "file": "core/hooks/branchstate_collect.go",
       "tests": [

@@ -4074,3 +4074,7 @@ the rest of the class stays Node: run-shell-hook.mjs (core/hooks/bridge.go:18, a
 :151, :672), install-notices.mjs (orientation.go:457), publish-hook.mjs (orientation.go:489) and adr-context.mjs --hook
 (pending.go:13). plugin/scripts/statusline.mjs also keeps a Node copy of the branch-state cache key. Each is a candidate
 for its own record, measured by what it costs an adopter's session (CLAUDE.md §19).
+
+Also found 2026-11-01 (ADR-135 T3): `run()` in core/hooks/proc.go kills only the direct child at its deadline, and Wait then
+waits for any grandchild holding the output pipe (5.0 s past a 300 ms deadline, measured with `sh -c 'sleep 5 & …; wait'`).
+The branch-state runner ends the process group; every other hook that calls `run()` keeps the exposure.

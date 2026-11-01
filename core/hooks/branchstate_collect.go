@@ -4,8 +4,12 @@
 package hooks
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -78,7 +82,7 @@ func bsShell(argv []string, opts bsOpts) bsAnswer {
 	if argv[0] == "git" {
 		env["GIT_OPTIONAL_LOCKS"] = "0"
 	}
-	res := run(timeout, opts.Cwd, env, opts.Input, argv[0], argv[1:]...)
+	res := bsRun(timeout, opts.Cwd, env, opts.Input, argv[0], argv[1:]...)
 	if res.err == nil && res.status == 0 {
 		return bsAnswer{OK: true, Out: strings.TrimSpace(res.stdout)}
 	}
@@ -93,6 +97,50 @@ func bsShell(argv []string, opts bsOpts) bsAnswer {
 	}
 	return bsAnswer{Note: note}
 }
+
+// bsRun is proc.go's run, bounded as ADR-135 Decision 2 needs: the deadline ends the command's whole process group, not only
+// its first process (bsEndTree), and Wait stops waiting for the output pipe a grandchild may still hold
+// (WaitDelay). Measured 2026-11-01: with run(), `sh -c 'sleep 5 & …; wait'` under a 300ms deadline returned after 5.0s and
+// left the sleep running (TestBranchStateCollectEndsTheTree).
+func bsRun(timeout time.Duration, dir string, env map[string]string, stdin string, name string, args ...string) runResult {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = environ(env)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+	var out, errOut bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+	hideWindow(cmd)
+	bsEndTree(cmd)
+	cmd.WaitDelay = bsWaitDelay
+	err := runObservedCommand(cmd, func() bool { return ctx.Err() == context.DeadlineExceeded })
+	res := runResult{status: -1, stdout: out.String(), stderr: errOut.String()}
+	if ctx.Err() == context.DeadlineExceeded {
+		res.timedOut = true
+		res.err = ctx.Err()
+		return res
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		res.status = exitErr.ExitCode()
+		return res
+	}
+	if err != nil {
+		res.err = err
+		return res
+	}
+	res.status = 0
+	return res
+}
+
+// How long Wait may still wait for the output pipes once the command's process is gone.
+const bsWaitDelay = 250 * time.Millisecond
 
 // bsBudgeted is `budgeted`: ONE deadline for the whole collection, each command given what is left of it (at most 15s). Past
 // it every command answers not-ok, marked as prevented, with the reason.

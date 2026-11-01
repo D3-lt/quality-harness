@@ -16,7 +16,9 @@ const noGo = required('go', goVersion.error || goVersion.status !== 0
   ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false)
 
 test('the core collects branch state as the Node collect does', { skip: noGo }, () => {
-  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestBranchStateCollect$', './hooks/'], {
+  // TestBranchStateCollectEndsTheTree too: a deadline that ends the command's whole process group (ADR-135 Decision 2). It is
+  // built only off Windows, where a process group exists.
+  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestBranchStateCollect(EndsTheTree)?$', './hooks/'], {
     cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true,
   })
   const said = `${ran.stdout}\n${ran.stderr}`
@@ -24,5 +26,6 @@ test('the core collects branch state as the Node collect does', { skip: noGo }, 
   assert.equal(ran.status, 0, `collectBranchState disagrees with the Node collect (or did not build):\n${tail}`)
   // Exit 0 also covers a test that skipped or matched nothing: the PASS line, and no SKIP or FAIL, say it ran whole.
   assert.match(said, /^--- PASS: TestBranchStateCollect \(/m, tail)
+  if (process.platform !== 'win32') assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTree \(/m, tail)
   assert.doesNotMatch(said, /--- SKIP|--- FAIL|no tests to run/, tail)
 })

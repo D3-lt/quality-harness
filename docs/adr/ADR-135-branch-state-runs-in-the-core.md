@@ -7,7 +7,7 @@
 **Spec:** None — the owner directed the port in conversation; CLAUDE.md §15 is the behaviour's own contract
 **Cross-references:** docs/adr/ADR-065-branch-state-serves-its-snapshot.md, docs/adr/ADR-094-a-standing-fact-is-said-once-and-prose-reuses-the-pass.md, docs/adr/ADR-110-a-static-core-owns-the-hooks.md, docs/adr/ADR-116-qh-ships-as-release-assets-fetched-and-verified.md, docs/adr/ADR-131-native-reader-identity-and-measured-cost.md, docs/adr/ADR-132-the-installed-plugin-includes-its-go-core.md
 **Governs:** None — declared by its tasks
-**Enforced-by:** None — the parity and native tests are written by T1 to T3; this header names them once they exist
+**Enforced-by:** tests/branch-state-parity.test.mjs::the core answers every branch-state row as the Node functions do, tests/branch-state-collect.test.mjs::the core collects branch state as the Node collect does, tests/branch-state-native.test.mjs::a stale cache past the budget is served marked stale and nothing outlives the hook
 **Invalidates:** none — checked; ADR-110's 2026-10-28 amendment is amended below, its tasks keep their done state
 **Amends:** ADR-110 2026-10-28 amendment — "The branch-state and edit-gate CLIs remain Node, reached through native bridge commands" (docs/adr/ADR-110-a-static-core-owns-the-hooks.md:200) no longer holds for branch-state; edit-gate stays Node
 **Served-path change:** The SessionStart and UserPromptSubmit branch-state hooks run in the Go core (`qh bridge branch-state`) instead of spawning `node plugin/scripts/branch-state.mjs`, and a stale cache is refreshed inside the hook under a hard budget instead of by a detached child.
@@ -44,9 +44,10 @@ left (see Out of Scope).
 1. The Go core answers `qh bridge branch-state [--brief] [--cached N]` itself, with the same output, suppression and exit 0
    on every path. `plugin/scripts/branch-state.mjs` stays as the hand-run CLI and as the parity oracle until T4 retires its
    hook use; `plugin/scripts/statusline.mjs` keeps importing its cache helpers.
-2. A stale or missing cache is refreshed inside the hook under a hard budget of 2 s for the network half. Past it, the cached
-   answer is printed marked stale, the refresh is left to the next prompt, and nothing outlives the hook. The git half is
-   always collected first, as today.
+2. A due brief (a usable snapshot past its `--cached` age) is refreshed inside the hook under a hard budget of 2 s for the
+   whole refresh. Past it, the snapshot is left as it was and printed marked stale, the refresh is left to the next prompt,
+   and nothing outlives the hook: the deadline ends each command's whole process group. A missing or unusable snapshot and
+   the full SessionStart report keep the 8 s collection, as today.
 3. Read-only git calls in the port pin `LC_ALL=C` beside `GIT_OPTIONAL_LOCKS=0`.
 4. Parity is proved, not asserted: T1 compares the pure functions over a corpus the Node functions produce; T3 replays the
    subprocess scenarios of the locked Node tests against the native command. The locked tests stay byte-identical.
@@ -82,6 +83,15 @@ branch-state.mjs as a CLI. docs/architecture.md:105-106 and :122-124 are updated
 
 See ADR-135-branch-state-runs-in-the-core/tasks/README.md.
 
+T1 to T3 were implemented on 2026-11-01 (their logs hold each first red, passing fence and killed mutants). Two refinements
+made during T3 are written into Decision 2 above. The budget covers the whole refresh, git half included: a "network half"
+budget would have let a slow git call make the prompt wait for it. And the deadline ends the command's process group.
+`proc.go`'s `run()` kills only the direct child, and Wait then waited for any grandchild still holding the output pipe:
+measured with `sh -c 'sleep 5 & …; wait'` under a 300 ms deadline, it returned after 5.0 s and left the sleep running.
+The branch-state runner (`bsRun`) now sets a process group and kills it, with a `WaitDelay`
+(`TestBranchStateCollectEndsTheTree`, and a catalogue mutant removing the group kill is RED). `run()`, which other hooks
+use, is unchanged and has the same exposure (BACKLOG §438).
+
 ## Consequences
 
 One Node spawn leaves every prompt. The costs: a stale cache can make a prompt wait up to the 2 s budget where the detached
@@ -97,7 +107,10 @@ the cache key exist until statusline is ported (T1's parity corpus covers `snaps
 ## Risks
 
 A parity gap in an untested output shape reaches every prompt; T3 replays the locked scenarios and the release needs an
-outside run (ADR-131). Windows file replacement over an open cache file must be reproduced (branch-state.mjs:782-807).
+outside run (ADR-131). Windows file replacement over an open cache file must be reproduced (branch-state.mjs:782-807). On
+Windows the deadline kills only the command's own process; `WaitDelay` stops the wait, but a grandchild is not ended there
+without a job object, which this core does not create. The native handler writes no performance trace, so ADR-131's cost
+readers lose this hook's trace until one is added.
 
 ## Rollback
 

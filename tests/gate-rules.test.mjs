@@ -894,7 +894,8 @@ test('spec-verify --implemented runs the bound tests and separates RED from brok
     .replace('| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | `test_selftest_fixture.py::test_gates_run` | @spec | |',
       `| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | \`test_selftest_fixture.py::test_gates_run\` | ${tag} | ${cmd} |`)
 
-  writeFileSync(spec, bind('@implemented', '`python3 -c "raise SystemExit(0)"`'))
+  // Each green override prints the bound test's name: an exit 0 with no name is UNRUN (ADR-134).
+  writeFileSync(spec, bind('@implemented', '`python3 -c "print(\'test_gates_run\')"`'))
   const green = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
   assert.equal(green.status, 0, green.stdout)
 
@@ -912,7 +913,7 @@ test('spec-verify --implemented runs the bound tests and separates RED from brok
   // that word — here a nonexistent one — and the fact goes RED for a reason that
   // has nothing to do with the test. Exit codes alone cannot tell the two apart,
   // which is why reverting the strip left this suite green until this row.
-  writeFileSync(spec, bind('@implemented', '`python3 -c "print(\'definitely-not-a-command-xyzzy\')"`'))
+  writeFileSync(spec, bind('@implemented', '`python3 -c "print(\'test_gates_run definitely-not-a-command-xyzzy\')"`'))
   const printing = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
   assert.equal(printing.status, 0, `the command's OUTPUT must not be executed\n${printing.stdout}`)
 
@@ -995,7 +996,7 @@ test('a scenario can override its runner, which is the escape it never had', () 
   // A real check that exits 0 here: `true` exits 0 too, but runs nothing, and spec-verify reads such an override as not run
   // (the cold review of ADR-123, 2026-10-22).
   writeFileSync(spec, good.replace(
-    scenario, scenario.replace('[@spec]', '[@implemented]') + ' cmd:`test -f spec-selftest.md`'))
+    scenario, scenario.replace('[@spec]', '[@implemented]') + ' cmd:`test -f spec-selftest.md && echo test_gates_run`'))
   const withCmd = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
   assert.doesNotMatch(withCmd.stdout, /UNRUN\s+UC1-S1/,
     `an overridden scenario is adjudicated, not UNRUN:\n${withCmd.stdout}`)
@@ -2015,7 +2016,7 @@ src = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8').split('def main(')[0
 out = {}
 with tempfile.TemporaryDirectory() as d:
     root = pathlib.Path(d)
-    out['posix'] = ns['test_runs']('x', root, None, 'BP_ROOT="$PWD" sh -c \\'exit 0\\'')[0]
+    out['posix'] = ns['test_runs']('x', root, None, 'BP_ROOT="$PWD" sh -c \\'echo x\\'')[0]
     out['failing'] = ns['test_runs']('x', root, None, 'exit 3')[0]
     # The platform is a parameter (CLAUDE.md §7): a host with no POSIX shell is
     # reachable here without being on one.

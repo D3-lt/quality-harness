@@ -135,3 +135,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-131](ADR-131-native-reader-identity-and-measured-cost.md) | Bind native reader identity and measure actual optional-check work and context reductions | Accepted |
 | [ADR-132](ADR-132-the-installed-plugin-includes-its-go-core.md) | Install the plugin and verified Go core together from an immutable release archive | Accepted |
 | [ADR-133](ADR-133-completion-claims-name-their-evidence.md) | Completion claims name their evidence, scope and observed target | Accepted |
+| [ADR-134](ADR-134-an-override-pass-names-its-test.md) | A spec-verify Cmd override passes only when its output names the bound test | Accepted |

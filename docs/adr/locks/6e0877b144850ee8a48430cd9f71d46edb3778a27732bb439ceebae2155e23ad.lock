@@ -1,0 +1,181 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/gate-rules.test.mjs	a Swift binding the gate cannot place uniquely is UNRUN	abf46f57eb0b70db78ff4f7509628a47548ed7d037cee94a45eaddc16a2e5d02
+body	tests/gate-rules.test.mjs	a Swift nested type is UNRUN however its name is spelled	1f72d31ad5f9f2cb597df82db98ec0f3b48df1dfdc90a6fcb97cc979ce8c56c9
+body	tests/gate-rules.test.mjs	a Swift pass is attributed to the bound test, not a same-named one elsewhere	5238ba549823cc125ee5c6ebbc8dd8d02817d1050286d5ca34d296a6e79353a6
+body	tests/gate-rules.test.mjs	a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)	6b89cea0bddbcd9c0b40a4bfe958dd2f3fa2d8e509937cd34344871b022a64da
+body	tests/gate-rules.test.mjs	a document ABOUT postmortems is not routed to postmortem-verify	32c12005edaca2639ba546995f215f31398b816f622b77e7ede57760c019ceaa
+body	tests/gate-rules.test.mjs	a record with inline tasks is not paired with a sibling tasks directory it does not own	e728af68a0f25867f8f97c2e6f021ce37f58b51c33576d12bd09cb5ee265b995
+body	tests/gate-rules.test.mjs	a scenario can override its runner, which is the escape it never had	48c17a0d294a18aa8c7f532496cde2e8e4c4d9fcf3e9a78c09f142b287d3cfcf
+body	tests/gate-rules.test.mjs	a shell that aborted before judging is a failure, not a clean pass	e52f1c83c28a92341ad05566b498c9718d134fa782da5251c04cd5215bb3d359
+body	tests/gate-rules.test.mjs	a spec Cmd override runs through a POSIX shell, and says so when there is none	2b053cfef72af92626852e0e22582ac2c6795cd5df518f39442ae10a9d28d67b
+body	tests/gate-rules.test.mjs	a target another repository owns is declared, not called broken	3aa994a9334e9496d351456f6be366b37abeb44d662453539305bc0521061e70
+body	tests/gate-rules.test.mjs	a task waiting on a choice nobody has made says so, and names the choice	89a27d5916910076e5cc1b3367f8f499af53c3f68d75d23d2bbfca37a67e5974
+body	tests/gate-rules.test.mjs	a task waiting on an external event is not counted as debt	cf9543a74dfcaed5ac53f2ece59b8e7681420b2d2446498398a3453a3fe49744
+body	tests/gate-rules.test.mjs	a terminal README status is not sent to the wrong vocabulary	34274063c0a8884722a0c39243e85831204ec0e519d046e280494e419a55cce1
+body	tests/gate-rules.test.mjs	a wait is dated by its evidence logs, not by a row-shaped line in prose	73aae36d2152c8edc72eeca7be573155d86848bae0adedc85319ea074cbd0cfa
+body	tests/gate-rules.test.mjs	a wait is dated by its newest evidence row, not by prose	b4ae7599b96c4ae25fd5448a43a5a796564d0066fe15580872c7559c45b7e69a
+body	tests/gate-rules.test.mjs	adr-debt resolves the pointers it can, and reports the ones it cannot	7dffb32a5cbc8665e1cf1902a42e9e53b1337d81912c5d104c54d36dae98039c
+body	tests/gate-rules.test.mjs	adr-lint and adr-next agree on which task statuses are terminal	d12c188870a21ce96e6bd08c333029f260154b3cbd9f86cf6088cb29e9cd3c8a
+body	tests/gate-rules.test.mjs	adr-lint withholds advice about a withdrawn task, and says that it did	2336b6fad109e9806f15e1f8b9a04b98bc5bb13450ae0d5b61949b447b1a376d
+body	tests/gate-rules.test.mjs	adr-retire-check --adopt reports what it finds on a tree adopting the lifecycle	473a32555079fa1773cf1dec43745bab138537be6921124a98aceb67a1da46f5
+body	tests/gate-rules.test.mjs	adr-retire-check counts a ticked receipt, and still fails when that receipt is removed	7f18599eb27ec04145c885d3701b0de029860a0d44780c57cd457957669cdc09
+body	tests/gate-rules.test.mjs	adr-retire-check reads the backlog the sibling roots share when the active root has none	e39291d1d3fe334fa0e3dc751617c5af8b469b7c8dc4cd2564d049d668a53051
+body	tests/gate-rules.test.mjs	an explicit statement of absence is not counted as debt	4e1b10ad7782b9b6294f95a4640a4e1c44c9f56c0301cb4998a661ffc32d5efc
+body	tests/gate-rules.test.mjs	an old wait asks whether the event has already happened	cdf2e6337ea96ae6a50c5bba60873c90a2ae249357d01932130e52316550172e
+body	tests/gate-rules.test.mjs	arch-lint reads a Go package pattern as a pattern, not a missing path	00148d76afd420d23e2d2bff56ad4ac66fd1fa945d3231d68f0c3fedfd251f2b
+body	tests/gate-rules.test.mjs	arch-lint rejects a gate that cannot fail and a symbol that is not there	e63199eda163cf41a00c28f833f0dfaefd739ee2cd4d2a597a57e52b47764da2
+body	tests/gate-rules.test.mjs	every adr-judge rule has a case that makes it fire, and a record that passes them all	2cdf99f817585ac4f04d9439c94b90a4e9a6094693b383d8d1d3c71545b3c08f
+body	tests/gate-rules.test.mjs	every adr-retire-check row rule has a case that makes it fire	8f9783c55eb652e24db707cdb55b66d4e8e8dbd91a5135fa77e0665e7ade9c2b
+body	tests/gate-rules.test.mjs	every adr-retire-check structural rule has a case that makes it fire	23e3debf5333969a832fbab2a6e30b675b7dd38c1c10f38bd9658863b3b35247
+body	tests/gate-rules.test.mjs	every gate refuses a flag it does not know	e780ec8f9b76010f0205c2af031180e58ab4d07f3b13eb08f6002a63b8fc6dd4
+body	tests/gate-rules.test.mjs	every postmortem-verify rule has a case that makes it fire	223d7ba5094ba093d23cd8da8c335a5f42a74fa8c3d1313fb8a628f0199748c9
+body	tests/gate-rules.test.mjs	every shard slice covers the catalogue exactly once	53677f23203b3e54c706bb8001dd37079e8a844789aa65e65d7f3a1ec83ddac3
+body	tests/gate-rules.test.mjs	on Windows a bare gate name resolves under PowerShell	684038daa1cbfb1ac1248f8e3e60537568ac07b0d9c8d27fa8d22a908796857d
+body	tests/gate-rules.test.mjs	on Windows the shim runs the gate the documented invocation names	aac8d5cb4f2127447779c9e3dfce106903776603435960d19e5da1f8d9017bc5
+body	tests/gate-rules.test.mjs	qh-root answers with a plugin directory, or with nothing at all	41c71eb33465176648dced681480f863f2f56dadf2a7fbeb22b3f49475b56313
+body	tests/gate-rules.test.mjs	spec-verify --implemented runs the bound tests and separates RED from broken	aee49d3e011dd4c27c7daab79cd3cfc104f026e9ffe518d2086b81d54c0d6802
+body	tests/gate-rules.test.mjs	spec-verify runs a Go binding, and a Go filter that selects nothing is UNRUN, not a pass	84ca1ec108cf7f504f2fc8c0aa330b0cd175d723934c1e33c84d3e975fdf4df6
+body	tests/gate-rules.test.mjs	spec-verify runs a Swift binding of either test shape, and a Swift filter that selects nothing is UNRUN	2a7aa907d620c8d5e8d5e04095e8a277f51b81c8f611f533a39d16f45c025a1b
+body	tests/gate-rules.test.mjs	spec-verify says it could not run a test, rather than that the test failed	1386e5bac883addc7179befa5dc93bc93b949229144529c8ce2a3dcde99a52fc
+body	tests/gate-rules.test.mjs	spec-verify says so when implemented mode ran no test	b2df3e778ce667162bdc46bfead91e46ad1125a25bed5ecea9bb585dc7e94009
+body	tests/gate-rules.test.mjs	the POSIX fallback reports what ChildProcess.kill answered, not merely that it did not throw	057b98f770b27c819e84573381b4062fd53f8b4c4f4ee92c4fe0a3551c8b4fe1
+body	tests/gate-rules.test.mjs	the Windows cleanup a timeout runs carries a bound, and reports whether the kill was issued (BACKLOG §127)	0b4e02aa07e0a3b6b802da909a2958dcc923d67e1ab51c9c2736b8865d1e1f47
+body	tests/gate-rules.test.mjs	the cleanup bounds fit inside every outer margin that waits on the runner	3fd5cbe521570bff247a2315ef78e3e230c66024bf5fe9137249bb8796524ee8
+body	tests/gate-rules.test.mjs	the deferred headline counts debts, not the places they are written	15a131d943f7afe9b0bc39ef83542f143474b46f90db77ced0512ef6daf85728
+body	tests/gate-rules.test.mjs	the machine-readable output lifecycle.mjs depends on is machine-readable	b7c9982191ba072378098c561bb993f754ba5d4dcdc160c0a2c1782747c6ac86
+body	tests/gate-rules.test.mjs	the mutation runner names an option it does not know, instead of running everything	66b07293f2ad478b55888dc90100d0c5b93a46fa3260cb63cefffdbfee8125d8
+body	tests/gate-rules.test.mjs	the mutation runner refuses to run over an editor, or beside another runner	4289ad4ec55403cc755499a65aa242d999a6cc434bc9b7e3fb0c4b17bc4593ef
+body	tests/gate-rules.test.mjs	the runner process itself exits after a failed cleanup, with the child still alive	ee076cf722df62033b43b0ebeb5095d7eaaa7f2ac9de52554fc80546ef5a46af
+body	tests/gate-rules.test.mjs	the shell-hook runner reports every way a gate can not report, and blocks on none	4a8db3858385468701226dc00e87b0820cde315417b065bf2a3baa5693f7136c
+body	tests/gate-rules.test.mjs	the structural rules around the catalog fire too, not just the row rules	c54c6c6e9f5068d6b9ddaa4ab761ec75570062d30b91c878ea747121d3b8223b
+body	tests/gate-rules.test.mjs	the timeout mechanism itself kills the child and says it timed out	4ad0c012849e1e39c036377602acdd178c3be22b1272eddd2c0e681fab32c563
+body	tests/gates.test.mjs	ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit	c036c91094ef50f99e22f28610b517166782ebb18791e95ba8002ca278eb42c2
+body	tests/gates.test.mjs	a Proposed record with no tasks is told its Status was not checked, and when its paths all exist	50eedf4ff750cc8c5c47ee07172e65152bfeda3c60cf8f64ee0d3e92432a9bf9
+body	tests/gates.test.mjs	a README row without its leading pipe is still a done claim the evidence check reads	89fcbc6e1defbeacaccf5f8d6452822900ed6413d75828c6098a8ac74852c775
+body	tests/gates.test.mjs	a README status table keeps its advice under a miscounted delimiter, and its header is no status row	8ecd23ec0f8e34a896043b009e1ce36515fd2b3398c99f9cfa228357cfd59aaa
+body	tests/gates.test.mjs	a UTF-8 BOM does not hide a record from the commit boundary	e8ddf7de7d8285875fe14bc4eddd2ce471a6c0a0a62998d123c09d04363529eb
+body	tests/gates.test.mjs	a cited tracker id or section number is not reported as a missing file	42d69b92c142ec55051bc2f919c916f6f976d8bce727042b0e283ec5de4cc84d
+body	tests/gates.test.mjs	a corpus that does not prefix its records with ADR- is still seen, and still spoken to	96bcf4798009052086b1d8fe066239202d1d58322b928433579b421689281bc0
+body	tests/gates.test.mjs	a could-not-run line shows a path under the home directory as ~	e4d035e883af4f184cfa8b7533288e9678068bff36ecda4ee13c594e2601b18d
+body	tests/gates.test.mjs	a date-shaped filename is not an ADR year	19fdd6cddd8ad571faeb26a7f18030b7b5430623e5358aeb81c8fd809af52831
+body	tests/gates.test.mjs	a document that never claimed to be a record is not judged as a malformed one (BACKLOG §141)	2ed668f121244c191b1fc236956371cccabb65a3bf9446b3f88b0ec93f13008e
+body	tests/gates.test.mjs	a done task nobody can read blocks, even before strictFrom	3215fb56475926e382230ddf7dc9d305c6fa5b339161a4ebd8df1a9885782dd3
+body	tests/gates.test.mjs	a done task under a record whose Status nobody could read is UNPROVEN, even before strictFrom	6331b8d0e474807d0560f1635640bd32170026cf35d843b1bcbe7cf909f94b71
+body	tests/gates.test.mjs	a file nested below a tasks/ directory is not a task	3539a6b2070c96a068c468f6df0ec4254d15f75af9b0138a7f37da90df5004f9
+body	tests/gates.test.mjs	a file whose name and title disagree on the ADR number is refused	c08dbfa1b33429ff2f490aa4fe4c775a7adf5db6f7e7e560a1b435d3aebfb92c
+body	tests/gates.test.mjs	a form finding is reported to the reader without failing the record	86ed49505b722f800d2d495926fd74444e720075729ffd8ca35abfc551f21b19
+body	tests/gates.test.mjs	a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs	f6ed733893c56a3b0e9da1fb96903ec20fbaf270794e5d5813d8bf4ec41c7364
+body	tests/gates.test.mjs	a gate reached through a symlink loads the lib beside its real file, not beside the link	c9074892d64630fb0c94369c1f241c8393c030b5ab908e2f51cfd5173a86adaf
+body	tests/gates.test.mjs	a gate whose manifest cannot be read says so instead of guessing	6a732e9042a61aa79051f0256daab27699ca2350b9cd52818646518b930068b2
+body	tests/gates.test.mjs	a gate whose manifest is unreadable says so, and states no version (BACKLOG §143)	dc5722646e93c1e2f01ab87fa57fed30ee9a1c8fc643523430cae4bb3062f58a
+body	tests/gates.test.mjs	a legacy record is not routed as a task and told its own ADR is missing	5f9e6a6ff1e9f906acc8ca3f5c06af8b352041b110bea0105972593085b4692e
+body	tests/gates.test.mjs	a one-digit filename and a different title number is refused	0b43ecdd87b5ad1716211909e24429641564a316b4c322baf82560a68b7ca2cb
+body	tests/gates.test.mjs	a parallelised acceptance fence that never collects its children is reported	e17f93b2aa98ba41120e1a057d1812bd5d159216d3eefa41a395a1a29ce7b628
+body	tests/gates.test.mjs	a path::name pointer at a production function does not resolve as a test	3daf51a494f195b494389b108c563192ce150db39b78acdb3fc5023209387672
+body	tests/gates.test.mjs	a permission-denied task file another record owns is advice on the cycle check, never could-not-run or a traceback	7c7b5ba9f219813f1c1755bb1dbe1bfc02e8f16f7973d6df36923f69351a4fa5
+body	tests/gates.test.mjs	a pipe-less Affected Files row is a row: a second add still collides, and an ignored path is still named	e9d56d664eb61ecf648c8dd25b7a74a37e2e7799a1d082ccc622fff9bfd7af22
+body	tests/gates.test.mjs	a record beside its directory owns its tasks, and with it gone the ambiguity is still said	1122c6faa128a890120bb19d991946dbdf65b30e15ffa3a76f3a7be250d60c32
+body	tests/gates.test.mjs	a record beside its tasks owns them, whatever the corpus is named	58e2e3bfc91d0071b1cb6a9a3290e844ab65cb75155065714e8f58f7e852b3a9
+body	tests/gates.test.mjs	a record older than strictFrom with no Status is advised, not UNPROVEN	95a79ea3258503c089695dd39e7586e40eab2d71de5269a0b664b5f1bdd3d118
+body	tests/gates.test.mjs	a record, task, architecture or postmortem shown inside a code block is an example, not the document	74cb97579eb04ac3aaba2f9e46305ee0960e3e82139d22a02fff546074517fd8
+body	tests/gates.test.mjs	a rooted path is rooted on every platform, not re-rooted onto the cwd drive	58c4187bb7b2d283d138b4fd03c06fd4ce7b4075c7e2c1c3afe1b25a343921ff
+body	tests/gates.test.mjs	a step the run does name is not reported	ffb2666e5ac8678c76e276f1f6ab8ee8bba4996a354f893738d6f713c8315919
+body	tests/gates.test.mjs	a step whose proof is a named test has a run that names it	720303e09b3f1d6269ac75301b53ae7db70a29e33c206b992f29da226160692b
+body	tests/gates.test.mjs	a task file this record owns and cannot read is could-not-run, never a traceback	4b46a8350fe43a1fb1007b060839921a9d287ebcf9a88ef896803a58e5da0c8b
+body	tests/gates.test.mjs	a task file's own done claim needs an Accepted record, whatever the README says	c870de62a86a0b6b065290b527d86aec70adb51850bb7ff3152e52e52793f847
+body	tests/gates.test.mjs	a task file's own done claim needs evidence, whatever the README says	06143b301f474cc3e6bf1700c442d2b4004f93e4d3e4e743414070a3d37ffdd3
+body	tests/gates.test.mjs	a task titled with a space outside tasks/ is still checked as a task	c505af2ce44c4c914df4802504dd4cd3fa99ba1a7439dc2df9778c266297de76
+body	tests/gates.test.mjs	a task whose archived path would exceed the Windows ceiling is advised, one under it is not	76e6165cff9778d5a4bba071cd340ed5eb66e3806802cd20ef514c3ca0ec8a3d
+body	tests/gates.test.mjs	a task with no steps field anywhere is silent, not uncovered	86b78a8ce99021f0b266ec7579d3f09495142f6e5228218193e689a6626f7803
+body	tests/gates.test.mjs	a task-named directory under another record is advice on the cycle check, never could-not-run	0a4f0ae08a61dc792aa4ae1cbe1e779783755447d814450e7fee213194507b26
+body	tests/gates.test.mjs	a title naming a task with a space is not routed to adr-lint, and a record still is	616e4e115797147a0fd3a23ce6fb42df33723b9bda5d9a1d8113fab68a32bfda
+body	tests/gates.test.mjs	a tracked path git has to quote is still a record, not an empty corpus	7e0bab1a33dc1e33544ee9264c97900f4001add623c0eb6ad2beac15667b0dad
+body	tests/gates.test.mjs	a verdict line shows an argument under the home directory as ~, and one outside it as given	fbbe66ac763de07144f133f26b0bd4a3b63046d80418f47148c3d1d1943131dc
+body	tests/gates.test.mjs	adr-lint cross-checks every ordered step against an explicit proof	ec76847f64bdecf8808a216602e87a0431a84703e532a53e1765c0820945484c
+body	tests/gates.test.mjs	adr-lint recognizes async Python test bodies	d9f99acf8d6127f6d20edc0a6d9803608e3ed6589ed269ae7b9893a57b1726ba
+body	tests/gates.test.mjs	adr-lint reports Go fences whose required success is unreachable	5cb8a439ac770fefc49c7d912a17e1859ae5c8d7925a64891089445ff9db15fc
+body	tests/gates.test.mjs	adr-lint's Exit block names the exits it actually produces	674bc64362b641a15f87cf0972931d4d3abb4ef6d1d693e0c1399e109e78c31e
+body	tests/gates.test.mjs	adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it	0c2428d6400ae349d4ba72994704384f334112d5f88205ad1c6723c91d9e5b79
+body	tests/gates.test.mjs	adr-verify executes acceptance and writes digest-bound evidence	3d7009ca8d2fe820d8bca5c8cc15aad1364b51c999bd0faa5be5edb9af2e3ca2
+body	tests/gates.test.mjs	adr-verify names an environment failure without excusing it	8dad3d72eee60e8c494ddba2b0a4bcc235cb67c4111f8692744931dce7f47e55
+body	tests/gates.test.mjs	adr-verify resolves Git Bash on Windows, never either bash.exe decoy	90675e60a7210769496ee625ed74665fa5aa2f9f7f2d481a4e86a268954867df
+body	tests/gates.test.mjs	adr-verify says before the run what a failure on an already-verified task will read as	80e1c1a65a46b545f26ac30fea7a106bc732bb96876775226b997ebffc15a88d
+body	tests/gates.test.mjs	all bundled gates accept the conforming corpus	3997a060128da5487242c2bc6a9b863f49540baca51e7359e4ece01e58f69f87
+body	tests/gates.test.mjs	an evidenced task whose Affected Files git ignores is reported, with the pattern	cd5422087008ebdc031093045383fb83faea03db6d7d3ce47fd5d48682a6549e
+body	tests/gates.test.mjs	an inline task claiming done is told nothing can prove it	55c4ad059f96503ed2589b8ef32559a1e5eb3bbdfbda6521b032545e45fe150f
+body	tests/gates.test.mjs	an unproven test of a task done only in its own file is an error at both done loops	f1f26ce59871945e92a5a952ee8362ec8488ea4cc62d1b235ed65c0c9835ffaa
+body	tests/gates.test.mjs	an unreadable named path is could-not-run, not failures-found	500544e9bbc97556d9624b061dc8ac04d6830633e796f3a4f6e35540afdb9734
+body	tests/gates.test.mjs	an unreadable or unusable strictFrom changes nothing, and says so	aee936241a2a98c465acd02edc96812d8ddb096a47e3deae437cff7ff3fc66b9
+body	tests/gates.test.mjs	arch-lint's tracked_paths keeps a name git would quote, and a CR inside one	e54f8070d8117d85668f745ee92ad0a78aebdc5b51d9d90cfb88a84604af2ef5
+body	tests/gates.test.mjs	chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied	baef81afc2adf5062f7da0d7adbf8eaa2a309954908f1bfa1dc9d5b89e70eb5b
+body	tests/gates.test.mjs	chmod-000 named ADR with strictFrom is UNPROVEN exit 2, not a traceback	e390fe9b4f377303d70a17275d467c6adeb5be26cbc449189ac41f1d8f1753db
+body	tests/gates.test.mjs	code_only keeps Python code between docstrings that mention backticks	c686a241aefdf5fe54dc0f129ef8740c6213fa529490efceaa4bcdde600fb5d6
+body	tests/gates.test.mjs	editing a template does not fail the facts gate	5195bd32fdeb0b0e7f88933d922baca3ab2afce78795e8d86d4aeacb4794cd0a
+body	tests/gates.test.mjs	every exit code a gate can literally produce is declared in its own docstring	82978b744e052411bc04683cb734242defd772cfa3ef3cf003f2087de45fcc03
+body	tests/gates.test.mjs	every gate answers --help, because a gate that will not explain itself is run wrong	fb8e427bf0e1191e64c00ee3f84303cd1842ff44e21f16baf74afb7ad7566d16
+body	tests/gates.test.mjs	every gate names an encoding for child process output	77ac2aaf671812382f694bebcee2065c4d467728f547faf33ebbb4cde9c68c1d
+body	tests/gates.test.mjs	every gate that returns a verdict names the binary that reached it (BACKLOG §143)	71ce7ddbe80261dc7307db5719e0ec6637e73b01b77c4f741a1964547662ddf8
+body	tests/gates.test.mjs	every shipped gate answers --version with the version of the tree it was run from	1cb4125125d0902aeed40737ece5ed0797c3d7bb65cca460c450199a0a85dbdf
+body	tests/gates.test.mjs	fenceTimeout is read from the project config, and one it cannot use is said	7df0fda92ee1b9cf7825de9ffb230036ad037db03a8e654cba12dba8e1ff7efc
+body	tests/gates.test.mjs	focused false-green regressions remain closed	78651215d8034f13ddf4fa18c84aec6f76d8128c21850245e6da8a1c330de807
+body	tests/gates.test.mjs	missing file, directory, and not-recognised stay their current exits	784e2c851802c560a33e706776ffac03ec4f105671a92e940952311dde7474c9
+body	tests/gates.test.mjs	neither gate loses code to a quote character inside a comment, and the two agree (BACKLOG §139)	3e3ef6478a996fb01f1f435d4a539593ad709e13d68dfce991de6f700a313314
+body	tests/gates.test.mjs	no bracketed verdict is printed without the identity, in any branch (BACKLOG §143)	d589e3698d0c00ac03f433550b90021f531e46443f4399e517cd0a35a38a0e5f
+body	tests/gates.test.mjs	placeholder and invalid artifacts are rejected	1612b98056f902769cd61f66216bc91159428a533a5d338c62059c95a48ebad3
+body	tests/gates.test.mjs	postmortem-verify on a path it cannot read exits could-not-run, and the dispatcher relays it as UNPROVEN	a2fc0c93c697bdd0237e8b5894b0142971bd4ef8173d2f49eeafdd7a87301d9f
+body	tests/gates.test.mjs	postmortem-verify on chmod 000 is could-not-run	b4e1f449a5c553ed5bfafb9683969164ef8701df5a00e7087aead272af062cd8
+body	tests/gates.test.mjs	record.py: _js_like_in_code answers from one scan per text, as the prefix scan did	08ce4ad4388fd0992ac6eb22d885c140f89b71115772e3ad92a7e79507336e59
+body	tests/gates.test.mjs	record.py: a closer rest is only ASCII space and tab — NEL does not close a fence	0c81e2b9b30ccc4e1e56b02dadb15541a735ebca79d2e36e607cfb279dbc1aca
+body	tests/gates.test.mjs	record.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that	fe5749d6f2f4c8b6861285c1077d9f55103bbb695b0e3a4d633db3c6c41ad834
+body	tests/gates.test.mjs	record.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle	f7c9a8ee53ff3c1fed1d480c8589224227fd3e8865e68963c8d3c569f205af0d
+body	tests/gates.test.mjs	record.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest	875947c782ef02a681e1dc502ba3d0d59f681d4a689f385db994b727e0f2e16f
+body	tests/gates.test.mjs	record.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads	dba94af82be5080c7bdf377c95d3e75918292be8e20d348239f9a8b8fb0e1860
+body	tests/gates.test.mjs	strictFrom lets a corpus adopt these gates without failing on its own history	93c545b611691c7ebb0efcd5c80f09571602f62597a800b071f487bd28ae199c
+body	tests/gates.test.mjs	strictFrom never reaches the evidence chain	49db9fc6b44f35832a3c5d341bb30d95dda438284abbb2f0fb123e17a5a4be2b
+body	tests/gates.test.mjs	the dispatcher relays a gate that could not run as UNPROVEN, never as an unsatisfied artifact	aca4bdf5e78f4f7ef7ae4d925f3780aeccaaf5a6e75767f3d6b7e354aff7ac27
+body	tests/gates.test.mjs	the facts hook fails closed for deleted archive catalogs and directories	4309a0077adc87fc72ccf67d7e8fef1ade5bfc7006e38ac60f2d717fa17de214
+body	tests/gates.test.mjs	the facts hook parses payloads in Node without jq or Python	45d8e71b78762f2a8070f405a5264633d499f6e48dea1825f830ba3bb6c733c8
+body	tests/gates.test.mjs	the plugin-local facts hook accepts valid facts and blocks invalid facts	7c3690dee6b454f78478f55b0abbc3771b9b3ede1c14d5d6cc6f66385a87a0f4
+body	tests/gates.test.mjs	the record grammar is one module: every gate loads plugin/lib/record.py and none keeps a copy	ab60ed2c7c9558951201cf18ed0c898a6b20ca563a31841ad511b71efc71ffc3
+body	tests/gates.test.mjs	the retirement seal survives a checkout that rewrote line endings	db098b49f66ab03dadb4849239dc5b1c79506a59a70ebb2eda74c1ee7e69c3f8
+body	tests/gates.test.mjs	two task files declaring one id are named, and neither silently replaces the other	2441a4fbeabf412c2f00bd2654d6bed71beed36e5d8e77d6c7e72f67c0405426
+body	tests/package.test.mjs	a CLI entry guard resolves on Windows, not only where argv is already a URL path	715454bfb4215dfaaffee675f101a52ce576c29634b4cb389f1dcb5be23c9956
+body	tests/package.test.mjs	a fence whose runner never starts must fail	3e4487f5f37bb6802b33ef2de4833b5614a11ab966836dce9597e98e90394f68
+body	tests/package.test.mjs	a mutation that matches across lines targets a file git checks out with LF	8d8367c9548036daf16b7d8340efeca9ce850edbaf435d527e15ab8c39913323
+body	tests/package.test.mjs	a plugin validate that dies saying nothing is UNRUN, not a finding about the manifest	8dbb52fcdb977402fea383288483186c29c05e9b084a02e3e7b5c5c2d8ca0059
+body	tests/package.test.mjs	adr-execute says the mutation pass already records the verification entry	9a59353eb05fef8bfe08ecc2f4f6f05571bae6848b492b64619ea66d24d4fed1
+body	tests/package.test.mjs	an agent definition's name matches its file	a7d359a5c4b483f1c539e2a274cf2425621dc2c5acce84663a1ff27284b593dd
+body	tests/package.test.mjs	an artifact upload of a dotfile asks for hidden files, or it uploads nothing and says success	ab1b5588535b222ec8a7d369bbf9d1043c2782c201bc1926dcfc557337089571
+body	tests/package.test.mjs	code that ships is checked out LF whatever its extension	96b8208f0945db5924db65bccdc1b4af7a0570e9455915de4ba15af825920b1b
+body	tests/package.test.mjs	continuous integration runs the checks this repository owns	c0dd401049321f9f6fd77db407d1bb0c5b9731675aab9e011496ef678084faf1
+body	tests/package.test.mjs	every Python gate says its output is UTF-8, whatever the console codepage is	6046212f76f9ba66537224693478c3679e1065c3891f1d98ef7e14fe9a358323
+body	tests/package.test.mjs	every catalogue entry names tests the campaign can actually spawn	b9012fd698df9beb9781cc72221f175f3ac882381d7774ebf89afd2e494078d5
+body	tests/package.test.mjs	every catalogue entry still matches the source it mutates, exactly once	973e7d7f968afb2508aab325043c886b9b7c84e6f763b7cac206d8823406c178
+body	tests/package.test.mjs	every catalogue mutant still parses, so a kill is behavioural	c08dd7f80bf6e4a74450a8a15d45e0a09450b0f38172ee19503b15f1fc3f40cd
+body	tests/package.test.mjs	every mutation shard computes its slice from one snapshot, not its own cache lookup	41415561bf775dabf1b083857007232bef10596e3b8cf99ce4937b65ec22d462
+body	tests/package.test.mjs	every path an eval run writes to is ignored, wherever it is run from	76293119c32507a46adfba03ad6cf642b4177a96188c5c6e09b89980c99cd47d
+body	tests/package.test.mjs	every shipped agent definition names a capability class	87d9f109b10065e97ea14bf7e1ed2487781f8d8c4ab80ae2631ae8841016fb67
+body	tests/package.test.mjs	every shipped gate carries at least one mutation	f162868517d85bebf5e59201888094f2eb9d7079be8a05ce6c1d3320f8724a43
+body	tests/package.test.mjs	importing a script runs its CLI on nobody	b60cd4cb45a8c6fb07076163f517e0bbd03bfdd33956087030aa9126f32ede80
+body	tests/package.test.mjs	manifest and hook configuration expose the bundled components	ab69fefa37d898b68a5b9a90343814e7810429371b08399332e92ecd3eee25f9
+body	tests/package.test.mjs	no acceptance fence discards its runner exit status	7e505970db8fffd5b93e4b58f976d036626838c64d19948c8cd493df670f09ea
+body	tests/package.test.mjs	no job in the release workflow is conditioned so a dispatched run skips it	489a75438bde0938076f84efc0f52d7afdc3df9331e290d39bee79ab2ea7a7ed
+body	tests/package.test.mjs	no mutation tool left a gate neutered in this tree	8df026ac03e759c5e6371de0fcecc3fa705bbe9ad00942bde68e3abf31ae2c64
+body	tests/package.test.mjs	no tracked path is long enough to fail a default Windows install	f7e6b7b6fc5f636e24373a8ccf66deaa0cefbd928b8371cac40b36b31c5ac2a5
+body	tests/package.test.mjs	nothing tracked in this repository names a personal filesystem path	74b5a82d8acb806fee4071dd4cac9a2cc7f8ca06c75829291649c8b14206d372
+body	tests/package.test.mjs	selftest prints its verdict as the last thing it does	526126d55f2c273ca473e3a0e507bb8b311a90c4888f35e885d36244cf590293
+body	tests/package.test.mjs	shipped guidance teaches generated restore transactions	974c4acf379fb677c402973fcf1e99a15e96aa9d65ee80a3e7136f6ac2658b22
+body	tests/package.test.mjs	the README names every skill and gate this plugin ships	23b1ae003dcc8396eb8738be64506d4c8c3ff6bbfdb2c8a724b0f9259341a189
+body	tests/package.test.mjs	the backlog index does not undersell what the backlog says it finished	ebe5215f08e63f3f55ae0dca969b983079eb20589530c0b8859405c38348d86e
+body	tests/package.test.mjs	the backlog index does not undersell what the backlog says it finished, archived sections included	0d4ec9c3f0f734fe33ccc49beb57f6a9af07f72a55e57da5c91484a283b5e34b
+body	tests/package.test.mjs	the hook covers shipped .sh and leaves the .cmd shims alone	a92e9a08f3c0696f287ff81ef071482ef48d2412de6ca0616af3762270e47b90
+body	tests/package.test.mjs	the instruction files name paths that exist	59dc7ce69b647ad7aebc1e8153100e4a1b71b040efe7e9e5133dbff97bb8cee7
+body	tests/package.test.mjs	the plugin contains the complete reusable decision lifecycle	f8d7d0ab94c739f0d367d28bf94e405f487057bbcf7148a7c69b4dd33c8cc483
+body	tests/package.test.mjs	the pre-commit hook refuses a commit taken mid-mutation, and only then	f6db2e4dd04cea2360f5b6e7b454e979de6ce9a0d3871bd46de57f1b1bb1ec5e
+body	tests/package.test.mjs	the pre-commit hook refuses a staged shipped file that nothing mutates	1c7a567bdb2580676ab6bdef6212f439b73eb5e6621410a2d449150189221e78
+body	tests/package.test.mjs	the publishable plugin has no dependency on a personal install or retired package	894cfca2a362ca8a7e961a7aecf45ba08f33f8480c136760048fb2876c005296
+body	tests/package.test.mjs	the staged guard reads the catalogue as staged, and falls back only when it cannot	529b6be4d4c9ab0a0b410f6a0b492aa62541cc4cd3a59933191f7b463525669b
+body	tests/package.test.mjs	the staged-mutation guard finds an uncovered addition, and only that	c85ce1e2942b062e69cd50d036a4b9c8e5f448c9f8dec4b0b5384dd35347cb8a
+body	tests/package.test.mjs	what ships is the plugin and nothing else	c87056404d02a183509d555f831c80a5101665565ae59f4b2bb34a7072f6c561
+body	tests/path-length.test.mjs	a path one character over the limit is named, and one at it is not	ffbeef739a6f06365c0eab24aa1660318acc7fc8b9706804470f1956f00b95a3
+body	tests/path-length.test.mjs	every path outside the frozen archive list clones on Windows without core.longpaths	6d79c7c06823fc2a48ed6118d377242a03ed33a660c73b09cd56afc4b37c2664

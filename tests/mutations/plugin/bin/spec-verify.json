@@ -61,6 +61,14 @@
       "only": "^(?:a Cmd override that runs nothing is UNRUN, not a pass)$"
     },
     {
+      "label": "ADR-134: a Cmd override that exits 0 without naming the bound test is not run, not a pass",
+      "file": "plugin/bin/spec-verify",
+      "tests": ["tests/spec-verify-ran.test.mjs"],
+      "from": "        if r.returncode == 0 and (not name or name not in out):",
+      "to": "        if False:",
+      "only": "^(?:a Cmd override that exits 0 without naming the bound test is UNRUN and not a pass)$"
+    },
+    {
       "label": "the cold review of ADR-123: a cargo run that passed nothing is not run",
       "file": "plugin/bin/spec-verify",
       "tests": ["tests/spec-verify-ran.test.mjs"],

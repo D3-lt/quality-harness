@@ -16,8 +16,12 @@ const okFixture = path.join(repoRoot, 'tests', 'fixtures', 'ok')
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-retired-')))
 after(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))
 
+// NODE_TEST_CONTEXT is this runner's: a `node --test` override inherits it and skips its files, running no test (measured
+// 2026-11-01, node v24.22.1: "run() is being called recursively … skipping running files"). It passed only while spec-verify
+// graded an override by exit code (ADR-134); the same strip is in scripts/unasserted.mjs and tests/commit-identity.test.mjs.
+const { NODE_TEST_CONTEXT: _nested, ...childEnv } = process.env
 const run = (command, args, cwd) => {
-  const done = spawnSync(command, args, { cwd, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  const done = spawnSync(command, args, { cwd, env: childEnv, encoding: 'utf8', timeout: 120_000, windowsHide: true })
   assert.equal(done.error, undefined, String(done.error))
   return done
 }

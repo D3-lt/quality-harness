@@ -3499,6 +3499,11 @@ The structural answer is ADR-123 Decision 2: a pass needs the runner's own evide
 model; for an ordinary spec it would turn every override that prints no runner output (`make test-x`) UNRUN, which is a
 decision for the owner, not a fix.
 
+**Override half closed 2026-11-01 by ADR-134** (the owner decided): an override that exits 0 is UNRUN unless its output
+names the bound test. Still open here: pytest, pest and molecule stack runs pass on exit 0, and spec-verify passes its own
+environment to an override, so one started from inside `node --test` inherits `NODE_TEST_CONTEXT` and a nested
+`node --test` runs nothing (that is how `tests/spec-retired.test.mjs` passed with no test run until ADR-134).
+
 ## 405. Two CI failures on main's push run at 7805be9f, after the 3.8.52 tag; both fixed
 
 Found 2026-10-22. Main's push run (39777441003) failed two jobs while the land run and the dispatched campaign at the same
@@ -4053,3 +4058,11 @@ ADR-133 separates completion claims and explicitly leaves general watcher/produc
 ADR-128. Its reporting slice does not establish their outcome or settle ADR-128 T4's existing ownership decision.
 Keep those records' original criteria and evidence; do not close them from a shared completion reference or a green
 structural check. ADR-133 T2 and T3 own the narrower actual-report and adopter-cost observations for this reporting change.
+
+## 437. OPEN 2026-11-01 — `every row reader takes the sha width git can print` is flaky at core.abbrev 4
+
+Found by the full selftest on 2026-11-01 while ADR-134 was being checked: `tests/vlog-sha-width.test.mjs:94` expected a
+4-character sha and adr-verify wrote `19b5d`. Git lengthens an abbreviation when the shorter prefix is ambiguous among the
+repository's objects, so a 4-character request can print 5. The same test passed 3 of 3 runs alone afterwards. The test is
+locked by ADR-088 T1, so the fix (accept a width of at least `core.abbrev`, or pin objects whose 4-character prefixes are
+unique) needs a relock with `--replace-hashes`. Not caused by ADR-134: adr-verify and the readers are unchanged.

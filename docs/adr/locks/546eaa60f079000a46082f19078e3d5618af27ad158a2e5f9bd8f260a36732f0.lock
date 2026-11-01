@@ -1,0 +1,4 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/spec-verify-ran.test.mjs	a Cmd override that exits 0 without naming the bound test is UNRUN and not a pass	68d963d69acbea3cd8e68b2be80d1b7288e7d837836f748623dd40e4036c0672
+body	tests/spec-verify-ran.test.mjs	a Cmd override that runs nothing is UNRUN, not a pass	1f428ac72a409ee5ea08093ec9a39c13497b200c545011c17089424db84d9b7e
+body	tests/spec-verify-ran.test.mjs	a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass	cf5b8c5ea55158cf6754b896716c47b86405bd462f91ce2f00e850f2411d9081

@@ -1,0 +1,54 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/gate-rules.test.mjs	a Swift binding the gate cannot place uniquely is UNRUN	abf46f57eb0b70db78ff4f7509628a47548ed7d037cee94a45eaddc16a2e5d02
+body	tests/gate-rules.test.mjs	a Swift nested type is UNRUN however its name is spelled	1f72d31ad5f9f2cb597df82db98ec0f3b48df1dfdc90a6fcb97cc979ce8c56c9
+body	tests/gate-rules.test.mjs	a Swift pass is attributed to the bound test, not a same-named one elsewhere	5238ba549823cc125ee5c6ebbc8dd8d02817d1050286d5ca34d296a6e79353a6
+body	tests/gate-rules.test.mjs	a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)	6b89cea0bddbcd9c0b40a4bfe958dd2f3fa2d8e509937cd34344871b022a64da
+body	tests/gate-rules.test.mjs	a document ABOUT postmortems is not routed to postmortem-verify	32c12005edaca2639ba546995f215f31398b816f622b77e7ede57760c019ceaa
+body	tests/gate-rules.test.mjs	a record with inline tasks is not paired with a sibling tasks directory it does not own	e728af68a0f25867f8f97c2e6f021ce37f58b51c33576d12bd09cb5ee265b995
+body	tests/gate-rules.test.mjs	a scenario can override its runner, which is the escape it never had	48c17a0d294a18aa8c7f532496cde2e8e4c4d9fcf3e9a78c09f142b287d3cfcf
+body	tests/gate-rules.test.mjs	a shell that aborted before judging is a failure, not a clean pass	e52f1c83c28a92341ad05566b498c9718d134fa782da5251c04cd5215bb3d359
+body	tests/gate-rules.test.mjs	a spec Cmd override runs through a POSIX shell, and says so when there is none	7534eebf3cccfecd775c631f000b048c67cad3662789bf1a0eb034d7a8dea9ab
+body	tests/gate-rules.test.mjs	a target another repository owns is declared, not called broken	3aa994a9334e9496d351456f6be366b37abeb44d662453539305bc0521061e70
+body	tests/gate-rules.test.mjs	a task waiting on a choice nobody has made says so, and names the choice	89a27d5916910076e5cc1b3367f8f499af53c3f68d75d23d2bbfca37a67e5974
+body	tests/gate-rules.test.mjs	a task waiting on an external event is not counted as debt	cf9543a74dfcaed5ac53f2ece59b8e7681420b2d2446498398a3453a3fe49744
+body	tests/gate-rules.test.mjs	a terminal README status is not sent to the wrong vocabulary	34274063c0a8884722a0c39243e85831204ec0e519d046e280494e419a55cce1
+body	tests/gate-rules.test.mjs	a wait is dated by its evidence logs, not by a row-shaped line in prose	73aae36d2152c8edc72eeca7be573155d86848bae0adedc85319ea074cbd0cfa
+body	tests/gate-rules.test.mjs	a wait is dated by its newest evidence row, not by prose	b4ae7599b96c4ae25fd5448a43a5a796564d0066fe15580872c7559c45b7e69a
+body	tests/gate-rules.test.mjs	adr-debt resolves the pointers it can, and reports the ones it cannot	7dffb32a5cbc8665e1cf1902a42e9e53b1337d81912c5d104c54d36dae98039c
+body	tests/gate-rules.test.mjs	adr-lint and adr-next agree on which task statuses are terminal	d12c188870a21ce96e6bd08c333029f260154b3cbd9f86cf6088cb29e9cd3c8a
+body	tests/gate-rules.test.mjs	adr-lint withholds advice about a withdrawn task, and says that it did	2336b6fad109e9806f15e1f8b9a04b98bc5bb13450ae0d5b61949b447b1a376d
+body	tests/gate-rules.test.mjs	adr-retire-check --adopt reports what it finds on a tree adopting the lifecycle	473a32555079fa1773cf1dec43745bab138537be6921124a98aceb67a1da46f5
+body	tests/gate-rules.test.mjs	adr-retire-check counts a ticked receipt, and still fails when that receipt is removed	7f18599eb27ec04145c885d3701b0de029860a0d44780c57cd457957669cdc09
+body	tests/gate-rules.test.mjs	adr-retire-check reads the backlog the sibling roots share when the active root has none	e39291d1d3fe334fa0e3dc751617c5af8b469b7c8dc4cd2564d049d668a53051
+body	tests/gate-rules.test.mjs	an explicit statement of absence is not counted as debt	4e1b10ad7782b9b6294f95a4640a4e1c44c9f56c0301cb4998a661ffc32d5efc
+body	tests/gate-rules.test.mjs	an old wait asks whether the event has already happened	cdf2e6337ea96ae6a50c5bba60873c90a2ae249357d01932130e52316550172e
+body	tests/gate-rules.test.mjs	arch-lint reads a Go package pattern as a pattern, not a missing path	00148d76afd420d23e2d2bff56ad4ac66fd1fa945d3231d68f0c3fedfd251f2b
+body	tests/gate-rules.test.mjs	arch-lint rejects a gate that cannot fail and a symbol that is not there	e63199eda163cf41a00c28f833f0dfaefd739ee2cd4d2a597a57e52b47764da2
+body	tests/gate-rules.test.mjs	every adr-judge rule has a case that makes it fire, and a record that passes them all	2cdf99f817585ac4f04d9439c94b90a4e9a6094693b383d8d1d3c71545b3c08f
+body	tests/gate-rules.test.mjs	every adr-retire-check row rule has a case that makes it fire	8f9783c55eb652e24db707cdb55b66d4e8e8dbd91a5135fa77e0665e7ade9c2b
+body	tests/gate-rules.test.mjs	every adr-retire-check structural rule has a case that makes it fire	23e3debf5333969a832fbab2a6e30b675b7dd38c1c10f38bd9658863b3b35247
+body	tests/gate-rules.test.mjs	every gate refuses a flag it does not know	e780ec8f9b76010f0205c2af031180e58ab4d07f3b13eb08f6002a63b8fc6dd4
+body	tests/gate-rules.test.mjs	every postmortem-verify rule has a case that makes it fire	223d7ba5094ba093d23cd8da8c335a5f42a74fa8c3d1313fb8a628f0199748c9
+body	tests/gate-rules.test.mjs	every shard slice covers the catalogue exactly once	53677f23203b3e54c706bb8001dd37079e8a844789aa65e65d7f3a1ec83ddac3
+body	tests/gate-rules.test.mjs	on Windows a bare gate name resolves under PowerShell	684038daa1cbfb1ac1248f8e3e60537568ac07b0d9c8d27fa8d22a908796857d
+body	tests/gate-rules.test.mjs	on Windows the shim runs the gate the documented invocation names	aac8d5cb4f2127447779c9e3dfce106903776603435960d19e5da1f8d9017bc5
+body	tests/gate-rules.test.mjs	qh-root answers with a plugin directory, or with nothing at all	41c71eb33465176648dced681480f863f2f56dadf2a7fbeb22b3f49475b56313
+body	tests/gate-rules.test.mjs	spec-verify --implemented runs the bound tests and separates RED from broken	aee49d3e011dd4c27c7daab79cd3cfc104f026e9ffe518d2086b81d54c0d6802
+body	tests/gate-rules.test.mjs	spec-verify runs a Go binding, and a Go filter that selects nothing is UNRUN, not a pass	84ca1ec108cf7f504f2fc8c0aa330b0cd175d723934c1e33c84d3e975fdf4df6
+body	tests/gate-rules.test.mjs	spec-verify runs a Swift binding of either test shape, and a Swift filter that selects nothing is UNRUN	2a7aa907d620c8d5e8d5e04095e8a277f51b81c8f611f533a39d16f45c025a1b
+body	tests/gate-rules.test.mjs	spec-verify says it could not run a test, rather than that the test failed	1386e5bac883addc7179befa5dc93bc93b949229144529c8ce2a3dcde99a52fc
+body	tests/gate-rules.test.mjs	spec-verify says so when implemented mode ran no test	b2df3e778ce667162bdc46bfead91e46ad1125a25bed5ecea9bb585dc7e94009
+body	tests/gate-rules.test.mjs	the POSIX fallback reports what ChildProcess.kill answered, not merely that it did not throw	057b98f770b27c819e84573381b4062fd53f8b4c4f4ee92c4fe0a3551c8b4fe1
+body	tests/gate-rules.test.mjs	the Windows cleanup a timeout runs carries a bound, and reports whether the kill was issued (BACKLOG §127)	0b4e02aa07e0a3b6b802da909a2958dcc923d67e1ab51c9c2736b8865d1e1f47
+body	tests/gate-rules.test.mjs	the cleanup bounds fit inside every outer margin that waits on the runner	3fd5cbe521570bff247a2315ef78e3e230c66024bf5fe9137249bb8796524ee8
+body	tests/gate-rules.test.mjs	the deferred headline counts debts, not the places they are written	15a131d943f7afe9b0bc39ef83542f143474b46f90db77ced0512ef6daf85728
+body	tests/gate-rules.test.mjs	the machine-readable output lifecycle.mjs depends on is machine-readable	b7c9982191ba072378098c561bb993f754ba5d4dcdc160c0a2c1782747c6ac86
+body	tests/gate-rules.test.mjs	the mutation runner names an option it does not know, instead of running everything	66b07293f2ad478b55888dc90100d0c5b93a46fa3260cb63cefffdbfee8125d8
+body	tests/gate-rules.test.mjs	the mutation runner refuses to run over an editor, or beside another runner	4289ad4ec55403cc755499a65aa242d999a6cc434bc9b7e3fb0c4b17bc4593ef
+body	tests/gate-rules.test.mjs	the runner process itself exits after a failed cleanup, with the child still alive	ee076cf722df62033b43b0ebeb5095d7eaaa7f2ac9de52554fc80546ef5a46af
+body	tests/gate-rules.test.mjs	the shell-hook runner reports every way a gate can not report, and blocks on none	4a8db3858385468701226dc00e87b0820cde315417b065bf2a3baa5693f7136c
+body	tests/gate-rules.test.mjs	the structural rules around the catalog fire too, not just the row rules	c54c6c6e9f5068d6b9ddaa4ab761ec75570062d30b91c878ea747121d3b8223b
+body	tests/gate-rules.test.mjs	the timeout mechanism itself kills the child and says it timed out	4ad0c012849e1e39c036377602acdd178c3be22b1272eddd2c0e681fab32c563
+body	tests/spec-verify-ran.test.mjs	a Cmd override that exits 0 without naming the bound test is UNRUN and not a pass	68d963d69acbea3cd8e68b2be80d1b7288e7d837836f748623dd40e4036c0672
+body	tests/spec-verify-ran.test.mjs	a Cmd override that runs nothing is UNRUN, not a pass	13a31d7a660dd07114f7bef4e2287557576b1a79e24d4aad14c1646d383bc446
+body	tests/spec-verify-ran.test.mjs	a runner whose filter selected nothing is UNRUN, and one that reports the test passing is a pass	cf5b8c5ea55158cf6754b896716c47b86405bd462f91ce2f00e850f2411d9081

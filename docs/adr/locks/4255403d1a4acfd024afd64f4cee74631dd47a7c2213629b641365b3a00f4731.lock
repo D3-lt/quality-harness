@@ -1,0 +1,132 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/gate-rules.test.mjs	a Swift binding the gate cannot place uniquely is UNRUN	abf46f57eb0b70db78ff4f7509628a47548ed7d037cee94a45eaddc16a2e5d02
+body	tests/gate-rules.test.mjs	a Swift nested type is UNRUN however its name is spelled	1f72d31ad5f9f2cb597df82db98ec0f3b48df1dfdc90a6fcb97cc979ce8c56c9
+body	tests/gate-rules.test.mjs	a Swift pass is attributed to the bound test, not a same-named one elsewhere	5238ba549823cc125ee5c6ebbc8dd8d02817d1050286d5ca34d296a6e79353a6
+body	tests/gate-rules.test.mjs	a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)	6b89cea0bddbcd9c0b40a4bfe958dd2f3fa2d8e509937cd34344871b022a64da
+body	tests/gate-rules.test.mjs	a document ABOUT postmortems is not routed to postmortem-verify	32c12005edaca2639ba546995f215f31398b816f622b77e7ede57760c019ceaa
+body	tests/gate-rules.test.mjs	a record with inline tasks is not paired with a sibling tasks directory it does not own	e728af68a0f25867f8f97c2e6f021ce37f58b51c33576d12bd09cb5ee265b995
+body	tests/gate-rules.test.mjs	a scenario can override its runner, which is the escape it never had	48c17a0d294a18aa8c7f532496cde2e8e4c4d9fcf3e9a78c09f142b287d3cfcf
+body	tests/gate-rules.test.mjs	a shell that aborted before judging is a failure, not a clean pass	e52f1c83c28a92341ad05566b498c9718d134fa782da5251c04cd5215bb3d359
+body	tests/gate-rules.test.mjs	a spec Cmd override runs through a POSIX shell, and says so when there is none	7534eebf3cccfecd775c631f000b048c67cad3662789bf1a0eb034d7a8dea9ab
+body	tests/gate-rules.test.mjs	a target another repository owns is declared, not called broken	3aa994a9334e9496d351456f6be366b37abeb44d662453539305bc0521061e70
+body	tests/gate-rules.test.mjs	a task waiting on a choice nobody has made says so, and names the choice	89a27d5916910076e5cc1b3367f8f499af53c3f68d75d23d2bbfca37a67e5974
+body	tests/gate-rules.test.mjs	a task waiting on an external event is not counted as debt	cf9543a74dfcaed5ac53f2ece59b8e7681420b2d2446498398a3453a3fe49744
+body	tests/gate-rules.test.mjs	a terminal README status is not sent to the wrong vocabulary	34274063c0a8884722a0c39243e85831204ec0e519d046e280494e419a55cce1
+body	tests/gate-rules.test.mjs	a wait is dated by its evidence logs, not by a row-shaped line in prose	73aae36d2152c8edc72eeca7be573155d86848bae0adedc85319ea074cbd0cfa
+body	tests/gate-rules.test.mjs	a wait is dated by its newest evidence row, not by prose	b4ae7599b96c4ae25fd5448a43a5a796564d0066fe15580872c7559c45b7e69a
+body	tests/gate-rules.test.mjs	adr-debt resolves the pointers it can, and reports the ones it cannot	7dffb32a5cbc8665e1cf1902a42e9e53b1337d81912c5d104c54d36dae98039c
+body	tests/gate-rules.test.mjs	adr-lint and adr-next agree on which task statuses are terminal	d12c188870a21ce96e6bd08c333029f260154b3cbd9f86cf6088cb29e9cd3c8a
+body	tests/gate-rules.test.mjs	adr-lint withholds advice about a withdrawn task, and says that it did	2336b6fad109e9806f15e1f8b9a04b98bc5bb13450ae0d5b61949b447b1a376d
+body	tests/gate-rules.test.mjs	adr-retire-check --adopt reports what it finds on a tree adopting the lifecycle	473a32555079fa1773cf1dec43745bab138537be6921124a98aceb67a1da46f5
+body	tests/gate-rules.test.mjs	adr-retire-check counts a ticked receipt, and still fails when that receipt is removed	7f18599eb27ec04145c885d3701b0de029860a0d44780c57cd457957669cdc09
+body	tests/gate-rules.test.mjs	adr-retire-check reads the backlog the sibling roots share when the active root has none	e39291d1d3fe334fa0e3dc751617c5af8b469b7c8dc4cd2564d049d668a53051
+body	tests/gate-rules.test.mjs	an explicit statement of absence is not counted as debt	4e1b10ad7782b9b6294f95a4640a4e1c44c9f56c0301cb4998a661ffc32d5efc
+body	tests/gate-rules.test.mjs	an old wait asks whether the event has already happened	cdf2e6337ea96ae6a50c5bba60873c90a2ae249357d01932130e52316550172e
+body	tests/gate-rules.test.mjs	arch-lint reads a Go package pattern as a pattern, not a missing path	00148d76afd420d23e2d2bff56ad4ac66fd1fa945d3231d68f0c3fedfd251f2b
+body	tests/gate-rules.test.mjs	arch-lint rejects a gate that cannot fail and a symbol that is not there	e63199eda163cf41a00c28f833f0dfaefd739ee2cd4d2a597a57e52b47764da2
+body	tests/gate-rules.test.mjs	every adr-judge rule has a case that makes it fire, and a record that passes them all	2cdf99f817585ac4f04d9439c94b90a4e9a6094693b383d8d1d3c71545b3c08f
+body	tests/gate-rules.test.mjs	every adr-retire-check row rule has a case that makes it fire	8f9783c55eb652e24db707cdb55b66d4e8e8dbd91a5135fa77e0665e7ade9c2b
+body	tests/gate-rules.test.mjs	every adr-retire-check structural rule has a case that makes it fire	23e3debf5333969a832fbab2a6e30b675b7dd38c1c10f38bd9658863b3b35247
+body	tests/gate-rules.test.mjs	every gate refuses a flag it does not know	e780ec8f9b76010f0205c2af031180e58ab4d07f3b13eb08f6002a63b8fc6dd4
+body	tests/gate-rules.test.mjs	every postmortem-verify rule has a case that makes it fire	223d7ba5094ba093d23cd8da8c335a5f42a74fa8c3d1313fb8a628f0199748c9
+body	tests/gate-rules.test.mjs	every shard slice covers the catalogue exactly once	53677f23203b3e54c706bb8001dd37079e8a844789aa65e65d7f3a1ec83ddac3
+body	tests/gate-rules.test.mjs	on Windows a bare gate name resolves under PowerShell	684038daa1cbfb1ac1248f8e3e60537568ac07b0d9c8d27fa8d22a908796857d
+body	tests/gate-rules.test.mjs	on Windows the shim runs the gate the documented invocation names	aac8d5cb4f2127447779c9e3dfce106903776603435960d19e5da1f8d9017bc5
+body	tests/gate-rules.test.mjs	qh-root answers with a plugin directory, or with nothing at all	41c71eb33465176648dced681480f863f2f56dadf2a7fbeb22b3f49475b56313
+body	tests/gate-rules.test.mjs	spec-verify --implemented runs the bound tests and separates RED from broken	aee49d3e011dd4c27c7daab79cd3cfc104f026e9ffe518d2086b81d54c0d6802
+body	tests/gate-rules.test.mjs	spec-verify runs a Go binding, and a Go filter that selects nothing is UNRUN, not a pass	84ca1ec108cf7f504f2fc8c0aa330b0cd175d723934c1e33c84d3e975fdf4df6
+body	tests/gate-rules.test.mjs	spec-verify runs a Swift binding of either test shape, and a Swift filter that selects nothing is UNRUN	2a7aa907d620c8d5e8d5e04095e8a277f51b81c8f611f533a39d16f45c025a1b
+body	tests/gate-rules.test.mjs	spec-verify says it could not run a test, rather than that the test failed	1386e5bac883addc7179befa5dc93bc93b949229144529c8ce2a3dcde99a52fc
+body	tests/gate-rules.test.mjs	spec-verify says so when implemented mode ran no test	b2df3e778ce667162bdc46bfead91e46ad1125a25bed5ecea9bb585dc7e94009
+body	tests/gate-rules.test.mjs	the POSIX fallback reports what ChildProcess.kill answered, not merely that it did not throw	057b98f770b27c819e84573381b4062fd53f8b4c4f4ee92c4fe0a3551c8b4fe1
+body	tests/gate-rules.test.mjs	the Windows cleanup a timeout runs carries a bound, and reports whether the kill was issued (BACKLOG §127)	0b4e02aa07e0a3b6b802da909a2958dcc923d67e1ab51c9c2736b8865d1e1f47
+body	tests/gate-rules.test.mjs	the cleanup bounds fit inside every outer margin that waits on the runner	3fd5cbe521570bff247a2315ef78e3e230c66024bf5fe9137249bb8796524ee8
+body	tests/gate-rules.test.mjs	the deferred headline counts debts, not the places they are written	15a131d943f7afe9b0bc39ef83542f143474b46f90db77ced0512ef6daf85728
+body	tests/gate-rules.test.mjs	the machine-readable output lifecycle.mjs depends on is machine-readable	b7c9982191ba072378098c561bb993f754ba5d4dcdc160c0a2c1782747c6ac86
+body	tests/gate-rules.test.mjs	the mutation runner names an option it does not know, instead of running everything	66b07293f2ad478b55888dc90100d0c5b93a46fa3260cb63cefffdbfee8125d8
+body	tests/gate-rules.test.mjs	the mutation runner refuses to run over an editor, or beside another runner	4289ad4ec55403cc755499a65aa242d999a6cc434bc9b7e3fb0c4b17bc4593ef
+body	tests/gate-rules.test.mjs	the runner process itself exits after a failed cleanup, with the child still alive	ee076cf722df62033b43b0ebeb5095d7eaaa7f2ac9de52554fc80546ef5a46af
+body	tests/gate-rules.test.mjs	the shell-hook runner reports every way a gate can not report, and blocks on none	4a8db3858385468701226dc00e87b0820cde315417b065bf2a3baa5693f7136c
+body	tests/gate-rules.test.mjs	the structural rules around the catalog fire too, not just the row rules	c54c6c6e9f5068d6b9ddaa4ab761ec75570062d30b91c878ea747121d3b8223b
+body	tests/gate-rules.test.mjs	the timeout mechanism itself kills the child and says it timed out	4ad0c012849e1e39c036377602acdd178c3be22b1272eddd2c0e681fab32c563
+body	tests/mutate-isolation.test.mjs	a campaign child does not hand its marker to the tests it runs	3090d17330d405f1b5b8fe9577cc44eabce2e97df3839699d73fbba2a038535d
+body	tests/mutate-isolation.test.mjs	a campaign leaves the working tree byte-identical and its mutants never appear there	767b5f33ad9aaa8653219564d173e0ceaf38a9fc1b7360237a6b10c3b1bda0c9
+body	tests/mutate-isolation.test.mjs	a campaign names each baseline and mutant before it runs it	cc0388353afebaefe754ae47dbfce186fcc9583c25eed65287ecfa7bf9fac0ed
+body	tests/mutate-isolation.test.mjs	a campaign says its load line once, in place and isolated	991967e340f96fcf25a3b58278aee19a824de7baf1f7558411efe8974e624e9e
+body	tests/mutate-isolation.test.mjs	a campaign stopped with SIGTERM ends within its grace, not after its remaining entries	056bad964e3d00a78d0f4bcab0d78397fa80243f7d1617ad2ffa9ab5a3471c23
+body	tests/mutate-isolation.test.mjs	a campaign stopped with SIGTERM removes its worktree	452ce0446131587dd47cc3181f58572518a97665be5abae3d1dbda9f02612886
+body	tests/mutate-isolation.test.mjs	a campaign that cannot isolate stops and names --in-place, writing nothing	e1f712aa0505e05c376f63d38e1a907531fb55426462f7424b1a469ee49043ed
+body	tests/mutate-isolation.test.mjs	a killed campaign's worktree is removed by the next run, and said	cfa22af8454d97c539e5bd53c1f5586f411aff03f571d46ce3ce1bd493432ae9
+body	tests/mutate-isolation.test.mjs	a second campaign waits while an orphaned child of the first still runs	44db608cb547b60e57d13f677f2bbb1872b7559bc02f35a13647360714a69a8c
+body	tests/mutate-isolation.test.mjs	a tracked file deleted in the checkout is absent from the worktree too	2d867f2e8286f43be729d6afbffa4dc249eb23ea276e12e4fc7b8c2333d3d1c8
+body	tests/mutate-isolation.test.mjs	a verdict cache that cannot be read into the worktree is neither reused nor returned, and the worktree goes	3006bad44e144631e3b2b65fb796d866ef216315c8b9906a5b4fb4458f6dc860
+body	tests/mutate-isolation.test.mjs	a verdict cache that cannot be written back is left as it was, and said	f2f487ad56657ea380cc5b9b68fd40c3d81d44dbbe7da16806c9d8fdd1c1a70e
+body	tests/mutate-isolation.test.mjs	an in-place campaign names the processes running this checkout, and says when it could not look	f8b518d0b6f49230c9681e58efb2495b1c2097447fb7e0c9a6326a7dd64a06cf
+body	tests/mutate-isolation.test.mjs	an isolated campaign reuses and returns the checkout's verdict cache	89b361bda0f07921969fed7701fc58e099c6d2a47fa2cfc5399cc223e0590883
+body	tests/mutate-isolation.test.mjs	an isolated campaign runs exactly the entries an in-place one selects	9580db2d82c4edb96e273c7eab48f0e1331c3c5e192c761912d01604e98d476b
+body	tests/mutate-isolation.test.mjs	an isolated campaign runs over the bytes in the checkout, not the ones git normalises	02b5a2e1a79c84cc2a83a52c71e235822a54f749fefca66367aa6ea4e28e6c8e
+body	tests/mutate-isolation.test.mjs	an isolated campaign's written-back cache is one CI's merge job can read	6fb36a9ff4ed61e1b39c087422bed3bbb8bd4612f656384492c5bfd268494715
+body	tests/mutate-isolation.test.mjs	an isolated child whose parent ended before recording it does not start	6293c9de0dfc97fc6c628652c8e7a07023255515971dfd22a926f947effe76f9
+body	tests/mutate-isolation.test.mjs	an isolated run and an in-place run of the same entries give the same verdicts	815a9ce92215858425c1edac44d3377fb33cf5a4ab5b7a75ec7bb472808050e8
+body	tests/mutate-isolation.test.mjs	an uncommitted test edit and an untracked test are graded as an in-place run grades them	7aaed829891b01d6474e59a5ab91d255c7daed0ed2d1f5f697cac59edfb24826
+body	tests/mutate-runner.test.mjs	--changed reads its diff in one shape whatever the user configured	696d7d96511a46d00541aa7bdaeb244950ef12620857759294ccb471956e28be
+body	tests/mutate-runner.test.mjs	--changed selects a short mutant by where the change added it	128b1d1dafb0ff27bcedb371999ea393df269d45133e1b8b8ff21d514f0dc02f
+body	tests/mutate-runner.test.mjs	GREEN and STALE both count as missed and exit 1	06f6c0fc20f0e374a2a58b161748c5267e42d7b4951639d736598e09db409417
+body	tests/mutate-runner.test.mjs	UNPROVEN entries are in neither half of the noticed ratio	c5131af217e086602610381030ac561560a95e6950a43a848e1e8680ff5eeb58
+body	tests/mutate-runner.test.mjs	`only` becomes a --test-name-pattern for the mutant and its baseline alike, and nothing without it	42ca67034d0bfa0f66d9355821c9a7e70d4057ee6000ccb4b343052bca36713b
+body	tests/mutate-runner.test.mjs	a baseline is taken once per distinct test-set, not once per mutation	c153b37b47740b7dda1829d8144af6d558f958cc635e1e3e474c5fa5abc76c23
+body	tests/mutate-runner.test.mjs	a baseline taken under one pattern licenses nothing about another	dd9dade8da198944310f92b2b61c6ba9a7499be3040a5e9be0ace7a6c1b34507
+body	tests/mutate-runner.test.mjs	a baseline that never ran is not reported as an already-failing suite	77c82d6fddad555ab17c44053b1688afd9505a86c665f419c0b4d572d4753bf9
+body	tests/mutate-runner.test.mjs	a campaign leaves nothing in the temp directory, whatever its tests forget	7d7749705276a1235a0b790bf298592c56cdbf3089877ea74461a898a8683960
+body	tests/mutate-runner.test.mjs	a campaign that prints no summary says why: its exit, its signal and its stderr	c388aa5a6a2133a660dc49ac379b81075cc87274130c8474602395f933c40b1d
+body	tests/mutate-runner.test.mjs	a changed subject, test or edit is a different mutant	912ecbb6420bbb45d61d43d95cdb0821f8de26502021fa7a439e85c951ca0a0a
+body	tests/mutate-runner.test.mjs	a checkout path with a space is still an unrun baseline when nothing matched	859c46c14b115e3848c5d0aedd63ff743f5368d6caa4c43c939d827ae9dcd68f
+body	tests/mutate-runner.test.mjs	a forced run reuses nothing	88505817206a9cb8afd3194ed03f9a113416a5e88a5841461ca246db479521a5
+body	tests/mutate-runner.test.mjs	a kill names which tests failed, so the wrong killer is visible	ceb2427330b649bfa9f637a868fde6d1de090bdaeb3c729fbc3131a51d811081
+body	tests/mutate-runner.test.mjs	a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured	9dea01ea04be19ded7e601b4be9f7f4a1c17334b7ef444ee1fdbe7c7e0ea6be5
+body	tests/mutate-runner.test.mjs	a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not	11a83a8cb0a7fa9a7752973a5af3cffb9c72caa1de24cabd47e4b82da8c5ace3
+body	tests/mutate-runner.test.mjs	a partition stays a partition however the costs fall	7a66b85776ba3297728e1f95aa7a6e130c4793711a688dac226bfd054f38c1ad
+body	tests/mutate-runner.test.mjs	a passing baseline leaves every existing verdict exactly as it was	97b285fa5589a4e9bfe13a35d5b93940498d26b191b2980ba96735d7c664901a
+body	tests/mutate-runner.test.mjs	a run in which no test executed is an unrun baseline, never a passing one	7f881bdd8c7f774f95bca2bcdd38f5f2ecdbdca6cae54de19047e0c189ccd19a
+body	tests/mutate-runner.test.mjs	a run killed by signal is HUNG rather than GREEN	c1a6bd92129720c2508c8ba6ec8f793a80a5364b07238e0cdbb229bd86bba649
+body	tests/mutate-runner.test.mjs	a stale entry is decided before any baseline, because nothing was applied	e9a1e146de5ac5bd7a340ae381bd3b169ce1b6c09e440cfe27cb6fb62361f4a9
+body	tests/mutate-runner.test.mjs	a stale mutation is reported as stale, not as a test that failed to notice	5de9ae71e0ba6dfc00aaee80d202b5acd16a47f5c776c1a50d26c649b6ca2629
+body	tests/mutate-runner.test.mjs	a stale mutation renders a line rather than a blank	9c935e45e922f7b3056c4e7dd5329a3d0130c2d544388161eff3aba5b114671e
+body	tests/mutate-runner.test.mjs	a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it	4c7049f91a6725ba8c1106d1ba88230c4db78890ab4815992be19cea8a0c3266
+body	tests/mutate-runner.test.mjs	a test name that mentions a directory is a name, not a file path	bbb0ee0e3ca56e1d0aec1b422e3428d73dd0e22f0e48f30d97f8a7324e8d4f73
+body	tests/mutate-runner.test.mjs	a verdict taken against a failing baseline is UNPROVEN, not RED	d7140beccdde2cf4b5f5f0d4e52303ff9cb59252b3ee02b7b090c58abb21399f
+body	tests/mutate-runner.test.mjs	an UNPROVEN entry names its test-set and the next action	fc6c93c44c1e335a04b76fca3b2f82a79435f9c5785470585807b88bd3bad430
+body	tests/mutate-runner.test.mjs	an UNPROVEN entry still reports the verdict the tests produced	4ec7cceab6ef738c0fb31242d3790ed8d548be35529ed0c0e5b2525cfc9a5610
+body	tests/mutate-runner.test.mjs	an absent or unreadable cache measures everything	7966440bbbd27ef71c00841503008508fe0b1d1381e44502ec63b721c79bdeea
+body	tests/mutate-runner.test.mjs	an exact content match reuses a RED verdict	06d1f0f67aa7540526bdaf9b736e8af21caf1f29c89a575455fb4bffabeea640
+body	tests/mutate-runner.test.mjs	an inherited FORCE_COLOR is dropped, so a real run still counts its tests	b864f4e4c0b2e94f7015108b77b1bb54193846a4e21abd0ef0c62d72a790b42d
+body	tests/mutate-runner.test.mjs	an unreadable input has no key, so it is measured	dabfe2970ab2d737e7b2a3c0d69ebc17ab986981f0a997361729df6637d82354
+body	tests/mutate-runner.test.mjs	campaignPaths keeps every campaign file inside the root it is given	9462ae3cfdc6b139c8ff55e5556056f1e26bd73aa2edea16030e76689719f1dc
+body	tests/mutate-runner.test.mjs	end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes	d9d7002af9687e67d9877d7eaa3cfd9cdc8384559edcfecb8037d78dd1d58c2b
+body	tests/mutate-runner.test.mjs	invalidOnly names an entry whose only pattern does not compile	feed2aefad12084d6cfba7a785c960c6971788b4e9161b9b2bd858eba62e5589
+body	tests/mutate-runner.test.mjs	killers are rendered one per line, because names contain commas	fe974174c087f1bc45f34074d21de4a2f23d372b0162e4afb008ea982c9b3552
+body	tests/mutate-runner.test.mjs	literalsOf keeps its place after a control statement and a postfix operator	109c3a38c46a18e22b67e1c9b6978dd37c1a95dd1ee3588c8d12d9411b4343f6
+body	tests/mutate-runner.test.mjs	mutate --narrow --write leaves nothing narrowed when it is killed while a mutant runs	c4ce494d77fe889b9fdc28385fe142f216d3566dd87183656b8e695d60d4f499
+body	tests/mutate-runner.test.mjs	mutate --narrow --write leaves nothing narrowed when it is stopped mid-measurement	c77c0eb0e200134c60d4d53b1f290189d921d18e6263597c2f1e9dde16be8065
+body	tests/mutate-runner.test.mjs	mutate --narrow --write measures only what it narrowed, fresh, and refuses before any work	9069510d81c97b0733b5a3d467632a586da10ef7e031d0122331775e89e0f0c6
+body	tests/mutate-runner.test.mjs	mutate --narrow proposes, writes only with --write, and undoes a narrowing that is not RED	ecb387bfc97450c509b2ee304f52dae8fe3084a688c1fab3c2687084de3b0055
+body	tests/mutate-runner.test.mjs	mutate --repoint --reanchor proposes what repointEntry refused, and --repoint alone is unchanged	bc6e6654eb0c18548b86616bcfbb09ab60ff136014d2b755f42c20ad71cde8d3
+body	tests/mutate-runner.test.mjs	mutate --repoint --write rewrites only what it proposed, measures it, and names what stayed refused	026fcf894a26ff13e67afd38e8df4d1e3fc89957c6ed246bc8d1ce1c90c45279
+body	tests/mutate-runner.test.mjs	mutate --repoint reads a scratch repository, writes nothing, and exits 1 while an entry is stale	ae75af26d36912456e283fa84cc2f469df1f45a0f45bfed9bd4716bdf568bcd0
+body	tests/mutate-runner.test.mjs	mutate --stale exits 1 and names an entry whose only pattern is not a regular expression	116dd42a11dfb764d04dfd5be3c497d9eef88605bed7df319ee3e11aca99aafe
+body	tests/mutate-runner.test.mjs	mutate --stale names a narrowed entry whose killer is no longer defined	812f05b72f83eabd4cb87de594d82773323e4286d0da94017f46e422acc486ca
+body	tests/mutate-runner.test.mjs	mutate --stale names every narrowed killer that is gone	82253a8f335e7066b0e87efbf27c62412e6045eb8870ff78b8332414aa47a3d1
+body	tests/mutate-runner.test.mjs	mutate --stale over the real catalogue exits 0 and says every entry matches	81aaaa6ff9b913bf5f7071375aa1c81f02bcd65b0bd6f6ee42ec55542cb19c60
+body	tests/mutate-runner.test.mjs	narrowEntry proposes exactly the recorded killers, escaped and anchored, and refuses what it cannot prove	1837f28cfb704fa2a1c4ff3ef94a1de9f602805be70b5ca9cb4b3006a3df8484
+body	tests/mutate-runner.test.mjs	narrowEntry reads a killer only from a string literal its file holds	8c6f113b7cb692f3e66c4d416e1225ccaadad5687cefbb9379ed56d5d8e9cadc
+body	tests/mutate-runner.test.mjs	only RED is reusable	af7874fae06302425f0ee0b5f9efd2a21c909867867a7e6b61768bbf748579f9
+body	tests/mutate-runner.test.mjs	reanchorEntry reproduces the hand repoints repointEntry refused, and proposes no line the hand did not choose	e36f491b257283b66605280efe30189f6b9a1d217fca803f5ac5c229f031ad7a
+body	tests/mutate-runner.test.mjs	repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest	f5ae5b16e5f74d7a8cd971e25071a31ac9e71dd09242b06d162ac00eca675a2a
+body	tests/mutate-runner.test.mjs	shards are balanced by measured cost when timings exist	a502b4903bf1b02e35917e087701357333a54c057d207f4e4cd5051f90c89ad1
+body	tests/mutate-runner.test.mjs	staleEntries names each entry that no longer matches once, with where its line went	279acc7a6fe92b67fc995227f49b915f9213d77fd9b61f11f7493997cd3b535b
+body	tests/mutate-runner.test.mjs	the campaign cache records every test that killed an entry	8003a4e169373a17c91e9e99c6f7637eba7b1316252b019ea6ade9193f7c9dc1
+body	tests/mutate-runner.test.mjs	the campaign cache records the tests that killed each RED entry	dabc9efad57195ab8ac5a39810d98453c875d1cda0ebc73542dc1bbe1ac8ac11
+body	tests/mutate-runner.test.mjs	the report names the killer beside a RED verdict	d449c079c2911c890cf561363f8c81e3c004af9c15ddcd7bf7d9e5582de00244
+body	tests/mutate-runner.test.mjs	the summary distinguishes measured from reused	fb33e6ee1333074eb0a83fc56d1c7a53ca8d6a0fdb69419b45919dc57b6839d6
+body	tests/mutate-runner.test.mjs	touchedBy keeps an entry whose mutated line was added by the change, and only those	0d368f31d63e82b68d6fcc4864d216e23f57fff33e3bc1bd5ebc04c229e36d95
+body	tests/mutate-runner.test.mjs	with no timings at all it still partitions, and says nothing about balance	52ca89d742c24a7130e5b0ccd88bc2d4593acc99fe763fbf65d57c31dcc0cb87

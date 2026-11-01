@@ -89,12 +89,34 @@ test('a Cmd override that runs nothing is UNRUN, not a pass', { skip: NO_POSIX_S
     assert.equal(run.status, 4, `${cmd} proves nothing ran:\n${run.stdout}`)
     assert.match(run.stdout, /UNRUN|not run/)
   }
-  // Twin: an override that runs something real still answers with its exit.
-  const real = fixture('test_selftest_fixture.py::test_gates_run', '`test -f spec-selftest.md`', {})
+  // Twin: an override that runs something real, and names the bound test (ADR-134), still answers with its exit.
+  const real = fixture('test_selftest_fixture.py::test_gates_run', '`test -f spec-selftest.md && echo test_gates_run`', {})
   t.after(() => remove(real.dir))
   assert.equal(verify(real, process.env).status, 0)
   // Twin: a no-op beside a real command runs that command.
   const chained = fixture('test_selftest_fixture.py::test_gates_run', '`true; test -f nowhere.md`', {})
   t.after(() => remove(chained.dir))
   assert.equal(verify(chained, process.env).status, 3, 'the real command after the no-op is run, and its failure is a failure')
+})
+
+// ADR-134: an override that exits 0 is a pass only when its output names the bound test. Reproduced 2026-10-31 through this
+// CLI: `printf audit-marker` printed [PASS] and exited 0 with no test run (BACKLOG §404 named the class on 2026-10-22).
+test('a Cmd override that exits 0 without naming the bound test is UNRUN and not a pass', { skip: NO_POSIX_STUB }, t => {
+  // The dirty answers: output that says nothing about test_gates_run, and no output at all.
+  for (const cmd of ['`printf audit-marker`', '`test -f spec-selftest.md`']) {
+    const f = fixture('test_selftest_fixture.py::test_gates_run', cmd, {})
+    t.after(() => remove(f.dir))
+    const run = verify(f, process.env)
+    assert.equal(run.status, 4, `${cmd} exits 0 without showing the bound test ran:\n${run.stdout}`)
+    assert.match(run.stdout, /UNRUN/)
+    assert.match(run.stdout, /test_gates_run/, `the reason names the test it looked for:\n${run.stdout}`)
+  }
+  // The clean answer: the output names the bound test.
+  const named = fixture('test_selftest_fixture.py::test_gates_run', '`printf "test_gates_run PASSED"`', {})
+  t.after(() => remove(named.dir))
+  assert.equal(verify(named, process.env).status, 0, 'an override whose output names the bound test is a pass')
+  // A named failure is still a failure, not UNRUN.
+  const failed = fixture('test_selftest_fixture.py::test_gates_run', '`printf "test_gates_run FAILED"; exit 1`', {})
+  t.after(() => remove(failed.dir))
+  assert.equal(verify(failed, process.env).status, 3, 'an override that exits 1 is a failing test')
 })

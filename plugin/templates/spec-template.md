@@ -55,7 +55,7 @@ Then <safe, explicit failure outcome>
 
 <The registry — replaces prose invariants. Every behavioral decision from the grill lands here.
 Lifecycle: **@draft** (decided, no test yet) → **@spec** (test committed & collectable — MAY FAIL: that is the TDD red state; required for Ready-for-ADR) → **@implemented** (test passes; flipped during /quality-harness:adr-execute). **@retired** is the way out of any of them: the behaviour was reversed by a later record and its test deleted, so no test is required or run and no task covers it; keep the row and name the reversing record in its assertion.
-Cmd column only when the stack default (see spec-verify) is wrong for that fact.>
+Cmd column only when the stack default (see spec-verify) is wrong for that fact. A Cmd override passes only when its output names the bound test; one that exits 0 without it is UNRUN.>
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|

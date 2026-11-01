@@ -534,7 +534,16 @@ def test_runs(test, root, stack, override_cmd):
                                  "cmd.exe cannot run `VAR=value cmd` or a quoted `bash -c`")
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
             return "unrun", f"the Cmd override could not be run: {e}"
-        return ("pass" if r.returncode == 0 else "fail"), (r.stdout + r.stderr)[-300:]
+        out = r.stdout + r.stderr
+        # An exit 0 shows only that the command succeeded. `printf audit-marker` printed PASS with no test run (reproduced
+        # 2026-10-31, BACKLOG §404), so a pass needs the bound test's name in the output: the evidence a runner-agnostic
+        # override can give (ADR-134). It cannot tell a runner's report from an `echo` of the name.
+        name = split_binding(test)[1]
+        if r.returncode == 0 and (not name or name not in out):
+            return "unrun", (f"the Cmd override `{override_cmd}` exited 0 without printing `{name}`, so nothing shows the "
+                             "bound test ran. Make the command print the runner's report line for that test (a verbose "
+                             "flag usually does)")
+        return ("pass" if r.returncode == 0 else "fail"), out[-300:]
     path, name = split_binding(test)
 
     # A monorepo has more than one runner, and the repo-root stack detection can only report one.

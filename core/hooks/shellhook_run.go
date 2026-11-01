@@ -184,7 +184,12 @@ func shkSpawnMessage(executable string, err error) string {
 
 // shkSpawnCode is the libuv code Node names. Node finds a bare name through execvp, which reports EACCES when the only match
 // on PATH exists but cannot be run; Go's LookPath skips that file and says not found.
+// The codes are a closed list, the ones libuv names for a failed spawn of a resolved bash; any other error keeps Go's text,
+// which ADR-136 names as a limit rather than guessing a code.
 func shkSpawnCode(executable string, err error) string {
+	if code, ok := shkPlatformSpawnCode(err); ok {
+		return code
+	}
 	switch {
 	case errors.Is(err, exec.ErrNotFound):
 		if shkOnPathUnrunnable(executable) {
@@ -209,18 +214,27 @@ func shkSpawnCode(executable string, err error) string {
 	return err.Error()
 }
 
-// shkOnPathUnrunnable is whether execvp would find `name` as a file it cannot run: a path that exists, or a bare name that
-// exists in a PATH directory.
+// shkOnPathUnrunnable is whether execvp would find `name` as something it cannot run: a path that exists, or a bare name that
+// exists, file or directory, in a PATH directory. An unset PATH is libuv's default; a PATH set to "" searches the working
+// directory (the Codex review of be9293a0..85448572).
 func shkOnPathUnrunnable(name string) bool {
-	regular := func(p string) bool { info, err := os.Stat(p); return err == nil && info.Mode().IsRegular() }
+	exists := func(p string) bool { _, err := os.Stat(p); return err == nil }
 	if strings.ContainsAny(name, `/\`) {
-		return regular(name)
+		return exists(name)
 	}
-	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+	value, set := os.LookupEnv("PATH")
+	if !set {
+		value = "/usr/bin:/bin"
+	}
+	dirs := filepath.SplitList(value)
+	if value == "" {
+		dirs = []string{""}
+	}
+	for _, dir := range dirs {
 		if dir == "" {
 			dir = "."
 		}
-		if regular(filepath.Join(dir, name)) {
+		if exists(filepath.Join(dir, name)) {
 			return true
 		}
 	}

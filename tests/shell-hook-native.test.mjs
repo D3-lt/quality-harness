@@ -376,3 +376,26 @@ test('the native shell hook reports an unlaunchable bash as Node does', { skip: 
   assert.deepEqual({ status: ran.native.status, stdout: ran.native.stdout, stderr: ran.native.stderr },
     { status: ran.node.status, stdout: ran.node.stdout, stderr: ran.node.stderr })
 })
+
+// The Codex review of be9293a0..85448572 (part B): execvp also reports EACCES for a directory named bash on PATH, and a PATH
+// that is set but empty searches the working directory, where a non-executable ./bash is EACCES too.
+test('the native shell hook reports a bash directory or an empty PATH as Node does', { skip: process.platform === 'win32' && 'Windows resolves Git Bash by its install root, not a PATH file' }, t => {
+  const f = fixture(t)
+  const edit = { hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-sp2', cwd: f.project,
+    tool_input: { file_path: path.join(f.project, 'hook.sh') } }
+  const dirBin = path.join(f.scratch, 'dir-bin')
+  mkdirSync(path.join(dirBin, 'bash'), { recursive: true })
+  writeFileSync(path.join(f.project, 'bash'), '#!/bin/sh\nexit 0\n', { mode: 0o644 })
+  for (const [name, PATH] of [['a directory named bash', dirBin], ['an empty PATH over a non-executable ./bash', '']]) {
+    const env = { ...process.env, PATH, CLAUDE_PLUGIN_ROOT: f.root }
+    delete env.QH_SHELL_HOOK_NATIVE
+    const ran = Object.fromEntries([
+      ['node', [process.execPath, [path.join(f.scripts, 'run-shell-hook.mjs'), 'post-edit-check.sh']]],
+      ['native', [qh, ['bridge', 'shell-hook', 'post-edit-check.sh']]],
+    ].map(([impl, [command, args]]) => [impl, spawnSync(command, args, { cwd: f.project, env, input: JSON.stringify(edit),
+      encoding: 'utf8', timeout: 60_000, windowsHide: true })]))
+    assert.match(ran.node.stderr, /spawn bash EACCES/, `${name}: ${ran.node.stderr}`)
+    assert.deepEqual({ status: ran.native.status, stdout: ran.native.stdout, stderr: ran.native.stderr },
+      { status: ran.node.status, stdout: ran.node.stdout, stderr: ran.node.stderr }, name)
+  }
+})

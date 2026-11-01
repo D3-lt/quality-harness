@@ -4,9 +4,11 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -28,3 +30,20 @@ func shkEndTree(cmd *exec.Cmd) {
 
 // shkSignalName is "" on Windows, where a child exits with a code and no signal.
 func shkSignalName(state *os.ProcessState) string { return "" }
+
+// shkPlatformSpawnCode is libuv's Windows translation for the spawn errors whose generic mapping would differ: access denied
+// is EPERM there, not EACCES, and a bad executable format is EFTYPE (libuv v1.52.1 src/win/error.c; the Codex review of
+// be9293a0..85448572).
+func shkPlatformSpawnCode(err error) (string, bool) {
+	var errno syscall.Errno
+	if !errors.As(err, &errno) {
+		return "", false
+	}
+	switch errno {
+	case syscall.ERROR_ACCESS_DENIED:
+		return "EPERM", true
+	case 193: // ERROR_BAD_EXE_FORMAT
+		return "EFTYPE", true
+	}
+	return "", false
+}

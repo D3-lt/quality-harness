@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-136 review B: a directory named bash on PATH is EACCES, as execvp reports it",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\texists := func(p string) bool { _, err := os.Stat(p); return err == nil }",
+      "to": "\texists := func(p string) bool { info, err := os.Stat(p); return err == nil && info.Mode().IsRegular() }",
+      "only": "^(?:the native shell hook reports a bash directory or an empty PATH as Node does)$"
+    },
+    {
+      "label": "ADR-136 review B: a PATH set to empty searches the working directory, as execvp does",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\tif value == \"\" {\n\t\tdirs = []string{\"\"}\n\t}",
+      "to": "\tif false {\n\t\tdirs = []string{\"\"}\n\t}",
+      "only": "^(?:the native shell hook reports a bash directory or an empty PATH as Node does)$"
+    },
+    {
       "label": "ADR-136 review A: a bash on PATH that cannot be run is EACCES, as execvp reports it",
       "file": "core/hooks/shellhook_run.go",
       "tests": [

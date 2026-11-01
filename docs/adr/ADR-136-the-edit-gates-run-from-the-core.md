@@ -101,6 +101,16 @@ and the locked trace-sink refusal test passed with nothing to refuse. The runner
 spawns do (`the native shell hook traces the bash it runs`, mutant RED). Separately, the Go uninteresting-directory rule the
 edit gate reuses matched paths the Node rule does not (ſ folding, line terminators); it was fixed in this branch (BACKLOG §439).
 
+The Codex review of be9293a0..4275a404 at xhigh was killed at the launcher's 600 s budget and certified nothing; it was rerun
+as two scoped reviews at high effort over the same range. Part A (runner, kill, bridge) found a spawn failure other than
+not-found printed with Go's error text where Node prints `spawn <file> <libuv code>`; part B (helpers, the §439 rule, this
+record) found no helper or rule divergence, and found the code mapping still incomplete: a directory named bash or a PATH set
+to empty (execvp reports EACCES for both), and Windows' access denied and bad executable format (libuv's EPERM and EFTYPE).
+Each was reproduced against Node where it can run here, fixed with a test that failed first, and has a catalogue mutant RED;
+the Windows translation is tested only on Windows (`TestShellHookWindowsSpawnCodes`). The mapping is a closed list of the
+codes libuv names for a failed spawn of a resolved bash; any other error keeps Go's text, a limit stated here rather than a
+code guessed.
+
 ## Consequences
 
 Two Node starts leave every edit. The costs: two runners exist until the batch is ported, held together by the parity test;

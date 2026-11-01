@@ -49,3 +49,6 @@ func shkSignalName(state *os.ProcessState) string {
 	}
 	return status.Signal().String()
 }
+
+// shkPlatformSpawnCode has nothing to add on Unix: the errno cases in shkSpawnCode are libuv's names there.
+func shkPlatformSpawnCode(err error) (string, bool) { return "", false }

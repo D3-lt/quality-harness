@@ -52,6 +52,9 @@ cd core && go test -count=1 -v -run '^TestBranchStateCollect' ./hooks/ 2>&1 | te
 | 4 — used | T4 |
 
 ## Mutation Log
+- 2026-11-01 · 01f17307* · mutant killed · exit 1 · `core/hooks/branchstate_collect.go` · the real-runner subtest reads the child env: LC_ALL came back lt_LT.UTF-8, not C, and the git alias subtest read lt_LT.UTF-8|0; mutate.mjs case RED · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd
+- 2026-11-01 · 01f17307* · mutant killed · exit 1 · `core/hooks/branchstate_collect.go` · subtests budget spent before the remotes, before the release half, before the first command, and budgeted gives each command the remainder failed: past the deadline the commands ran instead of answering budget-spent · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd
+- 2026-11-01 · 01f17307* · mutant killed · exit 1 · `core/hooks/branchstate_collect.go` · subtests land green, land red, empty listing land 40 and 64 failed: the land/<sha> run was dropped by the retry filter · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd
 
 ## Invariants
 
@@ -70,3 +73,21 @@ Stop if a Node branch has no stub to replay; add the case to the record first.
 - Cache and refresh (T3).
 
 ## Verification Log
+- 2026-11-01 · 01f17307* · exit 1 · `set -o pipefail …` · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd · ms:198 · test-lock-sha256:91a2641cac19ce519ac0a1a35dd0a1f873f814ba7f46d4d2af5e66f2c877ff88 · test-lock-file:docs/adr/locks/91a2641cac19ce519ac0a1a35dd0a1f873f814ba7f46d4d2af5e66f2c877ff88.lock
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  hooks/branchstate_collect_test.go:47:19: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:55:12: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:59:12: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:70:12: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:72:11: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:74:10: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:80:29: undefined: bsAnswer
+  hooks/branchstate_collect_test.go:80:29: too many errors
+  FAIL	github.com/D3-lt/quality-harness/core/hooks [build failed]
+  FAIL
+  ```
+- 2026-11-01 · 01f17307* · exit 0 · `set -o pipefail …` · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd · ms:749
+- 2026-11-01 · 01f17307* · exit 0 · `set -o pipefail …` · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd · ms:1339
+- 2026-11-01 · 01f17307* · exit 0 · `set -o pipefail …` · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd · ms:1126
+- 2026-11-01 · 01f17307* · exit 0 · `set -o pipefail …` · acceptance-sha256:9603b5c8b287e9484e9c6214d76c3cc8ad26ee4ea36a5fd076cec470312101dd · ms:1138

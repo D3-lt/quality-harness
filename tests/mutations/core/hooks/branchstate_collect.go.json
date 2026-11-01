@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-135 T2: the real runner pins LC_ALL=C",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\tenv := map[string]string{\"LC_ALL\": \"C\"}",
+      "to": "\tenv := map[string]string{}",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "ADR-135 T2: past the one deadline no command runs",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\t\tif left <= 0 {",
+      "to": "\t\tif false {",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "ADR-135 T2: one command is capped at 15s inside the budget",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\t\tif ms > bsCommandMaxMs {",
+      "to": "\t\tif false {",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "ADR-135 T2: the retry by commit keeps this commit's land/<sha> run",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\t\t\t\tif truthy(r) && (strict(get(r, \"headBranch\"), branch.Out) || (landing != \"\" && strict(get(r, \"headBranch\"), landing))) {",
+      "to": "\t\t\t\tif truthy(r) && strict(get(r, \"headBranch\"), branch.Out) {",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "ADR-135 T2: git saying it has no tags is positive, and silent",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\tcase anchor == nil && !(tag.OK || bsNoTags.MatchString(tagNote)):",
+      "to": "\tcase anchor == nil && !tag.OK:",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "ADR-135 T2: skipped-job views stop at their budget",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\t\t\t\t\tif index > 0 && clock()-viewing >= bsJobViewBudgetMs {",
+      "to": "\t\t\t\t\tif false {",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    }
+  ]
+}

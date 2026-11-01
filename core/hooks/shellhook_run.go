@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -175,12 +176,55 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 	return res
 }
 
-// shkSpawnMessage is the message of Node's spawn error for the same failure.
+// shkSpawnMessage is the message of Node's spawn error for the same failure: `spawn <file> <libuv code>`, never Go's error
+// text (the Codex review of be9293a0..4275a404).
 func shkSpawnMessage(executable string, err error) string {
-	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) {
-		return "spawn " + executable + " ENOENT"
+	return "spawn " + executable + " " + shkSpawnCode(executable, err)
+}
+
+// shkSpawnCode is the libuv code Node names. Node finds a bare name through execvp, which reports EACCES when the only match
+// on PATH exists but cannot be run; Go's LookPath skips that file and says not found.
+func shkSpawnCode(executable string, err error) string {
+	switch {
+	case errors.Is(err, exec.ErrNotFound):
+		if shkOnPathUnrunnable(executable) {
+			return "EACCES"
+		}
+		return "ENOENT"
+	case errors.Is(err, fs.ErrNotExist):
+		return "ENOENT"
+	case errors.Is(err, syscall.EPERM):
+		return "EPERM"
+	case errors.Is(err, fs.ErrPermission):
+		return "EACCES"
+	case errors.Is(err, syscall.ENOTDIR):
+		return "ENOTDIR"
+	case errors.Is(err, syscall.ELOOP):
+		return "ELOOP"
+	case errors.Is(err, syscall.ENAMETOOLONG):
+		return "ENAMETOOLONG"
+	case errors.Is(err, syscall.ENOEXEC):
+		return "ENOEXEC"
 	}
-	return "spawn " + executable + " " + err.Error()
+	return err.Error()
+}
+
+// shkOnPathUnrunnable is whether execvp would find `name` as a file it cannot run: a path that exists, or a bare name that
+// exists in a PATH directory.
+func shkOnPathUnrunnable(name string) bool {
+	regular := func(p string) bool { info, err := os.Stat(p); return err == nil && info.Mode().IsRegular() }
+	if strings.ContainsAny(name, `/\`) {
+		return regular(name)
+	}
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" {
+			dir = "."
+		}
+		if regular(filepath.Join(dir, name)) {
+			return true
+		}
+	}
+	return false
 }
 
 var shkUnproven = regexp.MustCompile(`\b(?:UNPROVEN|UNRUN)\b`)

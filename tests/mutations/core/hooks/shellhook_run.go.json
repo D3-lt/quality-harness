@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-136 review A: a bash on PATH that cannot be run is EACCES, as execvp reports it",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\t\tif shkOnPathUnrunnable(executable) {",
+      "to": "\t\tif false {",
+      "only": "^(?:the native shell hook reports an unlaunchable bash as Node does)$"
+    },
+    {
       "label": "ADR-136 T4: the registered edit gates reach the Node runner again",
       "file": "core/hooks/shellhook_run.go",
       "tests": [

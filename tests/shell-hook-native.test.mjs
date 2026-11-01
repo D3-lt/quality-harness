@@ -354,3 +354,25 @@ test('the native shell hook traces the bash it runs', t => {
   assert.ok(phases.includes('attempt') && phases.includes('started'), `the bash child was traced: ${JSON.stringify(phases)}`)
   assert.ok(rows.every(row => row.schema === 'quality-harness-process-trace-v1'), JSON.stringify(rows))
 })
+
+// The Codex review of be9293a0..4275a404 (part A, P2): a bash that exists but cannot be started was reported with Go's error
+// text, where Node says the libuv code (`spawn bash EACCES`). Node finds bash through execvp, which reports EACCES for a
+// non-executable file on PATH; Go's LookPath skipped it and said not found. The PATH here holds only such a file.
+test('the native shell hook reports an unlaunchable bash as Node does', { skip: process.platform === 'win32' && 'Windows resolves Git Bash by its install root, not a PATH file' }, t => {
+  const f = fixture(t)
+  const broken = path.join(f.scratch, 'broken-bin')
+  mkdirSync(broken)
+  writeFileSync(path.join(broken, 'bash'), '#!/bin/sh\nexit 0\n', { mode: 0o644 })
+  const edit = { hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-sp', cwd: f.project,
+    tool_input: { file_path: path.join(f.project, 'hook.sh') } }
+  const base = { ...process.env, PATH: broken, CLAUDE_PLUGIN_ROOT: f.root }
+  delete base.QH_SHELL_HOOK_NATIVE
+  const ran = Object.fromEntries([
+    ['node', [process.execPath, [path.join(f.scripts, 'run-shell-hook.mjs'), 'post-edit-check.sh']]],
+    ['native', [qh, ['bridge', 'shell-hook', 'post-edit-check.sh']]],
+  ].map(([impl, [command, args]]) => [impl, spawnSync(command, args, { cwd: f.project, env: base, input: JSON.stringify(edit),
+    encoding: 'utf8', timeout: 60_000, windowsHide: true })]))
+  assert.match(ran.node.stderr, /spawn bash EACCES/, ran.node.stderr)
+  assert.deepEqual({ status: ran.native.status, stdout: ran.native.stdout, stderr: ran.native.stderr },
+    { status: ran.node.status, stdout: ran.node.stdout, stderr: ran.node.stderr })
+})

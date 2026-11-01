@@ -19,8 +19,10 @@ test('the core collects branch state as the Node collect does', { skip: noGo }, 
   // TestBranchStateCollectEndsTheTree too: a deadline that ends the command's whole process group (ADR-135 Decision 2). It is
   // built only off Windows, where a process group exists. And the serving half's file readers (T3): a commit's parents from its
   // loose object, the own-commit walk, and the snapshot's replace-then-fallback write.
-  const serving = ['TestBranchStateCommitParents', 'TestBranchStateOwnCommitWalk', 'TestBranchStateReplaceFile']
-  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', `^(TestBranchStateCollect(EndsTheTree)?|${serving.join('|')})$`, './hooks/'], {
+  const serving = ['TestBranchStateCommitParents', 'TestBranchStateOwnCommitWalk', 'TestBranchStateReplaceFile',
+    'TestBranchStateWriterKeepsANewerSnapshot', 'TestBranchStateRefreshPublishable']
+  const pattern = `^(TestBranchStateCollect(EndsTheTree(AfterAnEarlyExit)?)?|${serving.join('|')})$`
+  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', pattern, './hooks/'], {
     cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true,
   })
   const said = `${ran.stdout}\n${ran.stderr}`
@@ -29,6 +31,7 @@ test('the core collects branch state as the Node collect does', { skip: noGo }, 
   // Exit 0 also covers a test that skipped or matched nothing: the PASS line, and no SKIP or FAIL, say it ran whole.
   assert.match(said, /^--- PASS: TestBranchStateCollect \(/m, tail)
   if (process.platform !== 'win32') assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTree \(/m, tail)
+  if (process.platform !== 'win32') assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTreeAfterAnEarlyExit \(/m, tail)
   for (const name of serving) assert.match(said, new RegExp(`^--- PASS: ${name} \\(`, 'm'), tail)
   assert.doesNotMatch(said, /--- SKIP|--- FAIL|no tests to run/, tail)
 })

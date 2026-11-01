@@ -107,3 +107,48 @@ func TestBranchStateReplaceFile(t *testing.T) {
 		t.Fatalf("the refused temporary is removed: %v", entries)
 	}
 }
+
+// The Codex review of ad84c084..a2ac47a1 (P2): two due briefs refreshing at once, the slower one holding the older observation,
+// replaced a newer red snapshot with an older green one. A newer snapshot is kept; a future-dated one is not trusted to win.
+func TestBranchStateWriterKeepsANewerSnapshot(t *testing.T) {
+	store := filepath.Join(t.TempDir(), bsSnapshotFile)
+	now := bsNowMs()
+	seed := func(at float64, conclusion string) {
+		t.Helper()
+		state := O("looked", true, "ci", O("looked", true, "conclusion", conclusion))
+		if err := os.WriteFile(store, []byte(stringify(O("at", at, "key", "k", "state", state))), 0o666); err != nil {
+			t.Fatal(err)
+		}
+	}
+	conclusion := func() string { return strOr(dig(bsReadSnapshot(store), "state", "ci", "conclusion")) }
+	write := func(at float64, conclusion string) {
+		bsWriter(store)(O("at", at, "key", "k", "state", O("looked", true, "ci", O("looked", true, "conclusion", conclusion))))
+	}
+	seed(now-1000, "failure")
+	write(now-5000, "success")
+	if got := conclusion(); got != "failure" {
+		t.Fatalf("an older observation replaced a newer snapshot: conclusion %q", got)
+	}
+	write(now-500, "success")
+	if got := conclusion(); got != "success" {
+		t.Fatalf("a newer observation was not written: conclusion %q", got)
+	}
+	seed(now+3_600_000, "failure")
+	write(now-500, "success")
+	if got := conclusion(); got != "success" {
+		t.Fatalf("a future-dated snapshot kept a real observation out: conclusion %q", got)
+	}
+}
+
+// The same review (P2): a refresh that crossed its deadline after its last command still published as fresh.
+func TestBranchStateRefreshPublishable(t *testing.T) {
+	for _, tc := range []struct {
+		cut           bool
+		now, deadline float64
+		want          bool
+	}{{false, 100, 200, true}, {true, 100, 200, false}, {false, 200, 200, false}, {false, 250, 200, false}} {
+		if got := bsRefreshPublishable(tc.cut, tc.now, tc.deadline); got != tc.want {
+			t.Errorf("bsRefreshPublishable(%v, %v, %v) = %v, want %v", tc.cut, tc.now, tc.deadline, got, tc.want)
+		}
+	}
+}

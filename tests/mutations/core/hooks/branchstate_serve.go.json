@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-135 review fix: a newer snapshot is not replaced by an older observation",
+      "file": "core/hooks/branchstate_serve.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "ok && held > at && held <= bsNowMs() {",
+      "to": "false {",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "ADR-135 review fix: a refresh past its deadline is not published",
+      "file": "core/hooks/branchstate_serve.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "return !cut && now < deadline }",
+      "to": "return !cut }",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
       "label": "ADR-135 T3: an unchanged brief is not said again",
       "file": "core/hooks/branchstate_serve.go",
       "tests": [
@@ -35,15 +55,6 @@
       ],
       "from": "\t\tif bsPastShowCap(now - get(previous, \"at\").(float64)) {",
       "to": "\t\tif bsWriter(hintStore)(O(\"at\", started, \"key\", key, \"state\", state)); bsPastShowCap(now - get(previous, \"at\").(float64)) {"
-    },
-    {
-      "label": "ADR-135 T3: a command its budget killed cuts the refresh",
-      "file": "core/hooks/branchstate_serve.go",
-      "tests": [
-        "tests/branch-state-native.test.mjs"
-      ],
-      "from": "\t\t\tif answer.Budget || bsNowMs() >= deadline {",
-      "to": "\t\t\tif answer.Budget || false && bsNowMs() >= deadline {"
     },
     {
       "label": "ADR-135 T3: the session's own commits are not news",

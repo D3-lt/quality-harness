@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-135 review fix: the group is ended when the context ends, even after an early exit",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\t\tbsWatchTree(ctx, cmd)\n",
+      "to": "",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
       "label": "ADR-135 T3: the deadline ends the command's whole process group",
       "file": "core/hooks/branchstate_collect.go",
       "tests": [

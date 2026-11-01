@@ -98,10 +98,12 @@ func bsShell(argv []string, opts bsOpts) bsAnswer {
 	return bsAnswer{Note: note}
 }
 
-// bsRun is proc.go's run, bounded as ADR-135 Decision 2 needs: the deadline ends the command's whole process group, not only
-// its first process (bsEndTree), and Wait stops waiting for the output pipe a grandchild may still hold
-// (WaitDelay). Measured 2026-11-01: with run(), `sh -c 'sleep 5 & …; wait'` under a 300ms deadline returned after 5.0s and
-// left the sleep running (TestBranchStateCollectEndsTheTree).
+// bsRun is proc.go's run, bounded as ADR-135 Decision 2 needs: the command runs in a process group of its own, and the group is
+// ended whenever the command's context ends: at the deadline, and at the deferred cancel once Wait returns, so a grandchild
+// outlives neither (bsWatchTree). A grandchild holding the output pipe is waited for up to the command's own timeout, as Node's
+// execFileSync waits for it (WaitDelay). Measured 2026-11-01: with run(), `sh -c 'sleep 5 & …; wait'` under a 300ms deadline
+// returned after 5.0s and left the sleep running; with Cancel alone, a parent that exited first left it running (the Codex
+// review of ad84c084..a2ac47a1). TestBranchStateCollectEndsTheTree and …AfterAnEarlyExit hold both.
 func bsRun(timeout time.Duration, dir string, env map[string]string, stdin string, name string, args ...string) runResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -118,8 +120,16 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 	cmd.Stderr = &errOut
 	hideWindow(cmd)
 	bsEndTree(cmd)
-	cmd.WaitDelay = bsWaitDelay
-	err := runObservedCommand(cmd, func() bool { return ctx.Err() == context.DeadlineExceeded })
+	cmd.WaitDelay = timeout
+	done := func() bool { return ctx.Err() == context.DeadlineExceeded }
+	trace := startProcessTrace(cmd, "", "attempt")
+	err := cmd.Start()
+	if err == nil {
+		trace.started(cmd)
+		bsWatchTree(ctx, cmd)
+		err = cmd.Wait()
+	}
+	trace.ended(cmd, err, done())
 	res := runResult{status: -1, stdout: out.String(), stderr: errOut.String()}
 	if ctx.Err() == context.DeadlineExceeded {
 		res.timedOut = true
@@ -138,9 +148,6 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 	res.status = 0
 	return res
 }
-
-// How long Wait may still wait for the output pipes once the command's process is gone.
-const bsWaitDelay = 250 * time.Millisecond
 
 // bsBudgeted is `budgeted`: ONE deadline for the whole collection, each command given what is left of it (at most 15s). Past
 // it every command answers not-ok, marked as prevented, with the reason.

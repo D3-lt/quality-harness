@@ -98,6 +98,21 @@ ADR-131 T2 tests used `bridge branch-state` as their example of a Go→Node exec
 nothing and the other failed, so both now use `bridge shell-hook`, which still spawns Node, and ADR-131 T2 was relocked
 with `--replace-hashes`. `tests/qh-launcher.test.mjs` (no locks) moved the same way.
 
+The Codex review of ad84c084..a2ac47a1 (xhigh, recorded) requested changes; each finding was reproduced or traced, then fixed
+with a test that failed first and a catalogue mutant that is RED:
+- A parent that exited before the deadline left its grandchildren alive, since Go calls `cmd.Cancel` only while the first
+  process runs. The group is now ended whenever the command's context ends, at the deadline and at the cancel after Wait,
+  and a grandchild holding the pipe is waited for up to the command's own timeout, as execFileSync waits
+  (`TestBranchStateCollectEndsTheTreeAfterAnEarlyExit`: both cases left the sleep running before the fix).
+- A refresh could cross its deadline after its last command and still publish; `bsRefreshPublishable` checks the deadline
+  once the collection returns. That made the per-command clock check redundant: its mutant went GREEN, so the clause and
+  its mutant were removed.
+- Two due briefs refreshing at once could replace a newer red snapshot with an older green one, which Node's lock had
+  prevented. The writer keeps a newer snapshot that is not dated in the future (`TestBranchStateWriterKeepsANewerSnapshot`).
+  The `said` stamp's read and replace is still uncoordinated; two stamps at once can lose one, which re-says a line once.
+- The native tests could run an inherited suite binary during a mutation run; they now build from the tree then, as
+  tests/native-observation.test.mjs does. Every ADR-135 mutant was re-run uncached afterwards.
+
 ## Consequences
 
 One Node spawn leaves every prompt. The costs: a stale cache can make a prompt wait up to the 2 s budget where the detached

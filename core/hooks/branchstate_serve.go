@@ -131,6 +131,13 @@ func bsWriter(store string) func(*Obj) {
 			return
 		}
 		current := bsReadSnapshot(store)
+		// Two due briefs refreshed at once: the one finishing later may hold the older observation. A snapshot taken after this
+		// one, and not dated in the future, is kept (the Codex review of ad84c084..a2ac47a1).
+		if at, ok := payload.Get("at").(float64); ok {
+			if held, ok := get(current, "at").(float64); ok && held > at && held <= bsNowMs() {
+				return
+			}
+		}
 		out := payload.Clone()
 		for _, k := range []string{"said", "redKey", "permanentFor"} {
 			out.Set(k, bsCoalesce(payload.Get(k), get(current, k)))
@@ -141,6 +148,10 @@ func bsWriter(store string) func(*Obj) {
 		_ = bsReplaceFile(store, stringify(out), bsDisk, time.Now())
 	}
 }
+
+// bsRefreshPublishable says whether an inline refresh may replace the snapshot: no command was cut, and the deadline had not
+// passed when the collection returned. Work after the last command can cross it too (the Codex review of ad84c084..a2ac47a1).
+func bsRefreshPublishable(cut bool, now, deadline float64) bool { return !cut && now < deadline }
 
 // bsStampBriefSaid is stampBriefSaid: what a brief said, merged over the snapshot as it is now. `undefined` leaves a key alone.
 func bsStampBriefSaid(store string, said, redKey any, extra *Obj) {
@@ -580,9 +591,9 @@ func RunBranchState(args []string, stdin *os.File, out io.Writer) int {
 		cut := false
 		bounded := func(argv []string, opts bsOpts) bsAnswer {
 			answer := inner(argv, opts)
-			// A command the budget prevented, or one its share of the budget killed (it cannot finish after its cap), leaves
-			// the collection cut short: what it would say is not this branch's state.
-			if answer.Budget || bsNowMs() >= deadline {
+			// A command the budget prevented leaves the collection cut short. One its share of the budget killed ends at or
+			// after the deadline, which bsRefreshPublishable reads once the collection returns.
+			if answer.Budget {
 				cut = true
 			}
 			return answer
@@ -592,7 +603,7 @@ func RunBranchState(args []string, stdin *os.File, out io.Writer) int {
 		// No checkpoint: a partial answer is never written over a good snapshot.
 		state := collectBranchState(bounded, func(any) {}, bsNowMs, ledgerHeads())
 		within := "within " + jsNumber(budget/1000) + "s"
-		if !cut {
+		if bsRefreshPublishable(cut, bsNowMs(), deadline) {
 			bsWriter(hintStore)(O("at", started, "key", key, "state", state))
 			written := bsReadSnapshot(hintStore)
 			if nullish(written) {

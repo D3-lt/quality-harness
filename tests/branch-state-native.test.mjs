@@ -20,6 +20,9 @@ import { sessionLogFile } from '../plugin/scripts/event-log.mjs'
 import { remove } from './helpers/remove.mjs'
 import { sourceCore } from './helpers/source-core.mjs'
 
+// A mutation run keeps a suite binary in QUALITY_HARNESS_QH_BIN, which sourceCore returns as it is: these assertions would then
+// exercise an unmutated core (the Codex review of ad84c084..a2ac47a1). Build from this tree instead, as native-observation does.
+if (process.env.QUALITY_HARNESS_MUTATION_IN_FLIGHT === '1') delete process.env.QUALITY_HARNESS_QH_BIN
 const qh = sourceCore()
 const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
 const NO_GITHUB = 'no remote names a GitHub host, so `gh` was not asked'

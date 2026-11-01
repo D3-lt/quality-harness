@@ -1,0 +1,2 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/shell-hook-parity.test.mjs	the core answers every shell-hook row as the Node functions do	26f2f219a09c3e561a6f408019d4439a702de6f6a55f0aa61c040c4e8938a5b4

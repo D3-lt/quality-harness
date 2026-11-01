@@ -1,0 +1,104 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-136 T1: the PATH scan skips the System32 and WindowsApps stubs",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\tif directory == \"\" || shkStubDirectory(directory) {",
+      "to": "\t\tif directory == \"\" {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: a configured timeout of 100ms is in bounds",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\tif configured == math.Trunc(configured) && math.Abs(configured) <= 1<<53-1 && configured >= 100 && configured <= shkDefaultTimeoutMs {",
+      "to": "\tif configured == math.Trunc(configured) && math.Abs(configured) <= 1<<53-1 && configured > 100 && configured <= shkDefaultTimeoutMs {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: a configured timeout must be an integer",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\tif configured == math.Trunc(configured) && math.Abs(configured) <= 1<<53-1 && configured >= 100 && configured <= shkDefaultTimeoutMs {",
+      "to": "\tif configured >= 100 && configured <= shkDefaultTimeoutMs {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: the crash banner ends in a space or a hyphen",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\tif next := u[t+len(banner)]; matched && (next == ' ' || next == '-') {",
+      "to": "\t\tif next := u[t+len(banner)]; matched && next != 0 {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: a banner line may start after \\r, U+2028 or U+2029",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "func shkLineTerminator(c uint16) bool { return c == '\\n' || c == '\\r' || c == 0x2028 || c == 0x2029 }",
+      "to": "func shkLineTerminator(c uint16) bool { return c == '\\n' }",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: the banner prefix is at most 80 code units",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\tfor q := start; q <= start+80 && q < len(u) && u[q] != '\\n'; q++ {",
+      "to": "\t\tfor q := start; q < len(u) && u[q] != '\\n'; q++ {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: a UNC path is rewritten for bash",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\treturn \"//\" + strings.ReplaceAll(value[2:], `\\`, \"/\")",
+      "to": "\t\treturn value",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: only a drive followed by a backslash is rewritten",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\tif len(value) >= 3 && shkASCIILetter(value[0]) && value[1] == ':' && value[2] == '\\\\' {",
+      "to": "\tif len(value) >= 2 && shkASCIILetter(value[0]) && value[1] == ':' {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: an array's items are visited with no key",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\t\tout[i] = shkNormalizePathValues(item, platform, \"\")",
+      "to": "\t\t\tout[i] = shkNormalizePathValues(item, platform, key)",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-136 T1: a re-serialized payload lists array-index keys first",
+      "file": "core/hooks/shellhook.go",
+      "tests": [
+        "tests/shell-hook-parity.test.mjs"
+      ],
+      "from": "\t\tfor _, k := range shkJSKeys(v) {",
+      "to": "\t\tfor _, k := range v.Keys() {",
+      "only": "^(?:the core answers every shell-hook row as the Node functions do)$"
+    }
+  ]
+}

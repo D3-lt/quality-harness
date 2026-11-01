@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-137 review A1: a glob run may match nothing, in the one-pass matcher",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": [
+        "tests/decision-corpus-glob.test.mjs"
+      ],
+      "from": "\t\twiden(next)\n",
+      "to": "",
+      "only": "^(?:the core matches a Governs glob in one pass)$"
+    },
+    {
       "label": "ADR-137 T1: a status written Active governs",
       "file": "core/hooks/decisioncorpus.go",
       "tests": [

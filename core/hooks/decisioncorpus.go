@@ -404,31 +404,84 @@ func dcCanonical(c uint16) uint16 {
 	return uint16(up)
 }
 
-// dcGlob is globToRegExp's pattern: `**` any run of code units but a line terminator (a following `/` taken with it), `*` a
-// run with no `/`, `?` one code unit that is not `/`, and every other character itself, case-insensitively.
-func dcGlob(pattern string) dcRx {
+// dcGlobToken is one step of globToRegExp's pattern: `**` (any run of code units but a line terminator, a following `/` taken
+// with it), `*` (a run with no `/`), `?` (one code unit that is not `/`), or a literal compared case-insensitively.
+type dcGlobToken struct {
+	kind byte // 'A' for `**`, '*' for `*`, '?' for `?`, 'L' for a literal
+	want uint16
+}
+
+func dcGlobTokens(pattern string) []dcGlobToken {
 	u := dcUTF16(strings.TrimPrefix(strings.ReplaceAll(pattern, `\`, "/"), "./"))
-	parts := []dcRx{}
+	tokens := []dcGlobToken{}
 	for index := 0; index < len(u); index++ {
 		c := u[index]
 		switch {
 		case c == '*' && index+1 < len(u) && u[index+1] == '*':
-			parts = append(parts, dcRun(dcNotLineTermUnit, 0, -1, false))
+			tokens = append(tokens, dcGlobToken{kind: 'A'})
 			if index+2 < len(u) && u[index+2] == '/' {
 				index += 2
 			} else {
 				index++
 			}
 		case c == '*':
-			parts = append(parts, dcRun(dcNotSlashUnit, 0, -1, false))
+			tokens = append(tokens, dcGlobToken{kind: '*'})
 		case c == '?':
-			parts = append(parts, dcUnit(dcNotSlashUnit))
+			tokens = append(tokens, dcGlobToken{kind: '?'})
 		default:
-			want := dcCanonical(c)
-			parts = append(parts, dcUnit(func(x uint16) bool { return dcCanonical(x) == want }))
+			tokens = append(tokens, dcGlobToken{kind: 'L', want: dcCanonical(c)})
 		}
 	}
-	return dcSeq(parts...)
+	return tokens
+}
+
+// dcGlobMatch is globToRegExp's anchored match, stepping through the path once with the set of pattern positions reachable so
+// far. Node's backtracking regex retried every split of every `*`, and a short glob took C(60,10) tries (the Codex review of
+// 8d872045..b27d665a); the answer is the same, the work is pattern length times path length.
+func dcGlobMatch(tokens []dcGlobToken, s []uint16) bool {
+	n := len(tokens)
+	cur, next := make([]bool, n+1), make([]bool, n+1)
+	// A run matches nothing too, so a position before one reaches the position after it.
+	widen := func(set []bool) {
+		for k := 0; k < n; k++ {
+			if set[k] && (tokens[k].kind == 'A' || tokens[k].kind == '*') {
+				set[k+1] = true
+			}
+		}
+	}
+	cur[0] = true
+	widen(cur)
+	for _, c := range s {
+		for k := range next {
+			next[k] = false
+		}
+		for k := 0; k < n; k++ {
+			if !cur[k] {
+				continue
+			}
+			switch t := tokens[k]; t.kind {
+			case 'A':
+				if dcNotLineTermUnit(c) {
+					next[k] = true
+				}
+			case '*':
+				if dcNotSlashUnit(c) {
+					next[k] = true
+				}
+			case '?':
+				if dcNotSlashUnit(c) {
+					next[k+1] = true
+				}
+			case 'L':
+				if dcCanonical(c) == t.want {
+					next[k+1] = true
+				}
+			}
+		}
+		widen(next)
+		cur, next = next, cur
+	}
+	return cur[n]
 }
 
 // dcPathMatchesDeclaration is pathMatchesDeclaration: the file itself, anything under a declared directory, or a glob's match.
@@ -440,7 +493,7 @@ func dcPathMatchesDeclaration(candidate, declaration string) bool {
 	}
 	if strings.ContainsAny(declared, "*?") {
 		s := dcUTF16(file)
-		return dcGlob(declared)(&dcRxState{s: s}, 0, func(j int) bool { return j == len(s) })
+		return dcGlobMatch(dcGlobTokens(declared), s)
 	}
 	return file == declared || strings.HasPrefix(file, declared+"/")
 }

@@ -4118,3 +4118,11 @@ from the Node-spawning core of f9798aac and from the Go reader of ADR-137 T3 ali
 below the root is in the class (the replay's other corpora keep theirs at the root). The fix widens the gate to what the
 reader discovers, or asks the reader unconditionally now that it starts no process; either changes what SessionStart's
 orientation says too, so it wants its own record.
+
+## 442. OPEN 2026-11-01 — a short Governs glob makes the Node reader backtrack for minutes
+
+Found by the Codex review of 8d872045..b27d665a (ADR-137 part A1): `globToRegExp` (plugin/scripts/decision-corpus.mjs) turns
+each `*` into `[^/]*`, and a declaration such as ten `*a` and a `b` against a sixty-character path takes C(60,10) =
+75,394,027,566 regex steps; the reviewer's bounded Node probe was killed at its deadline. The core's mirror now matches globs in
+one pass (`dcGlobMatch`, TestDecisionCorpusGlobIsLinear). Node still serves the adr-context CLI, adr-state, work-next and
+corpus-probe, which hang on such a declaration; the same one-pass match fixes them, with the parity rows unchanged.

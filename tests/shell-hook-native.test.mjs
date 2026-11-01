@@ -47,6 +47,7 @@ case "$STUB_MODE" in
   crash)
     echo 'partial'
     echo '      2 [main] bash (46688) C:\Program Files\Git\bin\bash.exe: *** fatal error - add_item ("\??\C:\Program Files\Git", "/", ...) failed, errno 1' >&2 ;;
+  invalid) printf 'ok \342\202 x \377 y \360\237\230\n'; printf 'err \355\240\200 z\n' >&2 ;;
 esac
 `
 
@@ -304,4 +305,17 @@ test('the native edit gate records what the Node one records', async t => {
     assert.match(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, /^UNPROVEN/)
     assert.deepEqual(node.observed.logs, { 'shn-gate.jsonl': row(record, false) })
   })
+})
+
+// A gate that prints bytes that are not UTF-8. Node decodes the child's output as UTF-8, one U+FFFD per maximal ill-formed
+// subsequence; the core passed the bytes through, so the host received different text (found reviewing T2, 2026-11-01). The
+// stub prints a truncated three-byte sequence, a stray 0xFF, a truncated four-byte sequence, and an encoded surrogate.
+test('the native shell hook decodes a gate\'s invalid UTF-8 as Node does', t => {
+  const f = fixture(t)
+  const edit = { hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-u8', cwd: f.project,
+    tool_input: { file_path: path.join(f.project, 'hook.sh') } }
+  const { node } = both(f, 'invalid UTF-8', 'post-edit-check.sh', edit, { env: { STUB_MODE: 'invalid' } })
+  assert.equal(node.status, 0)
+  assert.equal(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, 'ok � x � y �')
+  assert.equal(node.text.stderr, 'err ��� z\n')
 })

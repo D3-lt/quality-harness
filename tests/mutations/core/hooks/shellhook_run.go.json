@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-136 T2 review: an ill-formed UTF-8 subsequence is one U+FFFD, as Node decodes it",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\t\tif j-i == need+1 {",
+      "to": "\t\tif j-i == need+1 || true {",
+      "only": "^(?:the native shell hook decodes a gate's invalid UTF-8 as Node does)$"
+    },
+    {
       "label": "ADR-136 T2: only a gate that exited 0 is handed to the agent as additionalContext",
       "file": "core/hooks/shellhook_run.go",
       "tests": [

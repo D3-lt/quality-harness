@@ -86,6 +86,13 @@ for the batch and a hand run. docs/architecture.md:109 is updated by T4.
 
 See ADR-136-the-edit-gates-run-from-the-core/tasks/README.md.
 
+T1 to T3 were implemented on 2026-11-01; their logs hold each first red, passing fence and killed mutants. Two notes on them.
+T2's first recorded mutant `--why` says the grandchild outlived the deadline; what failed was the comparison (the core added
+"process cleanup could not be confirmed", a consequence of that survivor), and the survivor assertion was not reached. The
+log is tool-written and stands; this is the correction. And reviewing T2 found the core passing a gate's invalid UTF-8
+through as bytes where Node decodes it, one U+FFFD per maximal ill-formed subsequence; `shkDecodeUTF8` now does the same
+(`the native shell hook decodes a gate's invalid UTF-8 as Node does`, and a catalogue mutant is RED).
+
 ## Consequences
 
 Two Node starts leave every edit. The costs: two runners exist until the batch is ported, held together by the parity test;

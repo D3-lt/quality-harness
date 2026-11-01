@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -147,7 +148,7 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 	outR.Close()
 	errR.Close()
 	mu.Lock()
-	res.stdout, res.stderr = out.String(), errOut.String()
+	res.stdout, res.stderr = shkDecodeUTF8(out.Bytes()), shkDecodeUTF8(errOut.Bytes())
 	mu.Unlock()
 	if res.cleanupUnconfirmed {
 		return res
@@ -314,4 +315,58 @@ func shkRunEditGate(raw string, stdout, stderr io.Writer) int {
 		appendEvent(cwd, session, O("event", "artifact.gated", "path", key, "blob", before, "complete", verdict && steady))
 	}
 	return status
+}
+
+// shkDecodeUTF8 is how Node turns a child's output into a string (utf8): each maximal ill-formed subsequence becomes one
+// U+FFFD, the WHATWG and Unicode §3.9 rule, where Go's per-byte decoding would write one for every byte. A gate that prints
+// bytes that are not UTF-8 otherwise reached the host as different text than the Node runner sent.
+func shkDecodeUTF8(b []byte) string {
+	var out strings.Builder
+	for i := 0; i < len(b); {
+		c := b[i]
+		if c < 0x80 {
+			out.WriteByte(c)
+			i++
+			continue
+		}
+		need, lo, hi := 0, byte(0x80), byte(0xBF)
+		switch {
+		case c >= 0xC2 && c <= 0xDF:
+			need = 1
+		case c == 0xE0:
+			need, lo = 2, 0xA0
+		case c >= 0xE1 && c <= 0xEC, c == 0xEE, c == 0xEF:
+			need = 2
+		case c == 0xED:
+			need, hi = 2, 0x9F
+		case c == 0xF0:
+			need, lo = 3, 0x90
+		case c >= 0xF1 && c <= 0xF3:
+			need = 3
+		case c == 0xF4:
+			need, hi = 3, 0x8F
+		default:
+			out.WriteRune(0xFFFD)
+			i++
+			continue
+		}
+		j := i + 1
+		for k := 0; k < need; k++ {
+			first, last := byte(0x80), byte(0xBF)
+			if k == 0 {
+				first, last = lo, hi
+			}
+			if j >= len(b) || b[j] < first || b[j] > last {
+				break
+			}
+			j++
+		}
+		if j-i == need+1 {
+			out.Write(b[i:j])
+		} else {
+			out.WriteRune(0xFFFD)
+		}
+		i = j
+	}
+	return out.String()
 }

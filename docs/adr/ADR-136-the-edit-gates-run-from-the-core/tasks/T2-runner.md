@@ -21,6 +21,7 @@ the gate's whole tree at the deadline (Unix group, Windows `taskkill /T /F`), an
 |------|--------|-----|
 | `core/hooks/shellhook_run.go` | add | The runner, behind QH_SHELL_HOOK_NATIVE=1 until T4 |
 | `core/hooks/shellhook_kill_windows.go` | add | `taskkill /T /F` at the deadline |
+| `core/hooks/shellhook_kill_unix.go` | add | The Unix process group and its kill at the deadline (added to this table after the first run) |
 | `core/hooks/bridge.go` | edit | Selects the native runner under the flag |
 | `tests/shell-hook-native.test.mjs` | add | Scenarios through both runners |
 | `tests/mutations/core/hooks/shellhook_run.go.json` | add | Wrapping, timeout and tree mutants |

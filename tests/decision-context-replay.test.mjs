@@ -135,7 +135,9 @@ function rowsFor(root) {
     const found = decisionsGoverning([file], root, corpus)
     const names = group => group.map(entry => path.relative(root, entry.file).replaceAll('\\', '/'))
     const records = { governing: names(found.governing), graveyard: names(found.graveyard), unproven: names(found.unproven) }
-    const key = JSON.stringify(records)
+    // Keyed on the records' exact files, never a separator-normalised name: on POSIX `docs/adr/x.md` and a file named
+    // `docs\adr\x.md` are two records with two texts (the Codex review of 8d872045..980dd773, part A2).
+    const key = JSON.stringify([found.governing, found.graveyard, found.unproven].map(group => group.map(entry => entry.file)))
     if (!answers.has(key)) answers.set(key, decisionContext([file], root))
     return { file, want: answers.get(key), records }
   })

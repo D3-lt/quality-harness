@@ -4126,3 +4126,18 @@ each `*` into `[^/]*`, and a declaration such as ten `*a` and a `b` against a si
 75,394,027,566 regex steps; the reviewer's bounded Node probe was killed at its deadline. The core's mirror now matches globs in
 one pass (`dcGlobMatch`, TestDecisionCorpusGlobIsLinear). Node still serves the adr-context CLI, adr-state, work-next and
 corpus-probe, which hang on such a declaration; the same one-pass match fixes them, with the parity rows unchanged.
+
+## 443. OPEN 2026-11-01 — the decision reader's reads are bounded in time, not in bytes, in Node and the core alike
+
+Found by the Codex review of 8d872045..980dd773 (ADR-137 part A2). Task files and archive READMEs are read whole, past the
+512 KiB record limit and the 64 MiB screen budget, and cached (core/hooks/decisioncorpus_read.go:758 through
+decisioncorpus.go:1674; the same in decision-corpus.mjs); files under a record directory skip the screen and each may cost up
+to 512 KiB before recognition rejects it, uncounted (decisioncorpus_read.go:720), so ten thousand notes under docs/adr are
+about 5 GiB of reads. The core's hook is bounded at the Node call's 10 s and its process exits after it (core/hooks/pending.go),
+so time is bounded and memory is not. The fix is a per-file and an aggregate byte budget for these reads, saying PARTIAL when
+spent, in both readers with parity rows.
+
+On a case-insensitive macOS volume an index naming one file in two case spellings is read once by Node (native realpath gives
+one spelling) and twice by the core (EvalSymlinks keeps both), so the record is printed and charged twice
+(decisioncorpus_read.go:478, decisioncorpus.go:1409). It needs an index git would not usually build; the fix is a disk-canonical
+identity (the file's on-disk spelling, or os.SameFile) for the once-by-realpath set, with a filesystem-conditional row.

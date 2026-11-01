@@ -137,3 +137,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-133](ADR-133-completion-claims-name-their-evidence.md) | Completion claims name their evidence, scope and observed target | Accepted |
 | [ADR-134](ADR-134-an-override-pass-names-its-test.md) | A spec-verify Cmd override passes only when its output names the bound test | Accepted |
 | [ADR-135](ADR-135-branch-state-runs-in-the-core.md) | Branch state runs in the Go core, refreshed inline under a budget | Accepted |
+| [ADR-136](ADR-136-the-edit-gates-run-from-the-core.md) | The two per-edit gate runs are run from the Go core, not through Node | Accepted |

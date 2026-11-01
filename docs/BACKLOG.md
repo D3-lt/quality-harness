@@ -4141,3 +4141,11 @@ On a case-insensitive macOS volume an index naming one file in two case spelling
 one spelling) and twice by the core (EvalSymlinks keeps both), so the record is printed and charged twice
 (decisioncorpus_read.go:478, decisioncorpus.go:1409). It needs an index git would not usually build; the fix is a disk-canonical
 identity (the file's on-disk spelling, or os.SameFile) for the once-by-realpath set, with a filesystem-conditional row.
+
+## 444. OPEN 2026-11-01 — an mrw write gets no decision context
+
+Found by the Codex review of 8d872045..77658224 (ADR-137 part B): `decisionContextFor` (core/hooks/publish.go:83-89) reads only
+`tool_input.file_path` or `notebook_path` and returns at once without one. The registered MCP write
+(`mcp__mrw__mrw_write`) supplies `tool_input.plan` (tests/native-hooks.test.mjs:126), and a shell `mrw write` never reaches
+the branch, so the decisions governing a file edited through mrw are not said, before ADR-137 and after it. The fix reads the
+plan's `@@ <path>` headers and answers for each path, gated as today.

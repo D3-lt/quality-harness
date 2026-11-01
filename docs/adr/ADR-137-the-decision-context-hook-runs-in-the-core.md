@@ -10,7 +10,7 @@
 **Enforced-by:** tests/decision-context-parity.test.mjs::the core answers every record-rule row as the Node reader does, tests/decision-context-replay.test.mjs::the core gives the decision context Node gives over every replayed corpus, tests/decision-context-replay.test.mjs::PreToolUse names the governing decisions with no node on PATH
 **Invalidates:** none — checked; ADR-092 is amended below and its tasks keep their done state
 **Amends:** ADR-092 ("One definition of a record, in Python, with lifecycle as its only mirror", Decision 5) — the Go core becomes a second mirror, for the decision-context hook only, held to the same approved rows; and ADR-110's 2026-10-28 amendment keeping the reader Node (docs/adr/ADR-110-a-static-core-owns-the-hooks.md:200)
-**Served-path change:** Before every Edit, Write, MultiEdit, NotebookEdit or mrw write in a repository with a decision corpus, PreToolUse answers which decisions govern the file from the Go core instead of spawning `node plugin/scripts/adr-context.mjs --hook`.
+**Served-path change:** Before every Edit, Write, MultiEdit or NotebookEdit in a repository with a decision corpus, PreToolUse answers which decisions govern the file from the Go core instead of spawning `node plugin/scripts/adr-context.mjs --hook`. An mrw write gets no decision context, before or after this record (its input is a plan, not a file path; BACKLOG §444).
 
 ## Context
 

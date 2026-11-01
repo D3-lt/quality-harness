@@ -1,0 +1,2 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/branch-state-parity.test.mjs	the core answers every branch-state row as the Node functions do	fe45867edcac698fb29b722a99ace2273e527a1fcfd395ed81dec3f50a89812b

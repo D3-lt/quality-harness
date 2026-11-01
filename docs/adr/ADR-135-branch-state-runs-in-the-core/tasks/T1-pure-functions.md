@@ -53,6 +53,8 @@ node --test tests/branch-state-parity.test.mjs 2>&1 | tee "$out" && grep -q '✔
 | 4 — used | Not yet; T4 |
 
 ## Mutation Log
+- 2026-11-01 · 303eedca* · mutant killed · exit 1 · `core/hooks/branchstate.go` · Changing the Go render of an unread CI makes the parity test report disagreements against the Node render. · acceptance-sha256:7d618160b972c36465fae5f2fea7c04e7f3160912319458fe0e1b247193ea784
+- 2026-11-01 · 303eedca* · mutant killed · exit 1 · `core/hooks/branchstate.go` · An unsorted failed-job list changes the Go red key, and the parity rows built from unsorted failures disagree. · acceptance-sha256:7d618160b972c36465fae5f2fea7c04e7f3160912319458fe0e1b247193ea784
 
 ## Invariants
 
@@ -71,3 +73,20 @@ Stop if a Node function depends on state the corpus cannot carry; name it in the
 - Collection (T2) and serving (T3).
 
 ## Verification Log
+- 2026-11-01 · 303eedca* · exit 1 · `set -o pipefail …` · acceptance-sha256:7d618160b972c36465fae5f2fea7c04e7f3160912319458fe0e1b247193ea784 · ms:708 · test-lock-sha256:e6f39fa811d8b94c5ae5992d0bc3eab3713040d3c8b41783e3720d8df218ba43 · test-lock-file:docs/adr/locks/e6f39fa811d8b94c5ae5992d0bc3eab3713040d3c8b41783e3720d8df218ba43.lock
+  ```
+  --- last 10 line(s) of stdout (of 33 after folding 33 raw)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 'testing: warning: no tests to run\nPASS\nok  \tgithub.com/D3-lt/quality-harness/core/hooks\t0.005s [no tests to run]\n\n',
+      expected: /1424 rows compared, 0 disagreements/,
+      operator: 'match',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-01 · 303eedca* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d618160b972c36465fae5f2fea7c04e7f3160912319458fe0e1b247193ea784 · ms:377
+- 2026-11-01 · 303eedca* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d618160b972c36465fae5f2fea7c04e7f3160912319458fe0e1b247193ea784 · ms:797
+- 2026-11-01 · 303eedca* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d618160b972c36465fae5f2fea7c04e7f3160912319458fe0e1b247193ea784 · ms:801

@@ -1,0 +1,84 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-135 T1: render says COULD NOT LOOK for an unread CI",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\t\tci = \"COULD NOT LOOK — \" + jsString(get(ciState, \"note\"))",
+      "to": "\t\tci = \"COULD NOT SEE — \" + jsString(get(ciState, \"note\"))",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: redKey sorts the failed jobs",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\t\treturn utf16Less(jsString(failed[i]), jsString(failed[j]))",
+      "to": "\t\treturn false",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: headRuns drops a cancelled run whose workflow was judged",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\t\tif !(strict(get(r, \"conclusion\"), \"cancelled\") && judged[workflowOf(r)]) {",
+      "to": "\t\tif true {",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: headRuns calls a full window incomplete",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\tcomplete := len(listed) < bsRunWindow",
+      "to": "\tcomplete := true",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: the dirty count is dropped only where its lookahead holds",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\t\tif rest == \"\" || strings.HasPrefix(rest, \",\") || strings.HasPrefix(rest, \" ·\") {",
+      "to": "\t\tif true {",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: snapshotKey refuses a continued config line",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\t\t\tif bsInclude.MatchString(config) || bsContinued.MatchString(config) {",
+      "to": "\t\t\tif bsInclude.MatchString(config) {",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: own commits may raise ahead by at most their count",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\treturn rose >= 0 && rose <= commits.(float64)",
+      "to": "\treturn rose >= 0",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    },
+    {
+      "label": "ADR-135 T1: a snapshot from the future is not usable",
+      "file": "core/hooks/branchstate.go",
+      "tests": [
+        "tests/branch-state-parity.test.mjs"
+      ],
+      "from": "\tif !isFiniteNumber(at) || at.(float64) > now {",
+      "to": "\tif !isFiniteNumber(at) {",
+      "only": "^(?:the core answers every branch-state row as the Node functions do)$"
+    }
+  ]
+}

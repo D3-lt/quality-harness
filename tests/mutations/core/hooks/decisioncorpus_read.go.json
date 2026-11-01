@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-137 T2: each group names five records, then how many more",
+      "file": "core/hooks/decisioncorpus_read.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\t\tif i == dcShown {",
+      "to": "\t\tif i == dcShown+1 {",
+      "only": "^(?:the core gives the decision context Node gives over every replayed corpus)$"
+    },
+    {
+      "label": "ADR-137 T2: an unproven record that declares the file is named",
+      "file": "core/hooks/decisioncorpus_read.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\t\tif entry.unproven != \"\" && entry.governs != nil && hits(entry.governs) {",
+      "to": "\t\tif false && entry.unproven != \"\" && entry.governs != nil && hits(entry.governs) {",
+      "only": "^(?:the core gives the decision context Node gives over every replayed corpus)$"
+    },
+    {
+      "label": "ADR-137 T2: a record past 512 KiB is not read",
+      "file": "core/hooks/decisioncorpus_read.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\tdcRecordLimit  = 512 * 1024",
+      "to": "\tdcRecordLimit  = 1024 * 1024",
+      "only": "^(?:the core gives the decision context Node gives over every replayed corpus)$"
+    },
+    {
+      "label": "ADR-137 T2: the record budget stops the look at two hundred records",
+      "file": "core/hooks/decisioncorpus_read.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\t\tif charged >= dcRecordBudget {",
+      "to": "\t\tif charged > dcRecordBudget {",
+      "only": "^(?:the core gives the decision context Node gives over every replayed corpus)$"
+    }
+  ]
+}

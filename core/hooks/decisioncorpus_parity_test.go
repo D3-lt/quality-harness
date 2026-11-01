@@ -5,7 +5,6 @@ package hooks
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"unicode"
 )
@@ -35,79 +34,37 @@ func dcpNullable(s string, ok bool) any {
 	return nil
 }
 
-// dcpUnique keeps the first of each string, in order, as `[...new Set(list)]`.
-func dcpUnique(list []string) []string {
-	seen := map[string]bool{}
-	out := []string{}
-	for _, s := range list {
-		if !seen[s] {
-			seen[s] = true
-			out = append(out, s)
+// dcpCorpusRecord is the entry adrCorpus gives one file, projected as the Node test projects it: the production reader
+// (dcAdrCorpus in decisioncorpus_read.go) over exactly the listing the row names.
+func dcpCorpusRecord(root, file string, tracked []string, platform string) any {
+	corpus := dcAdrCorpus(root, tracked, dcScreenBudget, platform)
+	for _, record := range corpus.records {
+		if record.file != file {
+			continue
 		}
-	}
-	return out
-}
-
-// dcpCorpusRecord is the entry adrCorpus gives one recognised record whose task files are named, projected as the Node test
-// projects it: the record rules of T1 composed the way adrCorpus composes them.
-func dcpCorpusRecord(root, file string, tasks, tracked []string, platform string) any {
-	reader := newDcReader()
-	listed := map[string]bool{}
-	for _, rel := range tracked {
-		listed[dcListedAbsolute(root, rel)] = true
-	}
-	text, err := reader.text(file)
-	if err != nil {
-		return O("threw", err.Error())
-	}
-	if !dcRecognisedAsRecord(root, file, text, platform).recognised {
-		return O("in", nil)
-	}
-	affected := func() []string {
-		out := []string{}
-		for _, task := range tasks {
-			if taskText, err := reader.text(task); err == nil {
-				out = append(out, dcAffectedFiles(taskText)...)
-			}
+		var number any
+		if record.hasNumber {
+			number = record.number
 		}
-		return out
+		return O("in", "record", "number", number, "id", dcpNullable(record.id, record.hasID), "title", record.title,
+			"status", record.standing.status, "kind", record.standing.kind, "frozen", record.standing.frozen,
+			"supersededBy", dcpNullable(record.standing.supersededBy, record.standing.hasSupersededBy),
+			"governs", record.governs, "enforcedBy", record.enforcedBy,
+			"unresolved", append([]string{}, record.unresolved(corpus.tracked)...), "declares", record.declares)
 	}
-	standing := dcRecordStanding(file, text, reader, map[string]*dcCatalog{}, listed, root)
-	title, hasTitle := dcTitleLine(text)
-	id, hasID := dcRecordID(filepath.Base(file), title, hasTitle)
-	paths, unresolved := dcDeclaredGoverns(text)
-	if standing.kind == "" {
-		var status any
-		if standing.status != "" {
-			status = standing.status
+	for _, entry := range corpus.unreadable {
+		if entry.file != file {
+			continue
 		}
-		entry := O("in", "unreadable", "status", status, "id", dcpNullable(id, hasID), "reason", nil, "unproven", nil, "governs", nil, "title", nil)
-		if standing.unproven != "" {
-			entry.Set("unproven", standing.unproven).Set("governs", dcpUnique(append(append([]string{}, paths...), affected()...))).Set("title", dcRecordTitle(file, text))
+		var governs any
+		if entry.governs != nil {
+			governs = entry.governs
 		}
-		return entry
+		return O("in", "unreadable", "status", dcpNullable(entry.status, entry.status != ""), "id", dcpNullable(entry.id, entry.hasID),
+			"reason", dcpNullable(entry.reason, entry.reason != ""), "unproven", dcpNullable(entry.unproven, entry.unproven != ""),
+			"governs", governs, "title", dcpNullable(entry.title, entry.governs != nil))
 	}
-	for _, declaration := range paths {
-		matched := false
-		for _, rel := range tracked {
-			if dcPathMatchesDeclaration(rel, declaration) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			unresolved = append(unresolved, "governs:"+declaration)
-		}
-	}
-	var number any
-	if n, ok := dcAdrNumber(file, text); ok {
-		number = n
-	}
-	return O("in", "record", "number", number, "id", dcpNullable(id, hasID), "title", dcRecordTitle(file, text),
-		"status", standing.status, "kind", standing.kind, "frozen", standing.frozen,
-		"supersededBy", dcpNullable(standing.supersededBy, standing.hasSupersededBy),
-		"governs", dcpUnique(append(append([]string{}, paths...), affected()...)), "enforcedBy", dcDeclaredEnforcement(text),
-		"unresolved", append([]string{}, unresolved...), "declares", dcpUnique(paths))
+	return O("in", nil)
 }
 
 func TestDecisionCorpusParity(t *testing.T) {
@@ -215,7 +172,7 @@ func TestDecisionCorpusParity(t *testing.T) {
 				got = "none"
 			}
 		case "corpusRecord":
-			got = dcpCorpusRecord(str(0), str(1), dcpStrings(arg(2)), dcpStrings(arg(3)), str(4))
+			got = dcpCorpusRecord(str(0), str(1), dcpStrings(arg(3)), str(4))
 		default:
 			t.Fatalf("row %d names a function this test does not answer: %q", i, fn)
 		}

@@ -1,0 +1,3 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/decision-context-replay.test.mjs	the core gives the decision context Node gives over every replayed corpus	ccfe8f6ec2feedee7d134abd758646440742b5516743fc410b3d396ceb442d5f
+body	tests/decision-context-replay.test.mjs	the core names unmarked archives as Node does, folding no letter outside ASCII	fa9647df7691166a28531f610eccb17ea0cbcbcf4a8cd2a124a85926a280f8aa

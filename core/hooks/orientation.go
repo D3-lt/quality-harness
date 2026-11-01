@@ -77,10 +77,13 @@ func hasDecisionCorpus(listing []string) string {
 
 const archiveLifecycleLine = "**Lifecycle:** Frozen historical ADR records"
 
+// archiveDirectoryName and templatesDirectory are matched over an ASCII-lowered name, case-sensitively: decision-corpus.mjs's
+// /i without `u` folds no letter outside ASCII into one inside it, where Go's (?i) folds U+017F into s, so `templateſ` and
+// `archiveſ` were names Node does not mean (BACKLOG §439's class, ADR-137 T2).
 var (
-	archiveDirectoryName = regexp.MustCompile(`(?i)(?:^|[-_])archived?s?$|^archives?[-_](?:adrs?|decisions?|records?)$`)
+	archiveDirectoryName = regexp.MustCompile(`(?:^|[-_])archived?s?$|^archives?[-_](?:adrs?|decisions?|records?)$`)
 	recordShaped         = regexp.MustCompile(`(?i)^(?:adr[-_]?\d+|\d{3,4}-|\d{4}-\d{2}-\d{2}-)`)
-	templatesDirectory   = regexp.MustCompile(`(?i)^templates$`)
+	templatesDirectory   = regexp.MustCompile(`^templates$`)
 	markdownFile         = regexp.MustCompile(`(?i)\.md$`)
 	readmeFile           = regexp.MustCompile(`(?i)(?:^|/)readme\.md$`)
 	tasksSegment         = regexp.MustCompile(`(?:^|/)tasks/`)
@@ -281,7 +284,7 @@ func unmarkedArchives(root string, listing []string) []string {
 		dirs := parts[:len(parts)-1]
 		templated := false
 		for _, part := range dirs {
-			if templatesDirectory.MatchString(part) {
+			if templatesDirectory.MatchString(asciiLower(part)) {
 				templated = true
 			}
 		}
@@ -298,7 +301,7 @@ func unmarkedArchives(root string, listing []string) []string {
 			continue
 		}
 		for depth := 1; depth < len(parts); depth++ {
-			if !archiveDirectoryName.MatchString(parts[depth-1]) {
+			if !archiveDirectoryName.MatchString(asciiLower(parts[depth-1])) {
 				continue
 			}
 			if underFrozenArchive(root, parts[:depth+1], cache, listed) == notFrozen {

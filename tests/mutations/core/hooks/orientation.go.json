@@ -57,6 +57,26 @@
       "from": "strings.Contains(\"\\n\"+existing, \"\\n\"+strings.TrimSuffix(rootExport, \"\\n\")+\"\\n\")",
       "to": "false",
       "only": "^(?:Go\\ optional\\ commit\\ tracking\\ keeps\\ root\\ exports\\ and\\ installation\\ idempotent)$"
+    },
+    {
+      "label": "ADR-137 T2: the archive-name rule folds no letter outside ASCII, as JavaScript's /i without u does",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\tarchiveDirectoryName = regexp.MustCompile(`(?:^|[-_])archived?s?$",
+      "to": "\tarchiveDirectoryName = regexp.MustCompile(`(?i)(?:^|[-_])archived?s?$",
+      "only": "^(?:the core names unmarked archives as Node does, folding no letter outside ASCII)$"
+    },
+    {
+      "label": "ADR-137 T2: the templates rule folds no letter outside ASCII, as JavaScript's /i without u does",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\ttemplatesDirectory   = regexp.MustCompile(`^templates$`)",
+      "to": "\ttemplatesDirectory   = regexp.MustCompile(`(?i)^templates$`)",
+      "only": "^(?:the core names unmarked archives as Node does, folding no letter outside ASCII)$"
     }
   ]
 }

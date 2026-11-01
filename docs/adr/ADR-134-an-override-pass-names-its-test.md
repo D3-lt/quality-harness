@@ -91,6 +91,11 @@ tests/ok.test.mjs` inherited `NODE_TEST_CONTEXT` from the running suite, and Nod
 called recursively … skipping running files", node v24.22.1, measured 2026-11-01), so no test ran and exit 0 was credited.
 The helper that spawns the gate now drops that variable, as `scripts/unasserted.mjs` already does; no locked body moved.
 
+The Codex review of 558e552e (high effort, recorded) found that the name check masked three catalogue mutants on the
+no-op guard: an override that runs and prints nothing is now UNRUN too, so the no-op loop's generic `UNRUN` match no longer
+noticed the guard removed. Reproduced (three GREEN), then fixed by asserting the specific `runs no test` refusal; all 47
+`spec-verify` catalogue mutants were then RED (four reused from runs on byte-identical subjects).
+
 ## Consequences
 
 A spec whose override is `make test-x` with no output now reports UNRUN until the command prints the test's result. That

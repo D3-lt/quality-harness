@@ -87,7 +87,9 @@ test('a Cmd override that runs nothing is UNRUN, not a pass', { skip: NO_POSIX_S
     t.after(() => remove(f.dir))
     const run = verify(f, process.env)
     assert.equal(run.status, 4, `${cmd} proves nothing ran:\n${run.stdout}`)
-    assert.match(run.stdout, /UNRUN|not run/)
+    // The no-op refusal itself, not any UNRUN: since ADR-134 an override that runs and prints nothing is UNRUN too, so a
+    // generic match no longer notices the no-op guard removed (the Codex review of 558e552e, 2026-11-01).
+    assert.match(run.stdout, /runs no test/, `${cmd} is refused before it runs:\n${run.stdout}`)
   }
   // Twin: an override that runs something real, and names the bound test (ADR-134), still answers with its exit.
   const real = fixture('test_selftest_fixture.py::test_gates_run', '`test -f spec-selftest.md && echo test_gates_run`', {})

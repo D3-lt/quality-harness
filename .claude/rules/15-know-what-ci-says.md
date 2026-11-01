@@ -1,6 +1,7 @@
 ---
 paths:
   - "plugin/scripts/branch-state.mjs"
+  - "core/hooks/branchstate*.go"
   - "tests/branch-state.test.mjs"
   - "plugin/hooks/hooks.json"
   - "scripts/release-evidence.mjs"

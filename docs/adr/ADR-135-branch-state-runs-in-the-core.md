@@ -92,6 +92,12 @@ The branch-state runner (`bsRun`) now sets a process group and kills it, with a 
 (`TestBranchStateCollectEndsTheTree`, and a catalogue mutant removing the group kill is RED). `run()`, which other hooks
 use, is unchanged and has the same exposure (BACKLOG §438).
 
+T4 switched `RunBridge` on 2026-11-01: `qh bridge branch-state` is answered by the core with no flag, and the registration
+answers with no node on PATH (`the branch-state registration spawns no node`; a mutant restoring the Node spawn is RED). Two
+ADR-131 T2 tests used `bridge branch-state` as their example of a Go→Node exec; after the cutover one would have tested
+nothing and the other failed, so both now use `bridge shell-hook`, which still spawns Node, and ADR-131 T2 was relocked
+with `--replace-hashes`. `tests/qh-launcher.test.mjs` (no locks) moved the same way.
+
 ## Consequences
 
 One Node spawn leaves every prompt. The costs: a stale cache can make a prompt wait up to the 2 s budget where the detached
@@ -118,4 +124,5 @@ Point `RunBridge` back at the Node script (bridge.go), which T4 keeps working. T
 
 ## Follow-ups
 
-- [ ] T1 to T4, then a release with an outside run.
+- [x] T1 to T4, each with its first red, passing fence and killed mutants.
+- [ ] A release with an outside run (ADR-131), which also carries ADR-134's reader change.

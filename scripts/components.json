@@ -24,10 +24,10 @@
       {"kind": "agent-context", "by": "core/hooks/orientation.go", "token": "additionalContext"}
     ] },
     "SessionStart \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge branch-state --cached 120": { "consumers": [
-      {"kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write"}
+      {"kind": "agent-context", "by": "core/hooks/branchstate_serve.go", "token": "func RunBranchState("}
     ], "reason": "CLAUDE.md \u00a715: a branch whose CI was not read is UNKNOWN, and nothing else says so at the start" },
     "UserPromptSubmit \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh bridge branch-state --brief --cached 120": { "consumers": [
-      {"kind": "agent-context", "by": "plugin/scripts/branch-state.mjs", "token": "process.stdout.write"}
+      {"kind": "agent-context", "by": "core/hooks/branchstate_serve.go", "token": "func RunBranchState("}
     ], "reason": "CLAUDE.md \u00a715 and ADR-094: said again only when the line changed or CI is red; ADR-097 kept it on a measure that did not fit an orientation note" },
     "SubagentStart \u00b7 * \u00b7 sh ${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh hook SubagentStart": { "consumers": [
       {"kind": "tool", "by": "core/hooks/lifecycle.go", "token": "subagent.started"},

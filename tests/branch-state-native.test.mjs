@@ -334,3 +334,14 @@ test('a stale cache past the budget is served marked stale and nothing outlives 
   const written = f.stored()
   assert.ok(written.at > due.at && written.partial === undefined && written.state.ci.looked === true, JSON.stringify(written))
 })
+
+// ADR-135 T4: the registration's own command, `qh bridge branch-state --brief --cached 120`, is answered by the core with no
+// flag set. The fixture's PATH holds git and the stub gh but no node, so a bridge that still spawned the Node CLI fails here
+// with "could not run the hook CLI" instead of printing the brief.
+test('the branch-state registration spawns no node', t => {
+  const f = fixture(t)
+  const ran = f.spawnOne('default', BRIEF)
+  assert.equal(ran.status, 0, `${ran.stdout}\n${ran.stderr}`)
+  assert.doesNotMatch(ran.stderr, /could not run the hook CLI/, ran.stderr)
+  assert.match(ran.stdout, /^branch-state: main @ [0-9a-f]{7}/, ran.stdout)
+})

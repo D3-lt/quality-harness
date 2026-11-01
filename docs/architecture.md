@@ -102,8 +102,8 @@ checkout retains SessionStart provisioning through `qh-fetch.mjs`; other events 
 
 | Event | Native entry | Implementation |
 |-------|--------------|----------------|
-| SessionStart | `qh hook SessionStart`; `qh bridge branch-state --cached 120` | Go orientation and the retained branch-state CLI |
-| UserPromptSubmit | `qh bridge branch-state --brief --cached 120` | retained Node branch-state CLI |
+| SessionStart | `qh hook SessionStart`; `qh bridge branch-state --cached 120` | Go orientation and Go branch state (ADR-135) |
+| UserPromptSubmit | `qh bridge branch-state --brief --cached 120` | Go branch state, refreshed inline under a 2 s budget |
 | SubagentStart | `qh hook SubagentStart` | `core/hooks/sessionend.go` contract |
 | PreToolUse | `qh hook PreToolUse` | Go reviewer/evidence guards, decision context, artifact rules |
 | PostToolUse | `qh bridge shell-hook <gate>`; `qh hook PostToolUse` | existing edit-gate CLI and Go write records |
@@ -119,9 +119,10 @@ delivery, context suppression, guards and artifact passes. It imports only Go's 
 modules live under `tests/helpers/node-hooks/` as an oracle and never ship; goldens and parity comparisons exercise Go
 against that oracle. `lifecycle.mjs` and `reviewer-guard.mjs` are small compatibility CLI transports to Go.
 
-The Node CLI tools remain: the explicit check runner, branch-state reader, edit-gate runner and corpus readers.
+The Node CLI tools remain: the explicit check runner, the hand-run branch-state reader, the edit-gate runner and corpus readers.
 The native bridge hands their actual descriptors through, so a CLI's delivery receipt follows its write to the host.
-The existing branch-state CLI still owns its bounded cache refresh; it is not a second hook engine.
+Branch state's hooks are answered by `core/hooks/branchstate*.go` (ADR-135); `plugin/scripts/branch-state.mjs` stays for a
+hand run, for statusline's cache helpers, and as the parity oracle the core is compared against.
 
 `scripts/build-core.mjs` builds source-check binaries and the release targets declared in `core-assets.mjs`.
 CI uploads the native binaries and source manifest as `qh-core`. `build-plugin.mjs` archives the exact commit's plugin tree

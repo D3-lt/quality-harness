@@ -66,11 +66,12 @@ test('native baseline observation sees a real project check', t => {
   mkdirSync(path.join(mini, '.claude-plugin'))
   copyFileSync(path.join(plugin, '.claude-plugin', 'plugin.json'), path.join(mini, '.claude-plugin', 'plugin.json'))
   copyFileSync(path.join(plugin, 'scripts', 'qh-hook.sh'), path.join(mini, 'scripts', 'qh-hook.sh'))
-  writeFileSync(path.join(mini, 'scripts', 'branch-state.mjs'),
+  // shell-hook, not branch-state: the core answers branch-state itself since ADR-135, so it is no longer a Go→Node exec.
+  writeFileSync(path.join(mini, 'scripts', 'run-shell-hook.mjs'),
     "import { pathToFileURL } from 'node:url'; import path from 'node:path'; await import(pathToFileURL(path.join(process.cwd(), 'check.mjs')).href)\n")
-  f.invoke(['bridge', 'branch-state'], {}, path.join(mini, 'scripts', 'qh-hook.sh'))
+  f.invoke(['bridge', 'shell-hook'], {}, path.join(mini, 'scripts', 'qh-hook.sh'))
   assert.equal(readFileSync(f.marker, 'utf8'), 'ran\n')
-  const controlArgs = digest(JSON.stringify([path.join(mini, 'scripts', 'branch-state.mjs')]))
+  const controlArgs = digest(JSON.stringify([path.join(mini, 'scripts', 'run-shell-hook.mjs')]))
   assert.equal(f.rows().filter(row => row.argsHash === controlArgs && ['exec-attempt', 'started'].includes(row.phase)).length, 1,
     'the same observer sees a real native launch, including POSIX same-PID exec')
   assert.ok(f.rows().every(row => row.schema === 'quality-harness-process-trace-v1'))
@@ -98,6 +99,6 @@ test('native observation refuses a different Git checkout as its trace sink', t 
   const sink = path.join(other, 'trace.jsonl')
   writeFileSync(sink, 'sentinel\n')
   f.env.QUALITY_HARNESS_TRACE_FILE = sink
-  f.invoke(['bridge', 'branch-state'], {})
+  f.invoke(['bridge', 'shell-hook', 'post-edit-check.sh'], {})
   assert.equal(readFileSync(sink, 'utf8'), 'sentinel\n', 'native tracing cannot append inside another checkout')
 })

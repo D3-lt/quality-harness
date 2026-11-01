@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-135 T4: the branch-state bridge spawns the Node CLI again",
+      "file": "core/hooks/bridge.go",
+      "tests": [
+        "tests/branch-state-native.test.mjs"
+      ],
+      "from": "\t\treturn RunBranchState(args, os.Stdin, os.Stdout)",
+      "to": "\t\tscript = \"branch-state.mjs\"",
+      "only": "^(?:the branch-state registration spawns no node)$"
+    },
+    {
       "label": "Go cutover: the native standalone guard allows a read-only write",
       "file": "core/hooks/bridge.go",
       "tests": [

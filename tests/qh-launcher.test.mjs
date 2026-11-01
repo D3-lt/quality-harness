@@ -51,8 +51,9 @@ test('the hook registry selects Go, whose verified launcher preserves reviewer r
   assert.match(compatibilityGuard.stderr, /read-only/)
   const scripts = path.join(top, 'scripts')
   mkdirSync(scripts)
-  writeFileSync(path.join(scripts, 'branch-state.mjs'), "import fs from 'node:fs'; process.stdout.write(fs.readFileSync(0)); process.stderr.write('bridge stderr'); process.exitCode = 7")
-  const bridge = spawnSync(binary, ['bridge', 'branch-state'], { input: 'bridge input', encoding: 'utf8', timeout: 30_000, windowsHide: true, env: { ...env, CLAUDE_PLUGIN_ROOT: top } })
+  // The Go→Node bridge example is shell-hook: branch-state is answered by the core since ADR-135.
+  writeFileSync(path.join(scripts, 'run-shell-hook.mjs'), "import fs from 'node:fs'; process.stdout.write(fs.readFileSync(0)); process.stderr.write('bridge stderr'); process.exitCode = 7")
+  const bridge = spawnSync(binary, ['bridge', 'shell-hook'], { input: 'bridge input', encoding: 'utf8', timeout: 30_000, windowsHide: true, env: { ...env, CLAUDE_PLUGIN_ROOT: top } })
   assert.equal(bridge.status, 7, bridge.stderr)
   assert.equal(bridge.stdout, 'bridge input')
   assert.equal(bridge.stderr, 'bridge stderr')

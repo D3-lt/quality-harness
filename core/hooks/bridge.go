@@ -13,11 +13,8 @@ func RunBridge(tool string, args []string) int {
 	script := ""
 	switch tool {
 	case "branch-state":
-		// ADR-135 T3: answered by the core when asked, until T4 makes it the default.
-		if os.Getenv("QH_BRANCH_STATE_NATIVE") == "1" {
-			return RunBranchState(args, os.Stdin, os.Stdout)
-		}
-		script = "branch-state.mjs"
+		// ADR-135: branch state is answered by the core; plugin/scripts/branch-state.mjs remains the hand-run CLI.
+		return RunBranchState(args, os.Stdin, os.Stdout)
 	case "shell-hook":
 		script = "run-shell-hook.mjs"
 	default:

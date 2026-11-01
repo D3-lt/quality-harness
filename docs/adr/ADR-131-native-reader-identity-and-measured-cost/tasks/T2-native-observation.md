@@ -83,6 +83,7 @@ Do not claim no child execution using only Node interception or an absent marker
     }
   ```
 - 2026-10-29 · a276b4d6* · exit 0 · `(cd core && go test ./hooks -run '^TestNativeProcessTrace' -count=1 -timeout=90s) && env -u QUALITY_HARNESS_QH_BIN node --test --test-concurrency=1 tests/native-observation.test.mjs tests/hook-footprint.test.mjs tests/native-cost.test.mjs tests/process-observation.test.mjs` · acceptance-sha256:366b7f9ec5c8fce75c6a1b4767e683ccb3155066c3da9d60fb5a78772ac0576c · ms:8443
+- 2026-11-01 · 23b15c33* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:366b7f9ec5c8fce75c6a1b4767e683ccb3155066c3da9d60fb5a78772ac0576c · ms:0 · test-lock-sha256:fb7a5b1c8ae38d400cda6c66f0e92fef8a3db2e39810e0a43bd826d2d3901912 · test-lock-file:docs/adr/locks/fb7a5b1c8ae38d400cda6c66f0e92fef8a3db2e39810e0a43bd826d2d3901912.lock · test-lock-kind:replace
 
 ## Mutation Log
 - 2026-10-28 · a276b4d6* · mutant killed · exit 1 · `core/hooks/orientation.go` · A real native automatic project-check launch must trip the installed-launcher marker and native-attempt observer · acceptance-sha256:e221a0c0a8998dbd07db074e9b8b37dc2f8f325de595aa489d2587b4b73801ed

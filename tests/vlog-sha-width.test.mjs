@@ -91,7 +91,11 @@ test('every row reader takes the sha width git can print', () => {
     assert.equal(verified.status, 0, verified.stdout + verified.stderr)
     const row = readFileSync(file, 'utf8').split('\n').find(line => / · exit 0 · /.test(line))
     const sha = row.split(' · ')[1].replace(/\*$/, '')
-    assert.equal(sha.length, Number(abbrev), `adr-verify wrote ${row}`)
+    // Git lengthens an abbreviation that a shorter prefix would leave ambiguous among the repository's objects, so at
+    // core.abbrev 4 it printed 19b5d once (BACKLOG §437, a full selftest on 2026-11-01). The width to expect is the one git
+    // itself prints for HEAD here, and never narrower than asked: a writer that ignored core.abbrev still fails both.
+    assert.equal(sha, git(dir, 'rev-parse', '--short', 'HEAD'), `adr-verify wrote ${row}`)
+    assert.ok(sha.length >= Number(abbrev), `adr-verify wrote ${row}`)
     assert.equal(done(dir), true, `adr-next did not count the row adr-verify wrote: ${row}`)
     assert.doesNotMatch(lint(dir).out, /Verification Log entry/, 'adr-lint read the row adr-verify wrote')
   }

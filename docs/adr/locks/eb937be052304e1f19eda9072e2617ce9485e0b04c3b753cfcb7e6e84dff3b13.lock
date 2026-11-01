@@ -1,0 +1,10 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/vlog-sha-width.test.mjs	a lock snapshot whose sha does not fit does not release a moved lock	55a62124f61d816c608f7a57c0e50c17daf99cf517b7377c3437a942e7a577a1
+body	tests/vlog-sha-width.test.mjs	a lock snapshot whose sha does not fit does not stand in for the recovery lock	5ef39195e25fff550a351ca2d4f2a2f53b1686597dde57dfb5ba3175ffa37202
+body	tests/vlog-sha-width.test.mjs	a relock reads the sha width of the record, whatever --cwd is	c07fa1acacf3fee4013e2ecabfe4587d70e880754df4ed9d5e2f35b83849c5dd
+body	tests/vlog-sha-width.test.mjs	a sha wider than the object format is not evidence	ac5a698bf123caf419ff507349ee5056488e400af239d79d998a06d99dc0f01a
+body	tests/vlog-sha-width.test.mjs	every row reader takes the sha width git can print	724246bcab1afb139e7f7c659fed158cd6c4e9391cb62587d2aa8026cf19e66b
+body	tests/vlog-sha-width.test.mjs	relock compares bodies with the lock whose sha fits	32c41d88d1462626f847b893d9c06444f041de6895bf82e426efad8767e4c007
+body	tests/vlog-sha-width.test.mjs	relock finds no lock in a row whose sha does not fit	1c45a56ea6e4d64d6ca59374cc5b8442e4faff6f9a9ecce26e64fe91a9401f3c
+body	tests/vlog-sha-width.test.mjs	relock reads the hasher from the rows whose sha fits	97f152d3abc7e9b2e4d7d850462ab97b230b2bcb320fe8458a14b62eb6c43884
+body	tests/vlog-sha-width.test.mjs	the sweep counts a claim only when its sha fits the repository	76f5f45710cf7b60dac0f7d772949d3c43d5ad406310c43e2e89996f6589cf7c

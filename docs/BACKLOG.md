@@ -4059,7 +4059,7 @@ ADR-128. Its reporting slice does not establish their outcome or settle ADR-128 
 Keep those records' original criteria and evidence; do not close them from a shared completion reference or a green
 structural check. ADR-133 T2 and T3 own the narrower actual-report and adopter-cost observations for this reporting change.
 
-## 437. OPEN 2026-11-01 — `every row reader takes the sha width git can print` is flaky at core.abbrev 4
+## 437. CLOSED 2026-11-01 — `every row reader takes the sha width git can print` is flaky at core.abbrev 4
 
 Found by the full selftest on 2026-11-01 while ADR-134 was being checked: `tests/vlog-sha-width.test.mjs:94` expected a
 4-character sha and adr-verify wrote `19b5d`. Git lengthens an abbreviation when the shorter prefix is ambiguous among the
@@ -4067,6 +4067,9 @@ repository's objects, so a 4-character request can print 5. The same test passed
 locked by ADR-088 T1, so the fix (accept a width of at least `core.abbrev`, or pin objects whose 4-character prefixes are
 unique) needs a relock with `--replace-hashes`. Not caused by ADR-134: adr-verify and the readers are unchanged.
 
+**Fixed 2026-11-01:** the test now expects exactly the short sha git prints for HEAD in that repository, and no narrower than
+`core.abbrev`; ADR-088 T1 was relocked with `--replace-hashes`, and its catalogue mutant (adr-next reading the one sha field)
+is still RED.
 ## 438. OPEN 2026-11-01 — Node processes the Go hooks still start, after ADR-135
 
 ADR-135 ports branch-state into the core. Enumerated 2026-11-01 with `git grep -n -E '"node"|\.mjs"' -- 'core/*.go' ':!*_test.go'`,

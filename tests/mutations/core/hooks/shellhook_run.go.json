@@ -59,6 +59,46 @@
       "from": "\t\tres.signal = shkSignalName(exitErr.ProcessState)\n",
       "to": "",
       "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
+    },
+    {
+      "label": "ADR-136 T3: a file that moved under its gate is not recorded complete",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\"complete\", verdict && steady))",
+      "to": "\"complete\", verdict && (steady || true)))",
+      "only": "^(?:the native edit gate records what the Node one records)$"
+    },
+    {
+      "label": "ADR-136 T3: an UNPROVEN or UNRUN report is not a verdict",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\t\t\t*verdict = run.status == 0 && !shkUnproven.MatchString(run.stderr+run.stdout)",
+      "to": "\t\t\t*verdict = run.status == 0",
+      "only": "^(?:the native edit gate records what the Node one records)$"
+    },
+    {
+      "label": "ADR-136 T3: the row holds the bytes the gate was about to read",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\"blob\", before, \"complete\"",
+      "to": "\"blob\", after, \"complete\"",
+      "only": "^(?:the native edit gate records what the Node one records)$"
+    },
+    {
+      "label": "ADR-136 T3: an uninteresting path is not gated",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/shell-hook-native.test.mjs"
+      ],
+      "from": "\t\tif shkRelativePathIsUninteresting(relPath(hookCwd, target)) {",
+      "to": "\t\tif false {",
+      "only": "^(?:the native edit gate records what the Node one records)$"
     }
   ]
 }

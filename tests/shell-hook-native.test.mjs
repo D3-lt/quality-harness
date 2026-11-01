@@ -8,7 +8,8 @@
 // script, which the core hands to Node by design (ADR-136 Decision 2), runs with node on the PATH.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -46,6 +47,18 @@ case "$STUB_MODE" in
   crash)
     echo 'partial'
     echo '      2 [main] bash (46688) C:\Program Files\Git\bin\bash.exe: *** fatal error - add_item ("\??\C:\Program Files\Git", "/", ...) failed, errno 1' >&2 ;;
+esac
+`
+
+// The facts-gate stub. It notes in STUB_MARK that it ran and with which arguments, so a skipped gate shows; `rewrite` edits the
+// file it is gating while it runs, and `unproven` says the dispatcher's own word for a gate that could not answer.
+const FACTS_GATE = String.raw`payload="$(cat)"
+echo "$1|$2" >> "$STUB_MARK"
+case "$STUB_MODE" in
+  print) printf 'facts-gate %s|%s\n' "$1" "$2" ;;
+  rewrite) printf 'moved under the gate\n' >> "$1"; echo 'rewritten' ;;
+  fail) echo 'the gate broke' >&2; exit 1 ;;
+  unproven) echo 'UNPROVEN: the gate could not answer' ;;
 esac
 `
 
@@ -118,10 +131,13 @@ function both(f, name, script, payload, options = {}) {
     runs[impl] = f.run(impl, script, payload, { ...options, env: { ...options.env, STUB_PIDFILE: f.pidFile(impl) } })
     assert.equal(runs[impl].error, undefined, `${impl}, ${name}: ${runs[impl].error}`)
     runs[impl].text = { stdout: runs[impl].stdout.toString('utf8'), stderr: runs[impl].stderr.toString('utf8') }
+    // What the run left behind, when the scenario asks: compared like the output.
+    if (options.observe) runs[impl].observed = options.observe()
   }
   const { node, native } = runs
   assert.deepEqual({ status: native.status, ...native.text }, { status: node.status, ...node.text }, `${name}: the core and the Node runner disagree`)
   assert.ok(native.stdout.equals(node.stdout) && native.stderr.equals(node.stderr), `${name}: the bytes differ`)
+  assert.deepEqual(native.observed, node.observed, `${name}: the core and the Node runner left different state`)
   return runs
 }
 
@@ -213,5 +229,79 @@ test('the native shell hook says what the Node runner says in every scenario', a
     const { node } = both(f, 'unknown', 'nope.sh', edit, { node: true })
     assert.equal(node.status, 2)
     assert.equal(node.text.stderr, 'quality-harness: unsupported shell hook: nope.sh\n')
+  })
+})
+
+test('the native edit gate records what the Node one records', async t => {
+  const f = fixture(t)
+  writeFileSync(path.join(f.scripts, 'facts-gate-dispatch.sh'), FACTS_GATE)
+  const init = spawnSync('git', ['init', '-q', f.project], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(init.status, 0, init.stderr)
+  for (const directory of ['docs', 'fixtures']) mkdirSync(path.join(f.project, directory))
+  // The payload names the scratch path as the OS handed it (on macOS through the /var symlink); the row's key is canonical.
+  const record = path.join(f.project, 'docs', 'record.md')
+  const fixtureRecord = path.join(f.project, 'fixtures', 'record.md')
+  const ORIGINAL = '# A record\n'
+  const mark = path.join(f.scratch, 'gate-ran')
+  const state = path.join(f.project, '.git', 'quality-harness')
+  const reset = () => {
+    writeFileSync(record, ORIGINAL)
+    writeFileSync(fixtureRecord, ORIGINAL)
+    remove(state)
+    remove(mark)
+  }
+  // Every session log either runner wrote, each row with its clock taken out and its key order kept.
+  const observe = () => {
+    const sessions = path.join(state, 'sessions')
+    const logs = existsSync(sessions) ? readdirSync(sessions).sort() : []
+    return {
+      ran: existsSync(mark) ? readFileSync(mark, 'utf8') : null,
+      logs: Object.fromEntries(logs.map(name => [name,
+        readFileSync(path.join(sessions, name), 'utf8').replace(/^\{"at":"[^"]+",/gm, '{"at":"AT",')])),
+    }
+  }
+  const gate = (name, payload, mode) => both(f, name, 'facts-gate-dispatch.sh', payload, { env: { STUB_MODE: mode, STUB_MARK: mark }, reset, observe })
+  const edit = (file, extra = {}) => ({ hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'shn-gate', cwd: f.project, tool_input: { file_path: file }, ...extra })
+  const blob = createHash('sha256').update(ORIGINAL).digest('hex')
+  const row = (file, complete) => `{"at":"AT","event":"artifact.gated","path":${JSON.stringify(path.join(realpathSync(path.dirname(file)), path.basename(file)))},"blob":"${blob}","complete":${complete}}\n`
+
+  await t.test('a passing gate over a file it left alone is recorded complete', () => {
+    const { node } = gate('tracked', edit(record), 'print')
+    assert.equal(node.status, 0)
+    assert.equal(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, `facts-gate ${record}|PostToolUse`)
+    assert.deepEqual(node.observed, { ran: `${record}|PostToolUse\n`, logs: { 'shn-gate.jsonl': row(record, true) } })
+  })
+
+  await t.test('a file edited while its gate ran is recorded incomplete, under the bytes the gate read', () => {
+    const { node } = gate('rewritten', edit(record), 'rewrite')
+    assert.deepEqual(node.observed.logs, { 'shn-gate.jsonl': row(record, false) })
+  })
+
+  await t.test('an uninteresting path is not gated and is recorded answered', () => {
+    const { node } = gate('uninteresting', edit(fixtureRecord), 'print')
+    assert.deepEqual([node.text.stdout, node.text.stderr], ['', ''])
+    assert.deepEqual(node.observed, { ran: null, logs: { 'shn-gate.jsonl': row(fixtureRecord, true) } })
+  })
+
+  await t.test('no session_id, no row', () => {
+    const { node } = gate('no session', edit(record, { session_id: undefined }), 'print')
+    assert.deepEqual(node.observed, { ran: `${record}|PostToolUse\n`, logs: {} })
+  })
+
+  await t.test('no cwd, no row', () => {
+    const { node } = gate('no cwd', edit(record, { cwd: undefined }), 'print')
+    assert.deepEqual(node.observed, { ran: `${record}|PostToolUse\n`, logs: {} })
+  })
+
+  await t.test('a failing gate is recorded incomplete', () => {
+    const { node } = gate('failing', edit(record), 'fail')
+    assert.match(node.text.stderr, /^the gate broke\nquality-harness: facts-gate-dispatch\.sh exited 1/)
+    assert.deepEqual(node.observed.logs, { 'shn-gate.jsonl': row(record, false) })
+  })
+
+  await t.test('an UNPROVEN gate is recorded incomplete', () => {
+    const { node } = gate('unproven', edit(record), 'unproven')
+    assert.match(JSON.parse(node.text.stdout).hookSpecificOutput.additionalContext, /^UNPROVEN/)
+    assert.deepEqual(node.observed.logs, { 'shn-gate.jsonl': row(record, false) })
   })
 })

@@ -52,6 +52,7 @@ node --test tests/shell-hook-native.test.mjs 2>&1 | tee "$out" && grep -q '✔ t
 | 4 — used | T4 |
 
 ## Mutation Log
+- 2026-11-01 · 91be45a0* · mutant killed · exit 1 · `core/hooks/shellhook_run.go` · mutate.mjs --case ADR-136 T3 measured RED: with the uninteresting-path skip disabled, the scenario 'an uninteresting path is not gated and is recorded answered' failed · acceptance-sha256:bf051870048822bdc7a5c7da1e2f535dee48dc08ccc79d1db415d0b0cd89b1c1
 
 ## Invariants
 
@@ -70,3 +71,19 @@ Stop if the Go canonical key disagrees with Node's on any fixture.
 - The batch (BACKLOG §438).
 
 ## Verification Log
+- 2026-11-01 · 91be45a0* · exit 1 · `set -o pipefail …` · acceptance-sha256:bf051870048822bdc7a5c7da1e2f535dee48dc08ccc79d1db415d0b0cd89b1c1 · ms:3759 · test-lock-sha256:637395d9ff1ac33bc67d2ad6065741d3a67044090b1ec5a9ebddd47ac65486ba · test-lock-file:docs/adr/locks/637395d9ff1ac33bc67d2ad6065741d3a67044090b1ec5a9ebddd47ac65486ba.lock
+  ```
+  --- last 10 line(s) of stdout (of 253 after folding 253 raw)
+        at TestContext.<anonymous> (file://~/CursorProjects/qh-adr136/tests/shell-hook-native.test.mjs:302:11)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: { status: 1, stdout: '', stderr: 'qh: could not run the hook CLI: exec: "node": executable file not found in $PATH\n' },
+      expected: { status: 0, stdout: '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"UNPROVEN: the gate could not answer"}}', stderr: '' },
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-01 · 91be45a0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf051870048822bdc7a5c7da1e2f535dee48dc08ccc79d1db415d0b0cd89b1c1 · ms:3753
+- 2026-11-01 · 91be45a0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf051870048822bdc7a5c7da1e2f535dee48dc08ccc79d1db415d0b0cd89b1c1 · ms:3917

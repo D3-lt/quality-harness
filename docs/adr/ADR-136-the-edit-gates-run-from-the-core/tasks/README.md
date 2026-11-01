@@ -10,7 +10,7 @@ Implementation tasks for ADR-136: The edit gates run from the core.
 |----|-------|--------|--------|------------|
 | T1 | The core's shell-hook helpers answer as Node's do | done | none — no spec | `node --test tests/shell-hook-parity.test.mjs` |
 | T2 | The core runs post-edit-check as runShellHook does | done | none — no spec | `node --test tests/shell-hook-native.test.mjs` |
-| T3 | The core runs the facts gate as runEditGate does | pending | none — no spec | `node --test tests/shell-hook-native.test.mjs` |
+| T3 | The core runs the facts gate as runEditGate does | done | none — no spec | `node --test tests/shell-hook-native.test.mjs` |
 | T4 | The registrations call the core's runner | pending | none — no spec | `node --test tests/shell-hook-native.test.mjs tests/native-observation.test.mjs tests/qh-launcher.test.mjs` |
 
 ## Contract Coupling

@@ -1,7 +1,8 @@
-// ADR-136 T2: the core runs a registered shell hook as plugin/scripts/run-shell-hook.mjs's runShellHook does: the same bash, the
-// same arguments, stdin and environment, the same timeout, and what it prints (the PostToolUse additionalContext wrapping, the
-// failure messages) and exits. tests/shell-hook-native.test.mjs runs every scenario through both runners. Until ADR-136 T4 the
-// core answers only under QH_SHELL_HOOK_NATIVE=1.
+// ADR-136 T2 and T3: the core runs a registered shell hook as plugin/scripts/run-shell-hook.mjs's runShellHook does: the same
+// bash, the same arguments, stdin and environment, the same timeout, and what it prints (the PostToolUse additionalContext
+// wrapping, the failure messages) and exits; and the facts gate as its runEditGate does, with the same artifact.gated row.
+// tests/shell-hook-native.test.mjs runs every scenario through both runners. Until ADR-136 T4 the core answers only under
+// QH_SHELL_HOOK_NATIVE=1.
 package hooks
 
 import (
@@ -24,10 +25,16 @@ import (
 // before it settles anyway, with the cleanup unconfirmed.
 const shkCleanupGrace = time.Second
 
+// shkFactsGate is the facts gate's registered name; the core runs it as runEditGate does.
+const shkFactsGate = "facts-gate-dispatch.sh"
+
 // shkNative is whether `qh bridge shell-hook <args>` is answered by the core. Any other call (the artifact pass's `--batch`, an
 // unregistered name) still runs the Node runner (ADR-136 Decision 2), which also owns the unknown-script refusal.
 func shkNative(args []string) bool {
-	return os.Getenv("QH_SHELL_HOOK_NATIVE") == "1" && len(args) >= 1 && args[0] == "post-edit-check.sh"
+	if os.Getenv("QH_SHELL_HOOK_NATIVE") != "1" || len(args) == 0 {
+		return false
+	}
+	return args[0] == "post-edit-check.sh" || (args[0] == shkFactsGate && !(len(args) > 1 && args[1] == "--batch"))
 }
 
 // shkPlatform is process.platform for the questions the helpers ask.
@@ -197,6 +204,24 @@ func shkRunShellHook(scriptName string, readRaw func() string, stdout, stderr io
 		return 1
 	}
 	payload := shkParsedHookPayload(raw, platform)
+	// A record under a fixture, vendored or generated directory is not one of this repository's decisions: the facts gate is not
+	// run on it, and that is its answer (run-shell-hook.mjs:344-361). The path is judged where the host ran, the payload's cwd.
+	if edited, ok := shkHookFilePathFromPayload(raw, platform); ok && scriptName == shkFactsGate {
+		hookCwd, isString := get(payload, "cwd").(string)
+		if !isString {
+			hookCwd, _ = os.Getwd()
+		}
+		target := edited
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(hookCwd, target)
+		}
+		if shkRelativePathIsUninteresting(relPath(hookCwd, target)) {
+			if verdict != nil {
+				*verdict = true
+			}
+			return 0
+		}
+	}
 	extra := map[string]string{}
 	if session, ok := get(payload, "session_id").(string); ok && session != "" {
 		extra["QUALITY_HARNESS_SESSION_ID"] = session
@@ -252,9 +277,41 @@ func shkRunShellHook(scriptName string, readRaw func() string, stdout, stderr io
 
 // RunShellHookNative answers `qh bridge shell-hook <script>` for a script shkNative accepts.
 func RunShellHookNative(scriptName string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if scriptName == shkFactsGate {
+		raw, _ := io.ReadAll(stdin)
+		return shkRunEditGate(string(raw), stdout, stderr)
+	}
 	readRaw := func() string {
 		raw, _ := io.ReadAll(stdin)
 		return string(raw)
 	}
 	return shkRunShellHook(scriptName, readRaw, stdout, stderr, nil)
+}
+
+// shkRunEditGate is runEditGate: the facts gate, and the artifact.gated row that lets the turn's end skip content this gate
+// already answered (ADR-060 T6). The row is keyed as event-log.mjs keys it, holds the identity of the bytes the gate was about to
+// read, and is complete only for a gate that reached a verdict over a file nothing changed while it ran: re-gating is the safe
+// direction (ADR-005).
+func shkRunEditGate(raw string, stdout, stderr io.Writer) int {
+	platform := shkPlatform()
+	file, hasFile := shkHookFilePathFromPayload(raw, platform)
+	parsed, _ := parseJSON(raw)
+	cwd, hasCwd := get(parsed, "cwd").(string)
+	key := ""
+	if hasFile && hasCwd {
+		wd, _ := os.Getwd()
+		key = canonicalFile(shkPersistedEventPath(file, cwd, platform, shkHost{cwd: wd, env: os.LookupEnv, windows: runtime.GOOS == "windows"}))
+	}
+	var before any
+	if key != "" {
+		before = contentId(key)
+	}
+	var verdict bool
+	status := shkRunShellHook(shkFactsGate, func() string { return raw }, stdout, stderr, &verdict)
+	if session, ok := get(parsed, "session_id").(string); key != "" && ok && hasCwd {
+		after := contentId(key)
+		steady := before != nil && before == after
+		appendEvent(cwd, session, O("event", "artifact.gated", "path", key, "blob", before, "complete", verdict && steady))
+	}
+	return status
 }

@@ -108,8 +108,10 @@ with a test that failed first and a catalogue mutant that is RED:
   once the collection returns. That made the per-command clock check redundant: its mutant went GREEN, so the clause and
   its mutant were removed.
 - Two due briefs refreshing at once could replace a newer red snapshot with an older green one, which Node's lock had
-  prevented. The writer keeps a newer snapshot that is not dated in the future (`TestBranchStateWriterKeepsANewerSnapshot`).
-  The `said` stamp's read and replace is still uncoordinated; two stamps at once can lose one, which re-says a line once.
+  prevented. The writer now keeps a newer snapshot that is not dated in the future, and the caller answers with the snapshot
+  that stands (`TestBranchStateWriterKeepsANewerSnapshot`, `…CachedAnswersWithTheKeptSnapshot`). This narrows the race, it
+  does not close it: the read, compare and replace are separate steps across processes, so a writer that read before another
+  published can still replace it, and the `said` stamp rewrites the whole snapshot it read. BACKLOG §438 holds the rest.
 - The native tests could run an inherited suite binary during a mutation run; they now build from the tree then, as
   tests/native-observation.test.mjs does. Every ADR-135 mutant was re-run uncached afterwards.
 

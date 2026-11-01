@@ -20,7 +20,7 @@ test('the core collects branch state as the Node collect does', { skip: noGo }, 
   // built only off Windows, where a process group exists. And the serving half's file readers (T3): a commit's parents from its
   // loose object, the own-commit walk, and the snapshot's replace-then-fallback write.
   const serving = ['TestBranchStateCommitParents', 'TestBranchStateOwnCommitWalk', 'TestBranchStateReplaceFile',
-    'TestBranchStateWriterKeepsANewerSnapshot', 'TestBranchStateRefreshPublishable']
+    'TestBranchStateWriterKeepsANewerSnapshot', 'TestBranchStateRefreshPublishable', 'TestBranchStateCachedAnswersWithTheKeptSnapshot']
   const pattern = `^(TestBranchStateCollect(EndsTheTree(AfterAnEarlyExit)?)?|${serving.join('|')})$`
   const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', pattern, './hooks/'], {
     cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true,

@@ -4078,3 +4078,8 @@ for its own record, measured by what it costs an adopter's session (CLAUDE.md §
 Also found 2026-11-01 (ADR-135 T3): `run()` in core/hooks/proc.go kills only the direct child at its deadline, and Wait then
 waits for any grandchild holding the output pipe (5.0 s past a 300 ms deadline, measured with `sh -c 'sleep 5 & …; wait'`).
 The branch-state runner ends the process group; every other hook that calls `run()` keeps the exposure.
+
+Left by the scoped verification of 53e9f6cc (2026-11-01), neither a fail-open nor a regression: the branch-state snapshot's
+read, compare and replace are separate steps across processes, so two hooks can still roll back a newer snapshot, and the
+`said` stamp rewrites the snapshot it read (the fix is a short cross-process lock around publish and stamp, bounded by the hook
+budget); and `TestBranchStateRefreshPublishable` tests the helper, not its call site, so bypassing it there is not noticed.

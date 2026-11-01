@@ -152,3 +152,26 @@ func TestBranchStateRefreshPublishable(t *testing.T) {
 		}
 	}
 }
+
+// The scoped verification of 53e9f6cc (P2): when the writer kept a newer snapshot, the caller still answered with its own
+// older collection, so a green read after red was published was printed, and stamped, as current.
+func TestBranchStateCachedAnswersWithTheKeptSnapshot(t *testing.T) {
+	store := filepath.Join(t.TempDir(), bsSnapshotFile)
+	conclusion := func(state any) string { return strOr(dig(state, "ci", "conclusion")) }
+	ci := func(c string) *Obj { return O("looked", true, "ci", O("looked", true, "conclusion", c)) }
+	state, fromCache, _ := bsCached(120, store, "key", func(checkpoint func(any)) any {
+		// Another hook publishes a newer, red observation while this one is still collecting.
+		time.Sleep(5 * time.Millisecond)
+		_ = os.WriteFile(store, []byte(stringify(O("at", bsNowMs(), "key", "key", "state", ci("failure")))), 0o666)
+		return ci("success")
+	})
+	if fromCache {
+		t.Fatal("a missing snapshot was served from cache")
+	}
+	if got := conclusion(state); got != "failure" {
+		t.Fatalf("the caller answered with its older collection (%q) over the newer snapshot it kept", got)
+	}
+	if got := conclusion(get(bsReadSnapshot(store), "state")); got != "failure" {
+		t.Fatalf("the newer snapshot was replaced: %q", got)
+	}
+}

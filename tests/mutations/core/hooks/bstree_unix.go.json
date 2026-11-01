@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-135 review fix: the group is ended when the context ends, even after an early exit",
+      "file": "core/hooks/bstree_unix.go",
+      "tests": [
+        "tests/branch-state-collect.test.mjs"
+      ],
+      "from": "\tend := func() { once.Do(func() { _ = syscall.Kill(-pid, syscall.SIGKILL) }) }",
+      "to": "\tend := func() { once.Do(func() {}) }",
+      "only": "^(?:the core collects branch state as the Node collect does)$"
+    }
+  ]
+}

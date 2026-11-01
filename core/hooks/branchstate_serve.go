@@ -124,18 +124,19 @@ func bsCoalesce(a, b any) any {
 }
 
 // bsWriter is main()'s `writer`: a new snapshot keeps `said`, `redKey` and `permanentFor` across a refresh (dropping `said`
-// reprinted every unchanged brief, CLAUDE.md §17) and carries what the session last heard.
-func bsWriter(store string) func(*Obj) {
-	return func(payload *Obj) {
+// reprinted every unchanged brief, CLAUDE.md §17) and carries what the session last heard. It returns the snapshot that stands
+// afterwards: the one it wrote, or a newer one it kept, which the caller then answers with (bsShown).
+func bsWriter(store string) func(*Obj) any {
+	return func(payload *Obj) any {
 		if store == "" {
-			return
+			return payload
 		}
 		current := bsReadSnapshot(store)
 		// Two due briefs refreshed at once: the one finishing later may hold the older observation. A snapshot taken after this
 		// one, and not dated in the future, is kept (the Codex review of ad84c084..a2ac47a1).
 		if at, ok := payload.Get("at").(float64); ok {
 			if held, ok := get(current, "at").(float64); ok && held > at && held <= bsNowMs() {
-				return
+				return current
 			}
 		}
 		out := payload.Clone()
@@ -146,7 +147,17 @@ func bsWriter(store string) func(*Obj) {
 			out.Set(k, orNull(get(current, k)))
 		}
 		_ = bsReplaceFile(store, stringify(out), bsDisk, time.Now())
+		return out
 	}
+}
+
+// bsShown is the state a caller answers with once its write is done: its own collection, unless the writer kept a newer,
+// usable snapshot another hook published meanwhile (the scoped verification of 53e9f6cc).
+func bsShown(standing any, at float64, state any) any {
+	if held, ok := get(standing, "at").(float64); ok && held > at && bsUsableCache(standing, bsNowMs()) {
+		return get(standing, "state")
+	}
+	return state
 }
 
 // bsRefreshPublishable says whether an inline refresh may replace the snapshot: no command was cut, and the deadline had not
@@ -191,7 +202,7 @@ func bsCached(maxAge float64, store string, key any, gather func(func(any)) any)
 	}
 	write := bsWriter(store)
 	state = gather(func(partial any) { write(O("at", at, "key", key, "partial", true, "state", partial)) })
-	write(O("at", at, "key", key, "state", state))
+	state = bsShown(write(O("at", at, "key", key, "state", state)), at, state)
 	return state, false, 0
 }
 
@@ -604,12 +615,12 @@ func RunBranchState(args []string, stdin *os.File, out io.Writer) int {
 		state := collectBranchState(bounded, func(any) {}, bsNowMs, ledgerHeads())
 		within := "within " + jsNumber(budget/1000) + "s"
 		if bsRefreshPublishable(cut, bsNowMs(), deadline) {
-			bsWriter(hintStore)(O("at", started, "key", key, "state", state))
+			standing := bsWriter(hintStore)(O("at", started, "key", key, "state", state))
 			written := bsReadSnapshot(hintStore)
 			if nullish(written) {
 				written = previous
 			}
-			emit(hint, state, bsEmit{previous: written, store: hintStore})
+			emit(hint, bsShown(standing, started, state), bsEmit{previous: written, store: hintStore})
 			return 0
 		}
 		if bsPastShowCap(now - get(previous, "at").(float64)) {

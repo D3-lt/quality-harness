@@ -120,14 +120,15 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 	cmd.Stderr = &errOut
 	hideWindow(cmd)
 	bsEndTree(cmd)
-	cmd.WaitDelay = timeout
+	cmd.WaitDelay = bsPipeWait(timeout)
 	done := func() bool { return ctx.Err() == context.DeadlineExceeded }
 	trace := startProcessTrace(cmd, "", "attempt")
 	err := cmd.Start()
 	if err == nil {
 		trace.started(cmd)
-		bsWatchTree(ctx, cmd)
+		end := bsWatchTree(ctx, cmd)
 		err = cmd.Wait()
+		end()
 	}
 	trace.ended(cmd, err, done())
 	res := runResult{status: -1, stdout: out.String(), stderr: errOut.String()}

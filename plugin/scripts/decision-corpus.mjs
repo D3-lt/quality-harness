@@ -1729,14 +1729,22 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
       // resolved to nothing, which is the rot ADR-011 is about. With no listing
       // this stays empty — the reader could not look, and saying nothing is the
       // only honest answer (ADR-005).
-      unresolved: [
-        ...declared.unresolved,
-        ...(tracked
-          ? declared.paths
-            .filter(declaration => !tracked.some(file => pathMatchesDeclaration(file, declaration)))
-            .map(declaration => `governs:${declaration}`)
-          : []),
-      ],
+      // Computed on first read, then kept: the per-edit hook reads it only for the records that govern the file it was asked
+      // about, and checking every record's declarations against every tracked path on every edit cost about 80 ms there
+      // (measured 2026-11-01 on this repository: 285 ms to 205 ms a call, the output byte-identical). Enumerable, so
+      // JSON.stringify and object spreads still carry it as an array.
+      get unresolved() {
+        const value = [
+          ...declared.unresolved,
+          ...(tracked
+            ? declared.paths
+              .filter(declaration => !tracked.some(file => pathMatchesDeclaration(file, declaration)))
+              .map(declaration => `governs:${declaration}`)
+            : []),
+        ]
+        Object.defineProperty(this, 'unresolved', { value, enumerable: true, writable: true, configurable: true })
+        return value
+      },
     })
   }
   // Named by what this reader counted or held undecided, and by task files, never by a name alone

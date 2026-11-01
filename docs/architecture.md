@@ -60,6 +60,7 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `plugin/scripts/said-per-context.mjs` | domain | whether a hook item is already in the context it would be said into, from the last request the transcript records (Go twin: `core/hooks/saidcontext.go`) | ADR-122 |
 | `plugin/scripts/host-review.mjs` | adapter | launching a different-lineage review and recording it | ADR-062, ADR-100 |
 | `plugin/scripts/decision-corpus.mjs` | domain | how the record corpus is listed and what governs a path | ADR-039, ADR-063 |
+| `core/hooks/decisioncorpus.go`, `core/hooks/decisioncorpus_read.go` | domain | which decisions govern the file an edit touches, the hook path of `decision-corpus.mjs` mirrored in Go | ADR-137 |
 | `plugin/scripts/work-next.mjs` | domain | where a repository is in the lifecycle | ADR-038, ADR-043 |
 | `plugin/scripts/corpus-probe.mjs` | api | running every reader over a corpus this repository does not own | ADR-064, ADR-089 |
 | `plugin/scripts/statusline.mjs` | ui | the status-line segment | ADR-044 |
@@ -105,7 +106,7 @@ checkout retains SessionStart provisioning through `qh-fetch.mjs`; other events 
 | SessionStart | `qh hook SessionStart`; `qh bridge branch-state --cached 120` | Go orientation and Go branch state (ADR-135) |
 | UserPromptSubmit | `qh bridge branch-state --brief --cached 120` | Go branch state, refreshed inline under a 2 s budget |
 | SubagentStart | `qh hook SubagentStart` | `core/hooks/sessionend.go` contract |
-| PreToolUse | `qh hook PreToolUse` | Go reviewer/evidence guards, decision context, artifact rules |
+| PreToolUse | `qh hook PreToolUse` | Go reviewer/evidence guards, decision context from the Go decision reader (ADR-137), artifact rules |
 | PostToolUse | `qh bridge shell-hook <gate>`; `qh hook PostToolUse` | Go edit-gate runner over the bash gates (ADR-136) and Go write records |
 | Stop, SubagentStop, TaskCompleted | `qh hook <event>` | Go descriptive evidence, reviewer state and artifact rules |
 | PreCompact, SessionEnd | `qh hook <event>` | Go session state; SessionEnd stays in this process |
@@ -123,6 +124,10 @@ The Node CLI tools remain: the explicit check runner, the hand-run branch-state 
 The native bridge hands their actual descriptors through, so a CLI's delivery receipt follows its write to the host.
 Branch state's hooks are answered by `core/hooks/branchstate*.go` (ADR-135); `plugin/scripts/branch-state.mjs` stays for a
 hand run, for statusline's cache helpers, and as the parity oracle the core is compared against.
+The decision context PreToolUse hands an edit is answered by `core/hooks/decisioncorpus*.go` (ADR-137), with no node started:
+a second mirror of the record rules, held to `tests/fixtures/record-recognition.json` and to a replay of Node's answers over
+real corpora. `plugin/scripts/decision-corpus.mjs` stays complete for adr-context, adr-state, work-next and corpus-probe, and
+as the oracle that replay runs live.
 
 `scripts/build-core.mjs` builds source-check binaries and the release targets declared in `core-assets.mjs`.
 CI uploads the native binaries and source manifest as `qh-core`. `build-plugin.mjs` archives the exact commit's plugin tree
@@ -247,7 +252,7 @@ Repository sources do not ship. The release bundle contains the committed `plugi
 
 | Concept | Single source | Consumers | Divergence check |
 |---------|---------------|-----------|------------------|
-| The record grammar (sections, the Acceptance fence, its digest) | `plugin/lib/record.py` | every gate under `plugin/bin/`; `decision-corpus.mjs` mirrors it (ADR-092) | `node --test tests/gates.test.mjs` |
+| The record grammar (sections, the Acceptance fence, its digest) | `plugin/lib/record.py` | every gate under `plugin/bin/`; `decision-corpus.mjs` mirrors it (ADR-092), and `core/hooks/decisioncorpus.go` mirrors that for the edit hook (ADR-137) | `node --test tests/gates.test.mjs tests/decision-context-parity.test.mjs tests/decision-context-replay.test.mjs` |
 | The order and outcome of check runs | `checks.jsonl`, written only by `check-record.mjs` | `check-ledger.mjs`, `core/hooks/ledger.go` | `node --test tests/qh-check.test.mjs` |
 | The ledger row formats the native hooks and explicit check runner share | Go hook writers and `check-record.mjs` | `core/hooks/json.go`, `core/hooks/eventlog.go`, `core/hooks/ledger.go` | `node --test tests/hook-goldens.test.mjs` |
 | The required checks before main moves | `.github/rulesets/main.json` (read back from the forge by `land.mjs`) | `land.mjs`, `release-evidence.mjs` | `node --test tests/land.test.mjs` |

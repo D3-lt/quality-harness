@@ -6,9 +6,29 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "return answer.stdout",
-      "to": "return \"\"",
+      "from": "func() string { return dcDecisionContext(file, root, listing) })",
+      "to": "func() string { return \"\" })",
       "only": "^the decision context is delivered once per path per session, and never as a finding$"
+    },
+    {
+      "label": "ADR-137 T3: a reader that panics is said as could-not-look",
+      "file": "core/hooks/pending.go",
+      "tests": [
+        "tests/core-hooks-go.test.mjs"
+      ],
+      "from": "\t\t\tif recover() != nil {",
+      "to": "\t\t\tif false && recover() != nil {",
+      "only": "^the decision reader says it could not look when it panics or outlasts its budget$"
+    },
+    {
+      "label": "ADR-137 T3: a reader past its budget is said as could-not-look",
+      "file": "core/hooks/pending.go",
+      "tests": [
+        "tests/core-hooks-go.test.mjs"
+      ],
+      "from": "\t\treturn decisionReaderFailed",
+      "to": "\t\treturn <-answer",
+      "only": "^the decision reader says it could not look when it panics or outlasts its budget$"
     }
   ]
 }

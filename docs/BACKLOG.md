@@ -4086,6 +4086,7 @@ Left by the scoped verification of 53e9f6cc (2026-11-01), neither a fail-open no
 read, compare and replace are separate steps across processes, so two hooks can still roll back a newer snapshot, and the
 `said` stamp rewrites the snapshot it read (the fix is a short cross-process lock around publish and stamp, bounded by the hook
 budget); and `TestBranchStateRefreshPublishable` tests the helper, not its call site, so bypassing it there is not noticed.
+**Update 2026-11-01 (ADR-137 T3):** adr-context.mjs --hook left the class; pending.go now answers from the core's reader.
 
 ## 439. CLOSED 2026-11-01 (fixed in ADR-136's branch) — the Go uninteresting-directory rule matches what the Node one does not
 
@@ -4105,3 +4106,15 @@ started by the bash gate outlived the deadline under the Node runner's `taskkill
 cleanup could not be confirmed". The core matches Node (ADR-136 Decision 3). The likely cause is that taskkill walks the
 Windows parent links, which MSYS's process starts do not keep for every child. The fix is to start the gate inside a job
 object with kill-on-close, which ends every process it created whatever its parent link; it needs a Windows run to verify.
+
+## 441. OPEN 2026-11-01 — a nested decision corpus gets no decision context, before and after ADR-137
+
+Found by ADR-137 T2's replay and measured 2026-11-01 over a scratch git copy of tests/fixtures/corpora/python-monorepo, whose
+corpus sits at `services/api/docs/adr/`: Node's `decisionContext` for `services/api/duration.py` names
+`services/api/docs/adr/ADR-001-durations-are-seconds.md`, while `qh hook PreToolUse` for an Edit of that file prints nothing,
+from the Node-spawning core of f9798aac and from the Go reader of ADR-137 T3 alike. The gate decides it, not the reader:
+`hasDecisionCorpus` (core/hooks/orientation.go, mirroring session-orientation.mjs) accepts only a listed path under `docs/adr`,
+`docs/specs`, `docs/decisions`, `adr` or `specs` at the repository root, so the hook never asks the reader there. Any corpus
+below the root is in the class (the replay's other corpora keep theirs at the root). The fix widens the gate to what the
+reader discovers, or asks the reader unconditionally now that it starts no process; either changes what SessionStart's
+orientation says too, so it wants its own record.

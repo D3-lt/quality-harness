@@ -7,7 +7,7 @@
 **Spec:** None — the owner chose the port in conversation; the Node reader's tests and tests/fixtures/record-recognition.json are the contract
 **Cross-references:** docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md, docs/adr/ADR-092-one-definition-of-a-record.md, docs/adr/ADR-110-a-static-core-owns-the-hooks.md, docs/adr/ADR-135-branch-state-runs-in-the-core.md, docs/adr/ADR-136-the-edit-gates-run-from-the-core.md
 **Governs:** None — declared by its tasks
-**Enforced-by:** None — the parity and replay tests are written by T1 and T2; this header names them once they exist
+**Enforced-by:** tests/decision-context-parity.test.mjs::the core answers every record-rule row as the Node reader does, tests/decision-context-replay.test.mjs::the core gives the decision context Node gives over every replayed corpus, tests/decision-context-replay.test.mjs::PreToolUse names the governing decisions with no node on PATH
 **Invalidates:** none — checked; ADR-092 is amended below and its tasks keep their done state
 **Amends:** ADR-092 ("One definition of a record, in Python, with lifecycle as its only mirror", Decision 5) — the Go core becomes a second mirror, for the decision-context hook only, held to the same approved rows; and ADR-110's 2026-10-28 amendment keeping the reader Node (docs/adr/ADR-110-a-static-core-owns-the-hooks.md:200)
 **Served-path change:** Before every Edit, Write, MultiEdit, NotebookEdit or mrw write in a repository with a decision corpus, PreToolUse answers which decisions govern the file from the Go core instead of spawning `node plugin/scripts/adr-context.mjs --hook`.

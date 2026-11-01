@@ -33,3 +33,12 @@ test('the native process observer exercises execution, privacy, completion and r
   assert.equal(run.status, 0, said)
   for (const name of names) assert.match(said, new RegExp(`^--- PASS: ${name} `, 'm'), `${name} ran`)
 })
+
+test('the decision reader says it could not look when it panics or outlasts its budget', { skip: noGo }, () => {
+  const names = ['TestDecisionReaderWithin']
+  const run = spawnSync('go', ['test', '-count=1', '-v', '-run', `^(${names.join('|')})$`, './hooks/'],
+    { cwd: coreDir, encoding: 'utf8', timeout: 600_000, windowsHide: true })
+  const said = `${run.stdout}\n${run.stderr}`
+  assert.equal(run.status, 0, said.split('\n').slice(-40).join('\n'))
+  for (const name of names) assert.match(said, new RegExp(`^--- PASS: ${name} `, 'm'), `${name} ran`)
+})

@@ -9,9 +9,12 @@
 // corpus read says which), and every row of the set carries that text. The Go test (TestDecisionContextReplay in
 // core/hooks/decisioncorpus_replay_test.go) reads each corpus once and answers every row. Skipped, with the reason, where `go`
 // is not on PATH.
+// ADR-137 T3 adds the hook itself: the native PreToolUse (qh hook PreToolUse) with no node on PATH says what Node's
+// decisionContext says, under every spelling of a symlinked root; and the 64 MiB content-screen budget, which a corpus here
+// spends so that it changes the text.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -19,6 +22,11 @@ import { fileURLToPath } from 'node:url'
 import { remove } from './helpers/remove.mjs'
 import { required } from './helpers/require.mjs'
 import { adrCorpus, decisionContext, decisionsGoverning, trackedPaths, unmarkedArchives } from '../plugin/scripts/decision-corpus.mjs'
+import { sourceCore } from './helpers/source-core.mjs'
+
+// A mutation run keeps a suite binary in QUALITY_HARNESS_QH_BIN, which sourceCore returns as it is: the hook test would then
+// exercise an unmutated core. Build from this tree instead, as branch-state-native.test.mjs does.
+if (process.env.QUALITY_HARNESS_MUTATION_IN_FLIGHT === '1') delete process.env.QUALITY_HARNESS_QH_BIN
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
@@ -185,5 +193,99 @@ test('the core names unmarked archives as Node does, folding no letter outside A
   })
   const said = `${ran.stdout}\n${ran.stderr}`
   assert.equal(ran.status, 0, `the core's unmarked archives disagree with Node's (or did not run):\n${said.split('\n').slice(-60).join('\n')}`)
+  assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
+})
+
+// A PATH that holds git and no node (on Windows, git's own directory and System32), so a hook that spawns node cannot answer.
+function pathWithoutNode(bin) {
+  const where = spawnSync(process.platform === 'win32' ? 'where.exe' : '/bin/sh',
+    process.platform === 'win32' ? ['git.exe'] : ['-c', 'command -v git'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+  const gitBin = (where.stdout ?? '').split(/\r?\n/).map(line => line.trim()).find(Boolean)
+  assert.ok(gitBin, `git is not locatable, so the PATH without node cannot be built: ${where.stderr}`)
+  mkdirSync(bin, { recursive: true })
+  let dirs = [bin]
+  if (process.platform === 'win32') {
+    dirs = [path.dirname(gitBin), path.join(process.env.SystemRoot || process.env.SYSTEMROOT, 'System32')]
+  } else {
+    writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nexec "${gitBin}" "$@"\n`)
+    chmodSync(path.join(bin, 'git'), 0o755)
+  }
+  for (const dir of dirs) {
+    for (const name of ['node', 'node.exe']) assert.ok(!existsSync(path.join(dir, name)), `${dir} holds ${name}, so the PATH has node on it`)
+  }
+  return dirs.join(path.delimiter)
+}
+
+// ADR-137 T3: pending.go asks the Go reader, not `node adr-context.mjs --hook`. The corpus is reached through each spelling of
+// its root (the temporary directory as named, its real path, a link to it: /var and /private/var on macOS), and the answer is
+// Node's decisionContext for the file and root the Node hook saw: both real paths, since the hook resolved the file and
+// spawned node in the canonical root, whose process.cwd() is that real path.
+test('PreToolUse names the governing decisions with no node on PATH', { skip: noGo, timeout: GO_BUDGET_MS }, t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-dchook-'))
+  t.after(() => remove(scratch))
+  const root = path.join(scratch, 'corpus')
+  writeTree(root, {
+    'src/governed.js': 'x\n', 'src/free.js': 'x\n',
+    'docs/adr/ADR-001-keep.md': record('ADR-001', 'Keep', '**Governs:** `src/governed.js`\n**Enforced-by:** `tests/governed.test.mjs`'),
+    'docs/adr/ADR-002-dropped.md': record('ADR-002', 'Dropped', '**Governs:** `src/governed.js`', 'Rejected'),
+  })
+  stage(scratch, 'corpus', null)
+  const real = realpathSync.native(root)
+  const linked = path.join(scratch, 'linked')
+  symlinkSync(root, linked, 'junction')
+  const qh = sourceCore()
+  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: path.join(repoRoot, 'plugin'), CLAUDE_PLUGIN_DATA: path.join(scratch, 'data') }
+  for (const key of Object.keys(env)) if (/^path$/i.test(key)) delete env[key]
+  env.PATH = pathWithoutNode(path.join(scratch, 'bin'))
+  const hook = (top, rel, session) => {
+    const ran = spawnSync(qh, ['hook', 'PreToolUse'], {
+      cwd: top, env, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+      input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Edit', cwd: top, session_id: session,
+        tool_input: { file_path: path.join(top, ...rel.split('/')), old_string: 'x', new_string: 'y' } }),
+    })
+    assert.equal(ran.status, 0, `qh hook PreToolUse in ${top}: ${ran.error?.code ?? ''} ${ran.stderr}`)
+    return ran.stdout
+  }
+  const spellings = [...new Set([root, real, linked])]
+  assert.ok(spellings.length >= 2, 'the root has one spelling, so no symlinked root is compared')
+  for (const [n, top] of spellings.entries()) {
+    const want = decisionContext([realpathSync.native(path.join(top, 'src', 'governed.js'))], real)
+    assert.match(want, /^Decisions that govern what you are about to change:\n {2}docs[\\/]adr[\\/]ADR-001-keep\.md — ADR-001: Keep {2}\[caught by: tests\/governed\.test\.mjs\]\n/)
+    assert.match(want, /\nAlready decided against here[^\n]*\n {2}docs[\\/]adr[\\/]ADR-002-dropped\.md — ADR-002: Dropped \[Rejected\]$/)
+    const said = hook(top, 'src/governed.js', `nonode-${n}`)
+    assert.ok(said.trim(), `the hook said nothing for ${top}`)
+    assert.equal(JSON.parse(said).hookSpecificOutput.additionalContext, want, `the hook's context under ${top}`)
+    // A file nothing governs costs the edit nothing.
+    assert.equal(hook(top, 'src/free.js', `nonode-free-${n}`), '', `an ungoverned file under ${top}`)
+  }
+})
+
+// The 64 MiB content-screen budget (SCREEN_BUDGET, dcScreenBudget): a non-record note past it, listed before a record only the
+// screen admits, leaves that record unexamined, so the file it governs is governed by nothing. Node's answer with the budget
+// lifted names the record, so the budget is what the compared text depends on.
+test('the core spends the 64 MiB content-screen budget as Node does', { skip: noGo, timeout: GO_BUDGET_MS }, t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-dcscreen-'))
+  t.after(() => remove(scratch))
+  const root = path.join(scratch, 'synthetic-screen')
+  writeTree(root, {
+    'src/screened.js': 'x\n', 'src/kept.js': 'x\n',
+    'docs/adr/ADR-001-kept.md': record('ADR-001', 'Kept', '**Governs:** `src/kept.js`'),
+    'notes/aa-big.md': 'just a note\n'.repeat(Math.ceil((65 * 1024 * 1024) / 12)),
+    'notes/zz-screened.md': record('ADR-002', 'Screened', '**Governs:** `src/screened.js`'),
+  })
+  stage(scratch, 'synthetic-screen', null)
+  const file = path.join(root, 'src', 'screened.js')
+  const lifted = decisionsGoverning([file], root, adrCorpus(root, { screenBudget: Number.MAX_SAFE_INTEGER }))
+  assert.deepEqual(lifted.governing.map(entry => path.basename(entry.file)), ['zz-screened.md'], 'without the budget the screen admits the record')
+  const { rows } = rowsFor(root)
+  assert.equal(rows.find(row => row.file === file).want, '', 'the budget leaves the record unexamined')
+  assert.ok(rows.some(row => row.want !== ''), 'no row of the screen corpus has an answer')
+  const replay = path.join(scratch, 'replay.json')
+  writeFileSync(replay, JSON.stringify({ corpora: [{ name: 'synthetic-screen', root, rows }] }))
+  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestDecisionContextReplay$', './hooks/'], {
+    cwd: coreDir, encoding: 'utf8', timeout: GO_BUDGET_MS, windowsHide: true, env: { ...process.env, QH_DECISION_CONTEXT_REPLAY: replay },
+  })
+  const said = `${ran.stdout}\n${ran.stderr}`
+  assert.equal(ran.status, 0, `the Go decision context disagrees with Node's over the screen budget (or did not run):\n${said.split('\n').slice(-60).join('\n')}`)
   assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
 })

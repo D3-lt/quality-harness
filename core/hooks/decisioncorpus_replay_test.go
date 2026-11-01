@@ -47,9 +47,9 @@ func TestDecisionContextReplay(t *testing.T) {
 		for n, row := range rows {
 			file, want := strOr(get(row, "file")), strOr(get(row, "want"))
 			got := read.context(file, root)
-			// The entry the hook will call reads the corpus itself; it answers as the corpus read once does.
+			// The entry the hook calls, handed a listing of its own, answers as the corpus read once does.
 			if n == 0 {
-				if whole := dcDecisionContext(file, root); whole != got {
+				if whole := dcDecisionContext(file, root, trackedPaths(root)); whole != got {
 					t.Errorf("%s: dcDecisionContext(%q) differs from the corpus read once:\n  whole: %q\n  once:  %q", name, file, whole, got)
 				}
 			}

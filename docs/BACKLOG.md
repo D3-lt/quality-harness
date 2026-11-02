@@ -4238,10 +4238,19 @@ under PYTHONHASHSEED=1 and =2 (127 records), 0 differ; this corpus has no lock w
 so that scan could not have seen this member, and other set-ordered output elsewhere stays possible where no corpus here
 exercises it.
 
-## 451. OPEN 2026-11-02 — a record directory replaced by a junction inside the repository changes work-next's ready lists
+## 451. CLOSED 2026-11-02 (honest, kept) — a record directory replaced by a junction inside the repository changes work-next's ready lists
 
 From the same outside run: with `docs\adr` moved out and replaced by `mklink /J docs\adr ..\adr-elsewhere`, look, corpora and
 records match the plain clone, but work-next's `ready` and `unbacked` lists gain tasks (032/T1, 040/T1, 050/T2, T6, T7,
 069/T2, T4 among them). The runner's guess, unverified: git sees the junction rather than the tracked files, so evidence read
 through git is missing for those tasks. Whether that is wrong (the files are where git expects them, through a link) or honest
 (git reports the tracked paths deleted) is not yet decided. Next: the full set difference of the two lists, asked of the runner.
+
+CLOSED 2026-11-02 on the runner's data (shape 4 rerun at ecabe59a): `git status --short docs/adr` is empty through the junction,
+so git sees nothing changed; every scalar (look, records, tasks, specs) is equal; ready gains 12, unbacked 20,
+readyButClaimedDone 11, and two tasks leave ready because a dependency is no longer done. adr-next on 032's tasks says why:
+T1 "carries exit-0 evidence … but its test lock withholds done — … its lock file `docs/adr/locks/<sha>.lock` is a link, or not
+a regular file inside the repository — UNPROVEN". The junction points outside the repository, so every lock file's real path
+leaves it, and the lock-file guard refuses what it cannot vouch for as the file git tracks there. That is the fail-closed
+direction with its reason named (ADR-005, §16): kept as designed. Revisit only if an adopter keeps records behind a junction
+that leaves the tree on purpose; the change would be to accept a lock whose bytes match git's blob for the listed path.

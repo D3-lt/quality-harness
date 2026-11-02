@@ -4195,3 +4195,17 @@ The Codex reviews of the ADR-137 branch, run from its worktree (`../qh-437`), we
 found `3462fc91` unreviewed although a clean review covered it. It was reviewed again from the main checkout instead of copying
 rows by hand. Next: decide whether the review ledger belongs to the common git directory, where every worktree of one clone
 would see one ledger, or say in §12 that a release reviews from the checkout it releases.
+
+## 448. OPEN 2026-11-02 — prose after an Enforced-by list is split into "caught by" entries
+
+Found by an outside run of v3.8.64 on Windows over a Go repository (the decision context PreToolUse printed for an Edit of a
+tracked file), and reproduced here with the Node reader on the same corpus: a record whose header reads
+``**Enforced-by:** `a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`) and `scripts/contract.sh` §28. Ten mutations
+were run…`` prints `[caught by: a_test.go, TestA*, b_test.go, TestB, scripts/contract.sh, eleven cases), ), ) and, §28. Ten
+mutations were run …]`. `declaredEnforcement` (plugin/scripts/decision-corpus.mjs:809) keeps every backticked span and then
+comma-splits whatever is left outside them, so the parentheses, "and" and the sentence after the list become entries. The core
+mirrors it (`dcDeclaredEnforcement`, core/hooks/decisioncorpus.go:839) and so does adr-lint (`enforcement_pointers`,
+plugin/bin/adr-lint:3947), under one grammar mirrored verbatim between them (tests/gate-regressions.py:49). Not a 3.8.64
+regression: Node printed the same before ADR-137. Next: change the grammar in all three with the truth table (prose outside a
+backticked span ends the list, or only backticked spans count once there is one), and add the shape to the corpus matrix's
+expected output (§18).

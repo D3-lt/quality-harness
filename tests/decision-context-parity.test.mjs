@@ -585,8 +585,10 @@ test('the core answers every per-platform record row as Node does', { skip: noGo
     for (const platform of PLATFORMS) rows.push(run('hasDecisionCorpus', hasDecisionCorpus, scratch, listing, platform))
   }
   rows.push(...platformCorpusRows(scratch))
-  // The platform decides some answers, or these rows test nothing about it.
-  for (const fn of ['listedPath', 'hasDecisionCorpus', 'corpusRecord']) {
+  // The platform decides some answers, or these rows test nothing about it. On a Windows disk no corpusRecord row answered
+  // differently by the parameter (the Windows job, run 41455681278): the one row built to, a name holding backslashes, cannot
+  // be made there, so that guard holds off Windows only. Every row is still compared with the core below.
+  for (const fn of ['listedPath', 'hasDecisionCorpus', ...(onWindows ? [] : ['corpusRecord'])]) {
     const byRow = new Map()
     for (const row of rows.filter(r => r.fn === fn)) {
       const key = JSON.stringify(row.args.filter(arg => !PLATFORMS.includes(arg)))

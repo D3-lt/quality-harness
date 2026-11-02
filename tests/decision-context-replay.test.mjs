@@ -90,10 +90,11 @@ function budgetCorpus(scratch) {
 function limitsCorpus(scratch) {
   const root = path.join(scratch, 'synthetic-limits')
   writeTree(root, {
-    'src/big.js': 'x\n', 'src/nul.js': 'x\n', 'src/w.js': 'x\n', 'src/u.js': 'x\n',
+    'src/big.js': 'x\n', 'src/zero.js': 'x\n', 'src/w.js': 'x\n', 'src/u.js': 'x\n',
     'docs/adr/ADR-001-big.md': record('ADR-001', 'Big', `**Governs:** \`src/big.js\`\n\n${'x'.repeat(600 * 1024)}`),
     'docs/adr/ADR-002-small.md': record('ADR-002', 'Small', '**Governs:** `src/big.js`'),
-    'docs/adr/ADR-005-nul.md': `${record('ADR-005', 'Nul', '**Governs:** `src/nul.js`')}\u0000`,
+    // `nul` is a reserved device name on Windows, so the governed file is called zero, not nul (the Windows job, run 41455681278).
+    'docs/adr/ADR-005-nul.md': `${record('ADR-005', 'Nul', '**Governs:** `src/zero.js`')}\u0000`,
     'docs/adr-archive/README.md': catalog(['| [ADR-003](ADR-003-nested/ADR-003-nested.md) | Nested | withdrawn | 2026-10-07 |']),
     'docs/adr-archive/ADR-003-nested/ADR-003-nested.md': record('ADR-003', 'Nested', '**Governs:** `src/w.js`'),
     'docs/adr-archive/ADR-004-orphan.md': record('ADR-004', 'Orphan', '**Governs:** `src/u.js`'),

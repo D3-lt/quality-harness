@@ -1401,12 +1401,14 @@ func dcBareNumber(s string) bool {
 	return true
 }
 
+// dcRealpath is `realpathSync.native` on an absolute path: realpath(3) on unix, the handle's final path on Windows
+// (nativeRealpath), so a junction resolves for the core as it does for Node.
 func dcRealpath(p string) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return "", err
 	}
-	return filepath.EvalSymlinks(abs)
+	return nativeRealpath(abs)
 }
 
 // dcInside is `inside`: target relative to base, or absent when it is not under it.

@@ -7,11 +7,11 @@
   "plugins": [
     {
       "name": "quality-harness",
-      "version": "3.8.64",
+      "version": "3.8.65",
       "source": {
         "source": "archive",
-        "url": "https://github.com/D3-lt/quality-harness/releases/download/v3.8.64/quality-harness.zip",
-        "sha256": "fc2a5f446373acf6bc7fb919f55d957e5c62969087ac3e29495f0d62998e5903"
+        "url": "https://github.com/D3-lt/quality-harness/releases/download/v3.8.65/quality-harness.zip",
+        "sha256": "0db886f54d0a1b822fd9e3c098d4cb7d286fc10fc46b10025efb07967cf64d35"
       },
       "description": "Development lifecycle, ADR, executable evidence, retirement, and review gates.",
       "category": "development",

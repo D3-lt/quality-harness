@@ -1730,8 +1730,9 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
       // this stays empty — the reader could not look, and saying nothing is the
       // only honest answer (ADR-005).
       // Computed on first read, then kept: the per-edit hook reads it only for the records that govern the file it was asked
-      // about, and checking every record's declarations against every tracked path on every edit cost about 80 ms there
-      // (measured 2026-11-01 on this repository: 285 ms to 205 ms a call, the output byte-identical). Enumerable, so
+      // about, and checking every record's declarations against every tracked path on every edit cost 65-115 ms there
+      // (measured 2026-11-01 on this repository: about 285 ms a call before, 170 ms where no record governs the file and
+      // 220 ms where some do, the output byte-identical). Enumerable, so
       // JSON.stringify and object spreads still carry it as an array.
       get unresolved() {
         const value = [

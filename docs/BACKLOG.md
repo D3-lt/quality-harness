@@ -4149,3 +4149,35 @@ Found by the Codex review of 8d872045..77658224 (ADR-137 part B): `decisionConte
 (`mcp__mrw__mrw_write`) supplies `tool_input.plan` (tests/native-hooks.test.mjs:126), and a shell `mrw write` never reaches
 the branch, so the decisions governing a file edited through mrw are not said, before ADR-137 and after it. The fix reads the
 plan's `@@ <path>` headers and answers for each path, gated as today.
+
+## 445. OPEN 2026-11-02 — the core's other real-path sites do not follow a junction on Windows; the ledger guard may fail open there
+
+Found by the Windows job of land/2a2cdf3a (run 41455681278): an edit through a junctioned checkout got no decision context,
+because `filepath.EvalSymlinks` has not followed a junction on Windows since Go 1.23 while Node's realpath does. 23093d5f and
+85237d89 fixed the decision reader (`dcRealpath` → `nativeRealpath`, libuv's `GetFinalPathNameByHandleW`). The class, enumerated
+with `grep -n 'EvalSymlinks' core/hooks/*.go | grep -v _test.go` on 85237d89: eventlog.go:67 (`canonical`, behind
+`canonicalFile`), eventlog.go:127 (`findGitDir`), process_trace.go:115, 173, 180, 196, ledger.go:343, treefacts.go:19, 42, 45, 82,
+86, 117, 177 — 15 sites, none of them changed.
+
+The one that matters most: the ADR-117 ledger guard (`ledgerWrite`, core/hooks/ledger_guard.go:203-230) decides containment on
+`canonicalFile` of the state directory and of the target. A write to `<repo>\j\checks.jsonl`, where `j` is a junction to
+`.git\quality-harness`, would then not be inside the state directory, and the sanctioned refusal would not fire. NOT VERIFIED:
+reasoned from the code and the Go 1.23 change, never run on Windows. It predates 3.8.64 (the guard moved to the core in the
+3.8.60 cutover). Next: a Windows-only test that writes through a junction into the state directory and expects the refusal,
+then route these sites through `nativeRealpath` where their Node twin used a realpath that follows links.
+
+## 446. OPEN 2026-11-02 — the core's namespaced path differs from Node's on share roots and device paths
+
+From the Codex verification of 85237d89: `namespaced` (core/hooks/realpath_windows.go) is Node's `toNamespacedPath` for the
+drive and UNC paths `filepath.Abs` produces, but Node resolves the input again first: for `\\server\share` it appends a trailing
+separator the core does not, and it removes the trailing one from `\\?\C:\` and `\\.\C:\`, which the core keeps. Those inputs
+behave as they did before 85237d89. Not run on Windows. Next: a Windows comparison over share roots and device paths.
+
+## 447. OPEN 2026-11-02 — a review run in a worktree is recorded where a release from the main checkout cannot see it
+
+The Codex reviews of the ADR-137 branch, run from its worktree (`../qh-437`), were appended to
+`.git/worktrees/qh-437/quality-harness/reviews.jsonl`; `release-evidence` run from the main checkout reads
+`.git/quality-harness/reviews.jsonl` (scripts/release-evidence.mjs:480, `stateDir(cwd)`), so 3.8.64's first release attempt
+found `3462fc91` unreviewed although a clean review covered it. It was reviewed again from the main checkout instead of copying
+rows by hand. Next: decide whether the review ledger belongs to the common git directory, where every worktree of one clone
+would see one ledger, or say in §12 that a release reviews from the checkout it releases.

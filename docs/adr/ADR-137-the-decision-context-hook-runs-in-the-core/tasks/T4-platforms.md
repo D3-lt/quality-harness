@@ -91,3 +91,4 @@ Stop if a platform answer cannot be reproduced without the real platform; name i
   ```
 - 2026-11-01 · f75c3cce0* · exit 0 · `set -o pipefail …` · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe · ms:1631
 - 2026-11-01 · f75c3cce0* · exit 0 · `set -o pipefail …` · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe · ms:1683
+- 2026-11-02 · 85237d896* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:14c64e8d2da29a3f43db0c2d5e8c90d78d5d1b5b835d0818662206d025b2befe · ms:0 · test-lock-sha256:ef02c0acec5edd4dc7e1ee331f42db534d79c3f0b90bbda35564cdce105dbc29 · test-lock-file:docs/adr/locks/ef02c0acec5edd4dc7e1ee331f42db534d79c3f0b90bbda35564cdce105dbc29.lock · test-lock-kind:replace

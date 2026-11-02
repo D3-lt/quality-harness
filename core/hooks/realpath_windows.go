@@ -15,7 +15,7 @@ var procGetFinalPathNameByHandleW = syscall.NewLazyDLL("kernel32.dll").NewProc("
 // Go 1.23, and the Windows job showed the cost: an edit through a junctioned checkout got no decision context
 // (land/2a2cdf3a, run 41455681278).
 func nativeRealpath(abs string) (string, error) {
-	name, err := syscall.UTF16PtrFromString(abs)
+	name, err := syscall.UTF16PtrFromString(namespaced(abs))
 	if err != nil {
 		return "", err
 	}
@@ -48,4 +48,22 @@ func nativeRealpath(abs string) (string, error) {
 	}
 	// libuv answers EINVAL for any other prefix.
 	return "", syscall.EINVAL
+}
+
+// namespaced is Node's path.toNamespacedPath on an absolute path, which fs.realpathSync.native applies before libuv sees it:
+// a drive path gains `\\?\`, a UNC path becomes `\\?\UNC\`, and one already namespaced, or a device path, is left alone.
+func namespaced(abs string) string {
+	if len(abs) <= 2 {
+		return abs
+	}
+	if abs[0] == '\\' && abs[1] == '\\' {
+		if abs[2] != '?' && abs[2] != '.' {
+			return `\\?\UNC\` + abs[2:]
+		}
+		return abs
+	}
+	if isASCIILetter(rune(abs[0])) && abs[1] == ':' && abs[2] == '\\' {
+		return `\\?\` + abs
+	}
+	return abs
 }

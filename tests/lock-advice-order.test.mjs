@@ -62,15 +62,18 @@ test('adr-lint gives a lock\'s unhashable-name advice in one order whatever the 
     'names = sys.argv[2].split(",")',
     'digest, token = record.encode_lock({"check": None, "bodies": {}, "unproven": {("src/cart.test.ts", n) for n in names}, "hasher": 1})',
     'print(f"· test-lock-sha256:{digest} · test-lock-b64:{token}")',
-  ].join('\n'), lib, names.join(',')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  // UTF-8 out: the row holds `·`, which a Windows Python writes in its ANSI code page otherwise, and the row no longer parses
+  // (the Windows job of land/32dafa41, as lock-unreadable.test.mjs's own mint already knew).
+  ].join('\n'), lib, names.join(',')], { encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } })
   assert.equal(minted.status, 0, minted.stderr)
   writeFileSync(task, `${text}${text.endsWith('\n') ? '' : '\n'}- 2026-09-20 · no-git · exit 1 · \`grep -q item_case_0 src/cart.test.ts\` · ms:3 ${minted.stdout.trim()}\n`)
   const runs = ['0', '1', '2', '3', '4', '5'].map(seed => {
     const ran = spawnSync('python3', [path.join(plugin, 'bin', 'adr-lint'), path.join(repo, record)], {
-      cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, PYTHONHASHSEED: seed },
+      cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+      env: { ...process.env, PYTHONHASHSEED: seed, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
     })
-    return ran.stdout.split('\n').filter(line => line.includes('could not be hashed at first red'))
+    return { said: `${ran.stdout}\n${ran.stderr}`, lines: ran.stdout.split('\n').filter(line => line.includes('could not be hashed at first red')) }
   })
-  assert.equal(runs[0].length, 8, `eight advice lines:\n${runs[0].join('\n')}`)
-  for (const run of runs) assert.deepEqual(run, runs[0], 'adr-lint\'s advice order changed with the hash seed')
+  assert.equal(runs[0].lines.length, 8, `eight advice lines; adr-lint said:\n${runs[0].said}`)
+  for (const run of runs) assert.deepEqual(run.lines, runs[0].lines, 'adr-lint\'s advice order changed with the hash seed')
 })

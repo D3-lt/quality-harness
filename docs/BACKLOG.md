@@ -4254,3 +4254,17 @@ a regular file inside the repository — UNPROVEN". The junction points outside 
 leaves it, and the lock-file guard refuses what it cannot vouch for as the file git tracks there. That is the fail-closed
 direction with its reason named (ADR-005, §16): kept as designed. Revisit only if an adopter keeps records behind a junction
 that leaves the tree on purpose; the change would be to accept a lock whose bytes match git's blob for the listed path.
+
+## 452. OPEN 2026-11-03 — the tutorial replay's mutant survives now and then on CI, cause still unobserved
+
+Recurred on the Ubuntu selftest of land/1242d15f (run 41535406119, job 125585862381), a commit that changed only the
+catalogue and an attestation; the same code passed every job at 7b5e411e, and a rerun of the failed job passed.
+`tests/tutorial.test.mjs:141` expects the page's mutant (`int(text.rstrip("s"))` → `0`) killed; adr-verify recorded it
+survived, the fence (`python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out`) exiting 0.
+Earlier occurrences: docs/backlog-archive/BACKLOG-201-300.md:507 and BACKLOG-301-400.md:1105 (§3xx item 2b), each closed as
+not reproduced. Ruled out again here, from source: the two fences run one after the other (plugin/bin/adr-verify, no
+concurrent spawn), and `drop_cached_bytecode` (plugin/bin/adr-verify:1991) deletes the mutated file's bytecode before either
+fence runs. Still unobserved: what the fence printed, since the failure block holds adr-verify's lines but not the unittest
+output. Next: have the tutorial test print the fence's own output (the mutant fence's /tmp/t1.out, or adr-verify's captured
+log) on a survivor, so the next occurrence says what unittest saw; a third closure as "not reproduced" would repeat the first
+two.

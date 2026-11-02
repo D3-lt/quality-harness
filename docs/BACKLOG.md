@@ -4209,3 +4209,20 @@ plugin/bin/adr-lint:3947), under one grammar mirrored verbatim between them (tes
 regression: Node printed the same before ADR-137. Next: change the grammar in all three with the truth table (prose outside a
 backticked span ends the list, or only backticked spans count once there is one), and add the shape to the corpus matrix's
 expected output (§18).
+
+## 449. OPEN 2026-11-02 — adr-next calls a task with a duplicate id unreadable, names the wrong file, and drops tasks of another record silently
+
+From an outside chaos run of v3.8.64 on Windows (a scratch copy of a corpus we do not own, seeded with the go-module fixture
+corpus). Not a fail-open, and none of these change with 3.8.64:
+- A second task file whose header repeats another's id (`# Task ADR-001-T1`) puts that file in adr-next's `unreadable` with no
+  reason, although adr-lint read it and advised on its contents; `disagreements` stays 0. The outcome is honest (ready is [] and
+  the directory lands in readinessUnproven), the label is not: the file was read, and it is a duplicate.
+- When the duplicate is a byte copy under another name (`aux.md` beside `T1-add-items.md`), the `unreadable` entry names the
+  original, T1-add-items.md, not the copy.
+- A record directory whose tasks carry another record's ids (a copied `ADR-002-copy/tasks` still saying `# Task ADR-001-T1`)
+  gives ready [] and unreadable [] with nothing in readinessUnproven or partialBecause and look ok: the tasks are counted in
+  `tasks` and named nowhere as excluded.
+Also seen, judged deliberate but unsaid: workNext.notRead lists files that are not records (14 specs and rehearsals) with no
+reason field, and a record directory reached through a junction inside the repository makes the look PARTIAL for the alias
+read once. Next: name the duplicate as a duplicate, point at the file that repeats the id, and say why foreign-id tasks are
+not counted; add the three shapes to the corpus matrix (§18).

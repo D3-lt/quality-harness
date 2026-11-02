@@ -78,7 +78,8 @@ function fixtureRows(scratch) {
   const rows = []
   for (const row of TABLE.rows) {
     const repo = layOut(scratch, row.files, row.repositoryUnder)
-    if (!repo) continue
+    // A row whose link this host cannot make (Windows without symlink privilege) is not built; it is named, not counted.
+    if (!repo) { (rows.unbuilt ??= []).push(row.id); continue }
     const subject = row.subject ?? row.files[0].path
     const file = path.join(repo, ...subject.split('/'))
     const r = run('recognisedAsRecord', recognition, repo, file, process.platform)
@@ -471,8 +472,10 @@ function fileRows(scratch) {
 }
 
 function rowsFor(scratch) {
-  const rows = [...fixtureRows(scratch)]
+  const fixtures = fixtureRows(scratch)
+  const rows = [...fixtures]
   rows.fixture = rows.length
+  rows.unbuilt = fixtures.unbuilt ?? []
   for (const candidate of candidates) {
     for (const declaration of declarations) rows.push(run('pathMatchesDeclaration', pathMatchesDeclaration, candidate, declaration))
   }
@@ -502,7 +505,11 @@ test('the core answers every record-rule row as the Node reader does', { skip: n
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-dcparity-'))
   t.after(() => remove(scratch))
   const rows = rowsFor(scratch)
-  assert.ok(rows.fixture >= TABLE.rows.length * 5, `only ${rows.fixture} rows came from record-recognition.json`)
+  // Five rows from every approved row this host could lay out; one whose link it cannot make is named (a Windows host without
+  // symlink privilege, an outside run of b2172a83), and only that one.
+  if (rows.unbuilt.length) t.diagnostic(`not built here, a link this host cannot make: ${rows.unbuilt.join(', ')}`)
+  assert.ok(rows.unbuilt.every(id => TABLE.rows.find(row => row.id === id)?.files.some(file => file.link)), `rows not built without a link: ${rows.unbuilt}`)
+  assert.ok(rows.fixture >= (TABLE.rows.length - rows.unbuilt.length) * 5, `only ${rows.fixture} rows came from record-recognition.json`)
   assert.ok(rows.length > 3000, `only ${rows.length} rows were built, so the comparison would prove little`)
   // Every class of answer is present, or a row class the Go side gets wrong could be one nobody wrote.
   for (const fn of ['recognisedAsRecord', 'recordId', 'titleLine', 'recordStatus', 'corpusEligible', 'pathMatchesDeclaration',

@@ -4157,14 +4157,18 @@ because `filepath.EvalSymlinks` has not followed a junction on Windows since Go 
 85237d89 fixed the decision reader (`dcRealpath` → `nativeRealpath`, libuv's `GetFinalPathNameByHandleW`). The class, enumerated
 with `grep -n 'EvalSymlinks' core/hooks/*.go | grep -v _test.go` on 85237d89: eventlog.go:67 (`canonical`, behind
 `canonicalFile`), eventlog.go:127 (`findGitDir`), process_trace.go:115, 173, 180, 196, ledger.go:343, treefacts.go:19, 42, 45, 82,
-86, 117, 177 — 15 sites, none of them changed.
+86, 117, 177 — 15 sites.
 
-The one that matters most: the ADR-117 ledger guard (`ledgerWrite`, core/hooks/ledger_guard.go:203-230) decides containment on
-`canonicalFile` of the state directory and of the target. A write to `<repo>\j\checks.jsonl`, where `j` is a junction to
-`.git\quality-harness`, would then not be inside the state directory, and the sanctioned refusal would not fire. NOT VERIFIED:
-reasoned from the code and the Go 1.23 change, never run on Windows. It predates 3.8.64 (the guard moved to the core in the
-3.8.60 cutover). Next: a Windows-only test that writes through a junction into the state directory and expects the refusal,
-then route these sites through `nativeRealpath` where their Node twin used a realpath that follows links.
+The one that mattered most: the ADR-117 ledger guard (`ledgerWrite`, core/hooks/ledger_guard.go:203-230) decides containment
+on `canonicalFile` of the state directory and of the target, so a write to `<repo>\j\checks.jsonl`, where `j` is a junction to
+`.git\quality-harness`, could read as a write elsewhere and the sanctioned refusal not fire. Reasoned from the code, never run
+on Windows; it predates 3.8.64 (the guard moved to the core in the 3.8.60 cutover). The second Windows job (land/cd3007e7, run
+41464830272) showed the same `canonical` cost the decision context again: `decisionContextFor` (core/hooks/publish.go:91, 110)
+canonicalises file and root through it. PARTLY CLOSED 2026-11-02: `canonical` (eventlog.go:67) now takes `nativeRealpath`, as
+its Node twin event-log.mjs:41 takes realpathSync.native, and tests/ledger-junction.test.mjs, which calls the built core so it
+runs on Windows (the other guard tests skip there, §375), writes through a junction into the state directory beside a twin
+through a junction elsewhere. Still open: the other 13 sites (eventlog.go:127, process_trace.go, ledger.go:343, treefacts.go),
+each to be compared with its Node twin before it changes.
 
 ## 446. OPEN 2026-11-02 — the core's namespaced path differs from Node's on share roots and device paths
 

@@ -573,6 +573,9 @@ function platformCorpusRows(scratch) {
     ['notes/link/x.md'], ['notes\\link\\x.md'])
   // A listed spelling whose case differs from the disk's: one file where the filesystem folds case, none where it does not.
   add(record, 'Docs/ADR/ADR-001-x.md', ['Docs/ADR/ADR-001-x.md'], ['Docs\\ADR\\ADR-001-x.md'])
+  // A note that is no record, so some row on every platform lands nowhere: the rows built to land there off Windows (a name
+  // holding backslashes, a listed case the disk lacks) land in a record on a Windows disk (the Windows job, run 41464830272).
+  add([{ path: 'notes/plain.md', text: 'just a note\n' }], 'notes/plain.md', ['notes/plain.md'], ['notes\\plain.md'])
   return rows
 }
 

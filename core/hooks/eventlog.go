@@ -62,9 +62,13 @@ func nearestExistingDirectory(candidate string) string {
 	return current
 }
 
-// canonical resolves a path the way Git spells it, and falls back to the lexical path when it cannot be resolved.
+// canonical resolves a path the way Git spells it, and falls back to the lexical path when it cannot be resolved. It is
+// event-log.mjs's `canonical`, which takes realpathSync.native: on Windows that follows a junction, which filepath.EvalSymlinks
+// has not done since Go 1.23, so an edit through a junctioned checkout got no decision context (the Windows job, run
+// 41464830272) and the ledger guard could read a write through a junction into the state directory as a write elsewhere
+// (BACKLOG §445).
 func canonical(candidate string) string {
-	resolved, err := filepath.EvalSymlinks(candidate)
+	resolved, err := nativeRealpath(candidate)
 	if err != nil {
 		return candidate
 	}

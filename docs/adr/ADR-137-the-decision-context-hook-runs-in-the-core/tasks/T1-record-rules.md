@@ -92,3 +92,4 @@ Stop if a rule cannot be reproduced in Go without changing the Node reader; name
 - 2026-11-01 · 8056208e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:956
 - 2026-11-01 · 8056208e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:1774
 - 2026-11-01 · 8056208e7* · exit 0 · `set -o pipefail …` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:1529
+- 2026-11-02 · ef88e82fd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:85c803895d2315756335fcb44f01bc18120137b518e66db21c236b2d58de84b4 · ms:0 · test-lock-sha256:2c0e2aac40b5a07c1ed5d70765734f5be86b184bcf4c64d78c852184ab8254b6 · test-lock-file:docs/adr/locks/2c0e2aac40b5a07c1ed5d70765734f5be86b184bcf4c64d78c852184ab8254b6.lock · test-lock-kind:replace

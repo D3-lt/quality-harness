@@ -1,0 +1,3 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/decision-context-parity.test.mjs	the core answers every per-platform record row as Node does	79fbd7f25f29da7a53545bf21bd1e97708db51d0c96a1d943f5e975eb4788e8f
+body	tests/decision-context-parity.test.mjs	the core answers every record-rule row as the Node reader does	99d32dc8c0107f58bca8cf21e881627b646fabd096627a26daa8fc60af11c5d9

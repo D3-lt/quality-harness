@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §450: the advice for a lock's unhashable names is given in sorted order, not the set's",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/lock-advice-order.test.mjs"],
+      "from": "    for key in sorted(recorded_unproven):",
+      "to": "    for key in recorded_unproven:",
+      "only": "^lock advice comes out in one order whatever the hash seed$"
+    },
+    {
       "label": "the verification review of 51d63c95: lock fields are searched across the whole row, command included",
       "file": "plugin/lib/record.py",
       "tests": ["tests/lock-inline-bound.test.mjs"],

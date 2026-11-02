@@ -4381,7 +4381,9 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
     # hasher can now see. Still-unhashable names stay UNPROVEN (ADR-005: a
     # truncated regex / helper / ghost is not "the tool could not see the language").
     tool_blind = not recorded_bodies and recorded_unproven
-    for key in recorded_unproven:
+    # Sorted: a set's order follows the process's hash seed, and the advice order changed between identical runs (an outside
+    # run of v3.8.64 on Windows, BACKLOG §450).
+    for key in sorted(recorded_unproven):
         rel, name = key
         if tool_blind and (rel, name) in current["bodies"]:
             advice.append(

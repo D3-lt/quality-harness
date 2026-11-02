@@ -4226,3 +4226,22 @@ Also seen, judged deliberate but unsaid: workNext.notRead lists files that are n
 reason field, and a record directory reached through a junction inside the repository makes the look PARTIAL for the alias
 read once. Next: name the duplicate as a duplicate, point at the file that repeats the id, and say why foreign-id tasks are
 not counted; add the three shapes to the corpus matrix (§18).
+
+## 450. CLOSED 2026-11-02 — adr-lint gave one lock's advice in a different order on identical runs
+
+From an outside run of v3.8.64 on Windows (the windows-go-adr-archive corpus): two identical probe runs differed only in the
+order of one task's "could not be hashed at first red — UNPROVEN" advice lines. `lock_findings` (plugin/lib/record.py:4384)
+iterated `recorded_unproven`, a set of (file, test) names, whose order follows the process's hash seed. Fixed by iterating it
+sorted; tests/lock-advice-order.test.mjs runs `lock_findings` under six seeds with eight such names and was red against the
+unfixed tree, and its catalogue mutant is noticed. The class, measured rather than grepped: every record of this corpus linted
+under PYTHONHASHSEED=1 and =2 (127 records), 0 differ; this corpus has no lock with two unhashable names and no hashed bodies,
+so that scan could not have seen this member, and other set-ordered output elsewhere stays possible where no corpus here
+exercises it.
+
+## 451. OPEN 2026-11-02 — a record directory replaced by a junction inside the repository changes work-next's ready lists
+
+From the same outside run: with `docs\adr` moved out and replaced by `mklink /J docs\adr ..\adr-elsewhere`, look, corpora and
+records match the plain clone, but work-next's `ready` and `unbacked` lists gain tasks (032/T1, 040/T1, 050/T2, T6, T7,
+069/T2, T4 among them). The runner's guess, unverified: git sees the junction rather than the tracked files, so evidence read
+through git is missing for those tasks. Whether that is wrong (the files are where git expects them, through a link) or honest
+(git reports the tracked paths deleted) is not yet decided. Next: the full set difference of the two lists, asked of the runner.

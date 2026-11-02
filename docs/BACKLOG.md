@@ -4150,7 +4150,7 @@ Found by the Codex review of 8d872045..77658224 (ADR-137 part B): `decisionConte
 the branch, so the decisions governing a file edited through mrw are not said, before ADR-137 and after it. The fix reads the
 plan's `@@ <path>` headers and answers for each path, gated as today.
 
-## 445. OPEN 2026-11-02 — the core's other real-path sites do not follow a junction on Windows; the ledger guard may fail open there
+## 445. CLOSED 2026-11-02 (3.8.65) — the core's other real-path sites do not follow a junction on Windows; the ledger guard may fail open there
 
 Found by the Windows job of land/2a2cdf3a (run 41455681278): an edit through a junctioned checkout got no decision context,
 because `filepath.EvalSymlinks` has not followed a junction on Windows since Go 1.23 while Node's realpath does. 23093d5f and
@@ -4169,6 +4169,16 @@ its Node twin event-log.mjs:41 takes realpathSync.native, and tests/ledger-junct
 runs on Windows (the other guard tests skip there, §375), writes through a junction into the state directory beside a twin
 through a junction elsewhere. Still open: the other 13 sites (eventlog.go:127, process_trace.go, ledger.go:343, treefacts.go),
 each to be compared with its Node twin before it changes.
+
+CLOSED 2026-11-02: each of the 13 was compared with its Node twin, and every twin follows links: tree-facts.mjs:16, 31, 35
+(`realpathSync`) and :65 (`realpathSync.native`) for treefacts.go's temp roots, scratch judgement, outside test, remembered
+key and location key; git-directory.mjs:26 (`realpathSync`) for eventlog.go's `findGitDir`; performance-trace.mjs:18, 24, 27
+(`realpathSync.native`) for process_trace.go's four; event-log.mjs's `canonical` beside ledger.go:343. All 13 now take
+`nativeRealpath`, enumerated again with `grep -n 'EvalSymlinks' core/hooks/*.go | grep -v _test.go`: only realpath_unix.go
+calls it, where it is realpath(3). A JS `realpathSync` keeps a Windows 8.3 name that the native one expands; the Go sites
+expanded it before as well (EvalSymlinks normalises each component), so that difference is unchanged by this. The shared
+primitive has a Windows Go test (TestNativeRealpathWindows, run by tests/native-realpath.test.mjs): a junction and a file
+through one, a missing path, a path past MAX_PATH, and the namespacing table.
 
 ## 446. OPEN 2026-11-02 — the core's namespaced path differs from Node's on share roots and device paths
 

@@ -112,7 +112,7 @@ func startProcessTrace(cmd *exec.Cmd, protectedCwd, phase string, protected ...s
 	if err != nil {
 		return nil
 	}
-	cwd, err = filepath.EvalSymlinks(cwd)
+	cwd, err = nativeRealpath(cwd)
 	if err != nil {
 		return nil
 	}
@@ -170,14 +170,14 @@ func processTraceResolved(file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolved, err := filepath.EvalSymlinks(absolute)
+	resolved, err := nativeRealpath(absolute)
 	if err == nil {
 		return resolved, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscallNotDirectory()) {
 		return "", err
 	}
-	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	parent, err := nativeRealpath(filepath.Dir(absolute))
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +193,7 @@ func processTraceExists(file string) (bool, error) {
 }
 
 func (t *processTrace) target() (string, error) {
-	parent, err := filepath.EvalSymlinks(filepath.Dir(t.file))
+	parent, err := nativeRealpath(filepath.Dir(t.file))
 	if err != nil {
 		return "", err
 	}

@@ -340,7 +340,7 @@ func recordFileWritten(input *Obj) *Obj {
 		resolved := filepath.Join(canonical(parent), relPath(parent, absolute))
 		relative := relPath(root, resolved)
 		escapes := false
-		if behind, err := filepath.EvalSymlinks(resolved); err == nil {
+		if behind, err := nativeRealpath(resolved); err == nil {
 			inside := relPath(canonical(root), behind)
 			escapes = strings.HasPrefix(inside, "..") || filepath.IsAbs(inside)
 		}

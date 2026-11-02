@@ -128,7 +128,7 @@ var gitdirPointer = regexp.MustCompile(`^gitdir: ([^\r\n]+)\r?\n?$`)
 // findGitDir locates Git metadata for a checkout, worktree or bare repository without spawning Git.
 func findGitDir(start string) string {
 	here := resolvePath(start)
-	if real, err := filepath.EvalSymlinks(here); err == nil {
+	if real, err := nativeRealpath(here); err == nil {
 		here = real
 	}
 	for {

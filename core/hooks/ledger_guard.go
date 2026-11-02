@@ -22,7 +22,7 @@ var powershellCd = map[string]bool{"cd": true, "chdir": true, "set-location": tr
 var powershellCommandFlag = regexp.MustCompile(`(?i)^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$`)
 
 // ledgerFoldCase is whether a containment test ignores case: macOS and Windows volumes read another spelling as the same
-// directory, and filepath.EvalSymlinks keeps the spelling it was given.
+// directory, and realpath(3) on macOS keeps the spelling it was given.
 var ledgerFoldCase = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 func isPowershell(name string) bool {

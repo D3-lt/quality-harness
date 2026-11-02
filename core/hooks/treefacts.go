@@ -16,7 +16,7 @@ import (
 
 func tempRoots() []string {
 	roots := []string{"/tmp", "/private/tmp", "/var/folders", "/private/var/folders", strings.TrimSuffix(os.TempDir(), string(filepath.Separator))}
-	if real, err := filepath.EvalSymlinks(os.TempDir()); err == nil {
+	if real, err := nativeRealpath(os.TempDir()); err == nil {
 		roots = append(roots, real)
 	}
 	return roots
@@ -39,10 +39,10 @@ func underTempRootAt(candidate string, depth int) bool {
 			return underTempRootAt(target, depth+1)
 		}
 	}
-	if real, err := filepath.EvalSymlinks(resolved); err == nil {
+	if real, err := nativeRealpath(resolved); err == nil {
 		resolved = real
 	} else if anchor := nearestExistingDirectory(resolved); anchor != "" {
-		if realAnchor, err := filepath.EvalSymlinks(anchor); err == nil {
+		if realAnchor, err := nativeRealpath(anchor); err == nil {
 			resolved = filepath.Join(realAnchor, relPath(anchor, resolved))
 		}
 	}
@@ -79,11 +79,11 @@ func scratchOutside(file, cwd string) bool {
 	base := found.root
 	real := func(candidate string) string {
 		absolute := resolvePath(candidate)
-		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+		if resolved, err := nativeRealpath(absolute); err == nil {
 			return resolved
 		}
 		if anchor := nearestExistingDirectory(absolute); anchor != "" {
-			if realAnchor, err := filepath.EvalSymlinks(anchor); err == nil {
+			if realAnchor, err := nativeRealpath(anchor); err == nil {
 				return filepath.Join(realAnchor, relPath(anchor, absolute))
 			}
 		}
@@ -114,7 +114,7 @@ func remembered(directory string, args []string, ask func() runResult) runResult
 			return ask()
 		}
 	}
-	resolved, err := filepath.EvalSymlinks(directory)
+	resolved, err := nativeRealpath(directory)
 	if err != nil {
 		return ask()
 	}
@@ -174,7 +174,7 @@ func foldsCase() bool { return runtime.GOOS == "windows" || runtime.GOOS == "dar
 // locationKey is "here": the repository or directory, realpath'd, case-folded where the filesystem folds it.
 func locationKey(root string) string {
 	resolved := resolvePath(root)
-	if real, err := filepath.EvalSymlinks(resolved); err == nil {
+	if real, err := nativeRealpath(resolved); err == nil {
 		resolved = real
 	}
 	if foldsCase() {

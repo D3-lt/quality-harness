@@ -228,7 +228,7 @@ required before the tag.
 stopped (ADR-100). Exit 0 released and advertised, 1 a step failed, 2 a step needs an action it does not take (it names it), 3 a
 wait reached its deadline. The steps stay numbered because records and source comments cite them.
 
-1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check --again` itself, and takes its pass only from a machine not contended across it: its load at the start, and once the run's own load has decayed, at or below the core count, ADR-115);
+1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check --again` itself, and takes its pass only from a machine not contended across it: its load at the start, and once the run's own load has decayed, at or below the core count, ADR-115; a release resumed after its landing does not take it again for a sha whose pass it recorded, BACKLOG §453);
    Codex review done through the launcher (§12). **Dead code is deleted or wired** (the owner, 2026-09-27); a deliberate keep goes through the
    tool's own allowlist with its reason beside it, never by ignoring the line:
    `node scripts/orphan-sweep.mjs` prints `0 orphan(s)`, and `bash scripts/dead-code-scan.sh` (which the command runs)

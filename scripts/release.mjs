@@ -3,7 +3,9 @@
 //
 // Every step is decided from what can be observed now, never from a state file, so a second run resumes where the first
 // stopped: the clean tree, the version against the tags, a full `qh-check` taken here on a machine that was not contended
-// across it, the dead-code scan, the push, the push's own run, the dispatched campaign, `release-evidence`, the tag.
+// across it, the dead-code scan, the push, the push's own run, the dispatched campaign, `release-evidence`, the tag. One
+// exception: the shas whose full check and scan passed here uncontended are recorded (`checkedPasses`), so a release
+// resumed after its landing does not take them again.
 //
 // Usage: node scripts/release.mjs [--wait-max <minutes>] [--notes-file <path>]
 //
@@ -14,6 +16,9 @@
 //      UNPROVEN (an outside run or a review to get), a tag without a release, or a catalogue pin still to promote
 //   3  a wait reached its deadline; it names what it waited for, and running again resumes
 import { spawnSync } from 'node:child_process'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
 import { land } from './land.mjs'
@@ -36,10 +41,28 @@ function parsed(text) {
 }
 
 /**
+ * The shas whose full check and dead-code scan passed here on a machine that was not contended, in the clone's state
+ * directory beside the check ledger. A line that cannot be read records nothing; a store that cannot be written loses the
+ * record, and the next run takes the check again, the direction that costs time and never evidence.
+ */
+export function checkedPasses(cwd = process.cwd()) {
+  const file = path.join(stateDir(cwd), 'release-checks.jsonl')
+  const shas = () => {
+    try { return readFileSync(file, 'utf8').split('\n').flatMap(line => { try { return [JSON.parse(line).sha] } catch { return [] } }) } catch { return [] }
+  }
+  return {
+    has: sha => shas().includes(sha),
+    add: sha => {
+      try { mkdirSync(path.dirname(file), { recursive: true }); appendFileSync(file, `${JSON.stringify({ sha, at: new Date().toISOString() })}\n`) } catch { /* the next run checks again */ }
+    },
+  }
+}
+
+/**
  * The chain, with its world as seams: `exec(cmd, args, { stream })` answers `{ status, stdout }`, `now` and `sleep` are the
  * clock. Pure of everything else, so a test drives every branch with a fake git and gh (tests/release.test.mjs).
  */
-export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null, load = () => sampleLoad(), protection }) {
+export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null, load = () => sampleLoad(), protection, passes = checkedPasses() }) {
   const ran = (cmd, args, stream = false) => exec(cmd, args, { stream, timeout: CHILD_TIMEOUT_MS })
   const text = (cmd, args) => {
     const answer = ran(cmd, args)
@@ -134,6 +157,14 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   // ADR-115: the sample at exit held the run's own load, so every pass on a busy machine read as contended. The end sample
   // is now taken once that load has decayed: the load is read every SETTLE_POLL_MS until it is at or below the core count, and
   // a load still above it at SETTLE_MS is other work.
+  // A sha already on main whose full check and scan passed here uncontended has had its one check before its push, and its
+  // landing's own run is the full campaign release-evidence reads (ADR-126); nothing leaves this machine after it but the
+  // tag. The check and the scan are not taken again for it. Each resumed release re-ran them before asking for its outside
+  // run: v3.8.67 ran the full gate four more times after its landing, at load 20-35, and a contended retake stopped the
+  // release twice with nothing left to push (the owner, 2026-11-03: "fix this release.mjs"). Both halves are asked: a sha
+  // landed by land.mjs alone was never checked here, and a recorded pass on a sha not yet landed is not its check.
+  const landedAlready = passes.has(sha) && ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0
+  if (landedAlready) log(`release: ${sha} is already on main and its full check and dead-code scan passed here before its push; they are not taken again`)
   const quietNow = () => {
     const sample = load()
     return contention(sample.load, sample.load, sample.cores) !== true
@@ -155,7 +186,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     const atStart = contention(start.load, start.load, start.cores)
     return { status, contended: status === 0 && atStart !== null && (atStart || !settled()) }
   }
-  let check = fullCheck()
+  let check = landedAlready ? { status: 0, contended: false } : fullCheck()
   if (check.status === 0 && check.contended) {
     log(`release: the check passed on a contended machine ${at}; it is taken again once the load is below the core count`)
     const quiet = waitFor('the load to fall below the core count', () => {
@@ -170,8 +201,9 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     }
   }
   if (check.status !== 0) { log(`release: qh-check exited ${check.status} ${at}; nothing was pushed`); return 1 }
-  const scan = ran('bash', ['scripts/dead-code-scan.sh'], true).status
+  const scan = landedAlready ? 0 : ran('bash', ['scripts/dead-code-scan.sh'], true).status
   if (scan !== 0) { log(`release: the dead-code scan exited ${scan}${scan === 3 ? ' (a scanner could not run: UNPROVEN)' : ''} ${at}; nothing was pushed`); return 1 }
+  if (!landedAlready) passes.add(sha)
 
   // ADR-118: main takes only a sha its required checks passed at, so the sha lands through land/<sha> first. Whether main
   // already has it is land's question, asked once: a second copy here left the first one untested.

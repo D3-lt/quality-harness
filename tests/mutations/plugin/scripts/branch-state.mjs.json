@@ -1075,8 +1075,8 @@
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state-cwd.test.mjs"],
       "only": "^branch-state reports the session's worktree and says a permanent unknown once$",
-      "from": "reviewedHeads(stateDir(dir, { spawn: false }))",
-      "to": "reviewedHeads(stateDir(process.cwd(), { spawn: false }))"
+      "from": "reviewedHeads(cloneStateDir(dir, { spawn: false }))",
+      "to": "reviewedHeads(cloneStateDir(process.cwd(), { spawn: false }))"
     },
     {
       "label": "ADR-120 T13: the cache lookup starts in the process directory",

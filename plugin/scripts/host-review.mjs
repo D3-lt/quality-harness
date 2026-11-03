@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { stateDir } from './event-log.mjs'
+import { cloneStateDir } from './event-log.mjs'
 import { isMainModule } from './main-module.mjs'
 
 export const CODEX_MODEL = 'gpt-6.1-sol'
@@ -211,8 +211,9 @@ export function verdictStatus(text) {
   return last ? VERDICT_STATUS[last[1]] : 'unparsed'
 }
 
-// One row per Codex run the launcher started, beside `checks.jsonl`, where `release-evidence` reads it (ADR-100 T1). A row
-// that cannot be written is said and changes nothing else: the review's own answer still reaches its caller.
+// One row per Codex run the launcher started, in the clone's state directory, where `release-evidence` reads it (ADR-100 T1),
+// whichever worktree either runs in (BACKLOG §447). A row that cannot be written is said and changes nothing else: the
+// review's own answer still reaches its caller.
 export const REVIEWS_FILE = 'reviews.jsonl'
 // What counts as a review: one that ran and said something. `unavailable` did not finish, `unparsed` said nothing this could
 // read, and `evidence-limited` ran over its scope without runnable evidence (ADR-100 T1). The one definition: release-evidence
@@ -220,7 +221,7 @@ export const REVIEWS_FILE = 'reviews.jsonl'
 export const REVIEW_COVERING = new Set(['clean', 'blocking', 'evidence-limited'])
 export function recordReview(repo, row) {
   try {
-    const directory = stateDir(repo)
+    const directory = cloneStateDir(repo)
     mkdirSync(directory, { recursive: true })
     appendFileSync(path.join(directory, REVIEWS_FILE), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(), ...row })}\n`, 'utf8')
     return true

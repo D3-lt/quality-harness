@@ -203,8 +203,8 @@ Why: `.claude/rules/11-outside-evidence.md`
 - **Run it through the launcher, with its range:** the codex-review skill builds the contract, and
   `node plugin/scripts/host-review.mjs --host codex --effort high --repo . --prompt-file <contract> --range <base>..<head>`
   runs it read-only, with stdin closed, the model pinned and a hard kill at its budget. Every run is recorded in
-  `reviews.jsonl` beside the check ledger, and `release-evidence` refuses a plugin commit since the last tag that no
-  recorded review covers (ADR-100). A review run any other way is not recorded.
+  `reviews.jsonl` in the clone's state directory, which every worktree shares, and `release-evidence` refuses a plugin commit
+  since the last tag that no recorded review covers (ADR-100). A review run any other way is not recorded.
 - **Codex at high effort is the default reviewer. A same-lineage review is acceptable only when Codex is unavailable or
   refuses the content** (the owner, 2026-10-15), and it goes through the same launcher so it is recorded:
   `node plugin/scripts/host-review.mjs --host claude --repo . --scope 'base <ref>'` (or `'commit <sha>'`; `--prompt-file`

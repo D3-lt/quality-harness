@@ -186,11 +186,31 @@ var stateDirectories = map[string]string{}
 func stateDir(cwd string) string { return stateDirSpawn(cwd, true) }
 
 func stateDirSpawn(cwd string, spawn bool) string {
-	base := repositoryStateDir(cwd, spawn)
+	return rootedStateDir(repositoryStateDir(cwd, spawn))
+}
+
+func rootedStateDir(base string) string {
 	if override := os.Getenv("QUALITY_HARNESS_STATE_DIR"); override != "" {
 		return filepath.Join(resolvePath(override), sha256Hex(base)[:16])
 	}
 	return base
+}
+
+// cloneStateDirSpawn is cloneStateDir of plugin/scripts/event-log.mjs: the state directory of the clone, which a linked
+// worktree's git directory names in `commondir`. The review ledger lives there (BACKLOG §447); checks stay per worktree.
+func cloneStateDirSpawn(cwd string, spawn bool) string {
+	base := repositoryStateDir(cwd, spawn)
+	shared := base
+	gitDir := filepath.Dir(base)
+	if pointer, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+		if p := strings.TrimSpace(string(pointer)); p != "" {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(gitDir, p)
+			}
+			shared = filepath.Join(canonical(p), "quality-harness")
+		}
+	}
+	return rootedStateDir(shared)
 }
 
 func repositoryStateDir(cwd string, spawn bool) string {

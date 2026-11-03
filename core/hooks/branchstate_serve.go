@@ -537,7 +537,7 @@ func RunBranchState(args []string, stdin *os.File, out io.Writer) int {
 	}
 	run := bsBudgeted(bsBudgetMs, bsShell, bsNowMs, dir)
 	// The review ledger, found the way the hook finds its own state: without starting a process.
-	ledgerHeads := func() []string { return bsReviewedHeads(stateDirSpawn(dir, false)) }
+	ledgerHeads := func() []string { return bsReviewedHeads(cloneStateDirSpawn(dir, false)) }
 	gather := func(runner bsRunner) func(func(any)) any {
 		return func(checkpoint func(any)) any { return collectBranchState(runner, checkpoint, bsNowMs, ledgerHeads()) }
 	}

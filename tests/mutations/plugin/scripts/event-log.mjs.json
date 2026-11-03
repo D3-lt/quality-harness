@@ -109,6 +109,16 @@
       "from": "const files = [file, canonicalFile(file)]",
       "to": "const files = [canonical(file)]",
       "only": "^a relative or unplaceable write path is still counted as unseen$"
+    },
+    {
+      "label": "BACKLOG §447: a linked worktree's review ledger is the clone's",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/review-ledger.test.mjs"
+      ],
+      "from": "    if (pointer) shared = path.join(",
+      "to": "    if (false) shared = path.join(",
+      "only": "^a review run in a linked worktree covers the release asked from the main checkout$"
     }
   ]
 }

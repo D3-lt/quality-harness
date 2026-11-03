@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { CLAUDE_MODEL, CODEX_MODEL, hostReview, promptFileReview, verdictStatus } from '../plugin/scripts/host-review.mjs'
 import { main, reviewEvidence } from '../scripts/release-evidence.mjs'
+import { cloneStateDir, stateDir } from '../plugin/scripts/event-log.mjs'
 
 const git = (cwd, ...args) => {
   const run = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 30_000 })
@@ -359,4 +360,30 @@ test('a Cursor or Claude review records the HEAD it was shown, not the one after
       assert.deepEqual([row.host, row.head], [host, shown], `${host}: the commit made during the run is not in the reviewed range`)
     }
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// BACKLOG §447: the reviews of the ADR-137 branch, run from its worktree, were recorded in that worktree's own ledger, and
+// 3.8.64's release from the main checkout found a reviewed commit unreviewed. The launcher now records in the clone's state
+// directory, so a review run in a linked worktree covers a release asked from the main checkout; checks stay per worktree.
+test('a review run in a linked worktree covers the release asked from the main checkout', () => {
+  const { dir, first } = released()
+  const tree = mkdtempSync(join(os.tmpdir(), 'qh-review-tree-'))
+  try {
+    const change = commit(dir, 'plugin/a.mjs', 'two\n')
+    git(dir, 'worktree', 'add', '-q', '--detach', join(tree, 'wt'), change)
+    const wt = join(tree, 'wt')
+    assert.notEqual(stateDir(wt), stateDir(dir), 'checks stay per worktree')
+    assert.equal(cloneStateDir(wt), stateDir(dir), "a worktree's clone state is the main checkout's")
+    assert.equal(cloneStateDir(dir), stateDir(dir))
+    assert.equal(reviewEvidence(change, { cwd: dir }).verdict, 'unproven')
+    const clean = JSON.stringify({ status: 'clean', findings: [], model: CODEX_MODEL })
+    hostReview({ host: 'codex', effort: 'high', repo: wt, scope: `base ${first}`, resolve: () => 'codex', run: fakeCodex(clean) })
+    const answer = reviewEvidence(change, { cwd: dir })
+    assert.equal(answer.verdict, 'reviewed', answer.reason)
+    // And the other way round: a release asked from the worktree reads the same ledger.
+    assert.equal(reviewEvidence(change, { cwd: wt }).verdict, 'reviewed')
+  } finally {
+    rmSync(tree, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

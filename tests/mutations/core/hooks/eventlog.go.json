@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "BACKLOG §447: the core reads a linked worktree's review ledger from the clone",
+      "file": "core/hooks/eventlog.go",
+      "tests": [
+        "tests/core-hooks-go.test.mjs"
+      ],
+      "from": "\t\t\tshared = filepath.Join(canonical(p), \"quality-harness\")",
+      "to": "\t\t\t_ = p",
+      "only": "^the core's review ledger is the clone's, shared by every worktree, while checks stay per worktree$"
+    }
+  ]
+}

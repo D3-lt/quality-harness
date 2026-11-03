@@ -29,7 +29,7 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyFile } from './attest-import.mjs'
-import { stateDir } from '../plugin/scripts/event-log.mjs'
+import { cloneStateDir } from '../plugin/scripts/event-log.mjs'
 import { REVIEW_COVERING, REVIEWS_FILE } from '../plugin/scripts/host-review.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
@@ -477,7 +477,7 @@ export function reviewEvidence(sha, { cwd = process.cwd(), exec = execFileSync, 
   }
   if (needed.length === 0) return { verdict: 'not-required', tag, uncovered: [], reason: `no plugin commit since ${tag} needs a review (a version bump needs none)` }
   let text = ''
-  try { text = readFileSync(ledger ?? join(stateDir(cwd), REVIEWS_FILE), 'utf8') } catch { /* no ledger is no review */ }
+  try { text = readFileSync(ledger ?? join(cloneStateDir(cwd), REVIEWS_FILE), 'utf8') } catch { /* no ledger is no review */ }
   const rows = text.split('\n').filter(line => line.trim()).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
   const usable = rows.filter(row => row && COVERING.has(row.status) && typeof row.head === 'string')
   // Three answers: `true`, `false` only for git's definite "no" (exit 1), and `null` for a revision this clone cannot

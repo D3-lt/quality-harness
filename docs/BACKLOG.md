@@ -4193,7 +4193,7 @@ the separator, so the volume is opened) and answered `C:\` in the core. The shar
 differ in the trailing separator only, and their final paths match. namespaced() now drops one trailing separator from a
 `\\?\` or `\\.\` path (c75e95ed); TestNativeRealpathWindows asserts that the namespaced volume root errors.
 
-## 447. OPEN 2026-11-02 — a review run in a worktree is recorded where a release from the main checkout cannot see it
+## 447. CLOSED 2026-11-03 — a review run in a worktree is recorded where a release from the main checkout cannot see it
 
 The Codex reviews of the ADR-137 branch, run from its worktree (`../qh-437`), were appended to
 `.git/worktrees/qh-437/quality-harness/reviews.jsonl`; `release-evidence` run from the main checkout reads
@@ -4201,6 +4201,15 @@ The Codex reviews of the ADR-137 branch, run from its worktree (`../qh-437`), we
 found `3462fc91` unreviewed although a clean review covered it. It was reviewed again from the main checkout instead of copying
 rows by hand. Next: decide whether the review ledger belongs to the common git directory, where every worktree of one clone
 would see one ledger, or say in §12 that a release reviews from the checkout it releases.
+
+CLOSED 2026-11-03 by the first choice: the review ledger is the clone's. `cloneStateDir` (plugin/scripts/event-log.mjs) and
+`cloneStateDirSpawn` (core/hooks/eventlog.go) follow a linked worktree's `commondir` to the main checkout's state directory;
+checks stay per worktree, so one worktree's check still cannot clear another's findings. The class, every reader and writer of
+the ledger, `git grep -n "REVIEWS_FILE\|bsReviewsFile" -- plugin scripts core`: the launcher's writer (host-review.mjs),
+release-evidence, branch-state.mjs's reviewed heads and the core's (branchstate_serve.go via bsReviewedHeads), all four moved.
+tests/review-ledger.test.mjs records a review from a linked worktree and finds it covering from the main checkout and from the
+worktree; TestCloneStateDirIsSharedByWorktrees holds the core; one mutant each is noticed. Not migrated: rows already in a
+worktree's own ledger stay there, and cover nothing from now on (their commits are released).
 
 ## 448. OPEN 2026-11-02 — prose after an Enforced-by list is split into "caught by" entries
 

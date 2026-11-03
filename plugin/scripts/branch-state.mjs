@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 import { findGitDir } from './git-directory.mjs'
 import { startPerformanceTrace } from './performance-trace.mjs'
-import { readEvents, stateDir } from './event-log.mjs'
+import { cloneStateDir, readEvents } from './event-log.mjs'
 import { REVIEW_COVERING, REVIEWS_FILE } from './host-review.mjs'
 /**
  * Where `.git` is, so the cache lands somewhere never tracked and never shipped.
@@ -1070,7 +1070,7 @@ function main(argv = process.argv.slice(2)) {
   // separate 15s Git timeout before the reader even began its 8s budget.
   const run = budgeted(BUDGET_MS, shell, Date.now, dir)
   // The review ledger, found the way the hook finds its own state: without starting a process.
-  const ledgerHeads = () => reviewedHeads(stateDir(dir, { spawn: false }))
+  const ledgerHeads = () => reviewedHeads(cloneStateDir(dir, { spawn: false }))
   const read = store => {
     if (!store) return null
     try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null }

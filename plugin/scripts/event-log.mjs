@@ -77,15 +77,35 @@ export function canonicalFile(absolute) {
 
 const stateDirectories = new Map()
 export function stateDir(cwd, options = {}) {
-  const base = repositoryStateDir(cwd, options)
-  // An explicit state ROOT wins over the repository's git dir. corpus-probe runs
-  // the real hook over a repository it does not own and promises to write nothing
-  // there; without this the hook appended a session log to the probed repository's
-  // `.git` (reported from a static-site repository's 2.107.0 run). It is a root,
-  // not one shared directory: each repository keeps its own place under it, or two
-  // worktrees read each other's checks as their own (Codex review of 2.108.0).
+  return rooted(repositoryStateDir(cwd, options))
+}
+
+// An explicit state ROOT wins over the repository's git dir. corpus-probe runs
+// the real hook over a repository it does not own and promises to write nothing
+// there; without this the hook appended a session log to the probed repository's
+// `.git` (reported from a static-site repository's 2.107.0 run). It is a root,
+// not one shared directory: each repository keeps its own place under it, or two
+// worktrees read each other's checks as their own (Codex review of 2.108.0).
+function rooted(base) {
   const override = process.env.QUALITY_HARNESS_STATE_DIR
   return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base
+}
+
+/**
+ * The state directory of the clone rather than of this worktree: a linked worktree's git directory names the shared one in
+ * `commondir`, and the main checkout's is its own. The review ledger lives here (BACKLOG §447): a review run in a worktree
+ * was recorded where a release from the main checkout could not see it, and 3.8.64 had to be reviewed a second time.
+ * Checks stay per worktree (stateDir), so one worktree's check still cannot clear another's findings.
+ */
+export function cloneStateDir(cwd, options = {}) {
+  const base = repositoryStateDir(cwd, options)
+  let shared = base
+  try {
+    const gitDir = path.dirname(base)
+    const pointer = readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim()
+    if (pointer) shared = path.join(canonical(path.resolve(gitDir, pointer)), 'quality-harness')
+  } catch { /* not a linked worktree: the main checkout, or a state directory outside any repository */ }
+  return rooted(shared)
 }
 
 export function repositoryStateDir(cwd, { spawn = true } = {}) {

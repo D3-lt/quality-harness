@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { fixtureIds, outsideRun, stageFixture } from '../scripts/outside-run.mjs'
+import { fixtureIds, notOkLooks, outsideRun, stageFixture } from '../scripts/outside-run.mjs'
 import { diffReports } from '../plugin/scripts/corpus-probe.mjs'
 import { sameOutput } from '../scripts/same-output.mjs'
 import { remove } from './helpers/remove.mjs'
@@ -91,4 +91,13 @@ test('the outside run job is selected on every release run and uploads its artif
   assert.match(job, /actions\/download-artifact@v\d+[\s\S]*?name: qh-core/, 'the candidate core is this run\'s own')
   assert.match(job, /node scripts\/outside-run\.mjs --candidate-core /)
   assert.match(job, /actions\/upload-artifact@v\d+[\s\S]*?name: outside-run[\s\S]*?if-no-files-found: error/)
+})
+
+// The second review of ADR-138's implementation: a report says PARTIAL below its top level too. Every look outside the
+// run's own identity is read, and a look nobody named yet is read as well.
+test('every look a report holds outside its run identity is recorded when it is not ok', () => {
+  const report = { look: 'ok', probe: { native: { look: 'UNPROVEN' } }, workNext: { look: 'PARTIAL', nested: [{ look: 'ok' }, { look: 'COULD NOT LOOK' }] }, adrState: { look: 'ok' } }
+  assert.deepEqual(notOkLooks(report), ['workNext.look=PARTIAL', 'workNext.nested[1].look=COULD NOT LOOK'])
+  assert.deepEqual(notOkLooks({ look: 'ok', workNext: { look: 'ok' } }), [])
+  assert.deepEqual(notOkLooks({ look: 'PARTIAL' }), ['look=PARTIAL'])
 })

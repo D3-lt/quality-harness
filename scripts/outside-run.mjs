@@ -42,14 +42,36 @@ function fixtureTree(root, name) {
   return /^[0-9a-f]{40,64}$/.test(tree ?? '') && dirty.status === 0 && !dirty.stdout.trim() ? tree : null
 }
 
-// What release-evidence checks of each side's report: complete (look ok, nothing could not run), and run by the readers
-// and core it claims, at the commit it claims (ADR-138 Decision 4). Read from the report's own probe identity.
+// Every field named `look` anywhere in a report, outside the run's own identity (`probe`), that is not `ok`, by path. A
+// report says PARTIAL in more than one place (its corpus discovery, work-next's own look), and the second review of
+// ADR-138's implementation found the top-level one alone let two equally partial reports clear; scanning every `look` is
+// the bounded rule, so a reader that adds one later is covered without a new line here.
+export function notOkLooks(report) {
+  const found = []
+  const walk = (value, at) => {
+    if (Array.isArray(value)) value.forEach((item, i) => walk(item, `${at}[${i}]`))
+    else if (value && typeof value === 'object') {
+      for (const [key, inner] of Object.entries(value)) {
+        const here = at ? `${at}.${key}` : key
+        if (here === 'probe') continue
+        if (key === 'look' && inner !== 'ok') found.push(`${here}=${inner}`)
+        else walk(inner, here)
+      }
+    }
+  }
+  walk(report, '')
+  return found
+}
+
+// What release-evidence checks of each side's report: complete (every look ok, nothing could not run), and run by the
+// readers and core it claims, at the commit it claims (ADR-138 Decision 4). Read from the report's own probe identity.
 function sideOf(answer, report) {
   const readers = report?.probe?.readers ?? {}
   const native = report?.probe?.native ?? {}
   return {
     digest: sha256(answer.raw ?? JSON.stringify(report)),
     look: report?.look ?? null,
+    notOk: notOkLooks(report),
     couldNotRun: Array.isArray(report?.couldNotRun) ? report.couldNotRun.length : null,
     readers: { git: readers.git ?? null, dirty: readers.dirty ?? null, sha256: readers.sha256 ?? null },
     native: { look: native.look ?? null, at: native.at ?? null, run: native.run ?? null, sha256: native.sha256 ?? null },

@@ -35,7 +35,7 @@ function fakeGit() {
 // A side's report as the producer records it: complete, by the readers and core of the commit that side claims.
 const TREE = { alpha: '1'.repeat(40), beta: '2'.repeat(40) }
 const CORES = { baseline: '3'.repeat(64), candidate: '4'.repeat(64) }
-const side = (at, core, run, digest) => ({ digest, look: 'ok', couldNotRun: 0, readers: { git: at, dirty: false, sha256: '5'.repeat(64) },
+const side = (at, core, run, digest) => ({ digest, look: 'ok', notOk: [], couldNotRun: 0, readers: { git: at, dirty: false, sha256: '5'.repeat(64) },
   native: { look: 'ok', at, run, sha256: core } })
 const pinOf = id => (id.startsWith('fixture:') ? `tests/fixtures/corpora/${id.slice(8)}@${TREE[id.slice(8)]}` : 'a'.repeat(40))
 // `before` and `after` in `over` name the two reports' digests (the locked body above sets them); `reports` replaces both.
@@ -122,6 +122,11 @@ test('an artifact clears only complete reports of the pinned inputs, by the read
     'a digest that is not one': at(0, e => { e.reports.before.digest = true; return e }),
     'an attestation of the baseline': at(3, e => ({ ...e, attestation: { ...e.attestation, at: TAG_SHA } })),
     'a wrong kind': at(0, e => ({ ...e, kind: 'fixture' })),
+    // The second review: a look below the top level, an unproven reader fingerprint, a digest that only coerces to one.
+    'equal reports whose work-next look is PARTIAL': at(0, e => { e.reports.before.notOk = ['workNext.look=PARTIAL']; e.reports.after.notOk = ['workNext.look=PARTIAL']; return e }),
+    'a report whose looks were not recorded': at(1, e => { delete e.reports.after.notOk; return e }),
+    'readers with no fingerprint': at(2, e => { e.reports.after.readers.sha256 = null; return e }),
+    'a digest in an array': at(3, e => { e.reports.before.digest = ['d'.repeat(64)]; return e }),
   }
   for (const [what, stand] of Object.entries(refusals)) {
     const answer = ask(t, { run: RUN, artifact: stand })

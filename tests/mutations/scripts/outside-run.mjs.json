@@ -31,6 +31,14 @@
       "from": "  return { version: 1, run: run ?? null, sha, baseline, cores, corpora: results }",
       "to": "  return { version: 1, run: run ?? null, sha, baseline: null, cores, corpora: results }",
       "only": "^the outside run proves its own comparison per corpus$"
+    },
+    {
+      "label": "ADR-138 second review: a look below the top level is read",
+      "file": "scripts/outside-run.mjs",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "        if (key === 'look' && inner !== 'ok') found.push(`${here}=${inner}`)\n        else walk(inner, here)",
+      "to": "        if (key === 'look' && inner !== 'ok' && !at) found.push(`${here}=${inner}`)\n        else walk(inner, here)",
+      "only": "^every look a report holds outside its run identity is recorded when it is not ok$"
     }
   ]
 }

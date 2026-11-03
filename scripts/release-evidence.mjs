@@ -403,7 +403,9 @@ export function ciOutside(artifact, { sha, run, tag, tagSha, expected }) {
   if (String(artifact.run) !== String(run)) problems.push(`it is from run ${artifact.run}, not the release run ${run}`)
   if (artifact.baseline?.tag !== tag || artifact.baseline?.sha !== tagSha) problems.push(`it compared against ${artifact.baseline?.tag ?? 'nothing'} at ${artifact.baseline?.sha ?? 'nothing'}, not ${tag} at ${tagSha}`)
   if (!Array.isArray(expected)) problems.push('which corpora it had to probe could not be read from git at this sha')
-  const HEX = /^[0-9a-f]{64}$/
+  // A digest is a string of 64 hex characters: RegExp.test coerces, so ['<64 hex>'] passed (the second review).
+  const isHex = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
+  const HEX = { test: isHex }
   const cores = { before: artifact.cores?.baseline, after: artifact.cores?.candidate }
   if (!HEX.test(cores.before ?? '') || !HEX.test(cores.after ?? '')) problems.push('it does not name both cores by digest')
   const ids = corpora.map(entry => entry?.id)
@@ -430,10 +432,12 @@ export function ciOutside(artifact, { sha, run, tag, tagSha, expected }) {
     for (const side of ['before', 'after']) {
       const report = entry.reports?.[side]
       const at = side === 'before' ? tagSha : sha
-      if (!report || !HEX.test(report.digest ?? '')) { wrong.push(`no ${side} report digest`); continue }
-      if (report.look !== 'ok' || report.couldNotRun !== 0) wrong.push(`the ${side} report is incomplete (look ${report.look}, ${report.couldNotRun} could not run)`)
-      if (report.readers?.git !== at || report.readers?.dirty !== false) wrong.push(`the ${side} readers are ${report.readers?.git ?? 'unknown'}${report.readers?.dirty ? ' (dirty)' : ''}, not ${at}`)
-      if (report.native?.look !== 'ok' || report.native?.at !== at || report.native?.sha256 !== cores[side]) wrong.push(`the ${side} core is not the one built at ${at}`)
+      if (!report || !isHex(report.digest)) { wrong.push(`no ${side} report digest`); continue }
+      if (report.look !== 'ok' || report.couldNotRun !== 0 || !Array.isArray(report.notOk) || report.notOk.length) {
+        wrong.push(`the ${side} report is incomplete (look ${report.look}, ${report.couldNotRun} could not run${Array.isArray(report.notOk) && report.notOk.length ? `, ${report.notOk.join(', ')}` : Array.isArray(report.notOk) ? '' : ', its looks unrecorded'})`)
+      }
+      if (report.readers?.git !== at || report.readers?.dirty !== false || !isHex(report.readers?.sha256)) wrong.push(`the ${side} readers are ${report.readers?.git ?? 'unknown'}${report.readers?.dirty ? ' (dirty)' : ''}${isHex(report.readers?.sha256) ? '' : ' with no fingerprint'}, not a proven ${at}`)
+      if (report.native?.look !== 'ok' || report.native?.at !== at || !isHex(report.native?.sha256) || report.native.sha256 !== cores[side]) wrong.push(`the ${side} core is not the one built at ${at}`)
       if (side === 'after' && String(report.native?.run) !== String(run)) wrong.push(`the candidate core is from run ${report.native?.run}, not ${run}`)
     }
     if (entry.attestation?.at !== sha) wrong.push(`its attestation is at ${entry.attestation?.at ?? 'nothing'}`)

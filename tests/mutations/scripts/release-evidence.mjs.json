@@ -500,10 +500,14 @@
     { "label": "ADR-138 T3: a CI regression vetoes whatever a peer filed", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
       "from": "    if (fromRun.regressed.length) {", "to": "    if (false) {", "only": "^a regression in either source vetoes the release$" },
     { "label": "ADR-138 review: equal incomplete reports do not clear", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
-      "from": "      if (report.look !== 'ok' || report.couldNotRun !== 0) wrong.push(", "to": "      if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
+      "from": "      if (report.look !== 'ok' || report.couldNotRun !== 0 || !Array.isArray(report.notOk) || report.notOk.length) {", "to": "      if (report.look !== 'ok' || report.couldNotRun !== 0) {", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
     { "label": "ADR-138 review: a corpus is the input its sha pins", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
       "from": "    if (pins.has(entry.id) && entry.pin !== pins.get(entry.id)) wrong.push(", "to": "    if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
     { "label": "ADR-138 review: each side's core is the one built at its commit", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
-      "from": "      if (report.native?.look !== 'ok' || report.native?.at !== at || report.native?.sha256 !== cores[side]) wrong.push(", "to": "      if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" }
+      "from": "      if (report.native?.look !== 'ok' || report.native?.at !== at || !isHex(report.native?.sha256) || report.native.sha256 !== cores[side]) wrong.push(", "to": "      if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
+    { "label": "ADR-138 second review: readers carry a proven fingerprint", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "report.readers?.dirty !== false || !isHex(report.readers?.sha256)) wrong.push(", "to": "report.readers?.dirty !== false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
+    { "label": "ADR-138 second review: a digest is a string", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "  const isHex = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)", "to": "  const isHex = value => /^[0-9a-f]{64}$/.test(value)", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" }
   ]
 }

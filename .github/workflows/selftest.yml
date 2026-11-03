@@ -503,3 +503,37 @@ jobs:
           name: qh-plugin
           path: qh-plugin/*
           if-no-files-found: error
+
+  outside-run:
+    name: outside run
+    # ADR-138: the outside run, on the platform CLAUDE.md §18 names. Probes the last tag and the candidate over the pinned
+    # public corpora (scripts/outside-corpora.json) and every fixture corpus, and uploads one artifact release-evidence reads.
+    # No job-level condition: release-evidence asks every job of the release run to succeed, and a skipped job fails it
+    # (tests/package.test.mjs). The script records a corpus it could not reach as could-not-run and still exits 0.
+    runs-on: windows-latest
+    needs: core-assets
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          name: qh-core
+          path: qh-core
+      - name: Probe the last tag and the candidate over corpora this repository does not own
+        run: node scripts/outside-run.mjs --candidate-core qh-core/qh-windows-amd64.exe --out outside-run.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: outside-run
+          path: outside-run.json
+          if-no-files-found: error

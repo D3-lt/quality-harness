@@ -47,6 +47,22 @@
       "from": "      - name: Hold the coverage floor",
       "to": "      - name: Hold the coverage floor, then claude plugin eval",
       "only": "^eval-fixture is repository tooling, and no workflow runs the evals$"
+    },
+    {
+      "label": "ADR-138 T2: the outside run takes this run's own core",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "    runs-on: windows-latest\n    needs: core-assets\n    timeout-minutes: 30",
+      "to": "    runs-on: windows-latest\n    timeout-minutes: 30",
+      "only": "^the outside run job is selected on every release run and uploads its artifact$"
+    },
+    {
+      "label": "ADR-138 T2: the outside run uploads what release-evidence reads",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "          name: outside-run\n          path: outside-run.json\n          if-no-files-found: error",
+      "to": "          name: outside-run\n          path: outside-run.json\n          if-no-files-found: warn",
+      "only": "^the outside run job is selected on every release run and uploads its artifact$"
     }
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "comment": "ADR-138: public corpora this repository does not own, each pinned to the sha read on 2026-11-03. The outside-run job probes the last tag and the candidate over each. A change here is reviewed like code.",
+  "corpora": [
+    { "id": "madr-decisions", "url": "https://github.com/adr/madr", "sha": "ba75bb1b20d42af5746b246ad348c202419ae681", "shape": "madr-decisions" },
+    { "id": "nygard-doc-adr", "url": "https://github.com/npryce/adr-tools", "sha": "b3279baf9be2207d1a4f4bbd608fd0b591c72aee", "shape": "nygard-doc-adr" },
+    { "id": "adrnnn-architecture-decisions", "url": "https://github.com/backstage/backstage", "sha": "bc53efed28c5b5ed427930bcb3e635daed124261", "shape": "adrnnn-architecture-decisions" },
+    { "id": "nygard-architecture-decisions", "url": "https://github.com/alphagov/govuk-aws", "sha": "81ee9f6e91fd8692fbf751ecf980c671c13aa3c0", "shape": "nygard-architecture-decisions" },
+    { "id": "dated-madr-adr", "url": "https://github.com/thomvaill/log4brains", "sha": "17e32021a8c5130386f17e921d4efa6da7709a66", "shape": "dated-madr-adr" }
+  ]
+}

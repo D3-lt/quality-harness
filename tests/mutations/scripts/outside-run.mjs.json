@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-138 T2: every fixture corpus at the candidate is probed",
+      "file": "scripts/outside-run.mjs",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "    .filter(entry => entry.isDirectory()).map(entry => entry.name).sort()",
+      "to": "    .filter(entry => entry.isDirectory()).map(entry => entry.name).sort().slice(1)",
+      "only": "^the outside run proves its own comparison per corpus$"
+    },
+    {
+      "label": "ADR-138 T2: a corpus that could not be staged is could-not-run, not compared",
+      "file": "scripts/outside-run.mjs",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "    if (staged) { result.couldNotRun = staged; continue }",
+      "to": "    if (staged) { result.couldNotRun = null }",
+      "only": "^the outside run proves its own comparison per corpus$"
+    },
+    {
+      "label": "ADR-138 T2: a probe that failed is could-not-run, not compared",
+      "file": "scripts/outside-run.mjs",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "    const broken = answers.find(answer => !answer || answer.error)",
+      "to": "    const broken = null",
+      "only": "^the outside run proves its own comparison per corpus$"
+    },
+    {
+      "label": "ADR-138 T2: the artifact names the baseline it compared against",
+      "file": "scripts/outside-run.mjs",
+      "tests": ["tests/outside-run.test.mjs"],
+      "from": "  return { version: 1, run: run ?? null, sha, baseline, cores, corpora: results }",
+      "to": "  return { version: 1, run: run ?? null, sha, baseline: null, cores, corpora: results }",
+      "only": "^the outside run proves its own comparison per corpus$"
+    }
+  ]
+}

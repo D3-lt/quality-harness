@@ -65,6 +65,7 @@ node --test tests/outside-run.test.mjs 2>&1 | tee "$out" && grep -q '✔ the out
 | 4 — used | T3 |
 
 ## Mutation Log
+- 2026-11-03 · ee3c2ae10* · mutant killed · exit 1 · `scripts/outside-run.mjs` · a corpus GitHub could not serve would be compared as if probed, so a missing corpus could read as unchanged · acceptance-sha256:12881f3df529ef50a92cae3bbe427550ccd05258f3765a8fe5830df166edc15d
 
 ## Invariants
 
@@ -83,3 +84,18 @@ Stop if the candidate's core cannot be taken from the run's own assets on Window
 - The evidence rule (T3).
 
 ## Verification Log
+- 2026-11-03 · ee3c2ae10* · exit 1 · `set -o pipefail …` · acceptance-sha256:12881f3df529ef50a92cae3bbe427550ccd05258f3765a8fe5830df166edc15d · ms:225 · test-lock-sha256:0945a5de18f295b5ed192eab494c4c80cd835e004c002302e99642a3b2f9c10e · test-lock-file:docs/adr/locks/0945a5de18f295b5ed192eab494c4c80cd835e004c002302e99642a3b2f9c10e.lock
+  ```
+  --- last 10 line(s) of stdout (of 35 after folding 35 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 88.749791
+
+  ✖ failing tests:
+
+  test at tests/outside-run.test.mjs:1:1
+  ✖ tests/outside-run.test.mjs (85.525583ms)
+    'test failed'
+  ```
+- 2026-11-03 · ee3c2ae10* · exit 0 · `set -o pipefail …` · acceptance-sha256:12881f3df529ef50a92cae3bbe427550ccd05258f3765a8fe5830df166edc15d · ms:385

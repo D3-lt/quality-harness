@@ -67,6 +67,9 @@ ENFORCEMENT_GRAMMAR = [
     ("a.test.mjs, b.py", ["a.test.mjs", "b.py"]),
     ("`x` (unclosed, a", ["x"]),
     ("an item ) stray, b", ["an item  stray", "b"]),
+    # JavaScript's whitespace, not Python's: U+FEFF ends a sentence and U+0085 does not (Codex review of 49d3b69b).
+    ("a.﻿b, c", ["a"]),
+    ("a.\u0085b, c", ["a.\u0085b", "c"]),
 ]
 
 

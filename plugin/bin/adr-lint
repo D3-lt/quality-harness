@@ -4000,10 +4000,16 @@ def listed_outside(outside):
         elif depth == 0:
             kept.append(ch)
     text = "".join(kept)
-    end = re.search(r"\.(?=\s|\Z)", text)
+    # JavaScript's `\s`, which Node's cut and trim use and the core spells out (dcJSSpace): Python's own `\s` and strip()
+    # take U+0085 and leave U+FEFF, so the readers disagreed on what ends a sentence (Codex review of 49d3b69b).
+    end = re.search(rf"\.(?=[{JS_SPACE}]|\Z)", text)
     if end:
         text = text[:end.start()]
-    return [p.strip() for p in text.split(",") if "\0" not in p]
+    return [p.strip(JS_SPACE) for p in text.split(",") if "\0" not in p]
+
+
+# What JavaScript's `\s` matches and String.prototype.trim removes.
+JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
 def leaves_the_tree(pointer):

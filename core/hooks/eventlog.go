@@ -199,6 +199,12 @@ func rootedStateDir(base string) string {
 // cloneStateDirSpawn is cloneStateDir of plugin/scripts/event-log.mjs: the state directory of the clone, which a linked
 // worktree's git directory names in `commondir`. The review ledger lives there (BACKLOG §447); checks stay per worktree.
 func cloneStateDirSpawn(cwd string, spawn bool) string {
+	return rootedStateDir(cloneRepositoryStateDir(cwd, spawn))
+}
+
+// cloneRepositoryStateDir is cloneStateDirSpawn before QUALITY_HARNESS_STATE_DIR roots it: the ledger guard refuses writes
+// into both, since a worktree session's review ledger is now outside its own state directory (Codex review of 49d3b69b).
+func cloneRepositoryStateDir(cwd string, spawn bool) string {
 	base := repositoryStateDir(cwd, spawn)
 	shared := base
 	gitDir := filepath.Dir(base)
@@ -210,7 +216,7 @@ func cloneStateDirSpawn(cwd string, spawn bool) string {
 			shared = filepath.Join(canonical(p), "quality-harness")
 		}
 	}
-	return rootedStateDir(shared)
+	return shared
 }
 
 func repositoryStateDir(cwd string, spawn bool) string {

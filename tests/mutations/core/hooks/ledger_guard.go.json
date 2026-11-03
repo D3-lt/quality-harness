@@ -9,6 +9,22 @@
       "from": "passed-tests.json and outputs/<run id>.log",
       "to": "passed-tests.json",
       "only": "^(?:a passing check keeps no output, and the kept files stay bounded)$"
+    },
+    {
+      "label": "Codex review of 49d3b69b: the ledger guard refuses writes into the clone's state directory",
+      "file": "core/hooks/ledger_guard.go",
+      "tests": ["tests/ledger-writes.test.mjs"],
+      "from": "repositoryStateDir(cwd, true), cloneStateDirSpawn(cwd, true), cloneRepositoryStateDir(cwd, true)} {",
+      "to": "repositoryStateDir(cwd, true)} {",
+      "only": "^a linked worktree's write into the clone's state directory is refused, rooted under the override or not$"
+    },
+    {
+      "label": "Codex review of 49d3b69b: the rooted clone state directory is guarded too",
+      "file": "core/hooks/ledger_guard.go",
+      "tests": ["tests/ledger-writes.test.mjs"],
+      "from": "repositoryStateDir(cwd, true), cloneStateDirSpawn(cwd, true), cloneRepositoryStateDir(cwd, true)} {",
+      "to": "repositoryStateDir(cwd, true), cloneRepositoryStateDir(cwd, true)} {",
+      "only": "^a linked worktree's write into the clone's state directory is refused, rooted under the override or not$"
     }
   ]
 }

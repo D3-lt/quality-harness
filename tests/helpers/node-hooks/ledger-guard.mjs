@@ -8,7 +8,7 @@
 // not a pass (scripts/side-doors.json).
 import path from 'node:path'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
-import { canonicalFile, nearestExistingDirectory, repositoryStateDir, stateDir } from '../../../plugin/scripts/event-log.mjs'
+import { canonicalFile, cloneRepositoryStateDir, cloneStateDir, nearestExistingDirectory, repositoryStateDir, stateDir } from '../../../plugin/scripts/event-log.mjs'
 import { shellWords } from '../../../plugin/scripts/shell-words.mjs'
 import { SHELL_NAMES, programName } from './publish-command.mjs'
 import { MRW_WRITE, MUTATION_TOOLS, mrwWritePaths } from './hook-record.mjs'
@@ -117,7 +117,7 @@ export function ledgerWrite(input) {
   if (typeof cwd !== 'string' || !cwd) return null
   // Every place the evidence is read from: the state directory and, under a state root, the repository's own as well, since
   // adr-lint reads receipts from both (ADR-117 T2).
-  const dirs = [...new Set([stateDir(cwd), repositoryStateDir(cwd)].filter(Boolean).map(dir => canonicalFile(path.resolve(dir))))]
+  const dirs = [...new Set([stateDir(cwd), repositoryStateDir(cwd), cloneStateDir(cwd), cloneRepositoryStateDir(cwd)].filter(Boolean).map(dir => canonicalFile(path.resolve(dir))))]
   const within = (dir, file) => {
     const relative = path.relative(dir, file)
     return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))

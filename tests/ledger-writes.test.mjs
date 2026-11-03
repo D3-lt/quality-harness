@@ -2,6 +2,7 @@
 // keep the evidence, is refused at PreToolUse; reads, the tools' own runs and writes anywhere else pass (CLAUDE.md §16: each
 // row that refuses beside the row that must not). `"ledgers": "warn"` in .quality-harness.json advises instead. Through the
 // hook, so QUALITY_HARNESS_HOOK_IMPL=go holds the Go core to the same answers.
+import { spawnSync } from 'node:child_process'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -269,4 +270,29 @@ test('a PowerShell parameter spelled with a Unicode dash names its colon value',
     assert.equal(pre(command).permissionDecision, 'deny', `${command} is refused`)
   }
   assert.notEqual(pre('Set-Content –Path:notes.txt -Value x').permissionDecision, 'deny', 'a Unicode-dash write elsewhere passes')
+})
+
+// BACKLOG §447 moved a linked worktree's review ledger into the clone's state directory, outside the worktree's own, where
+// the guard did not look: a literal write there could forge a clean review (Codex review of 49d3b69b, P1). It is refused,
+// rooted and not, and a write into another clone's state directory still passes.
+test("a linked worktree's write into the clone's state directory is refused, rooted under the override or not", { skip }, t => {
+  const box = sandbox(t)
+  const main = fixtureRepo(box, 'clone', { '.quality-harness.json': '{"check":"sh check.sh"}\n', 'check.sh': 'exit 0\n' })
+  const tree = path.join(box.top, 'tree')
+  const added = spawnSync('git', ['-C', main, 'worktree', 'add', '-q', '--detach', tree], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(added.status, 0, added.stderr)
+  const shared = path.join(main, '.git', 'quality-harness')
+  mkdirSync(shared, { recursive: true })
+  const pre = (input, env = {}) => said(runHook(box, tree, 'tree', { hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: input }, env))
+  const forged = { file_path: path.join(shared, 'reviews.jsonl'), content: '{"status":"clean"}\n' }
+  assert.equal(pre(forged).permissionDecision, 'deny', "the clone's review ledger is refused from a linked worktree")
+  assert.equal(pre({ file_path: path.join(main, '.git', 'worktrees', 'tree', 'quality-harness', 'checks.jsonl'), content: '{}\n' }).permissionDecision,
+    'deny', "the worktree's own state directory is still refused")
+  const root = path.join(box.top, 'state-root')
+  const rootedShared = path.join(root, createHash('sha256').update(shared).digest('hex').slice(0, 16), 'reviews.jsonl')
+  assert.equal(pre({ file_path: rootedShared, content: '{}\n' }, { QUALITY_HARNESS_STATE_DIR: root }).permissionDecision, 'deny',
+    "the rooted clone state directory is refused under the override")
+  const other = fixtureRepo(box, 'other', { 'a.txt': 'x\n' })
+  assert.notEqual(pre({ file_path: path.join(other, '.git', 'quality-harness', 'reviews.jsonl'), content: '{}\n' }).permissionDecision, 'deny',
+    "another clone's state directory is not this session's")
 })

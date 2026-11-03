@@ -98,6 +98,11 @@ function rooted(base) {
  * Checks stay per worktree (stateDir), so one worktree's check still cannot clear another's findings.
  */
 export function cloneStateDir(cwd, options = {}) {
+  return rooted(cloneRepositoryStateDir(cwd, options))
+}
+
+/** cloneStateDir before QUALITY_HARNESS_STATE_DIR roots it: the ledger guard refuses writes into both (Codex review of 49d3b69b). */
+export function cloneRepositoryStateDir(cwd, options = {}) {
   const base = repositoryStateDir(cwd, options)
   let shared = base
   try {
@@ -105,7 +110,7 @@ export function cloneStateDir(cwd, options = {}) {
     const pointer = readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim()
     if (pointer) shared = path.join(canonical(path.resolve(gitDir, pointer)), 'quality-harness')
   } catch { /* not a linked worktree: the main checkout, or a state directory outside any repository */ }
-  return rooted(shared)
+  return shared
 }
 
 export function repositoryStateDir(cwd, { spawn = true } = {}) {

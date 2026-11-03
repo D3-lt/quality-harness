@@ -206,7 +206,9 @@ func ledgerWrite(input *Obj) string {
 		return ""
 	}
 	dirs := []string{}
-	for _, dir := range []string{stateDir(cwd), repositoryStateDir(cwd, true)} {
+	// The clone's state directory too, rooted and not: a linked worktree's review ledger lives there (BACKLOG §447), and a
+	// forged row in it would clear a release's review question (Codex review of 49d3b69b).
+	for _, dir := range []string{stateDir(cwd), repositoryStateDir(cwd, true), cloneStateDirSpawn(cwd, true), cloneRepositoryStateDir(cwd, true)} {
 		if dir != "" {
 			dirs = append(dirs, canonicalFile(resolvePath(dir)))
 		}

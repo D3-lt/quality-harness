@@ -4210,6 +4210,11 @@ release-evidence, branch-state.mjs's reviewed heads and the core's (branchstate_
 tests/review-ledger.test.mjs records a review from a linked worktree and finds it covering from the main checkout and from the
 worktree; TestCloneStateDirIsSharedByWorktrees holds the core; one mutant each is noticed. Not migrated: rows already in a
 worktree's own ledger stay there, and cover nothing from now on (their commits are released).
+The Codex review of 4c0be0f8..49d3b69b found the move fail-open: ADR-117's ledger guard refused writes into the worktree's own
+state directory only, so a linked worktree's session could write a clean row into the clone's ledger by hand. The guard
+(core/hooks/ledger_guard.go, and its Node reference in tests/helpers/node-hooks) now refuses the clone's state directory too,
+rooted under QUALITY_HARNESS_STATE_DIR and not; tests/ledger-writes.test.mjs holds both from a linked worktree, and two
+mutants are noticed.
 
 ## 448. CLOSED 2026-11-03 — prose after an Enforced-by list is split into "caught by" entries
 

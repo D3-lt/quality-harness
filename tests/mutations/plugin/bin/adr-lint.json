@@ -3763,8 +3763,16 @@
       "label": "BACKLOG §448: adr-lint drops a comma piece that held a span, as the shared grammar says",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    return [p.strip() for p in text.split(\",\") if \"\\0\" not in p]",
-      "to": "    return [p.strip() for p in text.split(\",\")]",
+      "from": "    return [p.strip(JS_SPACE) for p in text.split(\",\") if \"\\0\" not in p]",
+      "to": "    return [p.strip(JS_SPACE) for p in text.split(\",\")]",
+      "only": "^focused false-green regressions remain closed$"
+    },
+    {
+      "label": "Codex review of 49d3b69b: adr-lint ends an Enforced-by sentence at JavaScript's whitespace, as Node and the core do",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    end = re.search(rf\"\\.(?=[{JS_SPACE}]|\\Z)\", text)",
+      "to": "    end = re.search(r\"\\.(?=\\s|\\Z)\", text)",
       "only": "^focused false-green regressions remain closed$"
     }
   ]

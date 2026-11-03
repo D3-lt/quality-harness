@@ -198,7 +198,7 @@ const enforcedTexts = [
   // BACKLOG §448: prose around the list, where the three readers must agree on what is not a check.
   'Enforced-by: `a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`) and `scripts/contract.sh` §28. Ten mutations were run…',
   'Enforced-by: adr-lint (the gate), b. And a sentence, with a comma.', 'Enforced-by: a.test.mjs, b.py', 'Enforced-by: `x` (unclosed, a',
-  'Enforced-by: a. b, c', 'Enforced-by: a.﻿b', 'Enforced-by: ((a)), b) c', 'Enforced-by: `x` and `y`',
+  'Enforced-by: a. b, c', 'Enforced-by: a.﻿b', 'Enforced-by: ((a)), b) c', 'Enforced-by: `x` and `y`', 'Enforced-by: a.\u0085b, c',
 ]
 
 const nl = '\n'
@@ -634,6 +634,8 @@ test('an Enforced-by list ends where its prose begins, as the shared grammar say
     ['a.test.mjs, b.py', ['a.test.mjs', 'b.py']],
     ['`x` (unclosed, a', ['x']],
     ['an item ) stray, b', ['an item  stray', 'b']],
+    ['a.﻿b, c', ['a']],
+    ['a.\u0085b, c', ['a.\u0085b', 'c']],
   ]) {
     assert.deepEqual(declaredEnforcement(`**Enforced-by:** ${value}\n`), want, `the shared grammar disagrees on ${value}`)
   }

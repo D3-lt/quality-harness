@@ -90,13 +90,15 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
     // A task adr-next could not read is stopped and marked, and its directory's
     // readiness is not known (a Windows chaos round of 626934a, F-2: a UTF-16 task).
-    // Nor is it an unbacked done claim: nobody read it (BACKLOG §350 C2).
+    // Nor is it an unbacked done claim: nobody read it (BACKLOG §350 C2). An id two
+    // files declare is not known either, though both were read: adr-next names them
+    // as `duplicate` rather than unreadable since BACKLOG §449, and every one is listed.
     const unreadTasks = (answer.stopped ?? []).filter(task => task.unreadable)
-    if (unreadTasks.length) unproven.push(dir)
+    if (unreadTasks.length || (answer.stopped ?? []).some(task => task.duplicate)) unproven.push(dir)
     for (const task of unreadTasks) unreadable.add(path.resolve(root, task.path))
     for (const bucket of ['ready', 'done', 'blocked', 'stopped']) {
       for (const task of answer[bucket] ?? []) {
-        listed.add(path.resolve(root, task.path))
+        for (const file of task.duplicate ?? [task.path]) listed.add(path.resolve(root, file))
         if (task.unproven) notes.set(path.resolve(root, task.path), task.unproven)
       }
     }

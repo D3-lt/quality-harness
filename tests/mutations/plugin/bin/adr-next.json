@@ -1370,8 +1370,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "            if m and m.group(0) in infos:",
-      "to": "            if False:",
+      "from": "            if m and m.group(0) in infos:\n                # It shares an id with a task already read: neither is that task until one is",
+      "to": "            if False:\n                # It shares an id with a task already read: neither is that task until one is",
       "only": "^(?:an irregular entry sharing a done task's id withholds it, whichever name sorts first)$"
     },
     {
@@ -1853,6 +1853,38 @@
       "from": "CLOSING_BREAK = re.compile(r\"[;:—–]|(?<!\\d)[.,]|[.,](?!\\d)|\\s-\\s\")",
       "to": "CLOSING_BREAK = re.compile(r\"[;,.:—–]|\\s-\\s\")",
       "only": "^a count after the closing affirmative is a tally, not a verdict$"
+    },
+    {
+      "label": "BACKLOG §449: an id two files declare names every such file",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-duplicates.test.mjs"],
+      "from": "    entry.update(duplicate=sorted(files), unreadable=unreadable or bool(held.get(\"unreadable\")))",
+      "to": "    entry.update(duplicate=None, unreadable=unreadable or bool(held.get(\"unreadable\")))",
+      "only": "^an id two task files declare names both files, and is unreadable only when one could not be read$"
+    },
+    {
+      "label": "BACKLOG §449: a duplicate that was read is not unreadable",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-duplicates.test.mjs"],
+      "from": "    entry.update(duplicate=sorted(files), unreadable=unreadable or bool(held.get(\"unreadable\")))",
+      "to": "    entry.update(duplicate=sorted(files), unreadable=True)",
+      "only": "^an id two task files declare names both files, and is unreadable only when one could not be read$"
+    },
+    {
+      "label": "BACKLOG §449: an empty file sharing an id is a duplicate, not skipped",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-duplicates.test.mjs"],
+      "from": "            if m and m.group(0) in infos:\n                # It shares an id with a task already read: that task is neither file",
+      "to": "            if False:\n                # It shares an id with a task already read: that task is neither file",
+      "only": "^an id two task files declare names both files, and is unreadable only when one could not be read$"
+    },
+    {
+      "label": "BACKLOG §449: a task whose title names another record says so in a field",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/corpus-matrix.test.mjs"],
+      "from": "            \"foreign\": foreign_stop(text, owner) is not None,",
+      "to": "            \"foreign\": False,",
+      "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
     }
   ]
 }

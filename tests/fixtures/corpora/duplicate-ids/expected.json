@@ -1,0 +1,83 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    ["docs/adr/ADR-001-totals.md", "governing", false],
+    ["docs/adr/ADR-002-copy.md", "governing", false]
+  ],
+  "undecided": [],
+  "workNext": {
+    "records": 2,
+    "accepted": 2,
+    "tasks": 4,
+    "ready": [],
+    "unbacked": [],
+    "retirable": [],
+    "readinessUnproven": [
+      "docs/adr/ADR-001-totals/tasks"
+    ],
+    "partialBecause": [],
+    "next": null
+  },
+  "adrState": {
+    "read": 2,
+    "governing": 2
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-001-totals/tasks",
+      "ready": [],
+      "unreadable": [],
+      "duplicates": [
+        [
+          "docs/adr/ADR-001-totals/tasks/T1-add.md",
+          "docs/adr/ADR-001-totals/tasks/T2-again.md",
+          "docs/adr/ADR-001-totals/tasks/copy.md"
+        ]
+      ],
+      "foreign": []
+    },
+    {
+      "tasksDir": "docs/adr/ADR-002-copy/tasks",
+      "ready": [],
+      "unreadable": [],
+      "duplicates": [],
+      "foreign": [
+        "docs/adr/ADR-002-copy/tasks/T1-add.md"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr/ADR-001-totals.md",
+      "verdict": "FAIL",
+      "reasonMatches": "Wiring & Contract Changes empty"
+    },
+    {
+      "file": "docs/adr/ADR-002-copy.md",
+      "verdict": "FAIL",
+      "reasonMatches": "Wiring & Contract Changes empty"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [],
+    "mustNotMatch": [
+      "is ready",
+      "ADR tasks in flight"
+    ]
+  },
+  "couldNotRun": []
+}

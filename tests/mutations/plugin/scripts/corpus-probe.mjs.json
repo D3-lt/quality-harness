@@ -809,6 +809,14 @@
       "from": ", QUALITY_HARNESS_NO_MRW: '1' },",
       "to": " },",
       "only": "^corpus-probe asks SessionStart about the corpus, not about the machine it runs on$"
+    },
+    {
+      "label": "BACKLOG §449: the probe names each duplicate id's files",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": ["tests/corpus-matrix.test.mjs"],
+      "from": "filter(task => task.duplicate).map(task => task.duplicate.map(",
+      "to": "filter(task => false).map(task => task.duplicate.map(",
+      "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
     }
   ]
 }

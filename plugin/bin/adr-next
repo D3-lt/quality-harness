@@ -908,10 +908,10 @@ def load(tasks_dir):
             if m and m.group(0) in infos:
                 # It shares an id with a task already read: neither is that task until one is
                 # renamed, whichever sorts first (Codex review of 3ff59fb).
-                infos[m.group(0)] = unreadable_task(m.group(0), path, (
+                infos[m.group(0)] = duplicate_task(infos[m.group(0)], path, (
                     f"could not tell which file is {m.group(0)}: {Path(infos[m.group(0)]['path']).name} "
                     f"and {path.name} both declare it, and {path.name} is not a regular file, so its "
-                    f"state is UNPROVEN"))
+                    f"state is UNPROVEN"), unreadable=True)
             elif m:
                 infos[m.group(0)] = unreadable_task(m.group(0), path, (
                     f"could not read it: {path.name} is not a regular file (a FIFO, a directory or "
@@ -924,7 +924,15 @@ def load(tasks_dir):
             # NUL bytes (UTF-16, binary) or nothing at all: it was read anyway, and
             # offered as READY with NULs or nothing for a goal (chaos rounds, 2.111.0-rc).
             m = TID_RE.search(path.name.upper())
-            if m and m.group(0) not in infos:
+            if m and m.group(0) in infos:
+                # It shares an id with a task already read: that task is neither file until one is renamed,
+                # and this one is unreadable besides. It was skipped with no entry, so the other read as the
+                # task (BACKLOG §449, the class the duplicate branch below was written for).
+                infos[m.group(0)] = duplicate_task(infos[m.group(0)], path, (
+                    f"could not tell which file is {m.group(0)}: {Path(infos[m.group(0)]['path']).name} and "
+                    f"{path.name} both declare it, and {path.name} {unreadable}, so its state is UNPROVEN"),
+                    unreadable=True)
+            elif m:
                 infos[m.group(0)] = unreadable_task(m.group(0), path, (
                     f"could not read it: {path.name} {unreadable}, so its state is UNPROVEN"))
             continue
@@ -940,7 +948,7 @@ def load(tasks_dir):
         # read as that task until one of them is given its own id.
         if tid in infos and infos[tid]["path"] != Path(path).as_posix():
             first = Path(infos[tid]["path"]).name
-            infos[tid] = unreadable_task(tid, path, (
+            infos[tid] = duplicate_task(infos[tid], path, (
                 f"could not tell which file is {tid}: {first} and {path.name} both declare it, "
                 f"so its state is UNPROVEN; give one of them its own id"))
             continue
@@ -996,6 +1004,9 @@ def load(tasks_dir):
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
             "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),
+            # BACKLOG §449: a task whose title names another record (a copied tasks directory) is stopped above,
+            # and said as such in a field, so a caller can name it as excluded rather than count it silently.
+            "foreign": foreign_stop(text, owner) is not None,
             # ADR-120 T8: the file's own terminal word, read by `classify` before `done`.
             "terminal_stop": terminal_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
@@ -1066,7 +1077,20 @@ def unreadable_task(tid, path, why):
     return {"id": tid, "path": Path(path).as_posix(), "goal": tid, "depends_on": "", "consumes": "",
             "produces": "", "acceptance": None, "human_observed": False, "done": False,
             "unproven": None, "stopped_by": why, "blocked_on": None, "unreadable": True,
-            "unsigned_human_proof": []}
+            "unsigned_human_proof": [], "duplicate": None, "foreign": False}
+
+
+def duplicate_task(held, path, why, unreadable=False):
+    """An entry for an id two or more files declare: stopped, with every such file in `duplicate`.
+
+    BACKLOG §449: it was an `unreadable` entry naming one file, though every file had been read, and which file it
+    named was the one that sorted second, case-sensitively on POSIX and not on Windows. `unreadable` is true when any of
+    the files could not be read; `path` stays the last one listed, and `duplicate` names them all, sorted.
+    """
+    files = set(held.get("duplicate") or [held["path"]]) | {Path(path).as_posix()}
+    entry = unreadable_task(held["id"], path, why)
+    entry.update(duplicate=sorted(files), unreadable=unreadable or bool(held.get("unreadable")))
+    return entry
 
 QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
 

@@ -407,6 +407,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       undecided: answer?.undecided ?? null,
       // Tasks adr-next could not read, named: a directory holding one is not evidenced.
       unreadable: answer ? (answer.stopped ?? []).filter(task => task.unreadable).map(task => rel(path.resolve(resolved, task.path))) : null,
+      // BACKLOG §449: an id two files declare, with every such file, and a task whose title names another record. Each
+      // was read and stopped; neither was named as excluded.
+      duplicates: answer ? (answer.stopped ?? []).filter(task => task.duplicate).map(task => task.duplicate.map(file => rel(path.resolve(resolved, file)))) : null,
+      foreign: answer ? (answer.stopped ?? []).filter(task => task.foreign).map(task => rel(path.resolve(resolved, task.path))) : null,
     }
   })
 

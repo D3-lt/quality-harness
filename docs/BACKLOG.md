@@ -4238,7 +4238,7 @@ distinct Enforced-by lines, old against new: 3 differ. Two archived lines read "
 Siblings left: `_split_pointer_list` (Cross-references) and the Rests-on parser keep the plain split; whether a citation or a
 mechanism list reads prose the same way is not decided.
 
-## 449. OPEN 2026-11-02 — adr-next calls a task with a duplicate id unreadable, names the wrong file, and drops tasks of another record silently
+## 449. CLOSED 2026-11-03 — adr-next calls a task with a duplicate id unreadable, names the wrong file, and drops tasks of another record silently
 
 From an outside chaos run of v3.8.64 on Windows (a scratch copy of a corpus we do not own, seeded with the go-module fixture
 corpus). Not a fail-open, and none of these change with 3.8.64:
@@ -4254,6 +4254,18 @@ Also seen, judged deliberate but unsaid: workNext.notRead lists files that are n
 reason field, and a record directory reached through a junction inside the repository makes the look PARTIAL for the alias
 read once. Next: name the duplicate as a duplicate, point at the file that repeats the id, and say why foreign-id tasks are
 not counted; add the three shapes to the corpus matrix (§18).
+
+CLOSED 2026-11-03. The "wrong file" was the sort: the entry named the file that sorted second, case-sensitively on POSIX and
+not on Windows, so there was no original to prefer. adr-next's `duplicate_task` now gives an id two or more files declare
+every such file in `duplicate`, sorted, and `unreadable` only when one of them could not be read. The class, every branch of
+`load` that meets an id already held: the regular-file branch and the not-a-regular-file one moved to it, and the empty or
+NUL-byte one, which skipped the second file with no entry so the first read as the task (the fail-open member), now does too.
+A task whose title names another record carries `foreign: true` beside its existing stop. corpus-probe names both per
+directory (`duplicates`, `foreign`); work-next keeps a directory holding a duplicate readiness UNPROVEN, as it was when the
+entry said unreadable, and lists every file of it. tests/fixtures/corpora/duplicate-ids holds the three shapes (a repeated
+title, a byte copy named `copy.md`, a copied tasks directory), tests/adr-next-duplicates.test.mjs the empty-file orders,
+and six mutants are noticed. Left, as the entry said, deliberate but unsaid: notRead's missing reason field, and the
+junction alias's PARTIAL look.
 
 ## 450. CLOSED 2026-11-02 — adr-lint gave one lock's advice in a different order on identical runs
 

@@ -579,8 +579,8 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    if (unreadTasks.length) unproven.push(dir)",
-      "to": "    if (false) unproven.push(dir)",
+      "from": "    if (unreadTasks.length || (answer.stopped ?? []).some(task => task.duplicate)) unproven.push(dir)",
+      "to": "    if (false || (answer.stopped ?? []).some(task => task.duplicate)) unproven.push(dir)",
       "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
     },
     {
@@ -1068,6 +1068,14 @@
       "tests": ["tests/spec-retired.test.mjs"],
       "from": "if (fact) live.add(cells[0])\n      else tag",
       "to": "if (fact) void 0\n      else tag"
+    },
+    {
+      "label": "BACKLOG §449: a directory holding a duplicate id is readiness UNPROVEN",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/corpus-matrix.test.mjs"],
+      "from": "    if (unreadTasks.length || (answer.stopped ?? []).some(task => task.duplicate)) unproven.push(dir)",
+      "to": "    if (unreadTasks.length) unproven.push(dir)",
+      "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
     }
   ]
 }

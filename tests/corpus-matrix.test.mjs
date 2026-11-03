@@ -138,11 +138,18 @@ for (const [name, dir] of corpora) {
       assert.equal(report.corpusReport.reduce((sum, entry) => sum + (entry.totals?.unreadable ?? 0), 0), expected.corpusReportUnreadable,
         `${name}: corpus-report unreadable tasks:\n${JSON.stringify(report.corpusReport, null, 2)}`)
     }
-    assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext.map(({ unreadable, ...entry }) => entry), `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
+    assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext.map(({ unreadable, duplicates, foreign, ...entry }) => entry), `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
     // The task files adr-next could not read, where an expectation names them (a Windows
     // chaos round of 626934a, F-2: a directory holding one read "fully evidenced").
     for (const { tasksDir, unreadable } of expected.adrNext.filter(entry => entry.unreadable !== undefined)) {
       assert.deepEqual(report.adrNext.find(entry => entry.tasksDir === tasksDir)?.unreadable, unreadable, `${name}: adr-next could not read, in ${tasksDir}`)
+    }
+    // BACKLOG §449: an id two files declare, with every such file, and the tasks a copied directory holds for another
+    // record, where an expectation names them. Each was read and stopped, and was named nowhere.
+    for (const key of ['duplicates', 'foreign']) {
+      for (const entry of expected.adrNext.filter(e => e[key] !== undefined)) {
+        assert.deepEqual(report.adrNext.find(e => e.tasksDir === entry.tasksDir)?.[key], entry[key], `${name}: adr-next ${key}, in ${entry.tasksDir}`)
+      }
     }
     // The gate's own verdict per record — where ADR-038's `not-recognised` shows
     // beside readers that counted the same file. Declared in every expectation

@@ -10,6 +10,9 @@
       false
     ]
   ],
+  "enforcedBy": {
+    "docs/adr/ADR-001-cart-totals-are-integer-cents.md": ["internal/cart/cart_test.go", "TestAdd", "go.mod"]
+  },
   "workNext": {
     "records": 1,
     "accepted": 1,

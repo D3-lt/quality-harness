@@ -286,6 +286,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // ~/<other repository>/…" printed whole in the full report (an outside run of the 3.8.7 RC).
     id: record.id ?? null, file: rel(record.file), status: record.status == null ? null : scrub(record.status), kind: record.kind ?? null,
     frozen: Boolean(record.frozen),
+    // What the record says enforces it, as the decision context prints it after "caught by": the sentence an outside run of
+    // v3.8.64 over a Go repository showed split into prose (BACKLOG §448). Present only when the record declares any.
+    ...(record.enforcedBy?.length ? { enforcedBy: record.enforcedBy.map(scrub) } : {}),
   }))
   // Files that look like records and carry no status the readers act on, or could
   // not be opened. They were counted nowhere here: a record whose `**Status:**` had a

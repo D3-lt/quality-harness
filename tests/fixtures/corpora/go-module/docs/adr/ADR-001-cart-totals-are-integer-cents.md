@@ -4,6 +4,7 @@
 **Date:** 2026-09-24
 **Owner:** cart maintainers
 **Spec:** docs/specs/2026-09-24-cart-totals.md
+**Enforced-by:** `internal/cart/cart_test.go` (`TestAdd`, two cases) and `go.mod` §3. Three mutations were run by hand.
 
 ## Context
 

@@ -149,6 +149,14 @@
       "from": "\t\tif directory == top || filepath.Dir(directory) == directory {",
       "to": "\t\tif true {",
       "only": "^(?:the core gives the decision context Node gives over every replayed corpus)$"
+    },
+    {
+      "label": "BACKLOG §448: the core drops a comma piece that held a span, as Node does",
+      "file": "core/hooks/decisioncorpus.go",
+      "tests": ["tests/decision-context-parity.test.mjs"],
+      "from": "\t\tif !strings.ContainsRune(piece, 0) {",
+      "to": "\t\tif true {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
     }
   ]
 }

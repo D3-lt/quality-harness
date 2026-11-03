@@ -194,7 +194,11 @@ const enforcedTexts = [
   'Enforced-by: ``, a', 'Enforced-by: \u00a0a ,b\ufeff', 'Enforced-byx: a', 'Enforced-by: none-of-it', 'Enforced-by: nonetheless',
   'ENFORCED-BY: A', 'Enforced-by:', 'Enforced-by: a\u2028b, c', 'x\nEnforced-by: second', '  **Enforced-by**: `unclosed, a',
   'Enforced-by: `a`, `b`, c, d', 'Enforced-by: \u2003a', 'Enforced by: a', 'Enforced-by: a\nEnforced-by: b', 'Enforced-bY: k',
-  'Enforced-by: `x`,,', 'no header', 'Enforced-by:\u3000None', 'Enforced-by: None\u00a0x',
+  'Enforced-by: `x`,,', 'no header', 'Enforced-by:　None', 'Enforced-by: None x',
+  // BACKLOG §448: prose around the list, where the three readers must agree on what is not a check.
+  'Enforced-by: `a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`) and `scripts/contract.sh` §28. Ten mutations were run…',
+  'Enforced-by: adr-lint (the gate), b. And a sentence, with a comma.', 'Enforced-by: a.test.mjs, b.py', 'Enforced-by: `x` (unclosed, a',
+  'Enforced-by: a. b, c', 'Enforced-by: a.﻿b', 'Enforced-by: ((a)), b) c', 'Enforced-by: `x` and `y`',
 ]
 
 const nl = '\n'
@@ -617,4 +621,20 @@ test('the core answers every per-platform record row as Node does', { skip: noGo
   const said = `${ran.stdout}\n${ran.stderr}`
   assert.equal(ran.status, 0, `the core's per-platform answers disagree with Node's (or did not run):\n${said.split('\n').slice(-80).join('\n')}`)
   assert.match(said, new RegExp(`${rows.length} rows compared, 0 disagreements`))
+})
+
+// BACKLOG §448, the rows tests/gate-regressions.py adds to ENFORCEMENT_GRAMMAR, mirrored verbatim: the first eight are in a
+// locked test (tests/lifecycle.test.mjs), so these stand beside it. The core answers each as Node does through enforcedTexts.
+test('an Enforced-by list ends where its prose begins, as the shared grammar says', () => {
+  for (const [value, want] of [
+    ['`a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`) and `scripts/contract.sh` §28. Ten mutations were run.',
+      ['a_test.go', 'TestA*', 'b_test.go', 'TestB', 'scripts/contract.sh']],
+    ['`x` and `y`', ['x', 'y']],
+    ['adr-lint (the gate), b. And a sentence, with a comma.', ['adr-lint', 'b']],
+    ['a.test.mjs, b.py', ['a.test.mjs', 'b.py']],
+    ['`x` (unclosed, a', ['x']],
+    ['an item ) stray, b', ['an item  stray', 'b']],
+  ]) {
+    assert.deepEqual(declaredEnforcement(`**Enforced-by:** ${value}\n`), want, `the shared grammar disagrees on ${value}`)
+  }
 })

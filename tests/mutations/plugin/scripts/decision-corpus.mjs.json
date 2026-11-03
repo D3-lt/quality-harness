@@ -1749,6 +1749,30 @@
       "from": "    if (!table && !UNESCAPED_PIPE.test(line)) continue",
       "to": "    if (!table && !line.startsWith('|')) continue",
       "only": "^work-next reads the same README done claims as adr-lint, pipe-less rows included$"
+    },
+    {
+      "label": "BACKLOG §448: a comma piece that held a backticked span names that span only",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/decision-context-parity.test.mjs"],
+      "from": "  return listed.split(',').filter(piece => !piece.includes('\\u0000')).map(piece => piece.trim())",
+      "to": "  return listed.split(',').map(piece => piece.trim())",
+      "only": "^an Enforced-by list ends where its prose begins, as the shared grammar says$"
+    },
+    {
+      "label": "BACKLOG §448: a parenthesis outside the spans is not an item",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/decision-context-parity.test.mjs"],
+      "from": "    else if (depth === 0) kept += ch",
+      "to": "    else kept += ch",
+      "only": "^an Enforced-by list ends where its prose begins, as the shared grammar says$"
+    },
+    {
+      "label": "BACKLOG §448: an Enforced-by list ends at its sentence's full stop",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": ["tests/decision-context-parity.test.mjs"],
+      "from": "  const end = kept.search(/\\.(?=\\s|$)/)",
+      "to": "  const end = -1",
+      "only": "^an Enforced-by list ends where its prose begins, as the shared grammar says$"
     }
   ]
 }

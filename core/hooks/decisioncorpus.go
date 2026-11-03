@@ -835,7 +835,7 @@ func dcDeclaredGoverns(text string) (paths, unresolved []string) {
 	return
 }
 
-// dcDeclaredEnforcement is declaredEnforcement: each backticked span whole, then the rest split at commas.
+// dcDeclaredEnforcement is declaredEnforcement: each backticked span whole, then the rest read as a list by dcListedOutside.
 func dcDeclaredEnforcement(text string) []string {
 	out := []string{}
 	header, ok := dcExec(dcEnforcedHeader, 1, dcUTF16(text), 0)
@@ -847,7 +847,8 @@ func dcDeclaredEnforcement(text string) []string {
 	if inline == "" || dcStartsWithWord(inline, "none") {
 		return out
 	}
-	parts, rest := []string{}, []string{}
+	parts := []string{}
+	var outside strings.Builder
 	position := 0
 	for {
 		open := strings.IndexByte(inline[position:], '`')
@@ -860,20 +861,51 @@ func dcDeclaredEnforcement(text string) []string {
 			break
 		}
 		close += open + 1
-		rest = append(rest, inline[position:open])
+		outside.WriteString(inline[position:open])
+		outside.WriteByte(0)
 		parts = append(parts, dcJSTrim(inline[open+1:close]))
 		position = close + 1
 	}
-	rest = append(rest, inline[position:])
-	for _, part := range strings.Split(strings.Join(rest, ","), ",") {
-		parts = append(parts, dcJSTrim(part))
-	}
+	outside.WriteString(inline[position:])
+	parts = append(parts, dcListedOutside(outside.String())...)
 	for _, part := range parts {
 		if part != "" && part[0] != '<' && part[0] != '(' {
 			out = append(out, part)
 		}
 	}
 	return out
+}
+
+// dcListedOutside is listedOutside (BACKLOG §448): parentheses removed, the list cut at its sentence's full stop, and a
+// comma-separated piece that held a span (a NUL here) dropped, since that span is already an item.
+func dcListedOutside(outside string) []string {
+	var kept []rune
+	depth := 0
+	for _, r := range outside {
+		switch {
+		case r == '(':
+			depth++
+		case r == ')':
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0:
+			kept = append(kept, r)
+		}
+	}
+	for i, r := range kept {
+		if r == '.' && (i+1 == len(kept) || dcJSSpace(kept[i+1])) {
+			kept = kept[:i]
+			break
+		}
+	}
+	pieces := []string{}
+	for _, piece := range strings.Split(string(kept), ",") {
+		if !strings.ContainsRune(piece, 0) {
+			pieces = append(pieces, dcJSTrim(piece))
+		}
+	}
+	return pieces
 }
 
 const dcNotLineTermClass = `[^\n\r\x{2028}\x{2029}]`

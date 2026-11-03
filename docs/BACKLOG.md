@@ -4211,7 +4211,7 @@ tests/review-ledger.test.mjs records a review from a linked worktree and finds i
 worktree; TestCloneStateDirIsSharedByWorktrees holds the core; one mutant each is noticed. Not migrated: rows already in a
 worktree's own ledger stay there, and cover nothing from now on (their commits are released).
 
-## 448. OPEN 2026-11-02 — prose after an Enforced-by list is split into "caught by" entries
+## 448. CLOSED 2026-11-03 — prose after an Enforced-by list is split into "caught by" entries
 
 Found by an outside run of v3.8.64 on Windows over a Go repository (the decision context PreToolUse printed for an Edit of a
 tracked file), and reproduced here with the Node reader on the same corpus: a record whose header reads
@@ -4224,6 +4224,19 @@ plugin/bin/adr-lint:3947), under one grammar mirrored verbatim between them (tes
 regression: Node printed the same before ADR-137. Next: change the grammar in all three with the truth table (prose outside a
 backticked span ends the list, or only backticked spans count once there is one), and add the shape to the corpus matrix's
 expected output (§18).
+
+CLOSED 2026-11-03 with a third rule, neither of the two named above: "only backticked spans once there is one" drops the `two`
+of "`one`, two", a row of the shared table, and "prose ends the list" needs a definition. Outside the spans, a parenthesis is
+removed, the list ends at the first full stop before a space or the end, and a comma piece that held a span names that span
+only (`listedOutside` in decision-corpus.mjs, `dcListedOutside` in the core, `listed_outside` in adr-lint). The reported value
+now gives a_test.go, TestA*, b_test.go, TestB and scripts/contract.sh. Six rows join ENFORCEMENT_GRAMMAR
+(tests/gate-regressions.py) and its Node mirror (beside the locked one), eight inputs join the Node and core parity table, and
+the go-module fixture carries the shape: corpus-probe's records now report `enforcedBy`, and tests/corpus-matrix.test.mjs
+asserts it (red with the old reader). Five mutants, all three readers, are noticed. Measured over this repository's 129
+distinct Enforced-by lines, old against new: 3 differ. Two archived lines read "`link: …`, RED." and now give `RED` for
+`RED.`; one word after a list cannot be told from a name, and that is left. The template line drops its stray `or` and `>`.
+Siblings left: `_split_pointer_list` (Cross-references) and the Rests-on parser keep the plain split; whether a citation or a
+mechanism list reads prose the same way is not decided.
 
 ## 449. OPEN 2026-11-02 — adr-next calls a task with a duplicate id unreadable, names the wrong file, and drops tasks of another record silently
 

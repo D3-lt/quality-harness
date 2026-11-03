@@ -101,6 +101,11 @@ for (const [name, dir] of corpora) {
     assert.equal(report.look, expected.look, `${name}: look`)
     assert.deepEqual(report.corpora, expected.corpora, `${name}: corpus directories`)
     assert.deepEqual(report.records.map(r => [r.file, r.kind, r.frozen]), expected.records, `${name}: records read, with kind and frozen:\n${JSON.stringify(report.records, null, 2)}`)
+    // BACKLOG §448: what a record says enforces it, where an expectation names it. Prose around the list is not a check.
+    if (expected.enforcedBy !== undefined) {
+      assert.deepEqual(Object.fromEntries(report.records.filter(r => r.enforcedBy).map(r => [r.file, r.enforcedBy])), expected.enforcedBy,
+        `${name}: enforced-by:\n${JSON.stringify(report.records, null, 2)}`)
+    }
     // The load the run shared the machine with (the corpus-probe load lead, 2026-10-14). Its values are the
     // machine's, so what is held is the shape: each sample a load average or null (not read), never absent.
     const sample = value => value === null || (Number.isFinite(value) && value >= 0)

@@ -813,19 +813,41 @@ export function declaredEnforcement(text) {
   if (!inline || /^none\b/i.test(inline)) return []
   // A BACKTICKED span is one item, commas inside it included — a mutation label
   // reads "…mutates, exactly once" and splitting on every comma tears it in
-  // half. Whatever is left outside the backticks is then comma-separated. Both
-  // cases are in the truth table mirrored from tests/gate-regressions.py.
+  // half. Whatever is left outside the backticks is then read as a list by
+  // listedOutside. Every case is in the truth table mirrored from
+  // tests/gate-regressions.py.
   const parts = []
-  const rest = []
+  let outside = ''
   let position = 0
   for (const span of inline.matchAll(/`([^`]*)`/g)) {
-    rest.push(inline.slice(position, span.index))
+    outside += `${inline.slice(position, span.index)}\u0000`
     parts.push(span[1].trim())
     position = span.index + span[0].length
   }
-  rest.push(inline.slice(position))
-  parts.push(...rest.join(',').split(',').map(part => part.trim()))
+  outside += inline.slice(position)
+  parts.push(...listedOutside(outside))
   return parts.filter(value => value && !/^[<(]/.test(value))
+}
+
+/**
+ * The items of the text outside an `Enforced-by:` value's backticked spans, a NUL where each span stood (BACKLOG §448). A
+ * parenthesis says something about an item and is not one; the list ends with its sentence (a full stop before a space or
+ * the end); and a comma-separated piece that held a span names that span only, so `and` and `§28` beside it are prose.
+ * Measured on an outside run of v3.8.64 over a Go repository, where
+ * "`a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`) and `scripts/contract.sh` §28. Ten mutations were run…"
+ * printed `eleven cases)`, `)`, `) and` and the next sentence as checks. Mirrored by the core and adr-lint.
+ */
+function listedOutside(outside) {
+  let kept = ''
+  let depth = 0
+  for (const ch of outside) {
+    if (ch === '(') depth += 1
+    else if (ch === ')') { if (depth > 0) depth -= 1 }
+    else if (depth === 0) kept += ch
+  }
+  const end = kept.search(/\.(?=\s|$)/)
+  const listed = end >= 0 ? kept.slice(0, end) : kept
+  return listed.split(',').filter(piece => !piece.includes('\u0000')).map(piece => piece.trim())
 }
 
 function declaredGoverns(text) {

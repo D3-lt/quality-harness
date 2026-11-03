@@ -3963,22 +3963,47 @@ def enforcement_pointers(text):
         return []
     # A BACKTICKED span is one item, commas inside it included — a mutation
     # label reads "…mutates, exactly once", and splitting on every comma tore it
-    # in half. Whatever is left outside the backticks is then comma-separated.
+    # in half. Whatever is left outside the backticks is then read as a list.
     #
     # The first fix here split on all commas, which fixed the dropped `two` from
     # "`one`, two" and broke every label containing one. Both cases are in the
-    # shared truth table now.
+    # shared truth table now, with BACKLOG §448's prose after the list.
     parts = []
-    rest = []
+    outside = []
     position = 0
     for span in re.finditer(r"`([^`]*)`", value):
-        rest.append(value[position:span.start()])
+        outside.append(value[position:span.start()] + "\0")
         parts.append(span.group(1).strip())
         position = span.end()
-    rest.append(value[position:])
-    parts += [p.strip() for p in ",".join(rest).split(",")]
+    outside.append(value[position:])
+    parts += listed_outside("".join(outside))
     # `<the check>` is the template placeholder, not a pointer to anything.
     return [p for p in parts if p and not re.match(r"[<(]", p)]
+
+
+def listed_outside(outside):
+    """The items of an `Enforced-by:` value's text outside its backticked spans, a NUL where each span stood.
+
+    BACKLOG §448, from an outside run over a Go repository: "`a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`)
+    and `scripts/contract.sh` §28. Ten mutations were run…" gave `eleven cases)`, `)`, `) and` and the next sentence as
+    checks. A parenthesis says something about an item and is not one; the list ends with its sentence (a full stop before
+    a space or the end); a comma-separated piece that held a span names that span only. Mirrored by decision-corpus.mjs
+    (listedOutside) and the core (dcListedOutside).
+    """
+    kept = []
+    depth = 0
+    for ch in outside:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(depth - 1, 0)
+        elif depth == 0:
+            kept.append(ch)
+    text = "".join(kept)
+    end = re.search(r"\.(?=\s|\Z)", text)
+    if end:
+        text = text[:end.start()]
+    return [p.strip() for p in text.split(",") if "\0" not in p]
 
 
 def leaves_the_tree(pointer):
@@ -4341,10 +4366,10 @@ def path_matches_declaration(candidate, declaration):
 def _split_pointer_list(value):
     """A backticked span is one item, commas inside it included.
 
-    Extracted from `enforcement_pointers` rather than copied: a mutation label
-    reads "…mutates, exactly once", and splitting on every comma tore it in
-    half. `Cross-references:` needs the same parse, and a second copy of it is
-    how the two would come to disagree.
+    `Cross-references:` reads its list this way: a mutation label reads "…mutates, exactly once", and splitting on every
+    comma tore it in half. `enforcement_pointers` no longer shares it: since BACKLOG §448 it also reads parentheses and the
+    sentence after its list as prose (`listed_outside`), the grammar Node and the core mirror. Whether a citation list
+    should read prose the same way is not decided; a `§N` after a backticked path is still an item here.
     """
     parts = []
     rest = []

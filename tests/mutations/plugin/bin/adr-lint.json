@@ -3758,6 +3758,14 @@
       "from": "    done = set(claimed_done_ids(readme_text, infos))\n    for tid in evidenced_task_ids(infos, readme_text):\n        inf = infos.get(tid)\n        if inf is None or inf.get(\"human\"):\n            continue\n        for name, rel in inf.get(\"tests\", []):\n            spaced = spaced_js_title(name, rel)\n            if not spaced and not IDENTIFIER_TEST_NAME.match(name):\n                continue\n            f = resolve_test_file(root, rel, tracked)",
       "to": "    done = set(done_task_ids(readme_text))\n    for tid in evidenced_task_ids(infos, readme_text):\n        inf = infos.get(tid)\n        if inf is None or inf.get(\"human\"):\n            continue\n        for name, rel in inf.get(\"tests\", []):\n            spaced = spaced_js_title(name, rel)\n            if not spaced and not IDENTIFIER_TEST_NAME.match(name):\n                continue\n            f = resolve_test_file(root, rel, tracked)",
       "only": "^an unproven test of a task done only in its own file is an error at both done loops$"
+    },
+    {
+      "label": "BACKLOG §448: adr-lint drops a comma piece that held a span, as the shared grammar says",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    return [p.strip() for p in text.split(\",\") if \"\\0\" not in p]",
+      "to": "    return [p.strip() for p in text.split(\",\")]",
+      "only": "^focused false-green regressions remain closed$"
     }
   ]
 }

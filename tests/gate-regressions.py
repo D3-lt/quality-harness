@@ -58,6 +58,15 @@ ENFORCEMENT_GRAMMAR = [
     ("<the check>", []),
     ("`one`, two", ["one", "two"]),
     ("`a label, with a comma`", ["a label, with a comma"]),
+    # BACKLOG §448: prose around the list is not a check. Mirrored in tests/decision-context-parity.test.mjs, beside the
+    # locked mirror of the rows above.
+    ("`a_test.go` (`TestA*`, eleven cases), `b_test.go` (`TestB`) and `scripts/contract.sh` §28. Ten mutations were run.",
+     ["a_test.go", "TestA*", "b_test.go", "TestB", "scripts/contract.sh"]),
+    ("`x` and `y`", ["x", "y"]),
+    ("adr-lint (the gate), b. And a sentence, with a comma.", ["adr-lint", "b"]),
+    ("a.test.mjs, b.py", ["a.test.mjs", "b.py"]),
+    ("`x` (unclosed, a", ["x"]),
+    ("an item ) stray, b", ["an item  stray", "b"]),
 ]
 
 

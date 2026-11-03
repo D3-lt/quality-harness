@@ -69,8 +69,17 @@ if (isMainModule(import.meta.url)) {
   try {
     if (process.env.QUALITY_HARNESS_QH_FETCH === 'off') throw new Error('core fetching is disabled')
     const { version } = JSON.parse(readFileSync(new URL('../.claude-plugin/plugin.json', import.meta.url), 'utf8'))
-    const dataHome = process.argv[2] || process.env.CLAUDE_PLUGIN_DATA || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'quality-harness')
-    await installCore({ version, platform: process.platform, arch: process.arch, dataHome })
+    const given = process.argv[2]
+    const dataHome = given || process.env.CLAUDE_PLUGIN_DATA || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'quality-harness')
+    const { binary, installed } = await installCore({ version, platform: process.platform, arch: process.arch, dataHome })
+    // BACKLOG §454: run by hand it printed nothing, and a Claude Code shell exports the last plugin's CLAUDE_PLUGIN_DATA, so a
+    // core landed in another plugin's data directory unsaid. The hand-run form says where, and why there; the launcher in
+    // that shell resolves the same directory (qh-hook.sh, native-cli.mjs). SessionStart passes its directory and stays
+    // silent: a hook's stdout is context every adopter pays for (CLAUDE.md §19).
+    if (!given) {
+      const why = process.env.CLAUDE_PLUGIN_DATA ? ' (from CLAUDE_PLUGIN_DATA; a shell inside a Claude Code session may carry another plugin\'s)' : ''
+      process.stdout.write(`quality-harness: ${installed ? 'installed' : 'already verified'} the Go core at ${binary}${why}\n`)
+    }
   } catch (error) {
     process.stderr.write(`quality-harness: could not install the Go core: ${error.message}\n`)
     process.exitCode = 1

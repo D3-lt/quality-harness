@@ -4337,7 +4337,7 @@ three cases, the record's conditions and the store; the release fake holds the r
 repository; four mutants are noticed. Left: the gate's own temp-file churn (thousands of `$TMPDIR` entries per run) wakes
 fseventsd, Spotlight and the code indexer; a `TMPDIR` excluded from Spotlight is a machine setting, not a change here.
 
-## 454. OPEN 2026-11-03 — qh-fetch installs into whichever plugin's CLAUDE_PLUGIN_DATA the shell inherited, and prints no path
+## 454. CLOSED 2026-11-03 — qh-fetch installs into whichever plugin's CLAUDE_PLUGIN_DATA the shell inherited, and prints no path
 
 From the v3.8.67 outside run (the macOS peer over a corpus this repository does not own): `node plugin/scripts/qh-fetch.mjs`
 in a v3.8.66 checkout exited 0, printed nothing, and installed the core under the Codex plugin's data directory
@@ -4345,3 +4345,12 @@ in a v3.8.66 checkout exited 0, printed nothing, and installed the core under th
 `CLAUDE_PLUGIN_DATA` and plugin/scripts/qh-fetch.mjs:72 takes it before its own default. This session's shell exported the same
 directory. Not a fail-open: the run used the binary it asked for. Next: take `CLAUDE_PLUGIN_DATA` only when it names this
 plugin's data directory, or ignore it outside a hook, and print the installed path.
+
+CLOSED 2026-11-03 by the second half only. The class, every resolver of the core's data directory,
+`git grep -n "CLAUDE_PLUGIN_DATA" -- plugin/scripts/qh-hook.sh plugin/scripts/native-cli.mjs plugin/scripts/qh-fetch.mjs`: all
+three take `CLAUDE_PLUGIN_DATA` first, so in such a shell the launcher finds the core where qh-fetch put it; nothing breaks.
+Taking it only when it "names this plugin's directory" would rest on Claude Code's directory naming, an unmeasured
+classifier (§16), so the resolution is unchanged. Run by hand, qh-fetch now prints what it installed or found, where, and
+that the place came from `CLAUDE_PLUGIN_DATA`; run by SessionStart, which passes its directory, it prints nothing, since a
+hook's stdout is every adopter's context (§19). tests/qh-fetch.test.mjs drives the CLI both ways with no network, and two
+mutants are noticed.

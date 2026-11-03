@@ -26,6 +26,22 @@
       ],
       "from": "if (verifiedCore(binary)) return { binary, installed: false }",
       "to": "if (false) return { binary, installed: false }"
+    },
+    {
+      "label": "BACKLOG §454: run by hand, qh-fetch says where the core is",
+      "file": "plugin/scripts/qh-fetch.mjs",
+      "tests": ["tests/qh-fetch.test.mjs"],
+      "from": "    if (!given) {",
+      "to": "    if (false) {",
+      "only": "^run by hand, qh-fetch says where the core is and why there; run by the launcher it says nothing$"
+    },
+    {
+      "label": "BACKLOG §454: the SessionStart form of qh-fetch adds nothing to the hook output",
+      "file": "plugin/scripts/qh-fetch.mjs",
+      "tests": ["tests/qh-fetch.test.mjs"],
+      "from": "    if (!given) {",
+      "to": "    if (true) {",
+      "only": "^run by hand, qh-fetch says where the core is and why there; run by the launcher it says nothing$"
     }
   ]
 }

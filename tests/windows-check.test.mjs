@@ -29,6 +29,8 @@ function world({ pushFails = false } = {}) {
     if (line === `git push origin ${SHA}:refs/heads/main`) { origin = SHA; return ok() }
     if (line === 'git ls-remote origin refs/heads/main') return ok(`${origin}\trefs/heads/main\n`)
     if (line === `git push origin --delete land/${SHA}`) return ok()
+    // A landing deletes the earlier land branches it contains; this forge has none.
+    if (line === 'git ls-remote --heads origin refs/heads/land/*') return ok()
     throw new Error(`the fake has no answer for: ${line}`)
   }
   let clock = 0

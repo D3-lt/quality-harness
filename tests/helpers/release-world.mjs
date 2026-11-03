@@ -51,6 +51,8 @@ export function world(overrides = {}) {
     if (line === 'git rev-parse refs/heads/main') return ok(`${SHA}\n`)
     if (line === 'git fetch -q origin main') return ok()
     if (line === 'git ls-remote origin refs/heads/main') return ok(`${state.origin}\trefs/heads/main\n`)
+    // A landing deletes the earlier land branches it contains; this forge has none.
+    if (line === 'git ls-remote --heads origin refs/heads/land/*') return ok()
     if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return ok(state.workflow)
     if (line === LANDING || line === `git push origin --delete land/${SHA}`) return ok()
     // `checkRunsSeq`, when given, is a list of answers to the check-runs read, the last one repeated (ADR-126 T5's waits).

@@ -9,7 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { RUN_FIELDS, sameOutput } from '../plugin/scripts/corpus-probe.mjs'
+import { RUN_FIELDS, sameOutput } from '../scripts/same-output.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

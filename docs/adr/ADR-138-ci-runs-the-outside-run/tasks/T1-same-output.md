@@ -11,7 +11,7 @@
 
 ## Goal
 
-`sameOutput(before, after)` in corpus-probe.mjs is true only when the two reports are equal after removing a closed list of run
+`sameOutput(before, after)` in scripts/same-output.mjs (moved from corpus-probe.mjs on 2026-11-03: orphan-sweep refused it in the shipped tree) is true only when the two reports are equal after removing a closed list of run
 fields (`RUN_FIELDS`: the readers and native digests and identities, timings, load, dates, the scratch clones' absolute paths).
 Every other field, including ones added later, is compared whole.
 
@@ -19,9 +19,9 @@ Every other field, including ones added later, is compared whole.
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/scripts/corpus-probe.mjs` | modify | `RUN_FIELDS` and the exported `sameOutput`, beside `diffReports` |
+| `scripts/same-output.mjs` | add | `RUN_FIELDS` and the exported `sameOutput` (first written beside `diffReports` in corpus-probe.mjs, moved out) |
 | `tests/probe-same-output.test.mjs` | add | Run-field-only differences are equal; a change in a field `diffReports` skips is not; a new field is not |
-| `tests/mutations/plugin/scripts/corpus-probe.mjs.json` | modify | A widened run-field list is noticed |
+| `tests/mutations/scripts/same-output.mjs.json` | add | A widened run-field list is noticed |
 
 ## Ordered Steps
 

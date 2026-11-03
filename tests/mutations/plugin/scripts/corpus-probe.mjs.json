@@ -817,22 +817,6 @@
       "from": "filter(task => task.duplicate).map(task => task.duplicate.map(",
       "to": "filter(task => false).map(task => task.duplicate.map(",
       "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
-    },
-    {
-      "label": "ADR-138 T1: a widened run-field list hides output",
-      "file": "plugin/scripts/corpus-probe.mjs",
-      "tests": ["tests/probe-same-output.test.mjs"],
-      "from": "export const RUN_FIELDS = Object.freeze(['probe', 'timings', 'load', 'slowest'])",
-      "to": "export const RUN_FIELDS = Object.freeze(['probe', 'timings', 'load', 'slowest', 'corpusReport'])",
-      "only": "^two reports are the same output only when every recorded field but the run fields is equal$"
-    },
-    {
-      "label": "ADR-138 T1: two reports compare by what they said",
-      "file": "plugin/scripts/corpus-probe.mjs",
-      "tests": ["tests/probe-same-output.test.mjs"],
-      "from": "  return said(before) === said(after)",
-      "to": "  return true",
-      "only": "^two reports are the same output only when every recorded field but the run fields is equal$"
     }
   ]
 }

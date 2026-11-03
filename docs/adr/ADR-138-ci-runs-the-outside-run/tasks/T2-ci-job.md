@@ -99,3 +99,4 @@ Stop if the candidate's core cannot be taken from the run's own assets on Window
     'test failed'
   ```
 - 2026-11-03 · ee3c2ae10* · exit 0 · `set -o pipefail …` · acceptance-sha256:12881f3df529ef50a92cae3bbe427550ccd05258f3765a8fe5830df166edc15d · ms:385
+- 2026-11-03 · 8226d0201* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:12881f3df529ef50a92cae3bbe427550ccd05258f3765a8fe5830df166edc15d · ms:1 · test-lock-sha256:f0d47f64a64f0b91ad63e10f07216eb9d2dc056b405795a76d02158fbea388db · test-lock-file:docs/adr/locks/f0d47f64a64f0b91ad63e10f07216eb9d2dc056b405795a76d02158fbea388db.lock · test-lock-kind:replace

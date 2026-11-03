@@ -17,6 +17,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { coreAsset } from '../plugin/scripts/core-assets.mjs'
+import { sameOutput } from './same-output.mjs'
 
 const CHILD_TIMEOUT_MS = 600_000
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -31,19 +32,28 @@ export function fixtureIds(root) {
     .filter(entry => entry.isDirectory()).map(entry => entry.name).sort()
 }
 
-// A fixture's bytes, digested over its sorted relative paths and contents, so the artifact names what both probes read.
-function treeDigest(dir) {
-  const files = []
-  const walk = (at, rel) => {
-    for (const entry of readdirSync(at, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      const full = path.join(at, entry.name)
-      const name = rel ? `${rel}/${entry.name}` : entry.name
-      if (entry.isDirectory()) walk(full, name)
-      else if (entry.isFile()) files.push(`${name}\0${sha256(readFileSync(full))}`)
-    }
+// A fixture's identity: the git tree id of its directory at the candidate's HEAD, which release-evidence reads back from
+// the same commit (`git ls-tree -d <sha>:tests/fixtures/corpora`). Null when git has no such tree, or the working tree
+// differs from it: what was probed would then not be what the pin names (the Codex review of ADR-138's implementation).
+function fixtureTree(root, name) {
+  const at = `tests/fixtures/corpora/${name}`
+  const tree = git(['rev-parse', `HEAD:${at}`], root).stdout?.trim()
+  const dirty = git(['status', '--porcelain', '--', at], root)
+  return /^[0-9a-f]{40,64}$/.test(tree ?? '') && dirty.status === 0 && !dirty.stdout.trim() ? tree : null
+}
+
+// What release-evidence checks of each side's report: complete (look ok, nothing could not run), and run by the readers
+// and core it claims, at the commit it claims (ADR-138 Decision 4). Read from the report's own probe identity.
+function sideOf(answer, report) {
+  const readers = report?.probe?.readers ?? {}
+  const native = report?.probe?.native ?? {}
+  return {
+    digest: sha256(answer.raw ?? JSON.stringify(report)),
+    look: report?.look ?? null,
+    couldNotRun: Array.isArray(report?.couldNotRun) ? report.couldNotRun.length : null,
+    readers: { git: readers.git ?? null, dirty: readers.dirty ?? null, sha256: readers.sha256 ?? null },
+    native: { look: native.look ?? null, at: native.at ?? null, run: native.run ?? null, sha256: native.sha256 ?? null },
   }
-  walk(dir, '')
-  return sha256(files.join('\n'))
 }
 
 /**
@@ -72,31 +82,32 @@ export function stagePublic(entry, dir) {
 
 /**
  * The comparison, with its world as seams: `stage(entry)` answers null or why not, `probe(side, entry)` a report (or
- * `{ report, raw }`, or `{ error }`), `attest(entry, before, after)` the candidate's attestation or null. `compare` and
- * `explain` are the candidate's own sameOutput and diffReports (ADR-138 T1).
+ * `{ report, raw }`, or `{ error }`), `attest(entry, before, after)` the candidate's attestation or null. `compare` is
+ * sameOutput (ADR-138 T1) and `explain` the candidate's own diffReports, unless a test hands in its own.
  */
-export async function outsideRun({ root, sha, run, baseline, cores, corpora, stage, probe, attest, compare, explain }) {
-  const probeModule = compare && explain ? null : await import(pathToFileURL(path.join(root, 'plugin', 'scripts', 'corpus-probe.mjs')).href)
-  const same = compare ?? probeModule.sameOutput
+export async function outsideRun({ root, sha, run, baseline, cores, corpora, stage, probe, attest, compare = sameOutput, explain }) {
+  const probeModule = explain ? null : await import(pathToFileURL(path.join(root, 'plugin', 'scripts', 'corpus-probe.mjs')).href)
+  const same = compare
   const why = explain ?? probeModule.diffReports
   const entries = [
     ...corpora.map(entry => ({ ...entry, kind: 'public', pin: entry.sha })),
     ...fixtureIds(root).map(name => {
-      const source = path.join(root, 'tests', 'fixtures', 'corpora', name)
-      return { id: `fixture:${name}`, kind: 'fixture', shape: name, source, pin: `tests/fixtures/corpora/${name}@${treeDigest(source)}` }
+      const tree = fixtureTree(root, name)
+      return { id: `fixture:${name}`, kind: 'fixture', shape: name, source: path.join(root, 'tests', 'fixtures', 'corpora', name),
+        pin: tree && `tests/fixtures/corpora/${name}@${tree}`, unpinned: tree ? null : `tests/fixtures/corpora/${name} is not a committed, unchanged tree at HEAD` }
     }),
   ]
   const results = []
   for (const entry of entries) {
-    const result = { id: entry.id, kind: entry.kind, pin: entry.pin, before: null, after: null, same: null, explanation: [], attestation: null, couldNotRun: null }
+    const result = { id: entry.id, kind: entry.kind, pin: entry.pin, reports: null, same: null, explanation: [], attestation: null, couldNotRun: null }
     results.push(result)
-    const staged = stage(entry)
+    const staged = entry.unpinned ?? stage(entry)
     if (staged) { result.couldNotRun = staged; continue }
     const answers = ['before', 'after'].map(side => probe(side, entry))
     const broken = answers.find(answer => !answer || answer.error)
     if (broken) { result.couldNotRun = broken?.error ?? 'the probe answered nothing'; continue }
     const [before, after] = answers.map(answer => answer.report ?? answer)
-    ;[result.before, result.after] = answers.map((answer, i) => sha256(answer.raw ?? JSON.stringify([before, after][i])))
+    result.reports = { before: sideOf(answers[0], before), after: sideOf(answers[1], after) }
     result.same = same(before, after)
     if (!result.same) {
       try { result.explanation = why(before, after) } catch (error) { result.explanation = [`the reports differ; diffReports could not explain it: ${error.message}`] }

@@ -1,0 +1,3 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/outside-run.test.mjs	the outside run job is selected on every release run and uploads its artifact	fc1159b5b47a8fc2960f02bd6f6117b36df588ec2ceb836033bcb1f9f7c5e104
+body	tests/outside-run.test.mjs	the outside run proves its own comparison per corpus	a1bdd4e4756eef34aa6d7b59a174ae2c903376e19ab8f72bffd582d8ad5b9b7f

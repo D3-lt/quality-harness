@@ -498,6 +498,12 @@
     { "label": "ADR-138 T3: changed reader output asks for a person", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
       "from": "  const changed = corpora.filter(entry => entry.same === false)", "to": "  const changed = []", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
     { "label": "ADR-138 T3: a CI regression vetoes whatever a peer filed", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
-      "from": "    if (fromRun.regressed.length) {", "to": "    if (false) {", "only": "^a regression in either source vetoes the release$" }
+      "from": "    if (fromRun.regressed.length) {", "to": "    if (false) {", "only": "^a regression in either source vetoes the release$" },
+    { "label": "ADR-138 review: equal incomplete reports do not clear", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "      if (report.look !== 'ok' || report.couldNotRun !== 0) wrong.push(", "to": "      if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
+    { "label": "ADR-138 review: a corpus is the input its sha pins", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "    if (pins.has(entry.id) && entry.pin !== pins.get(entry.id)) wrong.push(", "to": "    if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
+    { "label": "ADR-138 review: each side's core is the one built at its commit", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "      if (report.native?.look !== 'ok' || report.native?.at !== at || report.native?.sha256 !== cores[side]) wrong.push(", "to": "      if (false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" }
   ]
 }

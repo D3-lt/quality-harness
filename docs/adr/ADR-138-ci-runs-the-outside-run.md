@@ -84,7 +84,7 @@ exists today: the fixture corpora, and the five public corpora surveyed 2026-11-
 
 ## Component / Boundary Impact
 
-- `plugin/scripts/corpus-probe.mjs`: gains an exported normalized-report comparison (T1). Ships, but no hook calls it.
+- `scripts/same-output.mjs`: the normalized-report comparison (T1). Repository tooling: first written into corpus-probe.mjs, it was refused there by orphan-sweep, since nothing a user downloads reaches it; the plugin is unchanged by this record.
 - `.github/workflows/selftest.yml` and a new `scripts/outside-run.mjs`, `scripts/outside-corpora.json`: repository tooling (T2).
 - `scripts/release-evidence.mjs`, `scripts/release.mjs`, CLAUDE.md §18 and its rule file: the release's evidence (T3).
 
@@ -92,7 +92,7 @@ exists today: the fixture corpora, and the five public corpora surveyed 2026-11-
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `sameOutput(before, after)` and `RUN_FIELDS` exports | new | corpus-probe.mjs (T1) | scripts/outside-run.mjs (T2), release-evidence (T3) |
+| `sameOutput(before, after)` and `RUN_FIELDS` exports | new | scripts/same-output.mjs (T1) | scripts/outside-run.mjs (T2), release-evidence (T3) |
 | `outside-run.json` artifact of the landing run | new | the `outside run` CI job (T2) | release-evidence (T3) |
 | `scripts/outside-corpora.json` | new | committed, reviewed | the CI job (T2) |
 | Outside-run evidence rule | widened: a verified CI attestation with no output change answers it | release-evidence (T3) | release.mjs, the owner |

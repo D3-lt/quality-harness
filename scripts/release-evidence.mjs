@@ -386,7 +386,7 @@ export const READER_PATHS = [...READER_DIRECTORIES.map(directory => `plugin/${di
 
 /**
  * ADR-138: the release run's own outside run, judged. Pure: `artifact` is the parsed outside-run.json (or `{ error }`),
- * `expected` the corpus ids the run had to probe (the committed list plus every fixture at the sha, null when git could
+ * `expected` the corpora the run had to probe, each `{ id, pin }` (the committed list plus every fixture tree at the sha, null when git could
  * not say). Answers `attested` only when the artifact is this sha's, this run's, against the tag release-evidence names,
  * holds every expected corpus exactly once, each probed and compared, and no reader output changed. A verdict that left
  * PASS in any corpus is returned in `regressed` whatever else holds, so the caller can veto across both sources.
@@ -403,20 +403,42 @@ export function ciOutside(artifact, { sha, run, tag, tagSha, expected }) {
   if (String(artifact.run) !== String(run)) problems.push(`it is from run ${artifact.run}, not the release run ${run}`)
   if (artifact.baseline?.tag !== tag || artifact.baseline?.sha !== tagSha) problems.push(`it compared against ${artifact.baseline?.tag ?? 'nothing'} at ${artifact.baseline?.sha ?? 'nothing'}, not ${tag} at ${tagSha}`)
   if (!Array.isArray(expected)) problems.push('which corpora it had to probe could not be read from git at this sha')
+  const HEX = /^[0-9a-f]{64}$/
+  const cores = { before: artifact.cores?.baseline, after: artifact.cores?.candidate }
+  if (!HEX.test(cores.before ?? '') || !HEX.test(cores.after ?? '')) problems.push('it does not name both cores by digest')
   const ids = corpora.map(entry => entry?.id)
   const counts = ids.reduce((map, id) => map.set(id, (map.get(id) ?? 0) + 1), new Map())
   const duplicated = [...counts].filter(([, n]) => n > 1).map(([id]) => id)
   if (duplicated.length) problems.push(`it holds ${duplicated.join(', ')} more than once`)
+  const pins = new Map((Array.isArray(expected) ? expected : []).map(entry => [entry.id, entry.pin]))
   if (Array.isArray(expected)) {
-    const missing = expected.filter(id => !counts.has(id))
-    const extra = ids.filter(id => !expected.includes(id))
+    const missing = [...pins.keys()].filter(id => !counts.has(id))
+    const extra = ids.filter(id => !pins.has(id))
     if (missing.length) problems.push(`it lacks ${missing.join(', ')}`)
     if (extra.length) problems.push(`it holds ${extra.join(', ')}, which this sha does not list`)
   }
   const blind = corpora.filter(entry => entry?.couldNotRun).map(entry => `${entry.id} (${entry.couldNotRun})`)
   if (blind.length) problems.push(`it could not run ${blind.join(', ')}`)
-  const uncompared = corpora.filter(entry => !entry?.couldNotRun && (typeof entry?.same !== 'boolean' || !entry.before || !entry.after)).map(entry => entry?.id)
-  if (uncompared.length) problems.push(`it did not compare ${uncompared.join(', ')}`)
+  // Each compared corpus: the input the sha pins, and on each side a complete report run by the readers and the core of
+  // the commit that side claims (the Codex review of ADR-138's implementation: equal broken reports, and names without
+  // inputs, both cleared it). The baseline side is the tag; the candidate side is this sha, built by this run.
+  for (const entry of corpora.filter(item => item && !item.couldNotRun)) {
+    const wrong = []
+    if (entry.kind !== (String(entry.id).startsWith('fixture:') ? 'fixture' : 'public')) wrong.push(`kind ${entry.kind}`)
+    if (pins.has(entry.id) && entry.pin !== pins.get(entry.id)) wrong.push(`pin ${entry.pin}, not ${pins.get(entry.id)}`)
+    if (typeof entry.same !== 'boolean') wrong.push('no comparison')
+    for (const side of ['before', 'after']) {
+      const report = entry.reports?.[side]
+      const at = side === 'before' ? tagSha : sha
+      if (!report || !HEX.test(report.digest ?? '')) { wrong.push(`no ${side} report digest`); continue }
+      if (report.look !== 'ok' || report.couldNotRun !== 0) wrong.push(`the ${side} report is incomplete (look ${report.look}, ${report.couldNotRun} could not run)`)
+      if (report.readers?.git !== at || report.readers?.dirty !== false) wrong.push(`the ${side} readers are ${report.readers?.git ?? 'unknown'}${report.readers?.dirty ? ' (dirty)' : ''}, not ${at}`)
+      if (report.native?.look !== 'ok' || report.native?.at !== at || report.native?.sha256 !== cores[side]) wrong.push(`the ${side} core is not the one built at ${at}`)
+      if (side === 'after' && String(report.native?.run) !== String(run)) wrong.push(`the candidate core is from run ${report.native?.run}, not ${run}`)
+    }
+    if (entry.attestation?.at !== sha) wrong.push(`its attestation is at ${entry.attestation?.at ?? 'nothing'}`)
+    if (wrong.length) problems.push(`${entry.id}: ${wrong.join(', ')}`)
+  }
   if (problems.length) return { ...unverified(problems.join('; ')), regressed }
   const changed = corpora.filter(entry => entry.same === false)
   if (changed.length) {
@@ -488,8 +510,12 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
     try { tagSha = git(['rev-parse', `${tag}^{commit}`]) } catch { /* the artifact's baseline is then not this tag */ }
     let expected = null
     try {
-      const listed = JSON.parse(git(['show', `${sha}:scripts/outside-corpora.json`])).corpora.map(entry => entry.id)
-      const fixtures = git(['ls-tree', '-d', '--name-only', `${sha}:tests/fixtures/corpora`]).split('\n').filter(Boolean).map(name => `fixture:${name}`)
+      const listed = JSON.parse(git(['show', `${sha}:scripts/outside-corpora.json`])).corpora.map(entry => ({ id: entry.id, pin: entry.sha }))
+      const fixtures = git(['ls-tree', '-d', `${sha}:tests/fixtures/corpora`]).split('\n').filter(Boolean).map(line => {
+        const [, tree, name] = /^\d+ tree ([0-9a-f]+)\t(.+)$/.exec(line) ?? []
+        if (!tree) throw new Error(`git ls-tree printed ${line}`)
+        return { id: `fixture:${name}`, pin: `tests/fixtures/corpora/${name}@${tree}` }
+      })
       expected = [...listed, ...fixtures]
     } catch { /* could-not-look: the artifact cannot be checked against its list */ }
     const fromRun = ciOutside(artifact, { sha, run, tag, tagSha, expected })

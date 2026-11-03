@@ -9,7 +9,8 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { fixtureIds, outsideRun, stageFixture } from '../scripts/outside-run.mjs'
-import { diffReports, sameOutput } from '../plugin/scripts/corpus-probe.mjs'
+import { diffReports } from '../plugin/scripts/corpus-probe.mjs'
+import { sameOutput } from '../scripts/same-output.mjs'
 import { remove } from './helpers/remove.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -22,6 +23,10 @@ test('the outside run proves its own comparison per corpus', async t => {
   for (const name of ['alpha', 'only-at-candidate']) {
     mkdirSync(path.join(candidate, 'tests', 'fixtures', 'corpora', name, 'docs', 'adr'), { recursive: true })
     writeFileSync(path.join(candidate, 'tests', 'fixtures', 'corpora', name, 'docs', 'adr', '0001-x.md'), `# ${name}\n`)
+  }
+  // A fixture is pinned by its committed tree, so the candidate is a repository with one commit.
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['-c', 'user.email=t@example.invalid', '-c', 'user.name=t', 'commit', '-qm', 'candidate']]) {
+    assert.equal(spawnSync('git', args, { cwd: candidate, timeout: 30_000, windowsHide: true }).status, 0, args.join(' '))
   }
   assert.deepEqual(fixtureIds(candidate), ['alpha', 'only-at-candidate'])
   // Fixture staging for real: its own repository, one commit, the same bytes.
@@ -54,13 +59,14 @@ test('the outside run proves its own comparison per corpus', async t => {
   assert.deepEqual(artifact.corpora.map(entry => entry.id), ['public-same', 'public-gone', 'fixture:alpha', 'fixture:only-at-candidate'], 'every corpus once, in a fixed order')
   assert.equal(byId['public-same'].same, true)
   assert.equal(byId['public-same'].pin, 'a'.repeat(40))
-  assert.match(byId['public-same'].before, /^[0-9a-f]{64}$/)
-  assert.notEqual(byId['public-same'].before, byId['public-same'].after, 'the digests are of the reports as written, run fields included')
+  assert.match(byId['public-same'].reports.before.digest, /^[0-9a-f]{64}$/)
+  assert.notEqual(byId['public-same'].reports.before.digest, byId['public-same'].reports.after.digest, 'the digests are of the reports as written, run fields included')
   assert.equal(byId['public-gone'].same, null)
   assert.match(byId['public-gone'].couldNotRun, /not our ref/)
   assert.ok(!probed.some(name => name.startsWith('public-gone')), 'a corpus that could not be staged is not probed')
   assert.equal(byId['fixture:alpha'].same, true)
-  assert.match(byId['fixture:alpha'].pin, /^tests\/fixtures\/corpora\/alpha@[0-9a-f]{64}$/)
+  const alphaTree = spawnSync('git', ['-C', candidate, 'rev-parse', 'HEAD:tests/fixtures/corpora/alpha'], { encoding: 'utf8', timeout: 30_000, windowsHide: true }).stdout.trim()
+  assert.equal(byId['fixture:alpha'].pin, `tests/fixtures/corpora/alpha@${alphaTree}`, 'a fixture is pinned by the tree it was staged from')
   assert.equal(byId['fixture:only-at-candidate'].same, false)
   assert.ok(byId['fixture:only-at-candidate'].explanation.length > 0, 'a difference is explained')
   assert.equal(byId['fixture:alpha'].attestation.runner, 'ci-windows-alpha')

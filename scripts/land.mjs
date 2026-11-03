@@ -182,6 +182,18 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
   if (required.length) {
     const deleted = ran('git', ['push', 'origin', '--delete', `land/${sha}`]).status
     if (deleted !== 0) log(`land: land/${sha} could not be deleted (git exited ${deleted}); delete it by hand`)
+    // A landing that stopped keeps its branch for a rerun (above). When a later sha lands instead, that branch's sha is on
+    // main as well and nothing else deletes it: 13 such branches were on the forge on 2026-11-03. Each land/<sha> whose sha
+    // this landing contains goes now; one not contained, or not readable here, is another landing's and is left alone.
+    const heads = text('git', ['ls-remote', '--heads', 'origin', 'refs/heads/land/*']) ?? ''
+    for (const line of heads.split('\n')) {
+      const [object, ref] = line.split('\t')
+      const earlier = /^refs\/heads\/land\/([0-9a-f]{40})$/.exec(ref ?? '')?.[1]
+      if (!earlier || earlier !== object || earlier === sha) continue
+      if (ran('git', ['merge-base', '--is-ancestor', earlier, sha]).status !== 0) continue
+      const gone = ran('git', ['push', 'origin', '--delete', `land/${earlier}`]).status
+      log(gone === 0 ? `land: deleted land/${earlier}, already on main` : `land: land/${earlier} is on main and could not be deleted (git exited ${gone})`)
+    }
   }
   log(`land: ${sha} is on main`)
   return 0

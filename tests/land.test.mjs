@@ -53,6 +53,8 @@ function world(overrides = {}) {
     if (line === 'git rev-parse refs/heads/main') return ok(`${state.mainMoves && checkCalls > 0 ? OTHER : SHA}\n`)
     if (line === 'git status --porcelain') return ok(state.porcelain ?? '')
     if (line === 'git fetch -q origin main') return ok()
+    if (line === `git ls-remote --heads origin refs/heads/land/*`) return ok((state.landHeads ?? []).map(([ref, object]) => `${object}\trefs/heads/land/${ref}\n`).join(''))
+    if (line.startsWith('git merge-base --is-ancestor') && args[3] !== 'origin/main') return { status: (state.contained ?? []).includes(args[2]) ? 0 : 1, stdout: '', stderr: '' }
     if (line.startsWith('git merge-base --is-ancestor')) return { status: state.origin === SHA ? 0 : 1, stdout: '', stderr: '' }
     if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return state.workflow === null ? { status: 128, stdout: '', stderr: 'fatal' } : ok(state.workflow)
     if (line === LANDING) { state.landBranch = true; return ok() }
@@ -69,6 +71,7 @@ function world(overrides = {}) {
     }
     if (line === 'git ls-remote origin refs/heads/main') return ok(`${state.origin}\trefs/heads/main\n`)
     if (line === `git push origin --delete land/${SHA}`) { state.landBranch = false; return ok() }
+    if (line.startsWith('git push origin --delete land/')) { (state.deleted ??= []).push(args[3].slice(5)); return ok() }
     // The ruleset as committed at the sha, and as the forge has it (ADR-118 T2's dry run).
     if (line === `git show ${SHA}:.github/rulesets/main.json`) return ok(JSON.stringify(state.committed))
     if (line === 'gh api repos/{owner}/{repo}/rulesets --paginate --slurp') return ok(JSON.stringify([state.listed ?? [{ id: 7, name: state.committed?.name }]]))
@@ -260,4 +263,18 @@ test('land starts only on a clean working tree, and a dry run answers on any', (
   assert.match(dirty.said.join('\n'), /not clean/)
   assert.equal(world({ porcelain: ' M scripts/land.mjs' }).go({ dryRun: true }), 0)
   assert.equal(world().go(), 0)
+})
+// 13 land/<sha> branches were on the forge on 2026-11-03: a landing that stopped keeps its branch for a rerun, and when a
+// later sha landed instead nothing deleted it. A landing now deletes each land/<sha> it contains, and only those.
+test('land deletes the land branches of earlier shas it contains, and no other', () => {
+  const [kept, merged, stray, renamed] = ['c', 'd', 'e', 'f'].map(ch => ch.repeat(40))
+  const w = world({ landHeads: [[SHA, SHA], [merged, merged], [stray, stray], [renamed, kept]], contained: [merged, renamed, kept] })
+  assert.equal(w.go(), 0, w.said.join('\n'))
+  assert.equal(w.state.landBranch, false)
+  assert.deepEqual(w.state.deleted, [merged], 'only the contained branch whose name is its own sha')
+  assert.match(w.said.join('\n'), new RegExp(`deleted land/${merged}, already on main`))
+  // A landing that stopped deletes nothing: its own branch is kept for the run, and so is every other.
+  const red = world({ checkRuns: [[[run(UBUNTU, 'failure'), run('windows', 'success', { id: 2 })]]], landHeads: [[merged, merged]], contained: [merged] })
+  assert.equal(red.go(), 1)
+  assert.equal(red.state.deleted, undefined)
 })

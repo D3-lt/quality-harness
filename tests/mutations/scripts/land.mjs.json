@@ -162,6 +162,22 @@
       "tests": ["tests/land.test.mjs"],
       "from": ".status === 0 && !dryRun) {",
       "to": ".status === 0) {"
+    },
+    {
+      "label": "stale land branches: a landing deletes only the land branches whose sha it contains",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "      if (ran('git', ['merge-base', '--is-ancestor', earlier, sha]).status !== 0) continue",
+      "to": "      void 0",
+      "only": "^(?:land deletes the land branches of earlier shas it contains, and no other)$"
+    },
+    {
+      "label": "stale land branches: a land branch is deleted only when its name is its own sha",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "      if (!earlier || earlier !== object || earlier === sha) continue",
+      "to": "      if (!earlier || earlier === sha) continue",
+      "only": "^(?:land deletes the land branches of earlier shas it contains, and no other)$"
     }
   ]
 }

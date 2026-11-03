@@ -106,7 +106,10 @@ export function world(overrides = {}) {
     const loads = state.loads ?? [1]
     return { load: loads[Math.min(loadCalls++, loads.length - 1)], cores: 10 }
   }
-  const run = (extra = {}) => release({ exec, log: line => said.push(line), now: () => clock, sleep: ms => { clock += ms }, load, protection: () => state.protection, ...extra })
+  // The record of shas whose check passed here, held in the world: a release test never writes this repository's state
+  // directory (CLAUDE.md §9). `checkedPasses` lists what was recorded before the run; `recorded` what the run added.
+  const passes = { has: sha => (state.checkedPasses ?? []).includes(sha), add: sha => { (state.recorded ??= []).push(sha) } }
+  const run = (extra = {}) => release({ exec, log: line => said.push(line), now: () => clock, sleep: ms => { clock += ms }, load, protection: () => state.protection, passes, ...extra })
   return { state, calls, said, run }
 }
 

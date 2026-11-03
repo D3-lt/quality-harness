@@ -234,6 +234,38 @@
       "tests": ["tests/release.test.mjs"],
       "from": "run.event === 'workflow_dispatch' && run.headBranch === 'main'",
       "to": "run.event === 'workflow_dispatch'"
+    },
+    {
+      "label": "2026-11-03: a landed sha skips its check only when the check passed here",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-landed.test.mjs"],
+      "from": "const landedAlready = passes.has(sha) && ran(",
+      "to": "const landedAlready = ran(",
+      "only": "^a landed sha whose check passed here takes no second check or scan, and every other sha still does$"
+    },
+    {
+      "label": "2026-11-03: a sha checked here skips its check only once it is on main",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-landed.test.mjs"],
+      "from": "const landedAlready = passes.has(sha) && ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status === 0",
+      "to": "const landedAlready = passes.has(sha)",
+      "only": "^a landed sha whose check passed here takes no second check or scan, and every other sha still does$"
+    },
+    {
+      "label": "2026-11-03: a resumed landed release takes no second full check",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-landed.test.mjs"],
+      "from": "  let check = landedAlready ? { status: 0, contended: false } : fullCheck()",
+      "to": "  let check = fullCheck()",
+      "only": "^a landed sha whose check passed here takes no second check or scan, and every other sha still does$"
+    },
+    {
+      "label": "2026-11-03: a passing uncontended check records its sha",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-landed.test.mjs"],
+      "from": "  if (!landedAlready) passes.add(sha)",
+      "to": "  void 0",
+      "only": "^a sha is recorded only after its check and scan passed uncontended$"
     }
   ]
 }

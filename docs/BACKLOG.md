@@ -4322,3 +4322,26 @@ digest (dc0f5ea2, the sha256 of the fence text, the same computation that gives 
 replays it under a path holding "OK", red with the old fence; the page mutant tests/mutations/docs/TUTORIALS.md.json is
 noticed. The class: `git grep -nE "grep -q ?['\"]?OK['\"]?"` outside the archives finds only this entry; an unanchored
 success word in an adopter's fence is the same hazard, and adr-lint does not advise on it (left: no adopter report yet).
+
+## 453. CLOSED 2026-11-03 — a release resumed after its landing took the full check and the dead-code scan again
+
+Seen releasing v3.8.67. `release.mjs` took the full gate before every step after it, so each resumed run (waiting for CI, then
+for the outside run) took it again on a sha already on main. The gate ran four more times after the landing at feba5cea, at
+load 20-35 on 10 cores each, and twice a contended retake stopped the release with nothing left to push (exit 2, "passed on a
+contended machine twice"). The landing's own run is the full campaign release-evidence reads (ADR-126), and nothing leaves the
+machine after it but the tag. The owner, 2026-11-03: "fix this release.mjs". Now `release.mjs` records each sha whose full check
+and scan passed there uncontended (`checkedPasses`, `release-checks.jsonl` in the state directory), and skips both only for a
+sha that is recorded and already on origin/main: a sha landed by land.mjs alone was never checked there and still takes them,
+and a recorded sha not yet landed takes its check right before its push, as before. tests/release-landed.test.mjs holds the
+three cases, the record's conditions and the store; the release fake holds the record in its world, so no test writes this
+repository; four mutants are noticed. Left: the gate's own temp-file churn (thousands of `$TMPDIR` entries per run) wakes
+fseventsd, Spotlight and the code indexer; a `TMPDIR` excluded from Spotlight is a machine setting, not a change here.
+
+## 454. OPEN 2026-11-03 — qh-fetch installs into whichever plugin's CLAUDE_PLUGIN_DATA the shell inherited, and prints no path
+
+From the v3.8.67 outside run (the macOS peer over a corpus this repository does not own): `node plugin/scripts/qh-fetch.mjs`
+in a v3.8.66 checkout exited 0, printed nothing, and installed the core under the Codex plugin's data directory
+(`<home>/.claude/plugins/data/codex-openai-codex/qh/3.8.66/`), because a Claude Code shell exports the last plugin's
+`CLAUDE_PLUGIN_DATA` and plugin/scripts/qh-fetch.mjs:72 takes it before its own default. This session's shell exported the same
+directory. Not a fail-open: the run used the binary it asked for. Next: take `CLAUDE_PLUGIN_DATA` only when it names this
+plugin's data directory, or ignore it outside a hook, and print the installed path.

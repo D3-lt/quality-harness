@@ -4386,3 +4386,18 @@ From the same Windows run: `removeRepository` (tests/branch-state.test.mjs:755) 
 `Get-CimInstance Win32_Process` filtered only by `branch-state|gh|git` in the command line, which still matched unrelated
 software (a Codex app-server under WSL). In a CI log or an adopter's paste that carries home paths and other programs'
 arguments (§6). Next: list only the test's own descendants, or the processes whose cwd is the directory being removed.
+
+## 458. OPEN 2026-11-03 — adr-lint takes a task's id from its file name, keeps whichever file sorts first, and never sees a copy
+
+From a Windows chaos run of v3.8.68 (a peer, a scratch copy of a corpus we do not own, record ADR-004 with T1 and T2 done):
+- `t1-Again.md` titled `# Task ADR-004-T1` beside `T1-state-dir.md`: adr-next named both as `duplicates` (§449), and
+  adr-lint failed the record with "could not tell which file is T1" (plugin/bin/adr-lint:7110). But it kept the first file
+  read as T1, and on Windows `t1-Again.md` sorts first, so "T1: marked done but has no first-red test-lock-sha256" was
+  said of `t1-Again.md`, which claims nothing, and not of `T1-state-dir.md`. Which file is "the one read" follows the
+  platform's sort: the class §449 closed in adr-next.
+- `copy.md`, a byte copy of `T1-state-dir.md`: adr-next named the duplicate from the title; adr-lint passed the record
+  (exit 0), saying only that `copy.md` is not in the index, since its id comes from the file stem (`(T\d+)` at 7105) and
+  `copy` has none. The two readers disagree on what a task's id is.
+Next: one rule for a task's id in both readers (the title's, as adr-next reads it, with the stem as fallback), and a duplicate
+said of every file that declares it, in sorted order, whichever sorts first. Add the copy and case-variant shapes to the
+duplicate-ids corpus's adr-lint expectations (§18).

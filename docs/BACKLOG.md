@@ -4354,3 +4354,35 @@ classifier (§16), so the resolution is unchanged. Run by hand, qh-fetch now pri
 that the place came from `CLAUDE_PLUGIN_DATA`; run by SessionStart, which passes its directory, it prints nothing, since a
 hook's stdout is every adopter's context (§19). tests/qh-fetch.test.mjs drives the CLI both ways with no network, and two
 mutants are noticed.
+
+## 455. OPEN 2026-11-03 — the macOS Ctrl-C worktree test fails now and then, and says nothing of why
+
+`tests/adr-verify-isolation.test.mjs` "a Ctrl-C to the whole group during the worktree build still removes the worktree"
+failed on the macOS selftest of land/e1a2418a (run 41669373182, attempt 3), a commit changing only the catalogue and an
+attestation; the same code passed every job at 240711a9. The assertion was "the run built no worktree" at 952 ms: the child
+exited before the poll saw a second worktree. The test's own comment says it reaches the build window only when its poll lands
+in it; the deterministic twin (the builder's process group) passed. memoryd notes an earlier unexplained macOS failure of the
+same family. The child runs with `stdio: 'ignore'`, so its exit and output are lost, and the test is locked (ADR-076 T2), so
+its body cannot change. Next: a sibling test, or a relock after review, that keeps the child's stderr and exit code and says them
+on failure, so the next occurrence names its cause.
+
+## 456. OPEN 2026-11-03 — two Windows test cleanups retry for about 5 s, and the hygiene sweep accepts any retry
+
+The Windows selftest of v3.8.68 (a peer, Windows 11, 16 cores, 843 s) failed three tests under full-suite load that pass
+alone: tests/branch-state.test.mjs "a brief snapshot past the age cap is not shown, and a refresh starts" and
+tests/mutate-runner.test.mjs "mutate --narrow --write leaves nothing narrowed when it is stopped mid-measurement", each EPERM
+from an `rmSync` of a temp directory a just-killed child still held, and tests/branch-state-native.test.mjs "a stale cache
+past the budget is served marked stale and nothing outlives the hook", ENOENT on a gh.pid the fake gh had not written yet. The
+two removes retry 20 × 250 ms and 10 × 500 ms, where tests/helpers/remove.mjs waits 25 × 400 ms (§407).
+tests/test-hygiene.test.mjs counts a recursive `rmSync` with any `maxRetries` as covered (`bareRemoves`), so neither was
+named. The branch-state one is a helper and now goes through `remove` (the same commit). The mutate-runner one is inside a
+test ADR-072 T2/T4/T5, ADR-073 T1 and ADR-075 T2 lock, so it stays until a relock; and whether the sweep should require
+`remove` rather than any retry is not decided.
+
+## 457. OPEN 2026-11-03 — a branch-state test failure prints every process on the machine
+
+From the same Windows run: `removeRepository` (tests/branch-state.test.mjs:755) appends a process listing to its EPERM, for
+§407's holder. On POSIX it is `ps -Ao pid,ppid,etime,command`, every process with its full command line; on Windows a
+`Get-CimInstance Win32_Process` filtered only by `branch-state|gh|git` in the command line, which still matched unrelated
+software (a Codex app-server under WSL). In a CI log or an adopter's paste that carries home paths and other programs'
+arguments (§6). Next: list only the test's own descendants, or the processes whose cwd is the directory being removed.

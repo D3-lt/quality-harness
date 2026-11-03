@@ -755,7 +755,8 @@ test('a reader that decides to stay silent is not drowned out by its own childre
 function removeRepository(dir) {
   const released = waitForNoRefresher(path.join(dir, '.git'))
   try {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
+    // The helper's longer patience (BACKLOG §456): 20 × 250 ms ran out on a Windows peer under full-suite load.
+    remove(dir)
   } catch (error) {
     const listing = process.platform === 'win32'
       ? spawnSync('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "branch-state|\\bgh(\\.exe)?\\b|\\bgit(\\.exe)?\\b" } | Format-List ProcessId,ParentProcessId,CreationDate,CommandLine'],

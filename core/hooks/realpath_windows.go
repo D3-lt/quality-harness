@@ -51,7 +51,10 @@ func nativeRealpath(abs string) (string, error) {
 }
 
 // namespaced is Node's path.toNamespacedPath on an absolute path, which fs.realpathSync.native applies before libuv sees it:
-// a drive path gains `\\?\`, a UNC path becomes `\\?\UNC\`, and one already namespaced, or a device path, is left alone.
+// a drive path gains `\\?\`, a UNC path becomes `\\?\UNC\`, and one already namespaced, or a device path, is left alone
+// but for a trailing separator, which Node's path.resolve drops first. So `\\?\C:\` opens the volume, not its root
+// directory, and fails as Node's EISDIR does; kept, it answered `C:\` (BACKLOG §446, measured on Windows 11 at 4c0be0f8).
+// A drive or UNC path keeps its trailing separator: the final path is the same with or without it (the same run).
 func namespaced(abs string) string {
 	if len(abs) <= 2 {
 		return abs
@@ -59,6 +62,9 @@ func namespaced(abs string) string {
 	if abs[0] == '\\' && abs[1] == '\\' {
 		if abs[2] != '?' && abs[2] != '.' {
 			return `\\?\UNC\` + abs[2:]
+		}
+		if len(abs) > 4 && strings.HasSuffix(abs, `\`) {
+			return abs[:len(abs)-1]
 		}
 		return abs
 	}

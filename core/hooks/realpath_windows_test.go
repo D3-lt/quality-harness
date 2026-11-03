@@ -62,11 +62,20 @@ func TestNativeRealpathWindows(t *testing.T) {
 	if got, err := nativeRealpath(deep); err != nil || len(got) < 300 {
 		t.Errorf("a path past MAX_PATH: %q, %v", got, err)
 	}
+	// §446: a device-namespaced volume root fails as Node's realpathSync.native does (EISDIR there), never answering the
+	// root directory: Node drops the trailing separator before it opens, so the volume itself is opened.
+	root := `\\?\` + filepath.VolumeName(scratch) + `\`
+	if got, err := nativeRealpath(root); err == nil {
+		t.Errorf("nativeRealpath(%s) = %q, want an error as Node gives", root, got)
+	}
 	for in, want := range map[string]string{
 		`C:\x\y`:            `\\?\C:\x\y`,
 		`c:\x`:              `\\?\c:\x`,
 		`\\srv\share\x`:     `\\?\UNC\srv\share\x`,
 		`\\?\C:\x`:          `\\?\C:\x`,
+		`\\?\C:\x\`:         `\\?\C:\x`,
+		`\\?\C:\`:           `\\?\C:`,
+		`\\.\C:\`:           `\\.\C:`,
 		`\\.\pipe\x`:        `\\.\pipe\x`,
 		`C:`:                `C:`,
 		`relative\path.txt`: `relative\path.txt`,

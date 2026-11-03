@@ -97,3 +97,4 @@ Stop if the artifact cannot be tied to the release run's id and the sha.
     }
   ```
 - 2026-11-03 · 78b3ab550* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8aa5af684183f587d465bb398ac98f7199bde9822501b57ba7b4526771cfcbb · ms:288
+- 2026-11-03 · human-observed · observed by the Claude session coordinating ADR-138, 2026-11-03: CLAUDE.md §18's new bullet, the rule file's 2026-11-03 section and release.mjs's request text were read against ciOutside and withRun: a person is asked exactly when output changed or the artifact cannot be checked, a regression in either source vetoes, and the bounded check's limits are stated; approved by the Codex verification review of 4cac7e90 · acceptance-sha256:a8aa5af684183f587d465bb398ac98f7199bde9822501b57ba7b4526771cfcbb

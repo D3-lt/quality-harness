@@ -102,3 +102,13 @@ slowed down. So a request goes to one peer, the next after its reply; no gate ru
 runs; and a probe report carries `load` (its start, its end, the core count), from which `--diff`
 marks a `slower:` line `unattributable` when either run was contended, or `load unknown` when either
 run did not record it. A diff against a report from before the field prints `before lacks load`.
+
+## 2026-11-03: the mechanical half moved to CI (ADR-138)
+
+Two releases that day waited hours on their outside runs: every Windows peer was offline, two macOS peer sessions refused to
+run cloned code until their users approved it there, and v3.8.68 changed one printed line in a script no probe runs. The
+2026-09-23 evidence above is about a person reading output, so the split is: the release run's `outside run` job does the
+running, on Windows, over corpora we do not own, on every landing; a person reads only when the two whole reports differ.
+The first design compared `diffReports` lines and a cold review found it fail-open (it skips `corpusReport` and reduces
+ready tasks to ids), so the test is `sameOutput`, whole reports minus a closed list of run fields. Run locally against
+v3.8.68 with this checkout's own cores, the job's script took 73 s over 17 corpora and found all of them the same.

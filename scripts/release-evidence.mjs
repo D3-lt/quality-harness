@@ -26,7 +26,8 @@
 //      commit since the last tag no recorded review covers, see `reviewEvidence`)
 //   3  the run is not finished yet
 import { execFileSync } from 'node:child_process'
-import { readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import os from 'node:os'
 import { join } from 'node:path'
 import { verifyFile } from './attest-import.mjs'
 import { cloneStateDir } from '../plugin/scripts/event-log.mjs'
@@ -226,7 +227,7 @@ export function fetchRun(sha, exec = execFileSync) {
   if (!id) return null
   try {
     return JSON.parse(exec('gh', [
-      'run', 'view', String(id), '--json', 'status,conclusion,headSha,headBranch,jobs,event',
+      'run', 'view', String(id), '--json', 'databaseId,status,conclusion,headSha,headBranch,jobs,event',
     ], { encoding: 'utf8', timeout: 60_000 }))
   } catch {
     return null
@@ -384,6 +385,50 @@ export function readAttestations(dir, { readdir = readdirSync, read = readFileSy
 export const READER_PATHS = [...READER_DIRECTORIES.map(directory => `plugin/${directory}`), ...NATIVE_READER_ROOTS]
 
 /**
+ * ADR-138: the release run's own outside run, judged. Pure: `artifact` is the parsed outside-run.json (or `{ error }`),
+ * `expected` the corpus ids the run had to probe (the committed list plus every fixture at the sha, null when git could
+ * not say). Answers `attested` only when the artifact is this sha's, this run's, against the tag release-evidence names,
+ * holds every expected corpus exactly once, each probed and compared, and no reader output changed. A verdict that left
+ * PASS in any corpus is returned in `regressed` whatever else holds, so the caller can veto across both sources.
+ */
+export function ciOutside(artifact, { sha, run, tag, tagSha, expected }) {
+  const unverified = why => ({ verdict: 'unproven', kind: 'ci-unverified', regressed: [], reason: `the release run's outside run attests nothing: ${why}` })
+  if (!artifact || artifact.error) return unverified(`its artifact could not be read (${artifact?.error ?? 'none'})`)
+  if (artifact.version !== 1) return unverified(`its artifact is version ${artifact.version}, not 1`)
+  const corpora = Array.isArray(artifact.corpora) ? artifact.corpora : []
+  const regressed = corpora.filter(entry => (entry?.attestation?.verdictChanges?.passToFail ?? 0) > 0)
+    .map(entry => `${entry.id} (passToFail ${entry.attestation.verdictChanges.passToFail})`)
+  const problems = []
+  if (artifact.sha !== sha) problems.push(`it is for ${artifact.sha}, not ${sha}`)
+  if (String(artifact.run) !== String(run)) problems.push(`it is from run ${artifact.run}, not the release run ${run}`)
+  if (artifact.baseline?.tag !== tag || artifact.baseline?.sha !== tagSha) problems.push(`it compared against ${artifact.baseline?.tag ?? 'nothing'} at ${artifact.baseline?.sha ?? 'nothing'}, not ${tag} at ${tagSha}`)
+  if (!Array.isArray(expected)) problems.push('which corpora it had to probe could not be read from git at this sha')
+  const ids = corpora.map(entry => entry?.id)
+  const counts = ids.reduce((map, id) => map.set(id, (map.get(id) ?? 0) + 1), new Map())
+  const duplicated = [...counts].filter(([, n]) => n > 1).map(([id]) => id)
+  if (duplicated.length) problems.push(`it holds ${duplicated.join(', ')} more than once`)
+  if (Array.isArray(expected)) {
+    const missing = expected.filter(id => !counts.has(id))
+    const extra = ids.filter(id => !expected.includes(id))
+    if (missing.length) problems.push(`it lacks ${missing.join(', ')}`)
+    if (extra.length) problems.push(`it holds ${extra.join(', ')}, which this sha does not list`)
+  }
+  const blind = corpora.filter(entry => entry?.couldNotRun).map(entry => `${entry.id} (${entry.couldNotRun})`)
+  if (blind.length) problems.push(`it could not run ${blind.join(', ')}`)
+  const uncompared = corpora.filter(entry => !entry?.couldNotRun && (typeof entry?.same !== 'boolean' || !entry.before || !entry.after)).map(entry => entry?.id)
+  if (uncompared.length) problems.push(`it did not compare ${uncompared.join(', ')}`)
+  if (problems.length) return { ...unverified(problems.join('; ')), regressed }
+  const changed = corpora.filter(entry => entry.same === false)
+  if (changed.length) {
+    const said = changed.map(entry => `${entry.id}: ${(entry.explanation ?? []).slice(0, 5).join(' | ') || 'the reports differ'}`).join('; ')
+    return { verdict: 'unproven', kind: 'output-changed', regressed,
+      reason: `what the readers say changed since ${tag} on ${changed.length} corpus(es), so a person reads it before the tag: ${said}` }
+  }
+  return { verdict: 'attested', kind: 'ci', regressed,
+    reason: `the release run ${run}'s outside run: ${corpora.length} corpora on Windows, nothing the readers say changed since ${tag}` }
+}
+
+/**
  * The outside-run question for `sha`, asked of git. The anchor is the newest tag
  * reachable from the sha's PARENT: the sha being released is usually the bump
  * commit, and once it is tagged `describe` on the sha itself would answer with
@@ -391,7 +436,7 @@ export const READER_PATHS = [...READER_DIRECTORIES.map(directory => `plugin/${di
  * report's file name, answers as attest-import's `verifyFile` does; a report that
  * covers the sha counts only once it verifies (BACKLOG §408).
  */
-export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/corpus-reports', { verify = null } = {}) {
+export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/corpus-reports', { verify = null, ci = null } = {}) {
   const git = args => exec('git', args, { encoding: 'utf8', timeout: 30_000 }).trim()
   let tag
   try { tag = git(['describe', '--tags', '--abbrev=0', `${sha}~1`]) } catch { return { ...outsideRun(null, [], () => false), tag: null } }
@@ -431,15 +476,55 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
     refused.push(`${report.file} does not verify as an attestation (${answer.refused?.[0] ?? 'no reason given'}) and attests nothing`)
     return false
   }
-  const answer = outsideRun(changed, readAttestations(reportsDir), verified)
+  const peer = outsideRun(changed, readAttestations(reportsDir), verified)
+  const answer = ci && changed.length ? withRun(peer, ci) : peer
   return { ...answer, ...(refused.length ? { reason: `${answer.reason}; ${refused.join('; ')}` } : {}), tag }
+
+  // ADR-138: the release run's own outside run beside the peer attestations. A regression either source saw vetoes; a
+  // complete comparison with no output change answers; otherwise a peer attestation answers, and absent one the CI's
+  // reason is said, since it names what changed or why the artifact attests nothing.
+  function withRun(fromPeers, { run, artifact }) {
+    let tagSha = null
+    try { tagSha = git(['rev-parse', `${tag}^{commit}`]) } catch { /* the artifact's baseline is then not this tag */ }
+    let expected = null
+    try {
+      const listed = JSON.parse(git(['show', `${sha}:scripts/outside-corpora.json`])).corpora.map(entry => entry.id)
+      const fixtures = git(['ls-tree', '-d', '--name-only', `${sha}:tests/fixtures/corpora`]).split('\n').filter(Boolean).map(name => `fixture:${name}`)
+      expected = [...listed, ...fixtures]
+    } catch { /* could-not-look: the artifact cannot be checked against its list */ }
+    const fromRun = ciOutside(artifact, { sha, run, tag, tagSha, expected })
+    if (fromRun.regressed.length) {
+      return { verdict: 'unproven', kind: 'regressed', reason: `the release run's outside run reports adr-lint verdicts that left PASS: ${fromRun.regressed.join(', ')} — `
+        + 'read its explanation, fix the reader or confirm each row is stale (ADR-082); a peer run does not outvote it' }
+    }
+    if (fromPeers.kind === 'regressed') return fromPeers
+    if (fromRun.verdict === 'attested') return fromRun
+    if (fromPeers.verdict === 'attested') return { ...fromPeers, reason: `${fromPeers.reason}; ${fromRun.reason}` }
+    return { verdict: 'unproven', kind: fromRun.kind, reason: `${fromRun.reason}; ${fromPeers.reason}` }
+  }
 }
 
-/** The outside-run question as a release asks it: `root`'s git and its docs/corpus-reports, each covering file verified. */
-export function releaseOutsideRun(sha, root = process.cwd()) {
+/**
+ * The outside-run question as a release asks it: `root`'s git and its docs/corpus-reports, each covering file verified,
+ * and, given the release run, that run's own outside run (ADR-138), downloaded with gh. A download that fails is
+ * could-not-look for the CI half, never an answer.
+ */
+export function releaseOutsideRun(sha, root = process.cwd(), run = null) {
   const reports = join(root, 'docs', 'corpus-reports')
   const exec = (bin, args, options) => execFileSync(bin, args, { ...options, cwd: root })
-  return outsideRunEvidence(sha, exec, reports, { verify: file => verifyFile(join(reports, file), root) })
+  const ci = run?.databaseId ? { run: run.databaseId, artifact: downloadOutsideRun(run.databaseId, exec) } : null
+  return outsideRunEvidence(sha, exec, reports, { verify: file => verifyFile(join(reports, file), root), ci })
+}
+
+/** The release run's outside-run.json, parsed, or `{ error }`. */
+export function downloadOutsideRun(id, exec = execFileSync) {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-outside-run-'))
+  try {
+    exec('gh', ['run', 'download', String(id), '-n', 'outside-run', '-D', dir], { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] })
+    return JSON.parse(readFileSync(join(dir, 'outside-run.json'), 'utf8'))
+  } catch (error) {
+    return { error: `gh run download ${id}: ${String(error?.stderr ?? error?.message ?? error).trim().split('\n')[0]}` }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 
 // ADR-100 T1. What counts as a review: one that ran and said something. `unavailable` did not finish; `unparsed` said nothing
@@ -623,6 +708,11 @@ export function tagAdvice(kind) {
       + 'that holds the commits it names, and ask again (ADR-125).',
     unreviewed: 'Do NOT tag this sha. A plugin commit since the last tag has no recorded review — run one scoped review through '
       + 'the launcher (the codex-review skill, `host-review.mjs --prompt-file … --range <tag>..<sha>`) over what it names, and ask again (ADR-100).',
+    'output-changed': 'Do NOT tag this sha yet. What the readers say changed on a corpus the release run probed (ADR-138) — a person '
+      + 'reads the explanation above: get a peer run (`/quality-harness:corpus-chaos`) over a corpus we do not own, file its attestation, '
+      + 'and ask again. A regression is never cleared this way (ADR-082).',
+    'ci-unverified': 'Do NOT tag this sha yet. The release run\'s outside run could not be checked as this sha\'s complete comparison '
+      + '(ADR-138) — that is could-not-look, not cleared (ADR-005). Rerun its outside run job, or file a peer attestation, and ask again.',
     'review-unlisted': 'Do NOT tag this sha. Whether its plugin commits since the last tag were reviewed could not be established '
       + 'from git here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.',
   }
@@ -715,7 +805,7 @@ export function main(argv, { fetch = fetchRun, outside: outsideOf = releaseOutsi
     }
   }
   if (verdict === 'success') {
-    outside = outsideOf(sha)
+    outside = outsideOf(sha, undefined, run)
     review = reviewOf(sha)
     reason = `${reason}; since ${outside.tag ?? 'the last tag'}: ${outside.reason}; ${review.reason}`
     if (outside.verdict === 'unproven' || review.verdict === 'unproven') verdict = 'unproven'

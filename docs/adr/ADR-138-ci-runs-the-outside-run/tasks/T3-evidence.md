@@ -62,6 +62,7 @@ node --test tests/release-evidence-ci-outside.test.mjs 2>&1 | tee "$out" && grep
 | 4 — used | the next release |
 
 ## Mutation Log
+- 2026-11-03 · 78b3ab550* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · a regression the release run's outside run saw would be outvoted by a clean peer run over another corpus · acceptance-sha256:a8aa5af684183f587d465bb398ac98f7199bde9822501b57ba7b4526771cfcbb
 
 ## Invariants
 
@@ -81,3 +82,18 @@ Stop if the artifact cannot be tied to the release run's id and the sha.
 - CI wall-clock (docs/BACKLOG.md §459).
 
 ## Verification Log
+- 2026-11-03 · 78b3ab550* · exit 1 · `set -o pipefail …` · acceptance-sha256:a8aa5af684183f587d465bb398ac98f7199bde9822501b57ba7b4526771cfcbb · ms:247 · test-lock-sha256:656b5eae029106e03acb3846b51d901535828272686d1d46a1aefbfd0b063d68 · test-lock-file:docs/adr/locks/656b5eae029106e03acb3846b51d901535828272686d1d46a1aefbfd0b063d68.lock
+  ```
+  --- last 10 line(s) of stdout (of 59 after folding 59 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: [ 'unproven', 'missing' ],
+      expected: [ 'unproven', 'regressed' ],
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-03 · 78b3ab550* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8aa5af684183f587d465bb398ac98f7199bde9822501b57ba7b4526771cfcbb · ms:288

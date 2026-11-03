@@ -1,0 +1,3 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/release-evidence-ci-outside.test.mjs	a regression in either source vetoes the release	4a024e2bd5b144ac3b33a3395613e9784dbe1e999c7e79a39170eecba4d8dc87
+body	tests/release-evidence-ci-outside.test.mjs	the release run answers the outside run only when its comparison is complete and nothing changed	5113114a03992ce7a98535989a559547dd16d11dac46f57ca33e9766963841ec

@@ -484,6 +484,20 @@
       "from": "  const attested = covering.filter(report => countsAsRun(report) && report.look !== 'UNPROVEN')",
       "to": "  const attested = covering.filter(countsAsRun)",
       "only": "release-evidence never lists an unproven run as attesting"
-    }
+    },
+    { "label": "ADR-138 T3: the artifact must be this sha's", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "  if (artifact.sha !== sha) problems.push(", "to": "  if (false) problems.push(", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
+    { "label": "ADR-138 T3: the artifact must be the release run's", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "  if (String(artifact.run) !== String(run)) problems.push(", "to": "  if (false) problems.push(", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
+    { "label": "ADR-138 T3: the artifact must compare against the tag release-evidence names", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "  if (artifact.baseline?.tag !== tag || artifact.baseline?.sha !== tagSha) problems.push(", "to": "  if (artifact.baseline?.tag !== tag) problems.push(", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
+    { "label": "ADR-138 T3: a corpus the run lacks is could-not-look", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "    if (missing.length) problems.push(", "to": "    if (false) problems.push(", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
+    { "label": "ADR-138 T3: a corpus the run could not reach is could-not-look", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "  if (blind.length) problems.push(", "to": "  if (false) problems.push(", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
+    { "label": "ADR-138 T3: changed reader output asks for a person", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "  const changed = corpora.filter(entry => entry.same === false)", "to": "  const changed = []", "only": "^the release run answers the outside run only when its comparison is complete and nothing changed$" },
+    { "label": "ADR-138 T3: a CI regression vetoes whatever a peer filed", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
+      "from": "    if (fromRun.regressed.length) {", "to": "    if (false) {", "only": "^a regression in either source vetoes the release$" }
   ]
 }

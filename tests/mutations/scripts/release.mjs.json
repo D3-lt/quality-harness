@@ -20,7 +20,7 @@
       "label": "ADR-126 T5: a missing outside run is asked for, with the request",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-order.test.mjs"],
-      "from": "    if (/nobody outside has run the readers/.test(String(evidence.stdout ?? ''))) {",
+      "from": "    if (/nobody outside has run the readers|What the readers say changed|outside run could not be checked/.test(String(evidence.stdout ?? ''))) {",
       "to": "    if (false) {",
       "only": "^(?:each wait has its own deadline, and a missing outside run is asked for, not waited out)$"
     },

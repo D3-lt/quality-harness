@@ -245,11 +245,13 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     log(`release: release-evidence exited ${evidence.status} for ${sha}; ${tag} was not tagged`)
     // ADR-126 T5: the outside run is asked for once the landing's run is green, which is now. A script cannot reach another
     // session, so it says what to send (CLAUDE.md §18), and the release resumes when the attestation is filed.
-    if (/nobody outside has run the readers/.test(String(evidence.stdout ?? ''))) {
+    // ADR-138: the release run's own outside run answers when nothing the readers say changed; this request is for the case
+    // it changed (release-evidence's reason above names the corpora and the lines) or the artifact could not be checked.
+    if (/nobody outside has run the readers|What the readers say changed|outside run could not be checked/.test(String(evidence.stdout ?? ''))) {
       log(`release: ask an outside runner, on a corpus this repository does not own, to run at ${sha}: git fetch origin `
         + `land/${sha} (or main), check it out, then from their repository's root \`node <checkout>/plugin/scripts/corpus-probe.mjs `
-        + `--json > new.json\` and \`node <checkout>/plugin/scripts/corpus-probe.mjs --attest <label> new.json --since `
-        + `<their report at the last tag>\`. File what they paste with \`node scripts/attest-import.mjs <message>\`, then run again.`)
+        + `--json > new.json\` and \`node <checkout>/plugin/scripts/corpus-probe.mjs --attest <shape label> new.json --since `
+        + `<their report at the last tag>\`, and read the changed lines named above with them. File what they paste with \`node scripts/attest-import.mjs <message>\`, then run again.`)
     }
     return evidence.status === 1 ? 1 : 2
   }

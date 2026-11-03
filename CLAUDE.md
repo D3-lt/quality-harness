@@ -352,6 +352,11 @@ Every reader here says something about a corpus, and every defect that reached a
 what a reader SAID about a corpus shaped unlike this one. The suite records the checks somebody
 already thought of; it cannot read the whole output over a shape it has never seen.
 
+- **The release run probes for you, and a person reads only what changed (ADR-138).** Its `outside run` job probes the last
+  tag and the candidate on Windows over pinned public corpora and every fixture corpus; `release-evidence` answers the outside
+  run from it when the two whole reports are equal on every corpus. When they differ, or the artifact cannot be checked, the
+  bullets below apply: a person reads the difference through a peer run. That is a bounded regression check, not a reading of
+  an unfamiliar corpus: shapes nobody has seen, defects in both versions and output the probe never records still need peers.
 - **Before a release that changes what a reader says, get one run from outside:** a session that is
   not this one, on a platform we cannot run, over a corpus we do not own, through
   `plugin/scripts/corpus-probe.mjs --json` or the readers by hand — and ask for **everything it

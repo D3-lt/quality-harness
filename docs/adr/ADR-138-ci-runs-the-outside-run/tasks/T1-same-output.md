@@ -55,6 +55,7 @@ node --test tests/probe-same-output.test.mjs 2>&1 | tee "$out" && grep -q '✔ t
 | 4 — used | T3 |
 
 ## Mutation Log
+- 2026-11-03 · 36fd7883f* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · a widened run-field list hides corpusReport, a field diffReports never compares · acceptance-sha256:93c2614031493f355ce4c2431db7b9eab918bbe07c113eab9a57911db1222a60
 
 ## Invariants
 
@@ -74,3 +75,18 @@ Stop if a run field cannot be named by its path in the report.
 - The CI job (T2).
 
 ## Verification Log
+- 2026-11-03 · 36fd7883f* · exit 1 · `set -o pipefail …` · acceptance-sha256:93c2614031493f355ce4c2431db7b9eab918bbe07c113eab9a57911db1222a60 · ms:209 · test-lock-sha256:fef33bcfe47d48eb9beb77a3cbbad88bc650df0ddb195ddc84c8120e27f3a341 · test-lock-file:docs/adr/locks/fef33bcfe47d48eb9beb77a3cbbad88bc650df0ddb195ddc84c8120e27f3a341.lock
+  ```
+  --- last 10 line(s) of stdout (of 25 after folding 25 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 91.418542
+
+  ✖ failing tests:
+
+  test at tests/probe-same-output.test.mjs:1:1
+  ✖ tests/probe-same-output.test.mjs (87.048666ms)
+    'test failed'
+  ```
+- 2026-11-03 · 36fd7883f* · exit 0 · `set -o pipefail …` · acceptance-sha256:93c2614031493f355ce4c2431db7b9eab918bbe07c113eab9a57911db1222a60 · ms:1121

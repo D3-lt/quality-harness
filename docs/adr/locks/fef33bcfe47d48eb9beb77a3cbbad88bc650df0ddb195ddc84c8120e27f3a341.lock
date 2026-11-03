@@ -1,0 +1,2 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/probe-same-output.test.mjs	two reports are the same output only when every recorded field but the run fields is equal	56ea35c12d7371c3647308fac394df81c657e4b2b7ad73a836d65d3a9336ca94

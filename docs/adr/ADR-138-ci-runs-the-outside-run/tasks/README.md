@@ -8,7 +8,7 @@ Implementation tasks for ADR-138: CI runs the outside run, and a person reads on
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Two probe reports compare equal only when every recorded output is equal | pending | none — no spec | `node --test tests/probe-same-output.test.mjs` |
+| T1 | Two probe reports compare equal only when every recorded output is equal | done | none — no spec | `node --test tests/probe-same-output.test.mjs` |
 | T2 | A Windows CI job probes the tag and the candidate over pinned corpora | pending | none — no spec | `node --test tests/outside-run.test.mjs` |
 | T3 | release-evidence accepts the landing run's outside run when no output changed | pending | none — no spec | `node --test tests/release-evidence-ci-outside.test.mjs` |
 

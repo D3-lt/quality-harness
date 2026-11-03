@@ -32,6 +32,6 @@
     "passToFail": 0,
     "failToPass": 0
   },
-  "runner": "mac-playtrix",
+  "runner": "laravel-react-monorepo",
   "found": ""
 }

@@ -4401,3 +4401,11 @@ From a Windows chaos run of v3.8.68 (a peer, a scratch copy of a corpus we do no
 Next: one rule for a task's id in both readers (the title's, as adr-next reads it, with the stem as fallback), and a duplicate
 said of every file that declares it, in sorted order, whichever sorts first. Add the copy and case-variant shapes to the
 duplicate-ids corpus's adr-lint expectations (§18).
+
+## 459. OPEN 2026-11-03 — measure the landing run's critical path before cutting it
+
+From ADR-138's Out of Scope, and the owner's choice of 2026-11-03 ("measure first"). The v3.8.68 landing run (41653363871) took
+about 31 minutes, 14:24 to 14:55: `coverage floor (python)` 28 min, `windows` 23 min, `coverage floor` 19 min, `selftest
+(macos-latest)` 19 min, and the 48 mutation shards queued for runners until 14:55. A landing waits for main's required checks
+(the longest of them), a release for every job. Next: profile `coverage floor (python)` (which suites, how parallel), and the
+shard queueing, then decide whether splitting or caching is a clear win; record the numbers with the run they came from.

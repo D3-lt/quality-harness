@@ -139,3 +139,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-135](ADR-135-branch-state-runs-in-the-core.md) | Branch state runs in the Go core, refreshed inline under a budget | Accepted |
 | [ADR-136](ADR-136-the-edit-gates-run-from-the-core.md) | The two per-edit gate runs are run from the Go core, not through Node | Accepted |
 | [ADR-137](ADR-137-the-decision-context-hook-runs-in-the-core.md) | The per-edit decision-context hook is answered by the Go core, a second record mirror | Accepted |
+| [ADR-138](ADR-138-ci-runs-the-outside-run.md) | A Windows CI job runs the outside run on every release; a person reads only when the readers' output changed | Accepted |

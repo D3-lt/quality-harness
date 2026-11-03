@@ -107,8 +107,8 @@ test.after(() => {
 // page's own heredocs. The page's `mkdir /tmp/qh-tutorial` is not replayed: a
 // literal temp path is an assertion about the operating system (CLAUDE.md §7), and
 // the directory is the one thing here a reader substitutes anyway.
-function throwawayRepo() {
-  const temp = mkdtempSync(join(os.tmpdir(), 'qh-tutorial-'))
+function throwawayRepo(prefix = 'qh-tutorial-') {
+  const temp = mkdtempSync(join(os.tmpdir(), prefix))
   temps.push(temp)
   const tutorialRepo = join(temp, 'work')
   mkdirSync(tutorialRepo)
@@ -129,6 +129,17 @@ function throwawayRepo() {
   git('commit', '-qm', 'init')
   return { tutorialRepo, task }
 }
+
+// BACKLOG §452: the page's fence grepped for "OK" anywhere, and a failing run's traceback names the test file's path, so a
+// random temp name holding "OK" (`qh-tutorial-aOKx3z`) passed the mutant fence and the mutant "survived" now and then on CI.
+// The fence now reads unittest's own summary line; this repository's path says "OK" every time.
+test('the tutorial mutant is killed when the repository path itself says OK', () => {
+  const { tutorialRepo, task } = throwawayRepo('qh-tutorial-OK-')
+  const killed = run('adr-verify', [task, ...mutationArgs()], tutorialRepo)
+  const out = `${killed.stdout}${killed.stderr}`
+  assert.equal(killed.status, 0, `a path holding "OK" must not pass the mutant fence\n${out}`)
+  assert.match(out, /mutant killed/, out)
+})
 
 test('the tutorial walkthrough still produces the two outcomes it prints', () => {
   const { tutorialRepo, task } = throwawayRepo()

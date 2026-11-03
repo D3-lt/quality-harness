@@ -74,7 +74,7 @@ a shell command that decides whether the work is done. Create
 ## Acceptance
 
 ```bash
-python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out
+python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "^OK" /tmp/t1.out
 ```
 
 ## Tests
@@ -127,7 +127,7 @@ adr-verify docs/adr/ADR-001-parse-durations/tasks/T1-seconds.md
 [adr-verify] WROTE this entry into docs/adr/ADR-001-parse-durations/tasks/T1-seconds.md's
 ## Verification Log — recording the run IS this tool's job, so the file is now modified;
 commit it with the work it evidences.
-- 2026-09-04 · a0d5ddc* · exit 0 · `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out` · acceptance-sha256:b43e2374… · ms:181
+- 2026-09-04 · a0d5ddc* · exit 0 · `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "^OK" /tmp/t1.out` · acceptance-sha256:dc0f5ea2… · ms:181
 ```
 
 **That line is the whole idea.** It is in your repository now, and it says:
@@ -166,11 +166,11 @@ adr-verify docs/adr/ADR-001-parse-durations/tasks/T1-seconds.md \
 [adr-verify] MUTANT APPLIED to duration.py: this file is deliberately broken until the fence finishes.
 [adr-verify] if this run is killed, restore it with `adr-verify --restore --cwd /tmp/qh-tutorial`,
              or `git checkout -- duration.py`.
-- 2026-09-04 · 69b70c1* · mutant killed · exit 1 · `duration.py` · the test must notice the parser returning a constant · acceptance-sha256:b43e2374…
+- 2026-09-04 · 69b70c1* · mutant killed · exit 1 · `duration.py` · the test must notice the parser returning a constant · acceptance-sha256:dc0f5ea2…
 [adr-verify] WROTE this entry into docs/adr/ADR-001-parse-durations/tasks/T1-seconds.md's
 ## Verification Log — recording the run IS this tool's job, so the file is now modified;
 commit it with the work it evidences.
-- 2026-09-04 · 69b70c1 · exit 0 · `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out` · acceptance-sha256:b43e2374… · ms:74
+- 2026-09-04 · 69b70c1 · exit 0 · `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "^OK" /tmp/t1.out` · acceptance-sha256:dc0f5ea2… · ms:74
 ```
 
 **`mutant killed`** — the parser was made to return `0`, and the test went red. The
@@ -194,7 +194,7 @@ the line as covered. Run the same mutation:
 [adr-verify] MUTANT APPLIED to duration.py: this file is deliberately broken until the fence finishes.
 [adr-verify] if this run is killed, restore it with `adr-verify --restore --cwd /tmp/qh-tutorial`,
              or `git checkout -- duration.py`.
-- 2026-09-04 · 425cdee* · mutant survived · exit 0 · `duration.py` · the test must notice the parser returning a constant · acceptance-sha256:b43e2374…
+- 2026-09-04 · 425cdee* · mutant survived · exit 0 · `duration.py` · the test must notice the parser returning a constant · acceptance-sha256:dc0f5ea2…
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
@@ -205,7 +205,7 @@ what a survivor means).
 [adr-verify] WROTE this entry into docs/adr/ADR-001-parse-durations/tasks/T1-seconds.md's
 ## Verification Log — recording the run IS this tool's job, so the file is now modified;
 commit it with the work it evidences.
-- 2026-09-04 · 425cdee · exit 0 · `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out` · acceptance-sha256:b43e2374… · ms:46
+- 2026-09-04 · 425cdee · exit 0 · `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q "^OK" /tmp/t1.out` · acceptance-sha256:dc0f5ea2… · ms:46
 ````
 
 **That is the whole product in one message.** A green suite, a covered line, and a

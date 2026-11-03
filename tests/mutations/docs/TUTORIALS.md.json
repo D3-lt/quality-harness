@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "§452: the tutorial's fence reads unittest's summary line, not \"OK\" anywhere in the output",
+      "file": "docs/TUTORIALS.md",
+      "tests": ["tests/tutorial.test.mjs"],
+      "from": "```bash\npython3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q \"^OK\"",
+      "to": "```bash\npython3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out && grep -q \"OK\"",
+      "only": "^(?:the tutorial mutant is killed when the repository path itself says OK)$"
+    }
+  ]
+}

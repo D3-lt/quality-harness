@@ -4180,12 +4180,18 @@ expanded it before as well (EvalSymlinks normalises each component), so that dif
 primitive has a Windows Go test (TestNativeRealpathWindows, run by tests/native-realpath.test.mjs): a junction and a file
 through one, a missing path, a path past MAX_PATH, and the namespacing table.
 
-## 446. OPEN 2026-11-02 — the core's namespaced path differs from Node's on share roots and device paths
+## 446. CLOSED 2026-11-03 — the core's namespaced path differs from Node's on share roots and device paths
 
 From the Codex verification of 85237d89: `namespaced` (core/hooks/realpath_windows.go) is Node's `toNamespacedPath` for the
 drive and UNC paths `filepath.Abs` produces, but Node resolves the input again first: for `\\server\share` it appends a trailing
 separator the core does not, and it removes the trailing one from `\\?\C:\` and `\\.\C:\`, which the core keeps. Those inputs
 behave as they did before 85237d89. Not run on Windows. Next: a Windows comparison over share roots and device paths.
+
+CLOSED 2026-11-03 on a Windows 11 run at 4c0be0f8 (Node v24.20.0, go1.26.0, `\\localhost\C$`): over twelve share-root,
+device and drive inputs every final path matched but two. `\\?\C:\` and `\\.\C:\` failed in Node (EISDIR: path.resolve drops
+the separator, so the volume is opened) and answered `C:\` in the core. The share root's and `C:\Windows\`'s namespaced forms
+differ in the trailing separator only, and their final paths match. namespaced() now drops one trailing separator from a
+`\\?\` or `\\.\` path (c75e95ed); TestNativeRealpathWindows asserts that the namespaced volume root errors.
 
 ## 447. OPEN 2026-11-02 — a review run in a worktree is recorded where a release from the main checkout cannot see it
 
@@ -4255,7 +4261,7 @@ leaves it, and the lock-file guard refuses what it cannot vouch for as the file 
 direction with its reason named (ADR-005, §16): kept as designed. Revisit only if an adopter keeps records behind a junction
 that leaves the tree on purpose; the change would be to accept a lock whose bytes match git's blob for the listed path.
 
-## 452. OPEN 2026-11-03 — the tutorial replay's mutant survives now and then on CI, cause still unobserved
+## 452. CLOSED 2026-11-03 — the tutorial replay's mutant survives now and then on CI
 
 Recurred on the Ubuntu selftest of land/1242d15f (run 41535406119, job 125585862381), a commit that changed only the
 catalogue and an attestation; the same code passed every job at 7b5e411e, and a rerun of the failed job passed.
@@ -4268,3 +4274,12 @@ fence runs. Still unobserved: what the fence printed, since the failure block ho
 output. Next: have the tutorial test print the fence's own output (the mutant fence's /tmp/t1.out, or adr-verify's captured
 log) on a survivor, so the next occurrence says what unittest saw; a third closure as "not reproduced" would repeat the first
 two.
+
+CLOSED 2026-11-03, reproduced every time: the fence's `grep -q "OK"` matched "OK" anywhere in unittest's output, and a failing
+run's traceback names the test file's path. A random temp name holding "OK" (mkdtemp's six letters, `qh-tutorial-aOKx3z`)
+therefore passed the mutant fence. `TMPDIR=<dir>/tmpOK/ node --test tests/tutorial.test.mjs` failed with "mutant survived" on
+every run. The page's fence now reads `grep -q "^OK"`, unittest's own summary line, and its transcripts carry that fence and its
+digest (dc0f5ea2, the sha256 of the fence text, the same computation that gives the old b43e2374). tests/tutorial.test.mjs
+replays it under a path holding "OK", red with the old fence; the page mutant tests/mutations/docs/TUTORIALS.md.json is
+noticed. The class: `git grep -nE "grep -q ?['\"]?OK['\"]?"` outside the archives finds only this entry; an unanchored
+success word in an adopter's fence is the same hazard, and adr-lint does not advise on it (left: no adopter report yet).

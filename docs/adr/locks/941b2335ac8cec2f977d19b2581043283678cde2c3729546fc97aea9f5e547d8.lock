@@ -1,0 +1,2 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/js-floor-probe.test.mjs	the JavaScript floor is serial unless told default, and refuses anything else	1c0e6cabbc02e12c05aa2af180796b7755ee2fa6bbdd940ad53cebc85f4bebb0

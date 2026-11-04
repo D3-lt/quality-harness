@@ -44,6 +44,17 @@ if [ -n "$SHARD$OUT" ] && { [ "$SURFACE" != python ] || [ -z "$SHARD" ] || [ -z 
 fi
 # A bad <i>/<n> is refused before anything is built: test-slice.mjs owns the grammar.
 if [ -n "$SHARD" ]; then node "$REPO/scripts/test-slice.mjs" "$SHARD" >/dev/null || exit 2; fi
+# ADR-139 T3: the JavaScript floor runs serially unless QUALITY_HARNESS_JS_CONCURRENCY=default; any other value is refused, so a
+# typo never silently changes how the floor is measured. The serial run is the deterministic one (see the node line below); the
+# probe job measures default concurrency beside it until five landings show the two agree.
+if [ -z "${QUALITY_HARNESS_JS_CONCURRENCY+set}" ]; then
+  js_concurrency=(--test-concurrency=1)
+elif [ "$QUALITY_HARNESS_JS_CONCURRENCY" = default ]; then
+  js_concurrency=()
+else
+  printf 'coverage.sh: QUALITY_HARNESS_JS_CONCURRENCY="%s" is not "default" (unset runs the floor serially)\n' "$QUALITY_HARNESS_JS_CONCURRENCY" >&2
+  exit 2
+fi
 # ADR-126 T3: the suite's own observe budget, as scripts/selftest.sh sets it (CLAUDE.md §7).
 export QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000
 
@@ -86,6 +97,11 @@ if [ -n "${QUALITY_HARNESS_COVERAGE_SHARDS:-}" ]; then
     "$ROOT" "$PY_TOTAL" ${MODE:+"$MODE"}
 fi
 
+# QH_COVERAGE_DRY=1 prints the JavaScript command's leading flags and runs nothing (tests/js-floor-probe.test.mjs).
+if [ "${QH_COVERAGE_DRY:-0}" = 1 ]; then
+  printf 'js command: node --test %s--experimental-test-coverage …\n' "${js_concurrency[*]+${js_concurrency[*]} }"
+  exit 0
+fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
@@ -132,7 +148,7 @@ printf '== JavaScript hooks ==\n'
 # code a tenth of the time, which teaches an agent that re-running is a valid
 # response to red. Serial, ten runs: 94.83-94.85, spread 0.02, no failures.
 # The cost is about 20s against 8s, which is nothing next to a flapping verdict.
-node --test --test-concurrency=1 --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$REPO"/tests/*.test.mjs \
+node --test ${js_concurrency[@]+"${js_concurrency[@]}"} --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$REPO"/tests/*.test.mjs \
   > "$WORK/js.log" 2>&1 || js_status=$?
 js_status=${js_status:-0}
 sed -n '/start of coverage report/,/end of coverage report/p' "$WORK/js.log" \

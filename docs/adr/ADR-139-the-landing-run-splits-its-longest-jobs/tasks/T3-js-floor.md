@@ -57,6 +57,7 @@ node --test tests/js-floor-probe.test.mjs tests/coverage-split.test.mjs 2>&1 | t
 | 4 — used | the decision in §459 |
 
 ## Mutation Log
+- 2026-11-04 · b0565b7b7* · mutant killed · exit 1 · `scripts/coverage.sh` · the floor runs in parallel without being asked · acceptance-sha256:ee3e3cfc919fbc0b818ca8512a7e5cc86a33abf47a1504146eebf02abaa25949
 
 ## Invariants
 
@@ -76,3 +77,18 @@ Stop if a probe run fails a test the serial run passed: that is the nondetermini
 - Sharding the JavaScript floor (deferred: docs/BACKLOG.md §459)
 
 ## Verification Log
+- 2026-11-04 · b0565b7b7* · exit 1 · `set -o pipefail …` · acceptance-sha256:ee3e3cfc919fbc0b818ca8512a7e5cc86a33abf47a1504146eebf02abaa25949 · ms:501 · test-lock-sha256:941b2335ac8cec2f977d19b2581043283678cde2c3729546fc97aea9f5e547d8 · test-lock-file:docs/adr/locks/941b2335ac8cec2f977d19b2581043283678cde2c3729546fc97aea9f5e547d8.lock
+  ```
+  --- last 10 line(s) of stdout (of 29 after folding 29 raw)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: '== JavaScript hooks ==\n\nPASS — coverage holds its floor on the js surface(s) measured.\n',
+      expected: /^js command: node --test --test-concurrency=1 --experimental-test-coverage /m,
+      operator: 'match',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-04 · b0565b7b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:ee3e3cfc919fbc0b818ca8512a7e5cc86a33abf47a1504146eebf02abaa25949 · ms:274

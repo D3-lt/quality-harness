@@ -4409,3 +4409,14 @@ about 31 minutes, 14:24 to 14:55: `coverage floor (python)` 28 min, `windows` 23
 (macos-latest)` 19 min, and the 48 mutation shards queued for runners until 14:55. A landing waits for main's required checks
 (the longest of them), a release for every job. Next: profile `coverage floor (python)` (which suites, how parallel), and the
 shard queueing, then decide whether splitting or caching is a clear win; record the numbers with the run they came from.
+Measured 2026-11-04 over the eight green landing runs 41592527973, 41632116030, 41636069045, 41653363871, 41690555178,
+41696075531, 41708717802 and 41713618147 (four older runs' job lists returned HTTP 502 and are not counted). From the run's
+creation to its last required check, queueing included, a landing took 27, 27, 29, 27, 32, 29, 29 and 26 minutes (median 28); to
+its last job, which a release waits for, 32, 34, 32, 31, 33, 37, 37 and 40 (median 34.5). Job durations: `windows` 22–32,
+`coverage floor` 19–26, `coverage floor (python)` 17–27 (17–18 in the latest three), `selftest (macos-latest)` 14–18,
+`selftest (ubuntu-latest)` 8–12. The landing waits for the longest required check, and the top three trade places run to run, so
+cutting any one alone saves at most a few minutes. Where their time goes: `coverage floor` runs the whole suite serially
+(`--test-concurrency=1`, scripts/coverage.sh:110, kept for a deterministic figure); `coverage floor (python)` runs the whole suite
+again at node's default concurrency under coverage.py (scripts/coverage.sh:173); `windows` is the whole selftest on one runner,
+about 21 min of it in the check step (run 41713618147). The owner chose to split all three (2026-11-04): ADR-139, Proposed, keeps
+every required check's name, so the ruleset does not change.

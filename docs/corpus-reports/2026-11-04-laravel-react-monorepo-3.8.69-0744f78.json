@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-04",
+  "at": "0744f78b4b6ba0c7f4137e5862289af6f4ea32c5",
+  "plugin": "3.8.69",
+  "kind": "probe",
+  "probeSha256": "084fde2c0b67d70ba3691610dd47cf87953226e96d006d006969266f70a7ff42",
+  "readers": "011c6ec537c5304d59d038cce578ff79c3f95f138d36a002387997f7898b3353",
+  "native": {
+    "look": "ok",
+    "at": "0744f78b4b6ba0c7f4137e5862289af6f4ea32c5",
+    "sources": "5db7a580a499e5479e7a5824abcb2c62be50b6410784b0b018c6f9966a1cbece",
+    "run": "41918761075",
+    "asset": "qh-darwin-arm64",
+    "sha256": "425f6b2700c6fd776b21e1431a5d2195628a3f4141e26974bca4563d943b1408"
+  },
+  "platform": "Darwin 27.2.0",
+  "node": "26.12.1",
+  "python": "3.15.2",
+  "corpus": {
+    "records": 100,
+    "undecided": 2,
+    "tasks": 307,
+    "taskDirectories": 48
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 102,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "laravel-react-monorepo",
+  "found": ""
+}

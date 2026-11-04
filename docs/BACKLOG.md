@@ -4498,3 +4498,12 @@ task by the file name's leading `T<n>`; plugin/bin/adr-lint:2382 builds the cros
 through `sorted(tasks.glob(...))`; plugin/bin/adr-next:1114-1124 finds another record's task by stem, also through `sorted()` over
 paths. Each disagrees with the title rule where a title and a name differ, and the two `sorted()` calls order differently on
 Windows. No report has come from them yet. Next: the title rule and a name sort in each, with the duplicate-ids corpus as the case.
+
+## 463. OPEN 2026-11-05 — gofmt on one Go test file ran past 120 s on a macOS runner
+
+`selftest (macos-latest)` of land/0744f78b (run 41918761075) failed one test, tests/go-format.test.mjs "every Go file in the core is
+as gofmt writes it": `gofmt could not run on core/hooks/branchstate_collect_test.go: spawnSync gofmt ETIMEDOUT` at 120 s
+(tests/go-format.test.mjs:18). No Go file changed in that landing, and every other job of the run passed. 120 s for gofmt on one
+file is a stall, not a slow runner, so a larger budget is not the fix. One occurrence; the rerun of the failed job is the
+evidence for the release. Next, if it recurs: run gofmt once over all files instead of once per file, and say which file and how
+long the stalled call ran.

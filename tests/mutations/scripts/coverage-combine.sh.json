@@ -4,9 +4,9 @@
       "label": "ADR-139 T2: a data file coverage.py could not read fails the combine",
       "file": "scripts/coverage-combine.sh",
       "tests": ["tests/coverage-shards.test.mjs"],
-      "from": "if [ \"$combined\" != 0 ] || printf '%s' \"$said\" | grep -q \"Couldn't use data file\"; then",
-      "to": "if [ \"$combined\" != 0 ]; then",
-      "only": "^(?:the Python shards combine across checkout roots to the unsharded figure)$"
+      "from": "sys.exit(1 if bad else 0)",
+      "to": "sys.exit(0)",
+      "only": "^(?:the Python shards combine across checkout roots to the unsharded figure|a shard file that is a database but not coverage data fails the combine)$"
     },
     {
       "label": "ADR-139 T2: data recorded under another checkout root counts",

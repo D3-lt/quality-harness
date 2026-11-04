@@ -31,6 +31,25 @@ for i in $(seq 1 "$COUNT"); do
 done
 [ "$missing" = 0 ] || exit 1
 
+# Every data file is read by coverage.py itself before anything is combined: `coverage combine` skips one it cannot read with a
+# warning and exit 0, and its wording varies by cause ("Couldn't use data file", "isn't a coverage data file"), so no list of
+# warnings is the check (the Codex review of 753af2cf..86945589). A file that cannot be read fails the fan-in, named.
+python3 - "$WORK"/.coverage.* <<'PY'
+import os
+import sys
+from coverage import CoverageData
+
+bad = []
+for path in sys.argv[1:]:
+    try:
+        CoverageData(basename=path).read()
+    except Exception as error:
+        bad.append(f"{os.path.basename(path)}: {error}")
+for line in bad:
+    print(f"FAIL — unreadable coverage data: {line}")
+sys.exit(1 if bad else 0)
+PY
+
 cat > "$WORK/coverage.cfg" <<CFG
 [run]
 branch = True
@@ -49,13 +68,9 @@ lib =
     */plugin/lib
 CFG
 
-# coverage.py SKIPS a data file it cannot read, with a warning and exit 0; read the warning rather than trust the exit.
-set +e
-said=$(cd "$WORK" && python3 -m coverage combine --rcfile="$WORK/coverage.cfg" 2>&1)
-combined=$?
-set -e
-if [ "$combined" != 0 ] || printf '%s' "$said" | grep -q "Couldn't use data file"; then
-  printf 'FAIL — the shards'"'"' coverage data could not all be combined:\n%s\n' "$said"
+# Every file was read above, so combine has nothing left to skip; its exit is still read.
+if ! said=$(cd "$WORK" && python3 -m coverage combine --rcfile="$WORK/coverage.cfg" 2>&1); then
+  printf 'FAIL — the shards'"'"' coverage data could not be combined:\n%s\n' "$said"
   exit 1
 fi
 if [ "$MODE" = --report ]; then

@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-139 T4: one file in several shards has its counts summed",
+      "file": "scripts/merge-rows.mjs",
+      "tests": ["tests/selftest-shards.test.mjs"],
+      "from": "      for (const key of COUNTS) into[key] += Number.isInteger(entry[key]) ? entry[key] : 0",
+      "to": "      for (const key of COUNTS) into[key] = Number.isInteger(entry[key]) ? entry[key] : 0",
+      "only": "^(?:the Windows shards together reach every test file, and the merged row says when one did not)$"
+    },
+    {
+      "label": "ADR-139 T4: every shard's row is merged, not only the last",
+      "file": "scripts/merge-rows.mjs",
+      "tests": ["tests/selftest-shards.test.mjs"],
+      "from": "    const rows = inputs.map(file => JSON.parse(readFileSync(file, 'utf8').trim().split('\\n').at(-1)))",
+      "to": "    const rows = inputs.slice(-1).map(file => JSON.parse(readFileSync(file, 'utf8').trim().split('\\n').at(-1)))",
+      "only": "^(?:the Windows shards together reach every test file, and the merged row says when one did not)$"
+    }
+  ]
+}

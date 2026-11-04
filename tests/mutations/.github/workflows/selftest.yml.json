@@ -68,8 +68,16 @@
       "label": "ADR-139 T2: the Python fan-in runs when a shard failed, rather than skip",
       "file": ".github/workflows/selftest.yml",
       "tests": ["tests/coverage-shards.test.mjs"],
-      "from": "    if: ${{ always() }}",
-      "to": "    if: ${{ success() }}",
+      "from": "    needs: coverage-python-shard\n    if: ${{ always() }}\n",
+      "to": "    needs: coverage-python-shard\n    if: ${{ success() }}\n",
+      "only": "^(?:a fan-in passes only when every expected shard concluded success and left its data)$"
+    },
+    {
+      "label": "ADR-139 T4: the Windows fan-in runs when a shard failed, rather than skip",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "    needs: windows-shard\n    if: ${{ always() }}\n",
+      "to": "    needs: windows-shard\n    if: ${{ success() }}\n",
       "only": "^(?:a fan-in passes only when every expected shard concluded success and left its data)$"
     }
   ]

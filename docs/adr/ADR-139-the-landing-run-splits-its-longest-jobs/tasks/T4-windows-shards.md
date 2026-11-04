@@ -67,6 +67,7 @@ node --test tests/selftest-shards.test.mjs tests/suite-accounting.test.mjs tests
 | 4 — used | every landing run (T5) |
 
 ## Mutation Log
+- 2026-11-04 · 7adeddc64* · mutant killed · exit 1 · `scripts/merge-rows.mjs` · only the last shard row is accounted, so the others read as unrun or pass unseen · acceptance-sha256:9fcaf98142c888671d646766adcca5264683ebb8b77228e1167637ac71b5bff0
 
 ## Invariants
 
@@ -86,3 +87,18 @@ Stop if a test file passes only when another file ran earlier on the same runner
 - Splitting the macOS selftest (deferred: docs/BACKLOG.md §459)
 
 ## Verification Log
+- 2026-11-04 · 7adeddc64* · exit 1 · `set -o pipefail …` · acceptance-sha256:9fcaf98142c888671d646766adcca5264683ebb8b77228e1167637ac71b5bff0 · ms:927 · test-lock-sha256:c0aa6c6f4e0f1e8707c01494c6938f6d4655f114ced300453430e234f68d78f2 · test-lock-file:docs/adr/locks/c0aa6c6f4e0f1e8707c01494c6938f6d4655f114ced300453430e234f68d78f2.lock
+  ```
+  --- last 10 line(s) of stdout (of 48 after folding 48 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 821.829209
+
+  ✖ failing tests:
+
+  test at tests/selftest-shards.test.mjs:1:1
+  ✖ tests/selftest-shards.test.mjs (74.807292ms)
+    'test failed'
+  ```
+- 2026-11-04 · 7adeddc64* · exit 0 · `set -o pipefail …` · acceptance-sha256:9fcaf98142c888671d646766adcca5264683ebb8b77228e1167637ac71b5bff0 · ms:1815

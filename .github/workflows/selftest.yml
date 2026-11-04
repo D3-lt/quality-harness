@@ -208,9 +208,9 @@ jobs:
   coverage-python-fan-in:
     name: coverage floor (python) fan-in
     runs-on: ubuntu-latest
-    needs: coverage-python-shard
     # Runs whatever the shards concluded: a skipped job satisfies a required check, so this job must fail, not skip, when a
     # shard did not pass. scripts/fan-in.mjs asks for each shard by name (ADR-139 Decision item 2).
+    needs: coverage-python-shard
     if: ${{ always() }}
     permissions:
       contents: read
@@ -291,6 +291,83 @@ jobs:
           name: windows-selftest-tap
           path: selftest.tap
           if-no-files-found: warn
+
+  # ADR-139 T4: the Windows selftest as three shards and one fan-in. Run beside `windows` (the shadow landing, T4 S3) until both
+  # agree on one landing; then the fan-in takes that job's id and name, and that job goes (T4 S4).
+  windows-shard:
+    name: windows ${{ matrix.shard }}/3
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        # Full history, for the same reason as the windows job above.
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install the ruff scripts/unused-names.sh pins
+        run: python3 -m pip install ruff==0.15.6
+      - name: Run this shard of the project's own check under Git Bash
+        env:
+          QUALITY_HARNESS_TAP: selftest.tap
+          QH_SELFTEST_SHARD: ${{ matrix.shard }}/3
+          QH_SELFTEST_ROWS_OUT: windows-rows/rows.jsonl
+        run: bash scripts/selftest.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-rows-${{ matrix.shard }}-of-3
+          path: windows-rows
+          if-no-files-found: error
+      - name: Keep the TAP transcript when the run failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-selftest-tap-${{ matrix.shard }}-of-3
+          path: selftest.tap
+          if-no-files-found: warn
+
+  windows-fan-in:
+    name: windows fan-in
+    runs-on: ubuntu-latest
+    # Runs whatever the shards concluded, and fails unless each passed (ADR-139 Decision item 2); then accounts for every test
+    # file over the shards' merged row (Decision item 4).
+    needs: windows-shard
+    if: ${{ always() }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Every shard concluded success and left its row
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/fan-in.mjs --prefix 'windows' --count 3 --artifact windows-rows
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: windows-rows-*-of-3
+          path: windows-rows
+      - name: Every test file ran in some shard
+        run: |
+          node scripts/merge-rows.mjs --out merged-rows.jsonl windows-rows/windows-rows-1-of-3/rows.jsonl \
+            windows-rows/windows-rows-2-of-3/rows.jsonl windows-rows/windows-rows-3-of-3/rows.jsonl
+          node scripts/suite-accounting.mjs --row merged-rows.jsonl
 
   mutation-cache-seed:
     name: mutation cache seed

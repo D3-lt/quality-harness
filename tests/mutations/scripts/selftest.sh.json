@@ -103,6 +103,22 @@
       "from": "bash \"$REPO/scripts/unused-names.sh\"",
       "to": "bash \"$REPO/scripts/unused-names.sh\" || true",
       "only": "^the gate, the release scan and every CI job that runs the tests are wired to it$"
+    },
+    {
+      "label": "ADR-139 T4: a shard's variables are unset before its tests start",
+      "file": "scripts/selftest.sh",
+      "tests": ["tests/selftest-shards.test.mjs"],
+      "from": "unset QH_SELFTEST_SHARD QH_SELFTEST_ROWS_OUT",
+      "to": ":",
+      "only": "^(?:a selftest started inside a shard runs whole)$"
+    },
+    {
+      "label": "ADR-139 T4: a shard runs only its slice",
+      "file": "scripts/selftest.sh",
+      "tests": ["tests/selftest-shards.test.mjs"],
+      "from": "    case \"$in_slice\" in *$'\\n'\"$test_file\"$'\\n'*) kept+=(\"$test_file\") ;; esac",
+      "to": "    kept+=(\"$test_file\")",
+      "only": "^(?:the Windows shards together reach every test file, and the merged row says when one did not)$"
     }
   ]
 }

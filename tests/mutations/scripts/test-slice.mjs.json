@@ -1,0 +1,28 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-139 T1: slices follow the given order, not the sorted one",
+      "file": "scripts/test-slice.mjs",
+      "tests": ["tests/test-slice.test.mjs"],
+      "from": "  return sorted.filter((_, at) => at % n === i - 1)",
+      "to": "  return files.filter((_, at) => at % n === i - 1)",
+      "only": "^every test file is in exactly one slice, whatever the platform or the order given$"
+    },
+    {
+      "label": "ADR-139 T1: an off-by-one stride loses a slice",
+      "file": "scripts/test-slice.mjs",
+      "tests": ["tests/test-slice.test.mjs"],
+      "from": "  return sorted.filter((_, at) => at % n === i - 1)",
+      "to": "  return sorted.filter((_, at) => at % n === i % n)",
+      "only": "^every test file is in exactly one slice, whatever the platform or the order given$"
+    },
+    {
+      "label": "ADR-139 T1: an i past n is refused",
+      "file": "scripts/test-slice.mjs",
+      "tests": ["tests/test-slice.test.mjs"],
+      "from": "  if (!match || Number(match[1]) > Number(match[2])) {",
+      "to": "  if (!match) {",
+      "only": "^every test file is in exactly one slice, whatever the platform or the order given$"
+    }
+  ]
+}

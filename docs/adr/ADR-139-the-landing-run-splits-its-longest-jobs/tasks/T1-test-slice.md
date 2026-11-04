@@ -56,6 +56,7 @@ node --test tests/test-slice.test.mjs 2>&1 | tee "$out" && grep -q '✔ every te
 | 4 — used | every shard job's log names its slice (T5) |
 
 ## Mutation Log
+- 2026-11-04 · 753af2cf1* · mutant killed · exit 1 · `scripts/test-slice.mjs` · slices taken in the given order differ by platform and listing order · acceptance-sha256:4189d56658beac19ea8bfea2bb3efc7c836277442ed7b2dfcfda82ff6f509308
 
 ## Invariants
 
@@ -74,3 +75,18 @@ Stop if a test file depends on another running in the same process or job.
 - Cost-balanced slices (deferred: docs/BACKLOG.md §459)
 
 ## Verification Log
+- 2026-11-04 · 753af2cf1* · exit 1 · `set -o pipefail …` · acceptance-sha256:4189d56658beac19ea8bfea2bb3efc7c836277442ed7b2dfcfda82ff6f509308 · ms:199 · test-lock-sha256:326b52034d1526a24032a4668219c89587c353b99ecb7d56b50ae00e01ef163e · test-lock-file:docs/adr/locks/326b52034d1526a24032a4668219c89587c353b99ecb7d56b50ae00e01ef163e.lock
+  ```
+  --- last 10 line(s) of stdout (of 35 after folding 35 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 81.909375
+
+  ✖ failing tests:
+
+  test at tests/test-slice.test.mjs:1:1
+  ✖ tests/test-slice.test.mjs (78.140209ms)
+    'test failed'
+  ```
+- 2026-11-04 · 753af2cf1* · exit 0 · `set -o pipefail …` · acceptance-sha256:4189d56658beac19ea8bfea2bb3efc7c836277442ed7b2dfcfda82ff6f509308 · ms:867

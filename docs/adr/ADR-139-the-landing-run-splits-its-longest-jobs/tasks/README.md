@@ -8,7 +8,7 @@ Implementation tasks for ADR-139: the landing run shortens its three longest req
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A deterministic slice of the test files, each file in exactly one slice | pending | none — no spec | `node --test tests/test-slice.test.mjs` |
+| T1 | A deterministic slice of the test files, each file in exactly one slice | done | none — no spec | `node --test tests/test-slice.test.mjs` |
 | T2 | The Python floor runs in shards, and its fan-in passes only on every shard's own success | pending | none — no spec | `node --test tests/coverage-shards.test.mjs` |
 | T3 | The JavaScript floor runs at default concurrency only once five landings show it deterministic | pending | none — no spec | `node --test tests/js-floor-probe.test.mjs` |
 | T4 | The Windows selftest runs in shards, accounted over one merged row | pending | none — no spec | `node --test tests/selftest-shards.test.mjs` |

@@ -1,0 +1,2 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/test-slice.test.mjs	every test file is in exactly one slice, whatever the platform or the order given	9605b7497c2e2255a426f70740058306bfeae4afc9da64e5d2dddcfb74ebb236

@@ -1,6 +1,6 @@
 # ADR-139: The landing run shortens its three longest required jobs, proven beside the jobs they replace
 
-**Status:** Accepted
+**Status:** Withdrawn
 **Date:** 2026-11-04
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner's decisions of 2026-11-03 ("faster releases", "measure first") and 2026-11-04 ("split all three"; for the JavaScript floor, "re-measure parallel first") and docs/BACKLOG.md §459 are the inputs
@@ -147,4 +147,22 @@ to be undone.
 
 ## Follow-ups
 
-- [ ] Split `selftest (macos-latest)` if T5 shows it as the floor (docs/BACKLOG.md §459)
+- [x] Split `selftest (macos-latest)` if T5 shows it as the floor: moot, the layout was rolled back (Outcome)
+
+## Outcome
+
+Measured on the two shadow landings, land/69ec26ea (run 41872532283) and land/7edeb671 (run 41880608348), 2026-11-04:
+
+- The Python shards and their fan-in agree with the unsharded job (T2 S3): TOTAL 11457 statements, 997 missed against the
+  unsharded job's 998 on the same run. The Windows shards and their fan-in agree with `windows` on run 41880608348 (T4 S3).
+- The JavaScript floor cannot go parallel (T3): on run 41872532283 the probe measured branches 88.88 against the serial 88.91, a
+  0.03 gap over the 0.02 the Decision allows, and on run 41880608348 the probe's measuring step ran 55 minutes and never concluded.
+  So the serial JS floor (25 minutes on run 41880608348) bounds every landing, and the Decision's criterion, a median landing
+  below 20 minutes, cannot be met by this layout.
+- Two further costs showed: the round-robin slices were uneven (Python shards 14, 5 and 9 minutes; Windows 16, 4 and 7), and both
+  fan-ins queued about ten minutes for a runner behind the 48 mutation shards.
+
+The owner chose to roll back (2026-11-04): the workflow, scripts/coverage.sh and scripts/selftest.sh are restored byte for byte to
+a1add658, and the scripts and tests this record added are removed, since nothing would run them. The task logs above stay as the
+evidence of what was built and measured. The next step on CI time, if any, is sharding the JavaScript floor with a raw-V8 merge
+(Alternatives), which changes the measuring tool and needs its own record (docs/BACKLOG.md §459).

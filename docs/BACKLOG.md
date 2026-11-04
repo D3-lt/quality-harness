@@ -4429,6 +4429,15 @@ failed on §460, so the Windows fan-in correctly failed ("windows 3/3: concluded
 for a landing where all three shards run green. `coverage floor (parallel probe)` succeeded (T3 S3, run 1 of 5). The macOS selftest
 was cancelled by runner capacity ("not acquired"), so main was not pushed.
 
+The second shadow landing (land/7edeb671, run 41880608348): the Python fan-in reported 997 missed against the unsharded job's 998
+(T2 S3 met); `windows 1/3`–`3/3` and the Windows fan-in passed beside `windows` (T4 S3 met). But the JavaScript probe measured
+branches 88.88 against the serial 88.91 on run 41872532283, over ADR-139's 0.02, and on run 41880608348 its measuring step ran 55
+minutes and never concluded: the JS floor stays serial, and at 25 minutes it bounds every landing, so the 20-minute criterion cannot
+be met by sharding the other two. The slices were also uneven (Python 14/5/9 min, Windows 16/4/7), and both fan-ins queued about
+ten minutes behind the mutation shards. The owner chose to roll back (2026-11-04): ADR-139 is Withdrawn, the tooling restored to
+a1add658. Still open here: the JavaScript floor itself, whose cut needs a raw-V8 merge (c8 or similar) and recalibrated floors, as
+a record of its own; the mutation shards' queueing, which sets the release's wall.
+
 ## 460. OPEN 2026-11-04 — native-import's fixture gives git 10 s, and a loaded Windows runner took longer
 
 tests/native-import.test.mjs:25-27 spawns `git init/add/commit` with `timeout: 10_000` and asserts status 0. On `windows 3/3` of run
@@ -4445,3 +4454,4 @@ coverage_schema, file and meta tables and no row (a Python child killed while cr
 a crash. The sharded fan-in leaves such a file out and says so (scripts/coverage-combine.sh, ADR-139 T2); the unsharded path stays
 for local runs. Next: route the unsharded combine through the same validation, or at least read combine's exit instead of
 discarding it.
+(2026-11-04: ADR-139 was rolled back, so the sharded fan-in named above no longer exists; the unsharded defect is unchanged.)

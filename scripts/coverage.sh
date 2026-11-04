@@ -21,40 +21,14 @@ ROOT="$REPO/plugin"
 # Neither floor moves; with no surface named, both are measured, as before.
 MODE=
 SURFACE=both
-# ADR-139 T2: `--python --shard <i>/<n> --out <dir>` measures one slice of the suite (scripts/test-slice.mjs) and leaves its
-# coverage.py data in <dir> unjudged; QUALITY_HARNESS_COVERAGE_SHARDS=<dir> with QUALITY_HARNESS_COVERAGE_SHARD_COUNT=<n> makes
-# `--python` the fan-in instead: it combines every shard's data (scripts/coverage-combine.sh) and judges the floor once.
-SHARD=
-OUT=
-usage() { printf 'usage: coverage.sh [--report] [--js | --python [--shard <i>/<n> --out <dir>]]\n' >&2; exit 2; }
-while [ "$#" -gt 0 ]; do
-  case "$1" in
+for arg in "$@"; do
+  case "$arg" in
     --report) MODE=--report ;;
     --js) SURFACE=js ;;
     --python) SURFACE=python ;;
-    --shard) [ "$#" -ge 2 ] || usage; SHARD=$2; shift ;;
-    --out) [ "$#" -ge 2 ] || usage; OUT=$2; shift ;;
-    *) usage ;;
+    *) printf 'usage: coverage.sh [--report] [--js | --python]\n' >&2; exit 2 ;;
   esac
-  shift
 done
-if [ -n "$SHARD$OUT" ] && { [ "$SURFACE" != python ] || [ -z "$SHARD" ] || [ -z "$OUT" ]; }; then
-  printf 'coverage.sh: --shard and --out go together, with --python only\n' >&2
-  exit 2
-fi
-# A bad <i>/<n> is refused before anything is built: test-slice.mjs owns the grammar.
-if [ -n "$SHARD" ]; then node "$REPO/scripts/test-slice.mjs" "$SHARD" >/dev/null || exit 2; fi
-# ADR-139 T3: the JavaScript floor runs serially unless QUALITY_HARNESS_JS_CONCURRENCY=default; any other value is refused, so a
-# typo never silently changes how the floor is measured. The serial run is the deterministic one (see the node line below); the
-# probe job measures default concurrency beside it until five landings show the two agree.
-if [ -z "${QUALITY_HARNESS_JS_CONCURRENCY+set}" ]; then
-  js_concurrency=(--test-concurrency=1)
-elif [ "$QUALITY_HARNESS_JS_CONCURRENCY" = default ]; then
-  js_concurrency=()
-else
-  printf 'coverage.sh: QUALITY_HARNESS_JS_CONCURRENCY="%s" is not "default" (unset runs the floor serially)\n' "$QUALITY_HARNESS_JS_CONCURRENCY" >&2
-  exit 2
-fi
 # ADR-126 T3: the suite's own observe budget, as scripts/selftest.sh sets it (CLAUDE.md §7).
 export QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000
 
@@ -87,21 +61,6 @@ PY_TOTAL=${QUALITY_HARNESS_PY_TOTAL:-82}
 # reported and skipped; CI sets this so the same absence fails the build.
 STRICT=${QUALITY_HARNESS_COVERAGE_STRICT:-0}
 
-# ADR-139 T2: the Python floor's fan-in judges the shards' data and runs no suite, so it builds nothing.
-if [ -n "${QUALITY_HARNESS_COVERAGE_SHARDS:-}" ]; then
-  if [ "$SURFACE" != python ] || [ -n "$SHARD" ]; then
-    printf 'coverage.sh: QUALITY_HARNESS_COVERAGE_SHARDS is the Python fan-in: use it with --python alone\n' >&2
-    exit 2
-  fi
-  exec bash "$REPO/scripts/coverage-combine.sh" "$QUALITY_HARNESS_COVERAGE_SHARDS" "${QUALITY_HARNESS_COVERAGE_SHARD_COUNT:-}" \
-    "$ROOT" "$PY_TOTAL" ${MODE:+"$MODE"}
-fi
-
-# QH_COVERAGE_DRY=1 prints the JavaScript command's leading flags and runs nothing (tests/js-floor-probe.test.mjs).
-if [ "${QH_COVERAGE_DRY:-0}" = 1 ]; then
-  printf 'js command: node --test %s--experimental-test-coverage …\n' "${js_concurrency[*]+${js_concurrency[*]} }"
-  exit 0
-fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
@@ -148,7 +107,7 @@ printf '== JavaScript hooks ==\n'
 # code a tenth of the time, which teaches an agent that re-running is a valid
 # response to red. Serial, ten runs: 94.83-94.85, spread 0.02, no failures.
 # The cost is about 20s against 8s, which is nothing next to a flapping verdict.
-node --test ${js_concurrency[@]+"${js_concurrency[@]}"} --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$REPO"/tests/*.test.mjs \
+node --test --test-concurrency=1 --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$REPO"/tests/*.test.mjs \
   > "$WORK/js.log" 2>&1 || js_status=$?
 js_status=${js_status:-0}
 sed -n '/start of coverage report/,/end of coverage report/p' "$WORK/js.log" \
@@ -197,24 +156,11 @@ try:
 except Exception:
     pass
 PY
-# A shard keeps its data where the workflow uploads it from; the whole-suite run keeps it in $WORK.
-PY_DATA=$WORK
-py_tests=("$REPO"/tests/*.test.mjs)
-if [ -n "$SHARD" ]; then
-  mkdir -p "$OUT"
-  PY_DATA=$(cd "$OUT" && pwd)
-  all_tests=()
-  for test_file in "$REPO"/tests/*.test.mjs; do all_tests+=("tests/${test_file##*/}"); done
-  py_tests=()
-  while IFS= read -r test_file; do py_tests+=("$REPO/$test_file"); done < <(node "$REPO/scripts/test-slice.mjs" "$SHARD" "${all_tests[@]}")
-  if [ "${#py_tests[@]}" = 0 ]; then printf 'coverage.sh: shard %s holds no test file\n' "$SHARD" >&2; exit 2; fi
-  printf 'shard %s: %s of %s test files, first %s\n' "$SHARD" "${#py_tests[@]}" "${#all_tests[@]}" "${py_tests[0]##*/}"
-fi
 cat > "$WORK/coverage.cfg" <<CFG
 [run]
 branch = True
 parallel = True
-data_file = $PY_DATA/.coverage
+data_file = $WORK/.coverage
 source =
     $ROOT/bin
     $ROOT/lib
@@ -224,7 +170,7 @@ CFG
   cd "$REPO"
   PYTHONPATH="$WORK/hook${PYTHONPATH:+:$PYTHONPATH}" \
   COVERAGE_PROCESS_START="$WORK/coverage.cfg" \
-    node --test "${py_tests[@]}" > "$WORK/py-suite.log" 2>&1
+    node --test "$REPO"/tests/*.test.mjs > "$WORK/py-suite.log" 2>&1
 ) || {
   printf 'FAIL — the suite did not pass while measuring the gates.\n'
   # The whole failing-tests block, not a fixed tail: twenty lines cut a failing test's own output
@@ -238,10 +184,6 @@ CFG
   exit 1
 }
 
-if [ -n "$SHARD" ]; then
-  printf 'SHARD — %s measured; its data is in %s, for the fan-in to combine and judge.\n' "$SHARD" "$PY_DATA"
-  exit 0
-fi
 python3 -m coverage combine --rcfile="$WORK/coverage.cfg" >/dev/null 2>&1 || true
 if [ "$MODE" = "--report" ]; then
   python3 -m coverage report --rcfile="$WORK/coverage.cfg" --sort=cover

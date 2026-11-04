@@ -1,5 +1,6 @@
 # Task ADR-139-T1: A deterministic slice of the test files, each file in exactly one slice
 
+**Status:** withdrawn — built, then removed with ADR-139's rollback (its Outcome)
 **Depends-on:** none
 **Covers:** none — no spec
 **Estimated scope:** S

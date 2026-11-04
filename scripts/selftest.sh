@@ -60,19 +60,6 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # and the shipped-set test in tests/package.test.mjs is what keeps the two
 # from disagreeing.
 ROOT="$REPO/plugin"
-# ADR-139 T4: QH_SELFTEST_SHARD=<i>/<n> runs one slice of the test files (scripts/test-slice.mjs) and writes this run's per-file
-# row to QH_SELFTEST_ROWS_OUT instead of accounting for it: the Windows fan-in merges every shard's row and accounts once. Only
-# shard 1 runs the checks that are not the suite. Both variables are taken here and unset, so a test that runs this script
-# itself (tests/package.test.mjs) runs it whole.
-SHARD=${QH_SELFTEST_SHARD:-}
-ROWS_OUT=${QH_SELFTEST_ROWS_OUT:-}
-unset QH_SELFTEST_SHARD QH_SELFTEST_ROWS_OUT
-shard_first=1
-if [ -n "$SHARD" ]; then
-  node "$REPO/scripts/test-slice.mjs" "$SHARD" >/dev/null || exit 2
-  case "$SHARD" in 1/*) ;; *) shard_first=0 ;; esac
-  case "$ROWS_OUT" in ''|/*|[A-Za-z]:*) ;; *) ROWS_OUT="$PWD/$ROWS_OUT" ;; esac
-fi
 
 # ADR-095 T4: say, before anything heavy, how many test files run at once and the load this run found, so a timing read later can
 # be attributed (a run on a busy machine is not comparable with one on a quiet one). QH_SELFTEST_CONCURRENCY overrides node's own
@@ -139,21 +126,7 @@ elif [ -n "$times_source" ] && [ -s "$times_source" ]; then
   fi
 fi
 printf 'selftest: test files run %s; first: %s\n' "$order_how" "${test_files[0]##*/}"
-if [ -n "$SHARD" ]; then
-  in_slice=$'\n'$(node "$REPO/scripts/test-slice.mjs" "$SHARD" "${test_files[@]}")$'\n'
-  kept=()
-  for test_file in "${test_files[@]}"; do
-    case "$in_slice" in *$'\n'"$test_file"$'\n'*) kept+=("$test_file") ;; esac
-  done
-  printf 'selftest: shard %s runs %s of %s files: %s\n' "$SHARD" "${#kept[@]}" "${#test_files[@]}" "${kept[*]}"
-  printf 'selftest: shard variables its tests inherit: %s\n' "${QH_SELFTEST_SHARD:-none}"
-  test_files=("${kept[@]}")
-fi
 if [ "${QH_SELFTEST_DRY:-0}" = 1 ]; then exit 0; fi
-if [ -n "$SHARD" ] && [ -z "$ROWS_OUT" ]; then
-  printf 'selftest: QH_SELFTEST_SHARD needs QH_SELFTEST_ROWS_OUT, where the fan-in finds this shard'"'"'s row\n' >&2
-  exit 2
-fi
 
 # Build one source core for CLI compatibility calls in the suite. Adopters receive release binaries.
 QUALITY_HARNESS_QH_BIN="$QH_LEASES/qh"
@@ -204,10 +177,7 @@ validate() {
 }
 
 verdict="PASS — quality-harness is self-contained and verified."
-if [ "$shard_first" = 0 ]; then
-  printf 'selftest: shard %s leaves plugin validation and the checks that are not the suite to shard 1\n' "$SHARD"
-  verdict="PASS — shard $SHARD of the suite passed; shard 1 carries the checks that are not the suite."
-elif command -v claude >/dev/null 2>&1; then
+if command -v claude >/dev/null 2>&1; then
   validate "$REPO"
   validate "$ROOT/.claude-plugin/plugin.json"
   validate "$ROOT/skills"
@@ -254,22 +224,10 @@ fi
 if [ "$tests_status" != 0 ]; then rm -f "$timing_rows"; exit "$tests_status"; fi
 # ADR-113 T5: every tracked test file is reached by this run, none registered no test unless named exempt, and every skip names
 # its reason. A run with no per-file row is UNRUN here (exit 2), never a pass.
-if [ -n "$SHARD" ]; then
-  # The fan-in accounts over every shard's row (scripts/merge-rows.mjs); this shard's row alone would leave the others unrun.
-  if [ -s "$timing_rows" ] && mkdir -p "$(dirname "$ROWS_OUT")" && cp "$timing_rows" "$ROWS_OUT"; then
-    printf 'selftest: shard %s row written to %s for the fan-in\n' "$SHARD" "$ROWS_OUT"
-  else
-    printf 'selftest: UNRUN — shard %s left no per-file row for the fan-in\n' "$SHARD" >&2
-    rm -f "$timing_rows"
-    exit 2
-  fi
-  rm -f "$timing_rows"
-else
 accounting_status=0
 (cd "$REPO" && node scripts/suite-accounting.mjs --row "$timing_rows") || accounting_status=$?
 rm -f "$timing_rows"
 [ "$accounting_status" = 0 ] || exit "$accounting_status"
-fi
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.
 # `-f` is not decoration: a `__pycache__/` left in bin by any process that
@@ -278,7 +236,6 @@ fi
 # already passed. A check whose answer depends on what is on your disk is
 # CLAUDE.md §8; tests/gates.test.mjs carried the same defect and was fixed
 # 2026-08-29, and this second copy was found the same day by walking into it.
-if [ "$shard_first" = 1 ]; then
 for file in "$ROOT"/bin/*; do
   case "$file" in *.*) continue ;; esac
   [ -f "$file" ] || continue
@@ -304,7 +261,6 @@ bash "$REPO/scripts/unused-names.sh"
 # ADR-113 T3: a new writer of a check ledger or a task log, a new spawn of a publishing git verb, or a writing tool a hook
 # group does not see, fails until scripts/side-doors.json names it with its reason.
 node "$REPO/scripts/side-door-sweep.mjs"
-fi
 
 # §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of

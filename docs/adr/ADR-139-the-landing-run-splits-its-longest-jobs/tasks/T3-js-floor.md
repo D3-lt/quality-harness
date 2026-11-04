@@ -1,5 +1,6 @@
 # Task ADR-139-T3: The JavaScript floor runs at default concurrency only once five landings show it deterministic
 
+**Status:** withdrawn — the probe disagreed and hung (S3), so the floor stays serial; removed with ADR-139's rollback (its Outcome)
 **Depends-on:** T2
 **Covers:** none — no spec
 **Estimated scope:** S

@@ -1,5 +1,6 @@
 # Task ADR-139-T4: The Windows selftest runs in shards, accounted over one merged row
 
+**Status:** withdrawn — built and shadowed (S3 met), then removed with ADR-139's rollback (its Outcome)
 **Depends-on:** T2
 **Covers:** none — no spec
 **Estimated scope:** M

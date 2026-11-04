@@ -1,5 +1,6 @@
 # Task ADR-139-T2: The Python floor runs in shards, and its fan-in passes only on every shard's own success
 
+**Status:** withdrawn — built and shadowed (S3 met), then removed with ADR-139's rollback (its Outcome)
 **Depends-on:** T1
 **Covers:** none — no spec
 **Estimated scope:** M

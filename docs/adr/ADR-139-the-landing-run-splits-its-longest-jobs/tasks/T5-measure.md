@@ -1,5 +1,6 @@
 # Task ADR-139-T5: The new layout's landing time is measured, and kept or reverted
 
+**Status:** withdrawn — nothing to measure once ADR-139 was rolled back (its Outcome)
 **Depends-on:** T3, T4
 **Covers:** none — no spec
 **Estimated scope:** S

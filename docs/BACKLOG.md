@@ -4420,3 +4420,28 @@ cutting any one alone saves at most a few minutes. Where their time goes: `cover
 again at node's default concurrency under coverage.py (scripts/coverage.sh:173); `windows` is the whole selftest on one runner,
 about 21 min of it in the check step (run 41713618147). The owner chose to split all three (2026-11-04): ADR-139, Proposed, keeps
 every required check's name, so the ruleset does not change.
+
+The first landing with ADR-139's shadow layout (land/69ec26ea, run 41872532283, 2026-11-04): `coverage floor (python) 1/3`–`3/3`
+passed; the fan-in failed on one data file in shard 3 holding tables and no row (see §461), and once such a file is left out
+(6d513677) the fan-in over that run's real shard artifacts reports TOTAL 11457 statements, 998 missed, 91%, against the unsharded
+job's 997 and 996 missed on 41713618147 and 41708717802: the two agree (ADR-139 T2 S3). `windows 1/3` and `2/3` passed, `3/3`
+failed on §460, so the Windows fan-in correctly failed ("windows 3/3: concluded failure", its rows artifact missing); T4 S3 waits
+for a landing where all three shards run green. `coverage floor (parallel probe)` succeeded (T3 S3, run 1 of 5). The macOS selftest
+was cancelled by runner capacity ("not acquired"), so main was not pushed.
+
+## 460. OPEN 2026-11-04 — native-import's fixture gives git 10 s, and a loaded Windows runner took longer
+
+tests/native-import.test.mjs:25-27 spawns `git init/add/commit` with `timeout: 10_000` and asserts status 0. On `windows 3/3` of run
+41872532283 (4 cores, 121 test files at default concurrency) one of them returned status `null`, killed at the budget; the test took
+19 s and failed "native attestation import verifies both committed sources and the named CI binary" (null !== 0). The same class as
+§456 and CLAUDE.md §7: a budget sized to a fast machine became a performance assertion. Next: a budget the test sets from the
+suite's own observe budget, or none beyond the runner's; check `test-locks.py` first (the body may be locked, then a helper).
+
+## 461. OPEN 2026-11-04 — the unsharded Python floor crashes on a data file a killed process left, and calls it a low figure
+
+scripts/coverage.sh:226 runs `coverage combine … >/dev/null 2>&1 || true`. In run 41872532283 one data file held context,
+coverage_schema, file and meta tables and no row (a Python child killed while creating it); combine raised DataError on it, the
+`|| true` hid that, and `coverage report` then said "FAIL — Python gate coverage is below 82%", naming a floor breach for what was
+a crash. The sharded fan-in leaves such a file out and says so (scripts/coverage-combine.sh, ADR-139 T2); the unsharded path stays
+for local runs. Next: route the unsharded combine through the same validation, or at least read combine's exit instead of
+discarding it.

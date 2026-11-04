@@ -17,32 +17,23 @@ case "$COUNT" in ''|*[!0-9]*|0) printf 'coverage-combine: count "%s" is not a po
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-missing=0
-for i in $(seq 1 "$COUNT"); do
-  shard="$SHARDS/py-coverage-$i-of-$COUNT"
-  found=0
-  for file in "$shard"/.coverage.*; do
-    [ -e "$file" ] || continue
-    if [ ! -s "$file" ]; then printf 'FAIL — %s is empty\n' "$file"; missing=1; continue; fi
-    cp "$file" "$WORK/"
-    found=1
-  done
-  if [ "$found" = 0 ]; then printf 'FAIL — py-coverage-%s-of-%s left no coverage data in %s\n' "$i" "$COUNT" "$SHARDS"; missing=1; fi
-done
-[ "$missing" = 0 ] || exit 1
 
 # Every data file is read by coverage.py itself before anything is combined: `coverage combine` skips one it cannot read with a
 # warning and exit 0, and its wording varies by cause ("Couldn't use data file", "isn't a coverage data file"), so no list of
 # warnings is the check (the Codex review of 753af2cf..86945589). A file that cannot be read fails the fan-in, named.
-# One unreadable shape recorded nothing at all: a Python process killed while it was still creating its data file leaves the
-# tables and not one row in any of them (land/69ec26ea, run 41872532283: shard 3 and the unsharded job each had one). Combining
-# it would crash and refusing it would redden a run over a measurement of nothing, so it is left out and said; one row anywhere,
-# or any other unreadable file, still fails.
-python3 - "$WORK"/.coverage.* <<'PY'
+# One unreadable shape recorded nothing at all: a Python process killed while it was still creating its data file leaves
+# coverage.py's own tables and not one row in any of them (land/69ec26ea, run 41872532283: shard 3 and the unsharded job each had
+# one). Combining it would crash and refusing it would redden a run over a measurement of nothing, so it is left out and said.
+# A table coverage.py does not make, one row anywhere, or any other unreadable file still fails; and a shard left with no
+# readable data once such files are out fails too, so leaving a file out never drops a shard (the Codex review of 6d513677).
+cat > "$WORK/validate.py" <<'PY'
 import os
 import sqlite3
 import sys
 from coverage import CoverageData
+
+# The tables coverage.py's SQLite data file is made of. Any other table makes a file foreign, whatever it holds.
+COVERAGE_TABLES = {"coverage_schema", "meta", "file", "context", "line_bits", "arc", "tracer"}
 
 
 def recorded_nothing(path):
@@ -50,7 +41,7 @@ def recorded_nothing(path):
         con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
             tables = [row[0] for row in con.execute("select name from sqlite_master where type = 'table'")]
-            if "coverage_schema" not in tables or "file" not in tables:
+            if "coverage_schema" not in tables or "file" not in tables or not set(tables) <= COVERAGE_TABLES:
                 return False
             return all(con.execute(f'select count(*) from "{table}"').fetchone()[0] == 0 for table in tables)
         finally:
@@ -75,6 +66,27 @@ for line in bad:
     print(f"FAIL — unreadable coverage data: {line}")
 sys.exit(1 if bad else 0)
 PY
+
+missing=0
+for i in $(seq 1 "$COUNT"); do
+  shard="$SHARDS/py-coverage-$i-of-$COUNT"
+  mkdir "$WORK/shard-$i"
+  for file in "$shard"/.coverage.*; do
+    [ -e "$file" ] || continue
+    if [ ! -s "$file" ]; then printf 'FAIL — %s is empty\n' "$file"; missing=1; continue; fi
+    cp "$file" "$WORK/shard-$i/"
+  done
+  set -- "$WORK/shard-$i"/.coverage.*
+  if [ -e "$1" ]; then python3 "$WORK/validate.py" "$@" || missing=1; fi
+  set -- "$WORK/shard-$i"/.coverage.*
+  if [ ! -e "$1" ]; then
+    printf 'FAIL — py-coverage-%s-of-%s left no readable coverage data in %s\n' "$i" "$COUNT" "$SHARDS"
+    missing=1
+    continue
+  fi
+  mv "$@" "$WORK/"
+done
+[ "$missing" = 0 ] || exit 1
 
 cat > "$WORK/coverage.cfg" <<CFG
 [run]

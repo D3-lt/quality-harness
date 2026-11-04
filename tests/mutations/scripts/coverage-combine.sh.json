@@ -39,6 +39,22 @@
       "from": "        if recorded_nothing(path):",
       "to": "        if False:",
       "only": "^(?:a data file a killed process left with no row is left out, and one row makes it a failure again)$"
+    },
+    {
+      "label": "ADR-139 T2: a table coverage.py does not make keeps a file from being left out as empty",
+      "file": "scripts/coverage-combine.sh",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "            if \"coverage_schema\" not in tables or \"file\" not in tables or not set(tables) <= COVERAGE_TABLES:",
+      "to": "            if \"coverage_schema\" not in tables or \"file\" not in tables:",
+      "only": "^(?:leaving an empty file out never hides a foreign table or drops a whole shard)$"
+    },
+    {
+      "label": "ADR-139 T2: a shard left with no readable data once files are out fails",
+      "file": "scripts/coverage-combine.sh",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "  if [ ! -e \"$1\" ]; then",
+      "to": "  if false; then",
+      "only": "^(?:leaving an empty file out never hides a foreign table or drops a whole shard)$"
     }
   ]
 }

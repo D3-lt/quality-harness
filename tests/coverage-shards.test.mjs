@@ -156,3 +156,39 @@ test('a data file a killed process left with no row is left out, and one row mak
     if (status === 0) assert.match(combine.stdout, /advice: \.coverage\.killed\.1\.x .*recorded nothing/, 'said, not silently dropped')
   }
 })
+// The Codex review of 6d513677: a table name can rewrite the count that proves a file empty, and leaving files out can empty a
+// whole shard after its presence was checked. A file with a table coverage.py does not make is never "recorded nothing"; and a
+// shard holding nothing but such a left-out file fails as a shard with no data.
+test('leaving an empty file out never hides a foreign table or drops a whole shard', { skip: hasCoverage ? false : 'coverage.py is not importable by python3 (the coverage jobs install it)' }, t => {
+  const partial = 'create table context (id integer primary key, context text); create table coverage_schema (version integer); create table file (id integer primary key, path text); create table meta (key text, value text);'
+  const setup = shards => {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-coverage-leftout-'))
+    t.after(() => remove(scratch))
+    const root = path.join(scratch, 'plugin')
+    mkdirSync(path.join(root, 'bin'), { recursive: true })
+    mkdirSync(path.join(root, 'lib'), { recursive: true })
+    writeFileSync(path.join(root, 'bin', 'gate.py'), 'print("a")\n')
+    shards.forEach((files, at) => {
+      const shard = path.join(scratch, 'shards', `py-coverage-${at + 1}-of-${shards.length}`)
+      mkdirSync(shard, { recursive: true })
+      for (const [name, sql] of files) {
+        if (sql === 'measure') {
+          const cfg = path.join(scratch, `run-${at}.cfg`)
+          writeFileSync(cfg, `[run]\nparallel = True\ndata_file = ${path.join(shard, '.coverage')}\nsource =\n    ${path.join(root, 'bin')}\n`)
+          const run = spawnSync('python3', ['-m', 'coverage', 'run', `--rcfile=${cfg}`, path.join(root, 'bin', 'gate.py')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+          assert.equal(run.status, 0, run.stderr)
+        } else {
+          const made = spawnSync('python3', ['-c', 'import sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.executescript(sys.argv[2]); c.commit()', path.join(shard, name), sql], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+          assert.equal(made.status, 0, made.stderr)
+        }
+      }
+    })
+    return spawnSync(testBash(), [path.join(repoRoot, 'scripts', 'coverage-combine.sh'), path.join(scratch, 'shards'), String(shards.length), root, '0'], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  }
+  const injected = setup([[['good', 'measure'], ['.coverage.foreign.1.x', `${partial} create table "file"" where 0 --" (x integer); insert into "file"" where 0 --" values (1);`]]])
+  assert.equal(injected.status, 1, `a table coverage.py does not make is foreign data, never empty:\n${injected.stdout}`)
+  assert.match(injected.stdout, /FAIL — unreadable coverage data: \.coverage\.foreign\.1\.x/)
+  const dropped = setup([[['good', 'measure']], [['.coverage.killed.2.x', partial]]])
+  assert.equal(dropped.status, 1, `a shard whose only file is left out has no data:\n${dropped.stdout}`)
+  assert.match(dropped.stdout, /FAIL — py-coverage-2-of-2 left no readable coverage data/)
+})

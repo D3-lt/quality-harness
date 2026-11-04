@@ -59,6 +59,7 @@ node --test tests/coverage-shards.test.mjs tests/coverage-split.test.mjs 2>&1 | 
 | `the Python shards combine across checkout roots to the unsharded figure` | `tests/coverage-shards.test.mjs` | `[paths]`, corrupt data refused | — | S1, S2 |
 | `a shard file that is a database but not coverage data fails the combine` | `tests/coverage-shards.test.mjs` | Every data file is read by coverage.py before the combine (the Codex review of 753af2cf..86945589) | — | S1, S2 |
 | `a data file a killed process left with no row is left out, and one row makes it a failure again` | `tests/coverage-shards.test.mjs` | The empty partial file run 41872532283 produced is said and left out; any row makes it unreadable data again | — | S1, S2 |
+| `leaving an empty file out never hides a foreign table or drops a whole shard` | `tests/coverage-shards.test.mjs` | Only coverage.py's tables may be empty; each shard keeps readable data after files are left out (the Codex review of 6d513677) | — | S1, S2 |
 | `the committed ruleset requires only jobs the workflow declares` | `tests/land.test.mjs` | The required names survive the switch | — | S4 |
 
 ## Reachability

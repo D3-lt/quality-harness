@@ -7,7 +7,7 @@
 // has read `success` with a leg cancelled before it started: so this asks per shard, by name, and never reads the aggregate.
 // Exit: 0 every shard passed; 1 one did not (each named); 2 could not look (bad arguments, gh absent or failing).
 import { spawnSync } from 'node:child_process'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 export function fanIn({ jobs, artifacts, prefix, count, artifact }) {
   if (!Number.isInteger(count) || count < 1) throw new Error(`fan-in: a count of ${count} shards is not a fan-in`)
@@ -59,4 +59,4 @@ function main(argv, env) {
   return problems.length === 0 ? 0 : 1
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = main(process.argv.slice(2), process.env)
+if (isMainModule(import.meta.url)) process.exitCode = main(process.argv.slice(2), process.env)

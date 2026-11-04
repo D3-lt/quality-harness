@@ -3,7 +3,7 @@
 // Usage: node scripts/test-slice.mjs <i>/<n> <file>... — prints the slice, one name per line; exit 2 on a bad <i>/<n>.
 // The list is sorted by name with `/` separators, compared by code unit (never the locale), and every n-th file from position
 // i - 1 is taken: every file lands in exactly one slice, and the same slice on every platform whatever order the files came in.
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const normal = name => name.replaceAll('\\', '/')
 
@@ -26,4 +26,4 @@ function main(argv) {
   return 0
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = main(process.argv.slice(2))
+if (isMainModule(import.meta.url)) process.exitCode = main(process.argv.slice(2))

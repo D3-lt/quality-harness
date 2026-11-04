@@ -5,7 +5,7 @@
 // reads it. A file in several shards (tests/helpers/shard.mjs carries the sliced files' tests) has its counts summed and its
 // reasonless skips joined. Exit: 0 written; 2 a rows file that cannot be read, or no rows file at all.
 import { readFileSync, writeFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const COUNTS = ['ms', 'tests', 'cases', 'failed', 'skipped']
 
@@ -42,4 +42,4 @@ function main(argv) {
   return 0
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = main(process.argv.slice(2))
+if (isMainModule(import.meta.url)) process.exitCode = main(process.argv.slice(2))

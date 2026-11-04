@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §458: a task's id is its title's, so a titled copy is a duplicate",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "    m = TASK_TITLE_ID.match(text) or re.match(r\"(T\\d+)(?!\\d)\", path.stem, re.I)",
+      "to": "    m = re.match(r\"(T\\d+)(?!\\d)\", path.stem, re.I)",
+      "only": "^(?:a task is the id its title declares, and every file declaring one id is named, in the same order on every platform)$"
+    },
+    {
+      "label": "BACKLOG §458: task files sort by name by code point on every platform",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "    return sorted(paths, key=lambda p: p.name)",
+      "to": "    return sorted(paths)",
+      "only": "^(?:a task is the id its title declares, and every file declaring one id is named, in the same order on every platform)$"
+    },
+    {
+      "label": "BACKLOG §458: the listing is ordered by task_order",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "        task_files = task_order(p for p in tasks_dir.glob(\"*.md\") if p.name.lower() != \"readme.md\")",
+      "to": "        task_files = list(p for p in tasks_dir.glob(\"*.md\") if p.name.lower() != \"readme.md\")",
+      "only": "^(?:a task is the id its title declares, and every file declaring one id is named, in the same order on every platform)$"
+    },
+    {
       "label": "BACKLOG §426: a Consumes id naming no task in the record draws no advice",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/consumes-missing-task.test.mjs"],
@@ -3295,8 +3319,8 @@
       "tests": [
         "tests/reader-sentences.test.mjs"
       ],
-      "from": "        task_files = sorted(p for p in tasks_dir.glob(\"*.md\") if p.name.lower() != \"readme.md\")",
-      "to": "        task_files = sorted(p for p in tasks_dir.glob(\"*.md\") if p.name != \"README.md\")",
+      "from": "        task_files = task_order(p for p in tasks_dir.glob(\"*.md\") if p.name.lower() != \"readme.md\")",
+      "to": "        task_files = task_order(p for p in tasks_dir.glob(\"*.md\") if p.name != \"README.md\")",
       "only": "^(?:a lowercase readme\\.md is the tasks README, never linted as a task)$"
     },
     {

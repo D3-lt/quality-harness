@@ -11,6 +11,7 @@ import test from 'node:test'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { remove } from './helpers/remove.mjs'
+import { listHolders } from './helpers/holders.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -758,12 +759,8 @@ function removeRepository(dir) {
     // The helper's longer patience (BACKLOG §456): 20 × 250 ms ran out on a Windows peer under full-suite load.
     remove(dir)
   } catch (error) {
-    const listing = process.platform === 'win32'
-      ? spawnSync('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "branch-state|\\bgh(\\.exe)?\\b|\\bgit(\\.exe)?\\b" } | Format-List ProcessId,ParentProcessId,CreationDate,CommandLine'],
-        { encoding: 'utf8', timeout: 20_000, windowsHide: true })
-      : spawnSync('ps', ['-Ao', 'pid,ppid,etime,command'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
-    error.message += `\nthe refresher's lock ${released ? 'was released' : 'was still held after 20 s'}; running at the failure:\n`
-      + `${listing.stdout || listing.stderr || listing.error?.message || 'nothing could be listed'}`
+    error.message += `\nthe refresher's lock ${released ? 'was released' : 'was still held after 20 s'}; what names the directory at the failure:\n`
+      + listHolders(dir)
     throw error
   }
 }

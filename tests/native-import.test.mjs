@@ -22,8 +22,10 @@ function fixture(t) {
   for (const name of ['plugin/bin/gate', 'plugin/lib/record.py', 'plugin/hooks/hooks.json', 'plugin/scripts/native-provenance.mjs',
     'plugin/scripts/corpus-probe.mjs', 'core/main.go', 'core/go.mod', 'scripts/build-core.mjs']) put(name, '// fixture\n')
   put('plugin/.claude-plugin/plugin.json', '{"version":"3.8.61"}\n')
+  // 60 s, not 10: a loaded 4-core Windows runner took longer than 10 s for one of these and the fixture failed with status null
+  // (BACKLOG §460, run 41872532283). The budget is a hang guard, not a speed assertion (CLAUDE.md §7).
   const git = (...args) => spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
-    '-c', 'core.autocrlf=false', ...args], { cwd: root, encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    '-c', 'core.autocrlf=false', ...args], { cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-qm', 'native readers']]) assert.equal(git(...args).status, 0)
   const at = git('rev-parse', 'HEAD').stdout.trim()
   const sources = nativeSourceIdentity(root).sources

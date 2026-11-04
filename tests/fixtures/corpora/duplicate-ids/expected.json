@@ -11,7 +11,7 @@
   "workNext": {
     "records": 2,
     "accepted": 2,
-    "tasks": 4,
+    "tasks": 5,
     "ready": [],
     "unbacked": [],
     "retirable": [],
@@ -34,7 +34,8 @@
         [
           "docs/adr/ADR-001-totals/tasks/T1-add.md",
           "docs/adr/ADR-001-totals/tasks/T2-again.md",
-          "docs/adr/ADR-001-totals/tasks/copy.md"
+          "docs/adr/ADR-001-totals/tasks/copy.md",
+          "docs/adr/ADR-001-totals/tasks/t1-case.md"
         ]
       ],
       "foreign": []

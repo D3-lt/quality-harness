@@ -309,7 +309,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install the ruff scripts/unused-names.sh pins
-        run: python3 -m pip install ruff==0.15.6
+        # coverage.py: tests/coverage-data-check.test.mjs skips without it, and a skipped test notices no mutant (BACKLOG §461).
+        run: python3 -m pip install coverage ruff==0.15.6
       - name: Take the shard plan from ONE snapshot, not twelve prefix restores
         # ⚠ EVERY SHARD MUST SEE THE SAME TIMINGS OR THE PARTITION IS NOT A
         # PARTITION. `shardByCost` is deterministic for a given input and each

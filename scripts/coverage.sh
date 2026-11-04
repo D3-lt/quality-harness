@@ -184,7 +184,18 @@ CFG
   exit 1
 }
 
-python3 -m coverage combine --rcfile="$WORK/coverage.cfg" >/dev/null 2>&1 || true
+# BACKLOG §461: every data file is read by coverage.py first (scripts/coverage-data-check.py). A file a killed process left with
+# tables and no row recorded nothing and is left out, said; any other unreadable file fails here, named, instead of crashing the
+# combine below, whose failure `|| true` used to hide until the report called it a low figure.
+set -- "$WORK"/.coverage.*
+if [ -e "$1" ] && ! python3 "$REPO/scripts/coverage-data-check.py" "$@"; then
+  printf 'FAIL — coverage data the suite left could not be read, so the floor was not judged.\n'
+  exit 1
+fi
+if ! combined=$(python3 -m coverage combine --rcfile="$WORK/coverage.cfg" 2>&1); then
+  printf 'FAIL — coverage combine failed, so the floor was not judged:\n%s\n' "$combined"
+  exit 1
+fi
 if [ "$MODE" = "--report" ]; then
   python3 -m coverage report --rcfile="$WORK/coverage.cfg" --sort=cover
   printf '\nREPORT — no floor enforced (--report).\n'

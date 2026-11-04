@@ -4379,7 +4379,7 @@ named. The branch-state one is a helper and now goes through `remove` (the same 
 test ADR-072 T2/T4/T5, ADR-073 T1 and ADR-075 T2 lock, so it stays until a relock; and whether the sweep should require
 `remove` rather than any retry is not decided.
 
-## 457. OPEN 2026-11-03 — a branch-state test failure prints every process on the machine
+## 457. CLOSED 2026-11-04 — a branch-state test failure prints every process on the machine
 
 From the same Windows run: `removeRepository` (tests/branch-state.test.mjs:755) appends a process listing to its EPERM, for
 §407's holder. On POSIX it is `ps -Ao pid,ppid,etime,command`, every process with its full command line; on Windows a
@@ -4387,7 +4387,14 @@ From the same Windows run: `removeRepository` (tests/branch-state.test.mjs:755) 
 software (a Codex app-server under WSL). In a CI log or an adopter's paste that carries home paths and other programs'
 arguments (§6). Next: list only the test's own descendants, or the processes whose cwd is the directory being removed.
 
-## 458. OPEN 2026-11-03 — adr-lint takes a task's id from its file name, keeps whichever file sorts first, and never sees a copy
+Fixed 2026-11-04: `removeRepository` now appends `listHolders(dir)` (tests/helpers/holders.mjs), which lists only the processes
+whose command line names the directory being removed, with the home directory shown as `~`, or says that none does; on Windows
+it asks Win32_Process for every process and keeps the same lines. tests/holders.test.mjs holds the filter and the redaction, and
+two catalogue mutants (tests/mutations/tests/helpers/holders.mjs.json) show each can fail. Class: `grep -nE "spawnSync\('ps'|'ps',
+\[|Win32_Process" tests/*.mjs tests/helpers/*.mjs` finds this helper and tests/lifecycle.test.mjs:122, which lists process names
+only (`comm`/`ucomm`), no arguments, so it carries no path.
+
+## 458. CLOSED 2026-11-04 — adr-lint takes a task's id from its file name, keeps whichever file sorts first, and never sees a copy
 
 From a Windows chaos run of v3.8.68 (a peer, a scratch copy of a corpus we do not own, record ADR-004 with T1 and T2 done):
 - `t1-Again.md` titled `# Task ADR-004-T1` beside `T1-state-dir.md`: adr-next named both as `duplicates` (§449), and
@@ -4401,6 +4408,14 @@ From a Windows chaos run of v3.8.68 (a peer, a scratch copy of a corpus we do no
 Next: one rule for a task's id in both readers (the title's, as adr-next reads it, with the stem as fallback), and a duplicate
 said of every file that declares it, in sorted order, whichever sorts first. Add the copy and case-variant shapes to the
 duplicate-ids corpus's adr-lint expectations (§18).
+Fixed 2026-11-04: adr-lint takes a task's id from its title, with adr-next's expression (`task_id`, plugin/bin/adr-lint), and the
+stem's leading `T<n>` only when the title declares none; it lists task files with `task_order`, by name by code point, since
+`sorted()` over Windows paths ignores case (the root cause of the `t1-Again.md` finding). The duplicate-ids corpus gains
+`t1-case.md`; tests/adr-lint-task-identity.test.mjs asserts each of T2-again.md, copy.md and t1-case.md is named with T1-add.md,
+and the order on PureWindowsPath from any host; three catalogue mutants are noticed. Over this repository's 129 records the new
+adr-lint's output equals the old one's line for line (the first comparison caught a variable of mine shadowing the record's text,
+fixed before commit). What stays different: a task file with no title, whose id adr-next takes from TID_RE anywhere in the name
+and adr-lint from the stem's start. Siblings left: §462.
 
 ## 459. OPEN 2026-11-03 — measure the landing run's critical path before cutting it
 
@@ -4438,15 +4453,18 @@ ten minutes behind the mutation shards. The owner chose to roll back (2026-11-04
 a1add658. Still open here: the JavaScript floor itself, whose cut needs a raw-V8 merge (c8 or similar) and recalibrated floors, as
 a record of its own; the mutation shards' queueing, which sets the release's wall.
 
-## 460. OPEN 2026-11-04 — native-import's fixture gives git 10 s, and a loaded Windows runner took longer
+## 460. CLOSED 2026-11-04 — native-import's fixture gives git 10 s, and a loaded Windows runner took longer
 
 tests/native-import.test.mjs:25-27 spawns `git init/add/commit` with `timeout: 10_000` and asserts status 0. On `windows 3/3` of run
 41872532283 (4 cores, 121 test files at default concurrency) one of them returned status `null`, killed at the budget; the test took
 19 s and failed "native attestation import verifies both committed sources and the named CI binary" (null !== 0). The same class as
 §456 and CLAUDE.md §7: a budget sized to a fast machine became a performance assertion. Next: a budget the test sets from the
 suite's own observe budget, or none beyond the runner's; check `test-locks.py` first (the body may be locked, then a helper).
+Fixed 2026-11-04: the fixture's git budget is 60 s (no lock on the file). Class, left: `grep -cE "spawnSync\('git'.*timeout:
+?(5|10|15)_?000" tests/*.mjs` counts 86 sites in 49 files giving git 15 s or less, many inside locked bodies; only this one has
+failed, so the others stay until one does, and each then gets the same fix or a relock.
 
-## 461. OPEN 2026-11-04 — the unsharded Python floor crashes on a data file a killed process left, and calls it a low figure
+## 461. CLOSED 2026-11-04 — the unsharded Python floor crashes on a data file a killed process left, and calls it a low figure
 
 scripts/coverage.sh:226 runs `coverage combine … >/dev/null 2>&1 || true`. In run 41872532283 one data file held context,
 coverage_schema, file and meta tables and no row (a Python child killed while creating it); combine raised DataError on it, the
@@ -4455,3 +4473,18 @@ a crash. The sharded fan-in leaves such a file out and says so (scripts/coverage
 for local runs. Next: route the unsharded combine through the same validation, or at least read combine's exit instead of
 discarding it.
 (2026-11-04: ADR-139 was rolled back, so the sharded fan-in named above no longer exists; the unsharded defect is unchanged.)
+Fixed 2026-11-04: scripts/coverage.sh reads every data file first with scripts/coverage-data-check.py (the rules ADR-139 T2's two
+review rounds settled: a read-only coverage.py read; a file of coverage.py's own tables with no row in any is left out and said;
+a foreign table, a row anywhere, or any other unreadable file fails, named), then runs `coverage combine` with its exit read, so a
+failure is said as one and never as a low figure. tests/coverage-data-check.test.mjs builds each shape; five catalogue mutants are
+noticed; the mutation shards install coverage.py so the test runs there. Not exercised end to end here: the coverage job itself,
+which the next landing runs.
+
+## 462. OPEN 2026-11-04 — three more readers take a task's id from its file name, or sort paths by the platform's rule
+
+Found by §458's class sweep (`grep -nE '\(T\\\\?d\+\)' plugin/bin/* plugin/lib/*.py plugin/scripts/*.mjs` and
+`grep -nE 'sorted\([^)]*glob\(' plugin/bin/* plugin/lib/*.py`): plugin/scripts/work-next.mjs:548 maps a README `done` claim to a
+task by the file name's leading `T<n>`; plugin/bin/adr-lint:2382 builds the cross-record dependency graph's nodes from file stems
+through `sorted(tasks.glob(...))`; plugin/bin/adr-next:1114-1124 finds another record's task by stem, also through `sorted()` over
+paths. Each disagrees with the title rule where a title and a name differ, and the two `sorted()` calls order differently on
+Windows. No report has come from them yet. Next: the title rule and a name sort in each, with the duplicate-ids corpus as the case.

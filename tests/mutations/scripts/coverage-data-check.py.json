@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "BACKLOG §461: an unreadable data file fails the check",
+      "file": "scripts/coverage-data-check.py",
+      "tests": ["tests/coverage-data-check.test.mjs"],
+      "from": "    return 1 if bad else 0",
+      "to": "    return 0",
+      "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
+    },
+    {
+      "label": "BACKLOG §461: the read is read-only, so foreign SQLite is never made coverage data",
+      "file": "scripts/coverage-data-check.py",
+      "tests": ["tests/coverage-data-check.test.mjs"],
+      "from": "            CoverageData(basename=path, read_only=True).read()",
+      "to": "            CoverageData(basename=path).read()",
+      "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
+    },
+    {
+      "label": "BACKLOG §461: a table coverage.py does not make keeps a file from being left out",
+      "file": "scripts/coverage-data-check.py",
+      "tests": ["tests/coverage-data-check.test.mjs"],
+      "from": "            if \"coverage_schema\" not in tables or \"file\" not in tables or not set(tables) <= COVERAGE_TABLES:",
+      "to": "            if \"coverage_schema\" not in tables or \"file\" not in tables:",
+      "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
+    },
+    {
+      "label": "BACKLOG §461: a file with a row is never left out as empty",
+      "file": "scripts/coverage-data-check.py",
+      "tests": ["tests/coverage-data-check.test.mjs"],
+      "from": "            return all(con.execute(f'select count(*) from \"{table}\"').fetchone()[0] == 0 for table in tables)",
+      "to": "            return True",
+      "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
+    },
+    {
+      "label": "BACKLOG §461: a file that recorded nothing is left out, not a failure",
+      "file": "scripts/coverage-data-check.py",
+      "tests": ["tests/coverage-data-check.test.mjs"],
+      "from": "            if recorded_nothing(path):",
+      "to": "            if False:",
+      "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
+    }
+  ]
+}

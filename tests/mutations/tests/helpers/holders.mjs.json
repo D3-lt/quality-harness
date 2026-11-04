@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "BACKLOG §457: only processes naming the directory are listed",
+      "file": "tests/helpers/holders.mjs",
+      "tests": ["tests/holders.test.mjs"],
+      "from": "  const lines = String(listing).split(/\\r?\\n/).filter(line => name && line.includes(name))",
+      "to": "  const lines = String(listing).split(/\\r?\\n/)",
+      "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
+    },
+    {
+      "label": "BACKLOG §457: the home directory is shown as ~",
+      "file": "tests/helpers/holders.mjs",
+      "tests": ["tests/holders.test.mjs"],
+      "from": "  const shown = lines.map(line => (home ? line.split(home).join('~') : line))",
+      "to": "  const shown = lines",
+      "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
+    }
+  ]
+}

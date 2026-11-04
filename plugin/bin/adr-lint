@@ -2453,6 +2453,24 @@ def check_contract_table(adr_path, stems, errors):
 TERMINAL_TASK_STATUSES = ("withdrawn", "superseded", "abandoned", "cancelled", "canceled")
 
 
+# A task's id is the one its title declares, as adr-next reads it (`# Task ADR-004-T1: …`), and the file stem's leading `T<n>`
+# only when the title declares none. Reading the stem alone, a titled byte copy named `copy.md` was no task at all and passed,
+# while adr-next named it a duplicate: the two readers disagreed on what a task's id is (BACKLOG §458).
+TASK_TITLE_ID = re.compile(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b")
+
+
+def task_id(path, text):
+    m = TASK_TITLE_ID.match(text) or re.match(r"(T\d+)(?!\d)", path.stem, re.I)
+    return m.group(1).upper() if m else None
+
+
+def task_order(paths):
+    """Task files by name, by code point, the same on every platform.
+
+    `sorted()` over Windows paths compares them case-insensitively, so on Windows `t1-Again.md` sorted before
+    `T1-state-dir.md`, became the file read as T1, and took T1's findings (BACKLOG §458, a Windows chaos run of 3.8.68)."""
+    return sorted(paths, key=lambda p: p.name)
+
 def terminal_task_status(text):
     """The terminal state this task declares about ITSELF, or None.
 
@@ -7072,7 +7090,7 @@ def main():
         withdrawn_tasks.clear()
         # A README in any letter case is the index, never a task: `readme.md` was linted as a task
         # while also being read as the README (BACKLOG §350 C8).
-        task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name.lower() != "readme.md")
+        task_files = task_order(p for p in tasks_dir.glob("*.md") if p.name.lower() != "readme.md")
         for p in task_files:
             refuse_irregular(p)
         stems = [p.stem for p in task_files]
@@ -7095,16 +7113,16 @@ def main():
         check_reachability_consistency(task_files, errors)
         infos = {}
         for p in task_files:
-            terminal = terminal_task_status(p.read_text(errors="replace", encoding="utf-8"))
+            task_text = p.read_text(errors="replace", encoding="utf-8")
+            terminal = terminal_task_status(task_text)
             if terminal:
                 withdrawn_tasks[p.name] = terminal
             covers, info = check_task(p, stems, errors, root, tracked)
             all_covers |= covers
             if info is None:
                 continue  # a task nobody could read: its NUL finding is the one thing said about it
-            m = re.match(r"(T\d+)(?!\d)", p.stem, re.I)
-            if m:
-                tid = m.group(1).upper()
+            tid = task_id(p, task_text)
+            if tid:
                 # Two files, one id: the second replaced the first, which was then judged by nothing and named by
                 # nothing (BACKLOG §381 item 10). Said in adr-next's words; the first stays the one read.
                 if tid in infos:

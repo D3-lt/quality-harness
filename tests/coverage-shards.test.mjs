@@ -130,3 +130,29 @@ test('a shard file that is a database but not coverage data fails the combine', 
     assert.match(combine.stdout + combine.stderr, /\.coverage\.schema\.1\.x/, `${label}: the bad file is named`)
   }
 })
+// land/69ec26ea (run 41872532283): a Python process killed while creating its data file left context, coverage_schema, file and
+// meta, and not one row. That file recorded nothing, so it is left out and said; the same shape holding one row is not empty, and
+// still fails the combine like any other file coverage.py cannot read.
+test('a data file a killed process left with no row is left out, and one row makes it a failure again', { skip: hasCoverage ? false : 'coverage.py is not importable by python3 (the coverage jobs install it)' }, t => {
+  const partial = 'create table context (id integer primary key, context text); create table coverage_schema (version integer); create table file (id integer primary key, path text); create table meta (key text, value text);'
+  for (const [label, sql, status] of [['no row at all', partial, 0], ['one row in file', `${partial} insert into file (path) values ('gate.py');`, 1]]) {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-coverage-partial-'))
+    t.after(() => remove(scratch))
+    const root = path.join(scratch, 'plugin')
+    mkdirSync(path.join(root, 'bin'), { recursive: true })
+    mkdirSync(path.join(root, 'lib'), { recursive: true })
+    writeFileSync(path.join(root, 'bin', 'gate.py'), 'print("a")\n')
+    const shard = path.join(scratch, 'shards', 'py-coverage-1-of-1')
+    mkdirSync(shard, { recursive: true })
+    const cfg = path.join(scratch, 'run.cfg')
+    writeFileSync(cfg, `[run]\nparallel = True\ndata_file = ${path.join(shard, '.coverage')}\nsource =\n    ${path.join(root, 'bin')}\n`)
+    const run = spawnSync('python3', ['-m', 'coverage', 'run', `--rcfile=${cfg}`, path.join(root, 'bin', 'gate.py')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(run.status, 0, run.stderr)
+    const made = spawnSync('python3', ['-c', 'import sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.executescript(sys.argv[2]); c.commit()', path.join(shard, '.coverage.killed.1.x'), sql], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(made.status, 0, made.stderr)
+    const combine = spawnSync(testBash(), [path.join(repoRoot, 'scripts', 'coverage-combine.sh'), path.join(scratch, 'shards'), '1', root, '100'], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    assert.equal(combine.status, status, `${label}:\n${combine.stdout}\n${combine.stderr}`)
+    assert.match(combine.stdout, /\.coverage\.killed\.1\.x/, `${label}: the file is named either way`)
+    if (status === 0) assert.match(combine.stdout, /advice: \.coverage\.killed\.1\.x .*recorded nothing/, 'said, not silently dropped')
+  }
+})

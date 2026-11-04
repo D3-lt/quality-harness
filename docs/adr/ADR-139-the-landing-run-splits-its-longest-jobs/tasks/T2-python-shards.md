@@ -58,6 +58,7 @@ node --test tests/coverage-shards.test.mjs tests/coverage-split.test.mjs 2>&1 | 
 | `a fan-in passes only when every expected shard concluded success and left its data` | `tests/coverage-shards.test.mjs` | Every job state; artifacts; the workflow's fan-in shape | — | S1, S2 |
 | `the Python shards combine across checkout roots to the unsharded figure` | `tests/coverage-shards.test.mjs` | `[paths]`, corrupt data refused | — | S1, S2 |
 | `a shard file that is a database but not coverage data fails the combine` | `tests/coverage-shards.test.mjs` | Every data file is read by coverage.py before the combine (the Codex review of 753af2cf..86945589) | — | S1, S2 |
+| `a data file a killed process left with no row is left out, and one row makes it a failure again` | `tests/coverage-shards.test.mjs` | The empty partial file run 41872532283 produced is said and left out; any row makes it unreadable data again | — | S1, S2 |
 | `the committed ruleset requires only jobs the workflow declares` | `tests/land.test.mjs` | The required names survive the switch | — | S4 |
 
 ## Reachability

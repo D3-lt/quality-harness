@@ -34,10 +34,30 @@ done
 # Every data file is read by coverage.py itself before anything is combined: `coverage combine` skips one it cannot read with a
 # warning and exit 0, and its wording varies by cause ("Couldn't use data file", "isn't a coverage data file"), so no list of
 # warnings is the check (the Codex review of 753af2cf..86945589). A file that cannot be read fails the fan-in, named.
+# One unreadable shape recorded nothing at all: a Python process killed while it was still creating its data file leaves the
+# tables and not one row in any of them (land/69ec26ea, run 41872532283: shard 3 and the unsharded job each had one). Combining
+# it would crash and refusing it would redden a run over a measurement of nothing, so it is left out and said; one row anywhere,
+# or any other unreadable file, still fails.
 python3 - "$WORK"/.coverage.* <<'PY'
 import os
+import sqlite3
 import sys
 from coverage import CoverageData
+
+
+def recorded_nothing(path):
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            tables = [row[0] for row in con.execute("select name from sqlite_master where type = 'table'")]
+            if "coverage_schema" not in tables or "file" not in tables:
+                return False
+            return all(con.execute(f'select count(*) from "{table}"').fetchone()[0] == 0 for table in tables)
+        finally:
+            con.close()
+    except Exception:
+        return False
+
 
 bad = []
 for path in sys.argv[1:]:
@@ -46,7 +66,11 @@ for path in sys.argv[1:]:
         # coverage file that passes (the Codex verification of c342ec82). combine itself opens inputs read-only.
         CoverageData(basename=path, read_only=True).read()
     except Exception as error:
-        bad.append(f"{os.path.basename(path)}: {error}")
+        if recorded_nothing(path):
+            print(f"advice: {os.path.basename(path)} holds tables and no row in any (a process killed while creating it); it recorded nothing and is left out")
+            os.remove(path)
+        else:
+            bad.append(f"{os.path.basename(path)}: {error}")
 for line in bad:
     print(f"FAIL — unreadable coverage data: {line}")
 sys.exit(1 if bad else 0)

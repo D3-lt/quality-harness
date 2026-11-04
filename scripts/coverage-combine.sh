@@ -42,7 +42,9 @@ from coverage import CoverageData
 bad = []
 for path in sys.argv[1:]:
     try:
-        CoverageData(basename=path).read()
+        # read_only: a writable read INITIALIZES a SQLite file with no coverage schema, turning foreign data into an empty
+        # coverage file that passes (the Codex verification of c342ec82). combine itself opens inputs read-only.
+        CoverageData(basename=path, read_only=True).read()
     except Exception as error:
         bad.append(f"{os.path.basename(path)}: {error}")
 for line in bad:

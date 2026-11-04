@@ -15,6 +15,14 @@
       "from": "    */plugin/bin",
       "to": "    */nowhere/bin",
       "only": "^(?:the Python shards combine across checkout roots to the unsharded figure)$"
+    },
+    {
+      "label": "ADR-139 T2: the validator reads without writing, so foreign SQLite is not made coverage data",
+      "file": "scripts/coverage-combine.sh",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "        CoverageData(basename=path, read_only=True).read()",
+      "to": "        CoverageData(basename=path).read()",
+      "only": "^(?:a shard file that is a database but not coverage data fails the combine)$"
     }
   ]
 }

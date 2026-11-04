@@ -103,23 +103,30 @@ test('the Python shards combine across checkout roots to the unsharded figure', 
   assert.ok(readdirSync(path.join(shards, 'py-coverage-1-of-2')).length > 0)
 })
 // The Codex review of 753af2cf..86945589: coverage.py skips a valid SQLite file that is not coverage data with a different
-// warning ("isn't a coverage data file") than the one the first combine matched, and keeps going with exit 0.
+// warning ("isn't a coverage data file") than the one the first combine matched, and keeps going with exit 0. Its verification
+// of c342ec82: a writable read initializes a SQLite file that has no coverage schema at all, so that shape is here too.
 test('a shard file that is a database but not coverage data fails the combine', { skip: hasCoverage ? false : 'coverage.py is not importable by python3 (the coverage jobs install it)' }, t => {
-  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-coverage-schema-'))
-  t.after(() => remove(scratch))
-  const root = path.join(scratch, 'plugin')
-  mkdirSync(path.join(root, 'bin'), { recursive: true })
-  mkdirSync(path.join(root, 'lib'), { recursive: true })
-  writeFileSync(path.join(root, 'bin', 'gate.py'), 'print("a")\n')
-  const shard = path.join(scratch, 'shards', 'py-coverage-1-of-1')
-  mkdirSync(shard, { recursive: true })
-  const cfg = path.join(scratch, 'run.cfg')
-  writeFileSync(cfg, `[run]\nparallel = True\ndata_file = ${path.join(shard, '.coverage')}\nsource =\n    ${path.join(root, 'bin')}\n`)
-  const run = spawnSync('python3', ['-m', 'coverage', 'run', `--rcfile=${cfg}`, path.join(root, 'bin', 'gate.py')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
-  assert.equal(run.status, 0, run.stderr)
-  const schema = spawnSync('python3', ['-c', 'import sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.execute("create table coverage_schema (version integer)"); c.commit()', path.join(shard, '.coverage.schema.1.x')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
-  assert.equal(schema.status, 0, schema.stderr)
-  const combine = spawnSync(testBash(), [path.join(repoRoot, 'scripts', 'coverage-combine.sh'), path.join(scratch, 'shards'), '1', root, '0'], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
-  assert.equal(combine.status, 1, `the good file alone would pass a floor of 0:\n${combine.stdout}`)
-  assert.match(combine.stdout + combine.stderr, /\.coverage\.schema\.1\.x/, 'and the bad file is named')
+  const shapes = {
+    'an empty coverage_schema table': 'create table coverage_schema (version integer)',
+    'an unrelated table only': 'create table unrelated (x integer)',
+  }
+  for (const [label, sql] of Object.entries(shapes)) {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-coverage-schema-'))
+    t.after(() => remove(scratch))
+    const root = path.join(scratch, 'plugin')
+    mkdirSync(path.join(root, 'bin'), { recursive: true })
+    mkdirSync(path.join(root, 'lib'), { recursive: true })
+    writeFileSync(path.join(root, 'bin', 'gate.py'), 'print("a")\n')
+    const shard = path.join(scratch, 'shards', 'py-coverage-1-of-1')
+    mkdirSync(shard, { recursive: true })
+    const cfg = path.join(scratch, 'run.cfg')
+    writeFileSync(cfg, `[run]\nparallel = True\ndata_file = ${path.join(shard, '.coverage')}\nsource =\n    ${path.join(root, 'bin')}\n`)
+    const run = spawnSync('python3', ['-m', 'coverage', 'run', `--rcfile=${cfg}`, path.join(root, 'bin', 'gate.py')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(run.status, 0, run.stderr)
+    const foreign = spawnSync('python3', ['-c', 'import sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.execute(sys.argv[2]); c.commit()', path.join(shard, '.coverage.schema.1.x'), sql], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(foreign.status, 0, foreign.stderr)
+    const combine = spawnSync(testBash(), [path.join(repoRoot, 'scripts', 'coverage-combine.sh'), path.join(scratch, 'shards'), '1', root, '0'], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    assert.equal(combine.status, 1, `${label}: the good file alone would pass a floor of 0:\n${combine.stdout}`)
+    assert.match(combine.stdout + combine.stderr, /\.coverage\.schema\.1\.x/, `${label}: the bad file is named`)
+  }
 })

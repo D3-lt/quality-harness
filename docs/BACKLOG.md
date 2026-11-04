@@ -4393,6 +4393,10 @@ it asks Win32_Process for every process and keeps the same lines. tests/holders.
 two catalogue mutants (tests/mutations/tests/helpers/holders.mjs.json) show each can fail. Class: `grep -nE "spawnSync\('ps'|'ps',
 \[|Win32_Process" tests/*.mjs tests/helpers/*.mjs` finds this helper and tests/lifecycle.test.mjs:122, which lists process names
 only (`comm`/`ucomm`), no arguments, so it carries no path.
+The Codex review of 2da11e87 found two holes, fixed before landing: branch-state's detached refresher is `node …/branch-state.mjs
+--refresh` with the repository only as its cwd, so the directory filter dropped the likeliest holder (the caller now also asks for
+that mark); and a Windows home in `C:/Users/…` or lower-case spelling escaped the redaction (now either separator, without case for
+a drive path). Both are in tests/holders.test.mjs, with four catalogue mutants.
 
 ## 458. CLOSED 2026-11-04 — adr-lint takes a task's id from its file name, keeps whichever file sorts first, and never sees a copy
 
@@ -4416,6 +4420,12 @@ and the order on PureWindowsPath from any host; three catalogue mutants are noti
 adr-lint's output equals the old one's line for line (the first comparison caught a variable of mine shadowing the record's text,
 fixed before commit). What stays different: a task file with no title, whose id adr-next takes from TID_RE anywhere in the name
 and adr-lint from the stem's start. Siblings left: §462.
+The Codex review of 2da11e87 found a fail-open in the first version, fixed before landing: it keyed the record's tasks by the
+title's id while the index, Depends-on and the evidence checks stayed keyed by the stem, so `T1-x.md` titled T2 with T1 marked done
+in the index passed with no evidence. Now the stem keys every check as before; the title only declares, so a file whose title and
+name disagree is refused ("its title declares T2 and its file name T1"), and an id several files declare by title is a duplicate.
+tests/adr-lint-task-identity.test.mjs builds that case through the CLI; six catalogue mutants are noticed; the 129-record
+comparison still shows no difference.
 
 ## 459. OPEN 2026-11-03 — measure the landing run's critical path before cutting it
 

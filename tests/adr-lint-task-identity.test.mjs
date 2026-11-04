@@ -5,9 +5,12 @@
 // titled copy) and t1-case.md (a case variant).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { remove } from './helpers/remove.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lint = path.join(repoRoot, 'plugin', 'bin', 'adr-lint')
@@ -39,4 +42,43 @@ test('a task is the id its title declares, and every file declaring one id is na
   assert.deepEqual(orders[0], ['T1-state-dir.md', 'copy.md', 't1-Again.md'], 'Windows paths sort by code point too')
   assert.deepEqual(orders[1], orders[0], 'the same order on POSIX')
   assert.deepEqual(ids, ['T1', 'T3', null], 'the title first, the stem only without one, nothing without either')
+})
+
+// The Codex review of 2da11e87: keying a task by its title's id while the index, its Depends-on and its evidence stayed keyed by
+// the stem let `T1-x.md` titled T2, with T1 marked done in the index, pass with no evidence at all. A file whose title and name
+// disagree is refused instead, and the index stays keyed by the name.
+test('a task file whose title and name declare different ids is refused, not re-keyed', t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-task-identity-'))
+  t.after(() => remove(scratch))
+  const source = path.join(repoRoot, 'tests', 'fixtures', 'corpora', 'duplicate-ids', 'docs', 'adr')
+  const run = title => {
+    const dir = mkdtempSync(path.join(scratch, 'corpus-'))
+    copyFileSync(path.join(source, 'ADR-001-totals.md'), path.join(dir, 'ADR-001-totals.md'))
+    const tasks = path.join(dir, 'ADR-001-totals', 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    writeFileSync(path.join(tasks, 'T1-fixture.md'), `${title}\n\n**Depends-on:** none\n\n## Goal\n\nx\n\n## Acceptance\n\n\`\`\`bash\ntest -f go.mod\n\`\`\`\n`)
+    writeFileSync(path.join(tasks, 'README.md'), '# Tasks\n\n| ID | Title | Status |\n|----|-------|--------|\n| T1 | x | done |\n')
+    const ran = spawnSync('python3', [lint, path.join(dir, 'ADR-001-totals.md')], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    return ran.stdout + ran.stderr
+  }
+  const mismatched = run('# Task ADR-001-T2: x')
+  assert.match(mismatched, /T1-fixture\.md: its title declares T2 and its file name T1; give the file one id/)
+  assert.match(mismatched, /T1.*(done|evidence|Verification)/i, 'the done claim for T1 is still judged against T1-fixture.md')
+  assert.doesNotMatch(run('# Task ADR-001-T1: x'), /its title declares/, 'a title and name that agree draw nothing')
+})
+
+// Two files with one id in their names and different ids in their titles: only the stem check sees that the second would have
+// replaced the first, since by title they declare different ids (found as a surviving mutant of §381 item 10's check).
+test('two files with one id in their names are named even when their titles differ', t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-task-stems-'))
+  t.after(() => remove(scratch))
+  const source = path.join(repoRoot, 'tests', 'fixtures', 'corpora', 'duplicate-ids', 'docs', 'adr')
+  copyFileSync(path.join(source, 'ADR-001-totals.md'), path.join(scratch, 'ADR-001-totals.md'))
+  const tasks = path.join(scratch, 'ADR-001-totals', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  const body = '\n\n**Depends-on:** none\n\n## Goal\n\nx\n\n## Acceptance\n\n```bash\ntest -f go.mod\n```\n'
+  writeFileSync(path.join(tasks, 'T1-a.md'), `# Task ADR-001-T1: a${body}`)
+  writeFileSync(path.join(tasks, 'T1-b.md'), `# Task ADR-001-T3: b${body}`)
+  const ran = spawnSync('python3', [lint, path.join(scratch, 'ADR-001-totals.md')], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  assert.match(ran.stdout + ran.stderr, /could not tell which file is T1: T1-a\.md and T1-b\.md both declare it/)
 })

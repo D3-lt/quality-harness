@@ -1,10 +1,10 @@
 {
   "mutations": [
     {
-      "label": "BACKLOG §457: only processes naming the directory are listed",
+      "label": "BACKLOG §457: only processes naming the directory, or marked, are listed",
       "file": "tests/helpers/holders.mjs",
       "tests": ["tests/holders.test.mjs"],
-      "from": "  const lines = String(listing).split(/\\r?\\n/).filter(line => name && line.includes(name))",
+      "from": "  const lines = String(listing).split(/\\r?\\n/).filter(line => (name && line.includes(name)) || also.some(mark => line.includes(mark)))",
       "to": "  const lines = String(listing).split(/\\r?\\n/)",
       "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
     },
@@ -12,8 +12,24 @@
       "label": "BACKLOG §457: the home directory is shown as ~",
       "file": "tests/helpers/holders.mjs",
       "tests": ["tests/holders.test.mjs"],
-      "from": "  const shown = lines.map(line => (home ? line.split(home).join('~') : line))",
+      "from": "  const shown = lines.map(line => (pattern ? line.replace(pattern, '~') : line))",
       "to": "  const shown = lines",
+      "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
+    },
+    {
+      "label": "BACKLOG §457: a Windows home is redacted without case",
+      "file": "tests/helpers/holders.mjs",
+      "tests": ["tests/holders.test.mjs"],
+      "from": "/^[A-Za-z]:/.test(home) ? 'gi' : 'g')",
+      "to": "'g')",
+      "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
+    },
+    {
+      "label": "BACKLOG §457: a marked holder that does not name the directory is listed",
+      "file": "tests/helpers/holders.mjs",
+      "tests": ["tests/holders.test.mjs"],
+      "from": " || also.some(mark => line.includes(mark)))",
+      "to": ")",
       "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
     }
   ]

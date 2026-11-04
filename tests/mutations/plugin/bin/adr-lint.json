@@ -1,11 +1,35 @@
 {
   "mutations": [
     {
-      "label": "BACKLOG §458: a task's id is its title's, so a titled copy is a duplicate",
+      "label": "BACKLOG §458: a task declares its title's id, so a titled copy is a duplicate",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-task-identity.test.mjs"],
-      "from": "    m = TASK_TITLE_ID.match(text) or re.match(r\"(T\\d+)(?!\\d)\", path.stem, re.I)",
-      "to": "    m = re.match(r\"(T\\d+)(?!\\d)\", path.stem, re.I)",
+      "from": "    m = TASK_TITLE_ID.match(text)\n    return m.group(1).upper() if m else stem_task_id(path)",
+      "to": "    m = None\n    return m.group(1).upper() if m else stem_task_id(path)",
+      "only": "^(?:a task is the id its title declares, and every file declaring one id is named, in the same order on every platform)$"
+    },
+    {
+      "label": "BACKLOG §458: a file whose title and name disagree is refused",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "            if tid and own != tid:",
+      "to": "            if False:",
+      "only": "^(?:a task file whose title and name declare different ids is refused, not re-keyed)$"
+    },
+    {
+      "label": "BACKLOG §458: the index stays keyed by the stem, not re-keyed by the title",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "            tid, own = stem_task_id(p), task_id(p, task_text)",
+      "to": "            tid, own = task_id(p, task_text), task_id(p, task_text)",
+      "only": "^(?:a task file whose title and name declare different ids is refused, not re-keyed)$"
+    },
+    {
+      "label": "BACKLOG §458: every id declared by more than one file is named",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "            for later in files[1:]:",
+      "to": "            for later in []:",
       "only": "^(?:a task is the id its title declares, and every file declaring one id is named, in the same order on every platform)$"
     },
     {
@@ -3607,11 +3631,12 @@
       "label": "§381 item 10: a second file with a task's id is named",
       "file": "plugin/bin/adr-lint",
       "tests": [
-        "tests/gates.test.mjs"
+        "tests/gates.test.mjs",
+        "tests/adr-lint-task-identity.test.mjs"
       ],
-      "from": "                if tid in infos:\n                    errors.append(f\"could not tell which file is",
-      "to": "                if False:\n                    errors.append(f\"could not tell which file is",
-      "only": "^two task files declaring one id are named, and neither silently replaces the other$"
+      "from": "                if tid in infos:\n                    said.add((tid, infos[tid]['path'].name, p.name))",
+      "to": "                if False:\n                    said.add((tid, infos[tid]['path'].name, p.name))",
+      "only": "^(?:two task files declaring one id are named, and neither silently replaces the other|two files with one id in their names are named even when their titles differ)$"
     },
     {
       "label": "§381 item 10: a duplicate id is evidence, never demoted",
@@ -3619,8 +3644,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "f\"declare it; give one of them its own id\", evidence=True)",
-      "to": "f\"declare it; give one of them its own id\")",
+      "from": "{p.name} both \"\n                                  f\"declare it; give one of them its own id\", evidence=True)",
+      "to": "{p.name} both \"\n                                  f\"declare it; give one of them its own id\")",
       "only": "^two task files declaring one id are named, and neither silently replaces the other$"
     },
     {

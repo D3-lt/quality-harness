@@ -760,7 +760,7 @@ function removeRepository(dir) {
     remove(dir)
   } catch (error) {
     error.message += `\nthe refresher's lock ${released ? 'was released' : 'was still held after 20 s'}; what names the directory at the failure:\n`
-      + listHolders(dir)
+      + listHolders(dir, { also: ['branch-state.mjs --refresh'] })
     throw error
   }
 }

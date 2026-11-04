@@ -2453,15 +2453,22 @@ def check_contract_table(adr_path, stems, errors):
 TERMINAL_TASK_STATUSES = ("withdrawn", "superseded", "abandoned", "cancelled", "canceled")
 
 
-# A task's id is the one its title declares, as adr-next reads it (`# Task ADR-004-T1: …`), and the file stem's leading `T<n>`
-# only when the title declares none. Reading the stem alone, a titled byte copy named `copy.md` was no task at all and passed,
-# while adr-next named it a duplicate: the two readers disagreed on what a task's id is (BACKLOG §458).
+# The id a task file declares: its title's, as adr-next reads it (`# Task ADR-004-T1: …`), and the file stem's leading `T<n>`
+# only when the title declares none. Reading the stem alone, a titled byte copy named `copy.md` declared nothing and passed,
+# while adr-next named it a duplicate (BACKLOG §458). The record's own index, its Depends-on edges and its evidence checks stay
+# keyed by the stem: a file whose title and stem declare different ids is refused rather than re-keyed, since re-keying let an
+# index claim for the stem's id pass with no evidence behind it (the Codex review of 2da11e87).
 TASK_TITLE_ID = re.compile(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b")
 
 
-def task_id(path, text):
-    m = TASK_TITLE_ID.match(text) or re.match(r"(T\d+)(?!\d)", path.stem, re.I)
+def stem_task_id(path):
+    m = re.match(r"(T\d+)(?!\d)", path.stem, re.I)
     return m.group(1).upper() if m else None
+
+
+def task_id(path, text):
+    m = TASK_TITLE_ID.match(text)
+    return m.group(1).upper() if m else stem_task_id(path)
 
 
 def task_order(paths):
@@ -7112,6 +7119,8 @@ def main():
                 if nested else f"{tasks_dir}: no task files")
         check_reachability_consistency(task_files, errors)
         infos = {}
+        declared = {}   # every id a file declares (title, else stem) -> the files declaring it, in task_order
+        said = set()
         for p in task_files:
             task_text = p.read_text(errors="replace", encoding="utf-8")
             terminal = terminal_task_status(task_text)
@@ -7121,15 +7130,29 @@ def main():
             all_covers |= covers
             if info is None:
                 continue  # a task nobody could read: its NUL finding is the one thing said about it
-            tid = task_id(p, task_text)
+            tid, own = stem_task_id(p), task_id(p, task_text)
+            if tid and own != tid:
+                errors.append(f"{p.name}: its title declares {own} and its file name {tid}; give the file one id",
+                              evidence=True)
+            if own:
+                declared.setdefault(own, []).append(p)
             if tid:
                 # Two files, one id: the second replaced the first, which was then judged by nothing and named by
                 # nothing (BACKLOG §381 item 10). Said in adr-next's words; the first stays the one read.
                 if tid in infos:
+                    said.add((tid, infos[tid]['path'].name, p.name))
                     errors.append(f"could not tell which file is {tid}: {infos[tid]['path'].name} and {p.name} both "
                                   f"declare it; give one of them its own id", evidence=True)
                     continue
                 infos[tid] = info
+        # An id declared by more than one file, by title as adr-next reads it, is the same refusal: a titled copy whose
+        # name holds no id was otherwise no task at all (BACKLOG §458). Named in task_order, the same on every platform.
+        for own, files in declared.items():
+            for later in files[1:]:
+                if (own, files[0].name, later.name) not in said:
+                    said.add((own, files[0].name, later.name))
+                    errors.append(f"could not tell which file is {own}: {files[0].name} and {later.name} both "
+                                  f"declare it; give one of them its own id", evidence=True)
         readme = tasks_dir / "README.md"
         if not readme.exists():
             # On a case-sensitive file system `readme.md` is not `README.md`, and was read as no

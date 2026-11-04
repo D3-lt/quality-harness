@@ -138,6 +138,78 @@ jobs:
           QUALITY_HARNESS_COVERAGE_STRICT: '1'
         run: bash scripts/coverage.sh --python
 
+  # ADR-139 T2: the Python floor as three shards and one fan-in. Run beside `coverage floor (python)` (the shadow landing, T2 S3)
+  # until both agree on one landing; then the fan-in takes that job's id and name, and that job goes (T2 S4).
+  coverage-python-shard:
+    name: coverage floor (python) ${{ matrix.shard }}/3
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+        # Full history, for the same reason as the coverage job above.
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install coverage.py
+        run: python3 -m pip install --upgrade coverage ruff==0.15.6
+      - name: Measure this shard of the Python gates
+        env:
+          QUALITY_HARNESS_COVERAGE_STRICT: '1'
+        run: bash scripts/coverage.sh --python --shard ${{ matrix.shard }}/3 --out py-coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: py-coverage-${{ matrix.shard }}-of-3
+          path: py-coverage
+          # coverage.py's data files are dot files, which upload-artifact leaves out unless told.
+          include-hidden-files: true
+          if-no-files-found: error
+
+  coverage-python-fan-in:
+    name: coverage floor (python) fan-in
+    runs-on: ubuntu-latest
+    needs: coverage-python-shard
+    # Runs whatever the shards concluded: a skipped job satisfies a required check, so this job must fail, not skip, when a
+    # shard did not pass. scripts/fan-in.mjs asks for each shard by name (ADR-139 Decision item 2).
+    if: ${{ always() }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Every shard concluded success and left its data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/fan-in.mjs --prefix 'coverage floor (python)' --count 3 --artifact py-coverage
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: py-coverage-*-of-3
+          path: py-coverage-shards
+      - name: Install coverage.py
+        run: python3 -m pip install --upgrade coverage
+      - name: Hold the Python gates' coverage floor over every shard
+        env:
+          QUALITY_HARNESS_COVERAGE_STRICT: '1'
+          QUALITY_HARNESS_COVERAGE_SHARDS: py-coverage-shards
+          QUALITY_HARNESS_COVERAGE_SHARD_COUNT: '3'
+        run: bash scripts/coverage.sh --python
   windows:
     name: windows
     runs-on: windows-latest
@@ -309,7 +381,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install the ruff scripts/unused-names.sh pins
-        run: python3 -m pip install ruff==0.15.6
+        # coverage.py: tests/coverage-shards.test.mjs skips without it, and a skipped test notices no mutant (ADR-139 T2).
+        run: python3 -m pip install coverage ruff==0.15.6
       - name: Take the shard plan from ONE snapshot, not twelve prefix restores
         # ⚠ EVERY SHARD MUST SEE THE SAME TIMINGS OR THE PARTITION IS NOT A
         # PARTITION. `shardByCost` is deterministic for a given input and each

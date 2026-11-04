@@ -4,8 +4,8 @@
       "label": "ADR-126 T2: the Python coverage job measures only the Python surface",
       "file": ".github/workflows/selftest.yml",
       "tests": ["tests/coverage-split.test.mjs"],
-      "from": "        run: bash scripts/coverage.sh --python",
-      "to": "        run: bash scripts/coverage.sh",
+      "from": "          QUALITY_HARNESS_COVERAGE_STRICT: '1'\n        run: bash scripts/coverage.sh --python\n",
+      "to": "          QUALITY_HARNESS_COVERAGE_STRICT: '1'\n        run: bash scripts/coverage.sh\n",
       "only": "^(?:the coverage floor is two jobs, each measuring one surface, and main requires both)$"
     },
     {
@@ -63,6 +63,14 @@
       "from": "          name: outside-run\n          path: outside-run.json\n          if-no-files-found: error",
       "to": "          name: outside-run\n          path: outside-run.json\n          if-no-files-found: warn",
       "only": "^the outside run job is selected on every release run and uploads its artifact$"
+    },
+    {
+      "label": "ADR-139 T2: the Python fan-in runs when a shard failed, rather than skip",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "    if: ${{ always() }}",
+      "to": "    if: ${{ success() }}",
+      "only": "^(?:a fan-in passes only when every expected shard concluded success and left its data)$"
     }
   ]
 }

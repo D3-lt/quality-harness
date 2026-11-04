@@ -1,0 +1,14 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/coverage-shards.test.mjs	a fan-in passes only when every expected shard concluded success and left its data	ea036f584e11c73add4f6fa1d369117e6551d781296b1677bd4ad42eb60156d8
+body	tests/coverage-shards.test.mjs	the Python shards combine across checkout roots to the unsharded figure	9f86d99b2b746a4fc17eaa5f8bad1200719a4894858933267424644cdc9a6c77
+body	tests/land.test.mjs	land --dry-run passes only when main carries exactly the committed ruleset	86bf638c5e2246f01dcf8d380b924f3fa75f1ec16694b44c6ede58d939841922
+body	tests/land.test.mjs	land --dry-run reads the ruleset for a sha already on main	3603b8dcab874bc5665881c8456f8534ecd3251e9b86f97c4c8916c45a92ee58
+body	tests/land.test.mjs	land deletes the land branches of earlier shas it contains, and no other	64498a2bb6056af248cc99f486a86ba6b045f3b83be018c38d562ac32f5f5276
+body	tests/land.test.mjs	land picks the newest check-run of the required app for each context, over every page	2434457ed312d9e413e60dc1cfd3a23b813a14289b4467530aaeac75607f20f3
+body	tests/land.test.mjs	land pushes main only after every required check passed at the sha on land/<sha>	a65ee3bae49d6250b64c85c53508f58c86521d4ea95da5fba7e9b5d9089f4de2
+body	tests/land.test.mjs	land pushes nothing when the forge cannot be read or requires a check no job declares	0c3c8192fe718179b26d4ab1077de16af8fb816b8c12f37fbb2f3ac6654b33c6
+body	tests/land.test.mjs	land refuses off main or when main moved, and requires the forge's main to be the sha after the push	e797194b0b3f7d7e4a8c507125b2c77b5acc3b6e76e195b68db543f5bbb1afa8
+body	tests/land.test.mjs	land says an unprotected main and pushes it directly, and a wait past its deadline exits 3	fe9637d27d04c29abec6ef201442f54fea550f820ac426d17d7357a519934368
+body	tests/land.test.mjs	land starts only on a clean working tree, and a dry run answers on any	786d6249aea80f6e6f0dcf7a444b6765f0fa640794f207ae77255c6cf6844bdf
+body	tests/land.test.mjs	mainProtection hands land each required context with the app the rule binds it to	f5770478e9bac95dc14424c28729f2df6e34e0f437eb0489b378d019143e5a22
+body	tests/land.test.mjs	the committed ruleset requires only jobs the workflow declares	69fa22e55fd987e9c458a25f7eadf1847d4b2826df56433d9e4f7c5ea17a97a8

@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-139 T2: a data file coverage.py could not read fails the combine",
+      "file": "scripts/coverage-combine.sh",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "if [ \"$combined\" != 0 ] || printf '%s' \"$said\" | grep -q \"Couldn't use data file\"; then",
+      "to": "if [ \"$combined\" != 0 ]; then",
+      "only": "^(?:the Python shards combine across checkout roots to the unsharded figure)$"
+    },
+    {
+      "label": "ADR-139 T2: data recorded under another checkout root counts",
+      "file": "scripts/coverage-combine.sh",
+      "tests": ["tests/coverage-shards.test.mjs"],
+      "from": "    */plugin/bin",
+      "to": "    */nowhere/bin",
+      "only": "^(?:the Python shards combine across checkout roots to the unsharded figure)$"
+    }
+  ]
+}

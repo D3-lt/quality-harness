@@ -69,6 +69,7 @@ node --test tests/coverage-shards.test.mjs tests/coverage-split.test.mjs 2>&1 | 
 | 4 — used | every landing run (T5) |
 
 ## Mutation Log
+- 2026-11-04 · 3612157c1* · mutant killed · exit 1 · `scripts/fan-in.mjs` · a skipped or cancelled shard reads as passed · acceptance-sha256:c16840647d15faa8d6025b204c3a5f7167e79396ed2ffa4a9fa5c0c79b2eda2a
 
 ## Invariants
 
@@ -87,3 +88,18 @@ Stop if the API cannot list a run's jobs from inside that run.
 - The JavaScript surface (T3).
 
 ## Verification Log
+- 2026-11-04 · 3612157c1* · exit 1 · `set -o pipefail …` · acceptance-sha256:c16840647d15faa8d6025b204c3a5f7167e79396ed2ffa4a9fa5c0c79b2eda2a · ms:208 · test-lock-sha256:fb697f36b3a79aef1a196c0b37f819e11afbce147d376686beb7b6ba90cf3fe1 · test-lock-file:docs/adr/locks/fb697f36b3a79aef1a196c0b37f819e11afbce147d376686beb7b6ba90cf3fe1.lock
+  ```
+  --- last 10 line(s) of stdout (of 37 after folding 37 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 98.468417
+
+  ✖ failing tests:
+
+  test at tests/coverage-shards.test.mjs:1:1
+  ✖ tests/coverage-shards.test.mjs (81.397583ms)
+    'test failed'
+  ```
+- 2026-11-04 · 3612157c1* · exit 0 · `set -o pipefail …` · acceptance-sha256:c16840647d15faa8d6025b204c3a5f7167e79396ed2ffa4a9fa5c0c79b2eda2a · ms:358

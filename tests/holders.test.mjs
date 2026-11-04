@@ -21,7 +21,11 @@ test('a failed removal names only the processes that name its directory, with ho
   assert.ok(!shown.includes(home), 'no home path')
   assert.equal(holdersIn('  PID COMMAND\n 1 init', dir, { home }), 'no running process names qh-brief-AbC123', 'none is said')
   // The detached refresher's command line names its script, not the directory it holds (its cwd).
-  assert.match(holdersIn(listing, dir, { home, also: ['branch-state.mjs --refresh'] }), /404 .*~\/src\/qh\/plugin\/scripts\/branch-state\.mjs --refresh/)
+  assert.match(holdersIn(listing, dir, { home, also: [['branch-state.mjs', '--refresh']] }), /404 .*~\/src\/qh\/plugin\/scripts\/branch-state\.mjs --refresh/)
+  // On Windows the script path may be quoted, so the two parts are not adjacent (the Codex verification of 36cda377).
+  const quoted = '505 1 node "C:/source code/qh/plugin/scripts/branch-state.mjs" --refresh'
+  assert.match(holdersIn(quoted, dir, { home, also: [['branch-state.mjs', '--refresh']] }), /505/)
+  assert.doesNotMatch(holdersIn('606 1 node other.mjs --refresh', dir, { home, also: [['branch-state.mjs', '--refresh']] }), /606/, 'every part must appear')
 
   // A Windows home in every spelling a command line can carry it in.
   const winHome = 'C:\\Users\\Alice'

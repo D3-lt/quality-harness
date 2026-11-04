@@ -5,12 +5,14 @@
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 
-// `also`: substrings that mark a holder whose command line does not name the directory, such as branch-state's detached
-// refresher, started as `node …/branch-state.mjs --refresh` with the repository only as its cwd (the Codex review of 2da11e87).
+// `also`: marks of a holder whose command line does not name the directory, such as branch-state's detached refresher, started
+// as `node …/branch-state.mjs --refresh` with the repository only as its cwd (the Codex review of 2da11e87). A mark is a string,
+// or a list of strings that must all appear, since a Windows command line may quote the script path between them.
 // Home is redacted in either separator spelling, and without case where it is a Windows drive path.
 export function holdersIn(listing, dir, { home = os.homedir(), also = [] } = {}) {
   const name = String(dir).split(/[\\/]/).filter(Boolean).pop() ?? ''   // both separators, on any host (CLAUDE.md §7)
-  const lines = String(listing).split(/\r?\n/).filter(line => (name && line.includes(name)) || also.some(mark => line.includes(mark)))
+  const marked = line => also.some(mark => [mark].flat().every(part => line.includes(part)))
+  const lines = String(listing).split(/\r?\n/).filter(line => (name && line.includes(name)) || marked(line))
   const spellings = home ? [...new Set([home, home.replaceAll('\\', '/'), home.replaceAll('/', '\\')])] : []
   const pattern = spellings.length
     ? new RegExp(spellings.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), /^[A-Za-z]:/.test(home) ? 'gi' : 'g')

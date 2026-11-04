@@ -82,3 +82,17 @@ test('two files with one id in their names are named even when their titles diff
   const ran = spawnSync('python3', [lint, path.join(scratch, 'ADR-001-totals.md')], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
   assert.match(ran.stdout + ran.stderr, /could not tell which file is T1: T1-a\.md and T1-b\.md both declare it/)
 })
+
+// The Codex verification of 36cda377: a file whose name holds no id, keyed by neither its name nor its title, made no claim the
+// evidence checks could see, so `copy.md` titled T1 and marked done passed with no Verification Log. Its title's id keys it now.
+test('a titled file whose name holds no id is judged by its title id, done claim included', t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-task-titled-'))
+  t.after(() => remove(scratch))
+  const source = path.join(repoRoot, 'tests', 'fixtures', 'corpora', 'duplicate-ids', 'docs', 'adr')
+  copyFileSync(path.join(source, 'ADR-001-totals.md'), path.join(scratch, 'ADR-001-totals.md'))
+  const tasks = path.join(scratch, 'ADR-001-totals', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(tasks, 'copy.md'), '# Task ADR-001-T1: x\n\n**Status:** done\n**Depends-on:** none\n\n## Goal\n\nx\n\n## Acceptance\n\n```bash\ntest -f go.mod\n```\n')
+  const ran = spawnSync('python3', [lint, path.join(scratch, 'ADR-001-totals.md')], { encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  assert.match(ran.stdout + ran.stderr, /copy\.md: T1 marked done but its Verification Log has no exit-0 entry/)
+})

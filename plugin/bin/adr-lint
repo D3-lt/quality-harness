@@ -7136,15 +7136,18 @@ def main():
                               evidence=True)
             if own:
                 declared.setdefault(own, []).append(p)
-            if tid:
+            # A file whose name holds no id is keyed by its title's, so its claims are judged like any other task's: keyed by
+            # neither, `copy.md` titled T1 and marked done passed with no evidence (the Codex verification of 36cda377).
+            key = tid or own
+            if key:
                 # Two files, one id: the second replaced the first, which was then judged by nothing and named by
                 # nothing (BACKLOG §381 item 10). Said in adr-next's words; the first stays the one read.
-                if tid in infos:
-                    said.add((tid, infos[tid]['path'].name, p.name))
-                    errors.append(f"could not tell which file is {tid}: {infos[tid]['path'].name} and {p.name} both "
+                if key in infos:
+                    said.add((key, infos[key]['path'].name, p.name))
+                    errors.append(f"could not tell which file is {key}: {infos[key]['path'].name} and {p.name} both "
                                   f"declare it; give one of them its own id", evidence=True)
                     continue
-                infos[tid] = info
+                infos[key] = info
         # An id declared by more than one file, by title as adr-next reads it, is the same refusal: a titled copy whose
         # name holds no id was otherwise no task at all (BACKLOG §458). Named in task_order, the same on every platform.
         for own, files in declared.items():

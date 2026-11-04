@@ -4,7 +4,7 @@
       "label": "BACKLOG §457: only processes naming the directory, or marked, are listed",
       "file": "tests/helpers/holders.mjs",
       "tests": ["tests/holders.test.mjs"],
-      "from": "  const lines = String(listing).split(/\\r?\\n/).filter(line => (name && line.includes(name)) || also.some(mark => line.includes(mark)))",
+      "from": "  const lines = String(listing).split(/\\r?\\n/).filter(line => (name && line.includes(name)) || marked(line))",
       "to": "  const lines = String(listing).split(/\\r?\\n/)",
       "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
     },
@@ -28,8 +28,8 @@
       "label": "BACKLOG §457: a marked holder that does not name the directory is listed",
       "file": "tests/helpers/holders.mjs",
       "tests": ["tests/holders.test.mjs"],
-      "from": " || also.some(mark => line.includes(mark)))",
-      "to": ")",
+      "from": "  const marked = line => also.some(mark => [mark].flat().every(part => line.includes(part)))",
+      "to": "  const marked = line => false",
       "only": "^(?:a failed removal names only the processes that name its directory, with home shown as ~)$"
     }
   ]

@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §458: a titled file whose name holds no id is keyed by its title",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-task-identity.test.mjs"],
+      "from": "            key = tid or own",
+      "to": "            key = tid",
+      "only": "^(?:a titled file whose name holds no id is judged by its title id, done claim included)$"
+    },
+    {
       "label": "BACKLOG §458: a task declares its title's id, so a titled copy is a duplicate",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-task-identity.test.mjs"],
@@ -3634,8 +3642,8 @@
         "tests/gates.test.mjs",
         "tests/adr-lint-task-identity.test.mjs"
       ],
-      "from": "                if tid in infos:\n                    said.add((tid, infos[tid]['path'].name, p.name))",
-      "to": "                if False:\n                    said.add((tid, infos[tid]['path'].name, p.name))",
+      "from": "                if key in infos:\n                    said.add((key, infos[key]['path'].name, p.name))",
+      "to": "                if False:\n                    said.add((key, infos[key]['path'].name, p.name))",
       "only": "^(?:two task files declaring one id are named, and neither silently replaces the other|two files with one id in their names are named even when their titles differ)$"
     },
     {

@@ -3134,13 +3134,18 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 380. OPEN 2026-10-15 — A test that starts a session removes its directory while the hook's detached children still write there
+## 380. CLOSED 2026-11-08 (was OPEN 2026-10-15; held by tests/test-hygiene.test.mjs since §407) — A test that starts a session removes its directory while the hook's detached children still write there
 
 **Found**: the push run at 2a4f5cfd (run 38735100891), job `coverage floor` on ubuntu: `tests/advisory-headline.test.mjs` failed in its `finally`, `ENOTEMPTY, Directory not empty: /tmp/qh-headline-…` at `rmSync`. Every assertion had passed. The hook it drives starts children with `detached: true` that outlive it: `branch-state.mjs` `startRefresher` and `artifact-pass.mjs`'s pass (`cwd: os.tmpdir()`, which the test points at its own directory). Either one writing during a recursive remove gives ENOTEMPTY. The dispatched run at the same sha passed that job, so this is a race, not a defect in what the test asserts.
 
 **The failing test, in 15fdad30**: its remove takes `maxRetries: 10, retryDelay: 200`, the form `tests/qh-check-shell.test.mjs` and `tests/hook-work.test.mjs` already use.
 
 **The class**: tests that send `SessionStart` and remove a directory recursively with no retry. Enumerated with `for f in $(rg -l "SessionStart" tests --glob '*.test.mjs'); do rg -q 'rmSync\([^)]*recursive' "$f" && ! rg -q 'maxRetries' "$f" && echo "$f"; done`: 25 files on 2026-10-15, this one included. Not changed here: many of those removes sit inside locked test bodies (CLAUDE.md §2), so the fix for the rest is a shared helper (a temp directory removed with retries, or a test env that turns off the detached refresher), not 24 edits. A pass is unaffected; only cleanup fails, and only when a child is still writing.
+
+Closed 2026-11-08: the class is held by `tests/test-hygiene.test.mjs` (§407, CLAUDE.md §9): every recursive remove in a test that
+starts a child goes through `tests/helpers/remove.mjs`, except a closed list of sites inside locked test bodies that only shrinks.
+The enumeration above, re-run on 1f788548 plus this batch, finds 10 files: 9 are on that list (`LOCKED_REMOVES`), and
+tests/event-analyser.test.mjs:308 is a child's script passed as a string, which the sweep rightly does not count.
 
 ## 381. OPEN 2026-10-15 — The backlog after the 2026-10-15 sweep: every clear open item, ranked, with the top five
 
@@ -4003,6 +4008,10 @@ rather than the reviewer's diff offsets:
   Edit at 309.37 ms for the post-ADR-130 Node oracle and 343.50 ms through the verified Go launcher. SessionStart was
   125.90 to 131.59 ms; Stop was 388.13 to 311.94 ms. Model-directed text matched in each measured case. These are lifecycle
   component timings, not whole-session CPU or token savings, and supersede the earlier prototype timing comparison.
+**Update 2026-11-08:** the second item is fixed: the Governs headers of ADR-119, ADR-120, ADR-121, ADR-122 and ADR-130 list each path
+once, and the class sweep over every record (a Python pass splitting each `**Governs:**` line on commas) found one more, ADR-060,
+fixed the same way; each record's adr-lint exits 0. The first item stays open: a native launch probe needs a Go mutant, which
+`mutate.mjs` cannot run (ADR-110 Follow-ups), and a negative over a detached launch needs a timed wait. The third is ADR-095's.
 
 ## 433. OPEN 2026-10-29 — non-blocking findings from the bundled Go release review
 
@@ -4026,8 +4035,11 @@ combined-diff offsets. None accepts a bad archive or bypasses the public pin ver
   instruction for both pending promotion (exit 2) and public-download or digest failure (exit 1). Exit 1 still fails the
   release, and marketplace-source refuses the invalid pin. Open: print promotion guidance only for exit 2; for exit 1
   report the public verification failure and test the diagnostic separately.
+**Update 2026-11-08:** the third item is fixed: `scripts/release.mjs` prints the cold-install and promotion step only when
+marketplace-source exits 2, and for any other failure says the public archive or pin failed verification, with its exit.
+tests/release-catalogue.test.mjs drives both through the shared release world; its catalogue mutant is RED. The second stays open.
 
-## 434. OPEN 2026-10-29 — plugin reviewer frontmatter hooks are ignored by the host
+## 434. CLOSED 2026-11-08 (was OPEN 2026-10-29) — plugin reviewer frontmatter hooks are ignored by the host
 
 The Windows v3.8.62 bundle boundary on Claude Code 2.1.312 found debug warnings that plugin agents ignore hooks:
 frontmatter. The bounded enumeration `mrw read --grep '^hooks:' plugin/agents` names qh-correctness-reviewer.md,
@@ -4039,7 +4051,15 @@ core/hooks/publish.go:123; core/hooks/lifecycle.go recognises these read-only ro
 frontmatter blocks, preserve the global guard, and verify actual plugin-agent role enforcement in a fresh host session.
 Do not weaken the guard to silence the warnings.
 
-## 435. OPEN 2026-10-29 — GitHub jobs lookup failure repeats the release's full local check
+Fixed 2026-11-08: the three `hooks:` blocks are gone; each agent's comment now says the plugin's PreToolUse hook enforces the
+role. tests/reviewer-guard.test.mjs (unlocked) no longer asserts the ignored block: it asserts that hook is registered for
+Bash, PowerShell, Edit, Write, MultiEdit, NotebookEdit and mcp__mrw__mrw_write, that no agent declares a `hooks:` block, and that
+no read-only role lists an editing tool. The role's refusal itself is driven through the hook by tests/bundled-core.test.mjs:39
+and tests/fail-open.test.mjs:578, green with a built core. Not done here: a check in a fresh host session that the debug
+warnings are gone. `plugin/scripts/reviewer-guard.mjs` and `qh-hook.sh reviewer-guard` stay as compatibility entries
+(tests/qh-launcher.test.mjs).
+
+## 435. CLOSED 2026-11-08 (was OPEN 2026-10-29) — GitHub jobs lookup failure repeats the release's full local check
 
 For landed 7bdb0be3, release-evidence first returned SUCCESS for run 40861695329. The release controller then passed
 the full local check and dead-code scan but stopped before tagging when GitHub's default run-jobs endpoint answered
@@ -4051,6 +4071,13 @@ Open: make scripts/release-evidence.mjs:207-234 robust to this observed endpoint
 explicit-attempt query, with failure and changing-attempt regressions. Separately assess the full preflight cost of a
 network-only retry in scripts/release.mjs:129-174 against ADR-100 and ADR-115 before changing reuse policy. A stale,
 failed, missing or incomplete run must never become approval; an HTTP failure is could-not-look.
+
+Fixed 2026-11-08: when the default `gh run view <id> --json …jobs…` fails, `fetchRun` (scripts/release-evidence.mjs) reads the
+run's latest attempt and head sha, asks for the run at that attempt by number, and reads the attempt again; a run re-run between
+the reads, a run of another sha, an answer with no attempt number, or a failing explicit query is could-not-look (null), never
+approval. tests/release-evidence-attempt.test.mjs holds the fallback, its control (a working default view asks for no attempt)
+and five could-not-look shapes; two catalogue mutants are RED. The second half is §453's: a release resumed after its landing no
+longer retakes the full check for a sha whose pass it recorded (CLAUDE.md §13 step 1).
 
 ## 436. OPEN 2026-10-30 — ADR-133 preserves the existing watcher and productivity research obligation
 
@@ -4119,13 +4146,21 @@ below the root is in the class (the replay's other corpora keep theirs at the ro
 reader discovers, or asks the reader unconditionally now that it starts no process; either changes what SessionStart's
 orientation says too, so it wants its own record.
 
-## 442. OPEN 2026-11-01 — a short Governs glob makes the Node reader backtrack for minutes
+## 442. CLOSED 2026-11-08 (was OPEN 2026-11-01) — a short Governs glob makes the Node reader backtrack for minutes
 
 Found by the Codex review of 8d872045..b27d665a (ADR-137 part A1): `globToRegExp` (plugin/scripts/decision-corpus.mjs) turns
 each `*` into `[^/]*`, and a declaration such as ten `*a` and a `b` against a sixty-character path takes C(60,10) =
 75,394,027,566 regex steps; the reviewer's bounded Node probe was killed at its deadline. The core's mirror now matches globs in
 one pass (`dcGlobMatch`, TestDecisionCorpusGlobIsLinear). Node still serves the adr-context CLI, adr-state, work-next and
 corpus-probe, which hang on such a declaration; the same one-pass match fixes them, with the parity rows unchanged.
+
+Fixed 2026-11-08: `pathMatchesDeclaration` matches a glob with `globMatches`, a one-pass port of the core's `dcGlobMatch`
+(the set of pattern positions reached so far, `**` any unit but a line terminator, `*` and `?` any but `/`, literals by
+ECMAScript's non-unicode Canonicalize). tests/decision-corpus-glob-node.test.mjs runs ten `*a` and a `b` against 60 characters in
+a child under a 30 s hang guard (killed at the guard before the fix) and rows for each rule; a differential run of the old regex
+against the new match over 50,957 random glob and path pairs drawn from separators, line terminators and case-folding edge
+characters found no difference. Three new catalogue mutants are RED, and the old `* does not cross a separator` entry was
+re-anchored to the new line and is RED.
 
 ## 443. OPEN 2026-11-01 — the decision reader's reads are bounded in time, not in bytes, in Node and the core alike
 
@@ -4355,7 +4390,7 @@ that the place came from `CLAUDE_PLUGIN_DATA`; run by SessionStart, which passes
 hook's stdout is every adopter's context (§19). tests/qh-fetch.test.mjs drives the CLI both ways with no network, and two
 mutants are noticed.
 
-## 455. OPEN 2026-11-03 — the macOS Ctrl-C worktree test fails now and then, and says nothing of why
+## 455. CLOSED 2026-11-08 (was OPEN 2026-11-03; the next occurrence names its cause) — the macOS Ctrl-C worktree test fails now and then, and says nothing of why
 
 `tests/adr-verify-isolation.test.mjs` "a Ctrl-C to the whole group during the worktree build still removes the worktree"
 failed on the macOS selftest of land/e1a2418a (run 41669373182, attempt 3), a commit changing only the catalogue and an
@@ -4366,7 +4401,12 @@ same family. The child runs with `stdio: 'ignore'`, so its exit and output are l
 its body cannot change. Next: a sibling test, or a relock after review, that keeps the child's stderr and exit code and says them
 on failure, so the next occurrence names its cause.
 
-## 456. OPEN 2026-11-03 — two Windows test cleanups retry for about 5 s, and the hygiene sweep accepts any retry
+Closed 2026-11-08: tests/adr-verify-interrupt-said.test.mjs, beside the locked test, starts the same mutant run with its output
+kept; when the run ends before its worktree exists it fails with the elapsed time, the exit code, the signal and everything the
+run printed (shown with an unmatched `--from`: "no worktree after 75 ms; the run ended with exit 2 … MUTANT DID NOT APPLY …").
+The cause of the macOS failure is still unknown; this makes the next one say it.
+
+## 456. CLOSED 2026-11-08 (was OPEN 2026-11-03; any retry stays accepted) — two Windows test cleanups retry for about 5 s, and the hygiene sweep accepts any retry
 
 The Windows selftest of v3.8.68 (a peer, Windows 11, 16 cores, 843 s) failed three tests under full-suite load that pass
 alone: tests/branch-state.test.mjs "a brief snapshot past the age cap is not shown, and a refresh starts" and
@@ -4378,6 +4418,10 @@ tests/test-hygiene.test.mjs counts a recursive `rmSync` with any `maxRetries` as
 named. The branch-state one is a helper and now goes through `remove` (the same commit). The mutate-runner one is inside a
 test ADR-072 T2/T4/T5, ADR-073 T1 and ADR-075 T2 lock, so it stays until a relock; and whether the sweep should require
 `remove` rather than any retry is not decided.
+
+Closed 2026-11-08, on the owner's go-ahead for the backlog: the sweep keeps accepting any `maxRetries`. Requiring `remove` would
+touch every retrying site for a failure seen twice, both in cleanup after every assertion passed; the branch-state helper already
+moved to `remove`, and the mutate-runner site waits for its relock.
 
 ## 457. CLOSED 2026-11-04 — a branch-state test failure prints every process on the machine
 
@@ -4490,7 +4534,7 @@ failure is said as one and never as a low figure. tests/coverage-data-check.test
 noticed; the mutation shards install coverage.py so the test runs there. Not exercised end to end here: the coverage job itself,
 which the next landing runs.
 
-## 462. OPEN 2026-11-04 — three more readers take a task's id from its file name, or sort paths by the platform's rule
+## 462. CLOSED 2026-11-08 (was OPEN 2026-11-04) — three more readers take a task's id from its file name, or sort paths by the platform's rule
 
 Found by §458's class sweep (`grep -nE '\(T\\\\?d\+\)' plugin/bin/* plugin/lib/*.py plugin/scripts/*.mjs` and
 `grep -nE 'sorted\([^)]*glob\(' plugin/bin/* plugin/lib/*.py`): plugin/scripts/work-next.mjs:548 maps a README `done` claim to a
@@ -4498,6 +4542,18 @@ task by the file name's leading `T<n>`; plugin/bin/adr-lint:2382 builds the cros
 through `sorted(tasks.glob(...))`; plugin/bin/adr-next:1114-1124 finds another record's task by stem, also through `sorted()` over
 paths. Each disagrees with the title rule where a title and a name differ, and the two `sorted()` calls order differently on
 Windows. No report has come from them yet. Next: the title rule and a name sort in each, with the duplicate-ids corpus as the case.
+
+Fixed 2026-11-08, five sites, two more than the sweep named. Each reader now knows a task file by the id its own record's reader
+keys it by: work-next's README `done` claim and adr-lint's cross-record graph by the name's `T<n>`, else the title's (adr-lint's
+`task_key`); adr-next's `foreign_state` by the rule `load` uses (`declared_id`: the title's, else the first `T<n>` in the name),
+cannot-evaluate when two files declare the id, and names sorted by code point. Writing the test found two more stem readers in
+adr-lint: `resolve_qualified_dep`, which refused `Depends-on: ADR-001-T1` when that task's name held no id, and the `stems` list
+the index, Depends-on, Blocked-on, Consumes and the contract table match against. tests/task-identity-readers.test.mjs builds each
+shape (a titled `notes.md`) in a scratch corpus through the CLIs; six new catalogue mutants are RED, and seven existing entries
+whose lines moved were re-anchored and are RED. adr-lint over all 129 records, adr-next over every tasks directory and work-next
+`--json` print byte-identical output before and after. Sweep re-run: the `(T\d+)` hits left are README-cell parsers
+(adr-lint:2551, 2647, 6463); the `sorted(…glob(` hits left pick a case-variant README (7190) or suggest a record for a directory
+argument (6926), and neither reads a task's id.
 
 ## 463. OPEN 2026-11-05 — gofmt on one Go test file ran past 120 s on a macOS runner
 

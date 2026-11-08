@@ -766,27 +766,51 @@ function archiveDecisionEffect(file, reader, cache, listed, root) {
   return { effect: effects[0] }
 }
 
-// One glob component at a time, so `**` can cross separators and `*` cannot.
-function globToRegExp(pattern) {
+// A glob's anchored, case-insensitive match, `**` crossing separators and `*` and `?` not: what `new RegExp(…, 'i')` over
+// `.*`, `[^/]*` and `[^/]` matched, stepped through the path once with the set of pattern positions reached so far, as the
+// core's dcGlobMatch does. The regular expression retried every split of every `*`, so ten `*a` and a `b` against a
+// sixty-character path took C(60,10) tries and the readers hung (BACKLOG §442).
+const LINE_TERMINATORS = new Set([0x0a, 0x0d, 0x2028, 0x2029])
+// ECMAScript's Canonicalize for a non-unicode `/i`: the code unit's uppercase when that is one unit, never non-ASCII made ASCII.
+function unitCanonical(unit) {
+  const upper = String.fromCharCode(unit).toUpperCase()
+  if (upper.length !== 1) return unit
+  const code = upper.charCodeAt(0)
+  return unit >= 0x80 && code < 0x80 ? unit : code
+}
+
+function globMatches(pattern, file) {
   const normalised = pattern.replace(/\\/g, '/').replace(/^\.\//, '')
-  let source = '^'
+  const tokens = []
   for (let index = 0; index < normalised.length; index += 1) {
-    const character = normalised[index]
-    if (character === '*') {
-      if (normalised[index + 1] === '*') {
-        source += '.*'
-        index += normalised[index + 2] === '/' ? 2 : 1
-      } else {
-        source += '[^/]*'
-      }
-    } else if (character === '?') source += '[^/]'
-    else source += character.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    if (normalised[index] === '*' && normalised[index + 1] === '*') {
+      tokens.push({ kind: '**' })
+      index += normalised[index + 2] === '/' ? 2 : 1
+    } else if (normalised[index] === '*') tokens.push({ kind: '*' })
+    else if (normalised[index] === '?') tokens.push({ kind: '?' })
+    else tokens.push({ kind: 'literal', want: unitCanonical(normalised.charCodeAt(index)) })
   }
-  try {
-    return new RegExp(`${source}$`, 'i')
-  } catch {
-    return null
+  const n = tokens.length
+  // A run matches nothing too, so a position before one reaches the position after it.
+  const widen = set => {
+    for (let k = 0; k < n; k += 1) if (set[k] && (tokens[k].kind === '**' || tokens[k].kind === '*')) set[k + 1] = true
+    return set
   }
+  let current = widen(Object.assign(new Array(n + 1).fill(false), { 0: true }))
+  for (let index = 0; index < file.length; index += 1) {
+    const unit = file.charCodeAt(index)
+    const next = new Array(n + 1).fill(false)
+    for (let k = 0; k < n; k += 1) {
+      if (!current[k]) continue
+      const { kind, want } = tokens[k]
+      if (kind === '**') { if (!LINE_TERMINATORS.has(unit)) next[k] = true }
+      else if (kind === '*') { if (unit !== 0x2f) next[k] = true }
+      else if (kind === '?') { if (unit !== 0x2f) next[k + 1] = true }
+      else if (unitCanonical(unit) === want) next[k + 1] = true
+    }
+    current = widen(next)
+  }
+  return current[n]
 }
 
 // A declared path matches the file itself, anything under it when it names a
@@ -795,7 +819,7 @@ export function pathMatchesDeclaration(candidate, declaration) {
   const file = candidate.replace(/\\/g, '/').replace(/^\.\//, '')
   const declared = declaration.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
   if (!declared) return false
-  if (/[*?]/.test(declared)) return globToRegExp(declared)?.test(file) ?? false
+  if (/[*?]/.test(declared)) return globMatches(declared, file)
   return file === declared || file.startsWith(`${declared}/`)
 }
 

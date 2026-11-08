@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §462: a README done claim reaches a task known by its title",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "(path.basename(file).match(/^(T\\d+)(?!\\d)/i) ?? text.match(/^#\\s+(?:Task\\s+)?\\S*?(T\\d+)\\b/))?.[1]",
+      "to": "path.basename(file).match(/^(T\\d+)(?!\\d)/i)?.[1]",
+      "only": "^(?:work-next names a README done claim on a task whose title, not its name, gives the id)$"
+    },
+    {
       "label": "§355 front matter: work-next does not call a corpus of unread records no corpus",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
@@ -489,7 +499,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "|| /\\bmarked\\s+done\\b/i.test(text) || claimedInReadme(file)",
+      "from": "|| /\\bmarked\\s+done\\b/i.test(text) || claimedInReadme(file, text)",
       "to": "|| /\\bmarked\\s+done\\b/i.test(text)",
       "only": "done claim adr-next does not honour"
     },

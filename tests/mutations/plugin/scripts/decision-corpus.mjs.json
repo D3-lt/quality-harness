@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §442: a glob's * does not cross a separator",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": [
+        "tests/decision-corpus-glob-node.test.mjs"
+      ],
+      "from": "      else if (kind === '*') { if (unit !== 0x2f) next[k] = true }",
+      "to": "      else if (kind === '*') { next[k] = true }",
+      "only": "^(?:the one-pass match keeps what the regular expression matched)$"
+    },
+    {
+      "label": "BACKLOG §442: a glob's ** does not cross a line terminator, as the regex's . did not",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": [
+        "tests/decision-corpus-glob-node.test.mjs"
+      ],
+      "from": "      if (kind === '**') { if (!LINE_TERMINATORS.has(unit)) next[k] = true }",
+      "to": "      if (kind === '**') { next[k] = true }",
+      "only": "^(?:the one-pass match keeps what the regular expression matched)$"
+    },
+    {
+      "label": "BACKLOG §442: case folds as a non-unicode /i does, never non-ASCII to ASCII",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": [
+        "tests/decision-corpus-glob-node.test.mjs"
+      ],
+      "from": "  return unit >= 0x80 && code < 0x80 ? unit : code",
+      "to": "  return code",
+      "only": "^(?:the one-pass match keeps what the regular expression matched)$"
+    },
+    {
       "label": "lifecycle: trackedPaths lists names git would quote (2.110.0-rc chaos)",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": [
@@ -66,8 +96,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        source += '[^/]*'",
-      "to": "        source += '.*'",
+      "from": "      else if (kind === '*') { if (unit !== 0x2f) next[k] = true }",
+      "to": "      else if (kind === '*') { if (!LINE_TERMINATORS.has(unit)) next[k] = true }",
       "only": "^(?:a declaration matches the file, the directory under it, and its globs|a Governs declaration that matches nothing tracked is reported, and could-not-look is not)$"
     },
     {

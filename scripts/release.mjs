@@ -116,7 +116,10 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     const checked = ran('node', ['scripts/marketplace-source.mjs', version, '--check'])
     for (const line of String(checked.stdout ?? '').trim().split('\n')) if (line) log(line)
     if (checked.status === 0) return 0
-    log('release: ' + tag + ' is published; verify a cold archive install, then generate and land the catalogue pin with: node scripts/marketplace-source.mjs ' + version)
+    // BACKLOG §433: a public archive or pin that failed verification (exit 1) is not one awaiting promotion (exit 2), and was
+    // told to verify a cold install and promote it all the same.
+    if (checked.status === 2) log('release: ' + tag + ' is published; verify a cold archive install, then generate and land the catalogue pin with: node scripts/marketplace-source.mjs ' + version)
+    else log(`release: ${tag} is published, but its public archive or catalogue pin failed verification (marketplace-source exited ${checked.status}); fix what it names above before promoting anything`)
     if (checked.stderr) log(String(checked.stderr).trim())
     return checked.status === 2 ? 2 : 1
   }

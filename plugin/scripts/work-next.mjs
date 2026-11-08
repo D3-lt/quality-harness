@@ -534,7 +534,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   // A narrower reader here repeated shapes adr-lint had already been corrected for
   // (Codex review of 2.108.0).
   const readmeDone = new Map()
-  const claimedInReadme = file => {
+  const claimedInReadme = (file, text) => {
     const dir = path.dirname(path.resolve(file))
     if (!readmeDone.has(dir)) {
       const ids = new Set()
@@ -545,7 +545,9 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
       }
       readmeDone.set(dir, ids)
     }
-    const id = path.basename(file).match(/^(T\d+)(?!\d)/i)?.[1]?.toUpperCase()
+    // The id adr-lint keys a README row's task by: the name's leading `T<n>`, else the id the title declares. By the name alone a
+    // titled task named `notes.md` was claimed by no row, so its README `done` with no evidence was not named (BACKLOG §462).
+    const id = (path.basename(file).match(/^(T\d+)(?!\d)/i) ?? text.match(/^#\s+(?:Task\s+)?\S*?(T\d+)\b/))?.[1]?.toUpperCase()
     return id != null && readmeDone.get(dir).has(id)
   }
   // A task withheld ONLY by a test lock over a file that is there and could not be read carries its
@@ -571,7 +573,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     // claim, so a done task with no evidence left `unbacked` empty (a Windows chaos round
     // of 916b515). `[^\S\r\n]` never crosses a line, which the backtracking note needs.
     const claimed = /^[^\S\r\n]*[-*]?[^\S\r\n]*\*{0,2}(?:Status|State):?\*{0,2}:?[^\S\r\n]*done\b/im.test(text)
-      || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file)
+      || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file, text)
     if (!claimed || withheldByLock.has(path.resolve(file)) || readiness.unreadable.has(path.resolve(file))
       || unopenable.has(path.resolve(file))) return false
     if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))

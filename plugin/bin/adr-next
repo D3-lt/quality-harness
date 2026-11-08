@@ -878,6 +878,22 @@ def read_named(path):
         sys.exit(1)
 
 
+# The id a task file declares: its title's (`# Task ADR-004-T1: …`), else the first `T<n>` in its name. `load` reads its own
+# tasks by it and `foreign_state` another record's, so the task one finds is the task the other finds: the foreign lookup read
+# the stem alone, and a titled task named `notes.md` was no task to it (BACKLOG §462).
+TASK_TITLE_ID = re.compile(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b")
+
+
+def declared_id(path, text):
+    m = TASK_TITLE_ID.match(text) or TID_RE.search(path.name)
+    if not m:
+        return None
+    # The title regex captures the id; TID_RE has no group, so a task named
+    # plainly `T9.md` with no `# Task …T9` title crashed here with IndexError
+    # — found the day work-next started asking this tool (2026-09-23).
+    return (m.group(1) if m.lastindex else m.group(0)).upper()
+
+
 def load(tasks_dir):
     infos = {}
     root = git_root(tasks_dir)
@@ -936,13 +952,9 @@ def load(tasks_dir):
                 infos[m.group(0)] = unreadable_task(m.group(0), path, (
                     f"could not read it: {path.name} {unreadable}, so its state is UNPROVEN"))
             continue
-        m = re.match(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b", text) or TID_RE.search(path.name)
-        if not m:
+        tid = declared_id(path, text)
+        if not tid:
             continue
-        # The title regex captures the id; TID_RE has no group, so a task named
-        # plainly `T9.md` with no `# Task …T9` title crashed here with IndexError
-        # — found the day work-next started asking this tool (2026-09-23).
-        tid = (m.group(1) if m.lastindex else m.group(0)).upper()
         # Two files, one id: the second overwrote the first, so one task was in no
         # bucket and nothing named it (a Windows chaos round of 916b515). Neither is
         # read as that task until one of them is given its own id.
@@ -1111,35 +1123,45 @@ def foreign_state(pointer, corpus_dir):
     if not found or corpus_dir is None or not corpus_dir.is_dir():
         return "unknown"
     number, want = int(found.group("number")), found.group("task").upper()
-    for candidate in sorted(corpus_dir.glob("*.md")):
+    # Names compared by code point, the same on every platform: `sorted()` over Windows paths ignores case (BACKLOG §458).
+    for candidate in sorted(corpus_dir.glob("*.md"), key=lambda p: p.name):
         got = record_file_number(candidate.name)
         if got is False or got is None or got != number:
             continue
         tasks = candidate.with_suffix("") / "tasks"
         if not tasks.is_dir():
             return "unknown"
-        for f in sorted(tasks.glob("*.md")):
+        # Every file declaring the id, by the rule `load` reads this record's tasks with (BACKLOG §462). Two of them is `load`'s
+        # duplicate, which it reads as neither, so the edge cannot be evaluated either.
+        declaring = []
+        for f in sorted(tasks.glob("*.md"), key=lambda p: p.name):
             if f.name.lower() == "readme.md":
                 continue
-            if TID_RE.search(f.stem.upper()) and TID_RE.search(f.stem.upper()).group(0) == want:
+            if not f.is_file():
                 # A FIFO here waited forever in a reader that guards its own tasks (Codex review
-                # of 3ff59fb): never opened, so the edge cannot be evaluated.
-                if not f.is_file():
+                # of 3ff59fb): never opened, so an edge it may answer cannot be evaluated.
+                m = TID_RE.search(f.name.upper())
+                if m and m.group(0) == want:
                     return "unknown"
-                text = read_named(f)
-                # A conflicted foreign task is both sides of a merge, so its state
-                # cannot be read and the edge is unknown (Codex review of §295.7).
-                if conflict_markers(text):
-                    return "unknown"
-                # The SAME reader `load` uses, so a foreign task is judged done
-                # by exactly the evidence a local one needs — a matching fence
-                # digest, or an affirmative human sign-off. A second definition
-                # of "done" is how two tools come to disagree about one corpus.
-                fence, first, digest = acceptance(text)
-                return ("done" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
-                                          fence, first, git_root(tasks))
+                continue
+            found_text = read_named(f)
+            if declared_id(f, found_text) == want:
+                declaring.append(found_text)
+        if len(declaring) == 1:
+            text = declaring[0]
+            # A conflicted foreign task is both sides of a merge, so its state
+            # cannot be read and the edge is unknown (Codex review of §295.7).
+            if conflict_markers(text):
+                return "unknown"
+            # The SAME reader `load` uses, so a foreign task is judged done
+            # by exactly the evidence a local one needs — a matching fence
+            # digest, or an affirmative human sign-off. A second definition
+            # of "done" is how two tools come to disagree about one corpus.
+            fence, first, digest = acceptance(text)
+            return ("done" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
+                                      fence, first, git_root(tasks))
 
-                        else "pending")
+                    else "pending")
         return "unknown"
     return "unknown"
 

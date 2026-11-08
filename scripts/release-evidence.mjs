@@ -225,13 +225,38 @@ export function fetchRun(sha, exec = execFileSync) {
     return null
   }
   if (!id) return null
+  const fields = 'databaseId,status,conclusion,headSha,headBranch,jobs,event'
   try {
-    return JSON.parse(exec('gh', [
-      'run', 'view', String(id), '--json', 'databaseId,status,conclusion,headSha,headBranch,jobs,event',
-    ], { encoding: 'utf8', timeout: 60_000 }))
+    return JSON.parse(exec('gh', ['run', 'view', String(id), '--json', fields], { encoding: 'utf8', timeout: 60_000 }))
+  } catch {
+    return runAtLatestAttempt(id, full, fields, exec)
+  }
+}
+
+/**
+ * BACKLOG §435: for landed 7bdb0be3 GitHub's default jobs listing answered HTTP 502 while the same run asked for by its explicit
+ * latest attempt returned every job (run 40861695329), and the release stopped before its tag. So the latest attempt is read, the
+ * run asked for at that attempt, and the attempt and sha read again: a run re-run between the reads, a run of another sha, or a
+ * failing query is could-not-look (null), never another attempt's jobs.
+ */
+function runAtLatestAttempt(id, full, fields, exec) {
+  const latest = () => {
+    try {
+      const seen = JSON.parse(exec('gh', ['run', 'view', String(id), '--json', 'attempt,headSha'], { encoding: 'utf8', timeout: 60_000 }))
+      return Number.isInteger(seen?.attempt) && seen.attempt > 0 && seen.headSha === full ? seen.attempt : null
+    } catch {
+      return null
+    }
+  }
+  const before = latest()
+  if (before === null) return null
+  let run
+  try {
+    run = JSON.parse(exec('gh', ['run', 'view', String(id), '--attempt', String(before), '--json', fields], { encoding: 'utf8', timeout: 60_000 }))
   } catch {
     return null
   }
+  return run?.headSha === full && latest() === before ? run : null
 }
 
 /**

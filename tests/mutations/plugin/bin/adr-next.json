@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §462: another record's task is found by the id it declares, not its stem",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "            if declared_id(f, found_text) == want:",
+      "to": "            if TID_RE.search(f.stem.upper()) and TID_RE.search(f.stem.upper()).group(0) == want:",
+      "only": "^(?:adr-next finds another record's task by its title, and cannot evaluate an id two files declare)$"
+    },
+    {
+      "label": "BACKLOG §462: an id two files of another record declare cannot be evaluated",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "        if len(declaring) == 1:",
+      "to": "        if declaring:",
+      "only": "^(?:adr-next finds another record's task by its title, and cannot evaluate an id two files declare)$"
+    },
+    {
       "label": "BACKLOG §409 sibling: adr-next prints path with the home directory",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -940,8 +960,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "a conflicted task in another record",
-      "from": "                if conflict_markers(text):\n                    return \"unknown\"",
-      "to": "                if False:\n                    return \"unknown\""
+      "from": "            if conflict_markers(text):\n                return \"unknown\"",
+      "to": "            if False:\n                return \"unknown\""
     },
     {
       "label": "§295.19 (Codex): a lowercase absent task file still names its task",
@@ -1380,8 +1400,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "                if not f.is_file():\n                    return \"unknown\"",
-      "to": "                if False:\n                    return \"unknown\"",
+      "from": "            if not f.is_file():\n                # A FIFO here waited forever",
+      "to": "            if False:\n                # A FIFO here waited forever",
       "only": "^(?:a FIFO behind a cross-record dependency is not opened)$"
     },
     {
@@ -1390,8 +1410,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "                return (\"done\" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
-      "to": "                return (\"done\" if not terminal_stop(text) and is_done(text, digest, first == \"human-observed\",",
+      "from": "            return (\"done\" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
+      "to": "            return (\"done\" if not terminal_stop(text) and is_done(text, digest, first == \"human-observed\",",
       "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
     },
     {
@@ -1700,8 +1720,8 @@
       "label": "ADR-120 T7: foreign_state enumerates NNN-slug.md records, not only ADR-NNN-slug.md",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-foreign.test.mjs"],
-      "from": "sorted(corpus_dir.glob(\"*.md\"))",
-      "to": "sorted(corpus_dir.glob(\"ADR-*.md\"))",
+      "from": "sorted(corpus_dir.glob(\"*.md\"), key=lambda p: p.name)",
+      "to": "sorted(corpus_dir.glob(\"ADR-*.md\"), key=lambda p: p.name)",
       "only": "^a foreign record named NNN-slug is found, and a dated file is no record$"
     },
     {

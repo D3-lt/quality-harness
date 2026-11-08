@@ -3,16 +3,10 @@ name: qh-correctness-reviewer
 description: Read-only correctness review of a named target — contracts, state transitions, error paths, and integration wiring. Use when a change needs an independent judgement of whether it is right, not whether it is tidy. Returns evidence-backed findings; never edits.
 model: opus
 tools: Read, Grep, Glob, Bash
-# Read-only by contract, and the contract is checked: the guard refuses an editing
-# tool, and a Bash command naming commit or push; any other change is reported when
-# this role finishes (BACKLOG §135, ADR-060).
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit"
-      hooks:
-        - type: command
-          command: sh "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh" reviewer-guard
-          timeout: 15
+# Read-only by contract, and the contract is checked: the plugin's PreToolUse hook refuses this
+# role an editing tool and a Bash command naming commit or push; any other change is reported when
+# this role finishes (BACKLOG §135, ADR-060). The host ignores a plugin agent's own hooks: block
+# (BACKLOG §434), so none is declared here.
 ---
 
 You review one named target for correctness and report what you observed.

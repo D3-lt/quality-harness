@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §462: the cross-record graph knows a task by its title when its name holds no id",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "            local = task_key(f, text)",
+      "to": "            local = stem_task_id(f)",
+      "only": "^(?:adr-lint sees a cross-record cycle through a task whose title, not its name, gives the id)$"
+    },
+    {
+      "label": "BACKLOG §462: a qualified Depends-on resolves to a task known by its title",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "                if task_id(Path(name), text) == task.upper():",
+      "to": "                if False:",
+      "only": "^(?:adr-lint sees a cross-record cycle through a task whose title, not its name, gives the id)$"
+    },
+    {
+      "label": "BACKLOG §462: the index and sibling edges know a task by its title when its name holds no id",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "        stems = [p.stem if _STEM_TASK_ID.search(p.stem) else",
+      "to": "        stems = [p.stem if True else",
+      "only": "^(?:adr-lint's index and a sibling's Depends-on know a task whose title, not its name, gives the id)$"
+    },
+    {
       "label": "BACKLOG §458: a titled file whose name holds no id is keyed by its title",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/adr-lint-task-identity.test.mjs"],
@@ -495,8 +525,8 @@
         "tests/trailing-dot-task.test.mjs"
       ],
       "only": "a dependency on a record whose name ends in a dot",
-      "from": "                return True\n    return None if number in unreadable_record_numbers(root, corpus_dir, tracked) else False",
-      "to": "                return True\n    return None if unreadable_record_numbers(root, corpus_dir, tracked) else False"
+      "from": "    return None if unread or number in unreadable_record_numbers(root, corpus_dir, tracked) else False",
+      "to": "    return None if unread or unreadable_record_numbers(root, corpus_dir, tracked) else False"
     },
     {
       "label": "§355: adr-lint names two Status lines that disagree",
@@ -1000,8 +1030,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if id_matches(task, name[:-len(\".md\")]):\n",
-      "to": "            if True or id_matches(task, name[:-len(\".md\")]):\n",
+      "from": "            if id_matches(task, stem):\n",
+      "to": "            if True or id_matches(task, stem):\n",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2801,8 +2831,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "            if f.exists() and not f.is_file():\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
-      "to": "            if False:\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
+      "from": "            if f.exists() and not f.is_file():\n                if _STEM_TASK_ID.search(f.stem):\n                    unread.append(f\"`{shown(f)}`: not a regular file\")",
+      "to": "            if False:\n                if _STEM_TASK_ID.search(f.stem):\n                    unread.append(f\"`{shown(f)}`: not a regular file\")",
       "only": "adr-lint refuses a file that is not a regular file"
     },
     {

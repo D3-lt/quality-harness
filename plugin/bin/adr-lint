@@ -526,6 +526,7 @@ def resolve_qualified_dep(pointer, root, corpus_dir, tracked):
     # EVERY candidate carrying that number, not the first. Sorted order put a
     # task-shaped name ahead of the real record, and returning on the first
     # match turned a resolvable dependency into a BLOCK.
+    unread = False
     for candidate, candidate_number in records:
         if candidate_number != number:
             continue
@@ -542,9 +543,20 @@ def resolve_qualified_dep(pointer, root, corpus_dir, tracked):
                 continue
             if name.lower() == "readme.md":
                 continue
-            if id_matches(task, name[:-len(".md")]):
+            stem = name[:-len(".md")]
+            if id_matches(task, stem):
                 return True
-    return None if number in unreadable_record_numbers(root, corpus_dir, tracked) else False
+            # A name holding no id is known by its title's, as the record's own lint knows it (BACKLOG §462): read from the
+            # tracked file, and one that cannot be read leaves the dependency unresolved, never refused.
+            if not _STEM_TASK_ID.search(stem):
+                try:
+                    text = (Path(root) / entry).read_text(errors="replace", encoding="utf-8")
+                except OSError:
+                    unread = True
+                    continue
+                if task_id(Path(name), text) == task.upper():
+                    return True
+    return None if unread or number in unreadable_record_numbers(root, corpus_dir, tracked) else False
 
 
 _STEM_TASK_ID = re.compile(r"(?<![A-Za-z0-9])T\d+(?![A-Za-z0-9])", re.I)
@@ -2379,25 +2391,28 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
         if not tasks.is_dir():
             continue
         here = str(record_number).zfill(3)
-        for f in sorted(tasks.glob("*.md")):
+        for f in task_order(tasks.glob("*.md")):
             if f.name.lower() == "readme.md":
                 continue
-            local = re.search(r"(?<!\w)T\d+(?!\w)", f.stem, re.I)
-            if not local:
-                continue
-            node = f"{here}-{local.group(0).upper()}"
-            nodes.add(node)
             # A directory or a FIFO named like another record's task is refused unread, as a read
             # that fails is, never this record's could-not-run (§350 C3's sibling, found when its
             # catalogue mutant went GREEN: `refuse_irregular` here exited 2 first).
             if f.exists() and not f.is_file():
-                unread.append(f"`{shown(f)}`: not a regular file")
+                if _STEM_TASK_ID.search(f.stem):
+                    unread.append(f"`{shown(f)}`: not a regular file")
                 continue
             try:
                 text = f.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
                 unread.append(f"`{shown(f)}`: {os_reason(exc)}")
                 continue
+            # The id the record's own lint knows the file by: its name's, else its title's. The name alone left a titled task
+            # named `notes.md` out of the graph, and a cycle through it unseen (BACKLOG §462).
+            local = task_key(f, text)
+            if not local:
+                continue
+            node = f"{here}-{local}"
+            nodes.add(node)
             qualified, _ = split_dependencies(header_val(text, "Depends-on") or "")
             for pointer in qualified:
                 found = QUALIFIED_DEP.match(pointer)
@@ -2477,6 +2492,15 @@ def task_order(paths):
     `sorted()` over Windows paths compares them case-insensitively, so on Windows `t1-Again.md` sorted before
     `T1-state-dir.md`, became the file read as T1, and took T1's findings (BACKLOG §458, a Windows chaos run of 3.8.68)."""
     return sorted(paths, key=lambda p: p.name)
+
+
+def task_key(path, text):
+    """The id a record's index and edges know a task file by: the first `T<n>` in its name, as `id_matches` reads it, else the
+    id its title declares. By the name alone a titled task named `notes.md` was no task to the index, to a sibling's Depends-on,
+    or to another record's dependency and cycle checks (BACKLOG §462)."""
+    found = _STEM_TASK_ID.search(path.stem)
+    return found.group(0).upper() if found else task_id(path, text)
+
 
 def terminal_task_status(text):
     """The terminal state this task declares about ITSELF, or None.
@@ -7100,7 +7124,10 @@ def main():
         task_files = task_order(p for p in tasks_dir.glob("*.md") if p.name.lower() != "readme.md")
         for p in task_files:
             refuse_irregular(p)
-        stems = [p.stem for p in task_files]
+        # What the index, Depends-on, Blocked-on, Consumes and the contract table match a task by: its stem, or for a stem holding
+        # no id, the id its title declares (BACKLOG §462).
+        stems = [p.stem if _STEM_TASK_ID.search(p.stem) else (task_key(p, p.read_text(errors="replace", encoding="utf-8")) or p.stem)
+                 for p in task_files]
         check_lookalike_names([p.name for p in task_files], errors)
         if not task_files:
             # A shared tasks/ holding one subdirectory per record (BACKLOG §313) is not entered;

@@ -1,6 +1,15 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §433: only an archive awaiting promotion is told to promote",
+      "file": "scripts/release.mjs",
+      "tests": [
+        "tests/release-catalogue.test.mjs"
+      ],
+      "from": "    if (checked.status === 2) log(",
+      "to": "    if (true) log("
+    },
+    {
       "label": "Codex review of v3.8.52..2ad118d0: an exempt file must verify as an attestation",
       "file": "scripts/release.mjs",
       "tests": ["tests/evidence-after-landing.test.mjs"],

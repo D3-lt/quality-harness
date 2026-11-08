@@ -4,7 +4,8 @@
 // names commit or push as a word, wrapped or not, with exit 2 and a reason; it
 // passes every other command, writes included, because those are reported when
 // the reviewer finishes; it passes a payload it cannot read. And every agent whose
-// description says "never edits" declares the guard in its own frontmatter.
+// description says "never edits" is guarded by the plugin's own PreToolUse hook on
+// every tool that can write, since the host ignores a plugin agent's hooks: (BACKLOG §434).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -66,23 +67,25 @@ test('the plugin-level role list is the agents that say read-only, no more and n
   assert.equal(readOnlyRole(undefined), null)
 })
 
-test('every agent that says it never edits declares the guard on every tool that can write', () => {
+// BACKLOG §434: the host ignores a plugin agent's own `hooks:` frontmatter (a debug warning per agent on Claude Code 2.1.312),
+// so the guard these roles get is the plugin's PreToolUse hook, which reads the agent's type (tests/bundled-core.test.mjs and
+// tests/fail-open.test.mjs drive it). Held here: that hook is called for every tool that can write, a read-only role lists no
+// editing tool, and no agent declares a block the host would ignore while it reads as a guard.
+test('every agent that says it never edits is guarded by the plugin hook on every tool that can write', () => {
   const agents = readdirSync(join(root, 'agents')).filter(name => name.endsWith('.md'))
   assert.ok(agents.length >= 3)
-  let guarded = 0
+  const matchers = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8')).hooks.PreToolUse.map(entry => entry.matcher.split('|'))
+  for (const tool of ['Bash', 'PowerShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'mcp__mrw__mrw_write']) {
+    assert.ok(matchers.some(names => names.includes(tool)), `the plugin's PreToolUse hook is called for ${tool}`)
+  }
+  let readOnlyCount = 0
   for (const name of agents) {
-    const text = readFileSync(join(root, 'agents', name), 'utf8')
-    const front = text.split('\n---')[0]
-    const readOnly = /never edits|Read-only|read-only/i.test(front)
-    const declares = front.includes("PreToolUse:") && front.includes("qh-hook.sh") && front.includes("reviewer-guard")
-    if (readOnly) {
-      assert.ok(declares, `${name} says it is read-only and declares no guard`)
-      assert.match(front, /matcher:\s*"?Bash\|Edit\|Write\|MultiEdit\|NotebookEdit"?/, `${name}: the guard must cover every tool that writes`)
+    const front = readFileSync(join(root, 'agents', name), 'utf8').split('\n---')[0]
+    assert.doesNotMatch(front, /^hooks:/m, `${name}: the host ignores an agent's hooks: block, so none reads as a guard`)
+    if (/never edits|Read-only|read-only/i.test(front)) {
       assert.doesNotMatch(front, /tools:.*\b(Edit|Write|MultiEdit|NotebookEdit)\b/, `${name}: a read-only role does not list an editing tool`)
-      guarded += 1
-    } else {
-      assert.ok(!declares, `${name} is not read-only and must not carry the guard`)
+      readOnlyCount += 1
     }
   }
-  assert.ok(guarded >= 3, `the reviewers and the synthesis role are read-only: ${guarded} guarded`)
+  assert.ok(readOnlyCount >= 3, `the reviewers and the synthesis role are read-only: ${readOnlyCount}`)
 })

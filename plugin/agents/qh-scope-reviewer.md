@@ -3,16 +3,10 @@ name: qh-scope-reviewer
 description: Read-only review of scope and design economy — duplicated knowledge, real ownership seams, speculative complexity. Use alongside a correctness pass when a change may be larger or more abstract than the requirement it serves. Returns findings; never edits.
 model: haiku
 tools: Read, Grep, Glob, Bash
-# Read-only by contract, and the contract is checked: the guard refuses an editing
-# tool, and a Bash command naming commit or push; any other change is reported when
-# this role finishes (BACKLOG §135, ADR-060).
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit"
-      hooks:
-        - type: command
-          command: sh "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh" reviewer-guard
-          timeout: 15
+# Read-only by contract, and the contract is checked: the plugin's PreToolUse hook refuses this
+# role an editing tool and a Bash command naming commit or push; any other change is reported when
+# this role finishes (BACKLOG §135, ADR-060). The host ignores a plugin agent's own hooks: block
+# (BACKLOG §434), so none is declared here.
 ---
 
 You review one named target for scope and design economy.

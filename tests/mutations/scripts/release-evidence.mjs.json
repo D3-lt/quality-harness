@@ -1,6 +1,24 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §435: a 502 on the default jobs view is answered by the latest attempt",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence-attempt.test.mjs"
+      ],
+      "from": "    return runAtLatestAttempt(id, full, fields, exec)",
+      "to": "    return null"
+    },
+    {
+      "label": "BACKLOG §435: an attempt that changed between the reads, or another sha, is could-not-look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence-attempt.test.mjs"
+      ],
+      "from": "  return run?.headSha === full && latest() === before ? run : null",
+      "to": "  return run"
+    },
+    {
       "label": "the Codex review of v3.8.53..42a903a8: an attestation's own field names the file it is verified as",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/attest-verify.test.mjs"],

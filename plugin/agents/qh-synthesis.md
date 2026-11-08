@@ -3,16 +3,10 @@ name: qh-synthesis
 description: Adjudicates between independent reviews and returns one deduplicated verdict. Use when two or more reviews disagree, overlap, or must be reduced to what actually blocks. Judges only what the reviews and the source support; never edits and never invents a finding.
 model: opus
 tools: Read, Grep, Glob, Bash
-# Read-only by contract, and the contract is checked: the guard refuses an editing
-# tool, and a Bash command naming commit or push; any other change is reported when
-# this role finishes (BACKLOG §135, ADR-060).
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit"
-      hooks:
-        - type: command
-          command: sh "${CLAUDE_PLUGIN_ROOT}/scripts/qh-hook.sh" reviewer-guard
-          timeout: 15
+# Read-only by contract, and the contract is checked: the plugin's PreToolUse hook refuses this
+# role an editing tool and a Bash command naming commit or push; any other change is reported when
+# this role finishes (BACKLOG §135, ADR-060). The host ignores a plugin agent's own hooks: block
+# (BACKLOG §434), so none is declared here.
 ---
 
 You reduce several independent reviews to one verdict.

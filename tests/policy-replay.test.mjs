@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { createReplayCorpus, registeredHooks, registeredProgram } from '../scripts/policy-replay.mjs'
+import { createReplayCorpus, registeredHooks, registeredProgram, replay } from '../scripts/policy-replay.mjs'
 import { remove } from './helpers/remove.mjs'
 
 test('policy replay follows every matching registration and excludes unmatched tools', () => {
@@ -45,4 +45,24 @@ test('registered shell measurements use the Git Bash resolver on Windows and pre
   assert.equal(registeredProgram('sh', { platform: 'darwin', env }), 'sh')
   assert.equal(registeredProgram('node', { platform: 'win32', env }), process.execPath)
   assert.equal(registeredProgram('missing', { platform: 'win32', env }), 'missing')
+})
+
+// BACKLOG §433 (the Claude review of 30f7638b..a13a088e): replay seeds an explicit core through QUALITY_HARNESS_QH_BIN, but a
+// plugin holding native/ or its bundle marker runs its bundled core from the shell hooks, so the replay described one binary
+// while the hooks ran another. The combination is refused before anything runs; an unbundled plugin is still replayed with one.
+test('an explicit core is refused for a bundled plugin, whose hooks run the bundled one', async t => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-policy-bundled-'))
+  t.after(() => remove(directory))
+  for (const marker of [['native'], ['.claude-plugin', 'bundle.json']]) {
+    const plugin = mkdtempSync(path.join(directory, 'plugin-'))
+    mkdirSync(path.join(plugin, ...marker.slice(0, -1)), { recursive: true })
+    if (marker.length === 1) mkdirSync(path.join(plugin, marker[0]))
+    else writeFileSync(path.join(plugin, ...marker), '{}\n')
+    await assert.rejects(replay({ plugin, binary: process.execPath, directory: path.join(plugin, 'run') }),
+      /bundled.*explicit core|explicit core.*bundled/, marker.join('/'))
+  }
+  // The control: with no explicit core, a bundled plugin is not refused for this reason.
+  const plugin = mkdtempSync(path.join(directory, 'plugin-'))
+  mkdirSync(path.join(plugin, 'native'))
+  await assert.rejects(replay({ plugin, directory: path.join(plugin, 'run') }), error => !/explicit core/.test(String(error)))
 })

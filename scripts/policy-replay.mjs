@@ -100,6 +100,11 @@ export function createReplayCorpus(directory, { governed, env }) {
 
 export async function replay({ plugin, binary = null, directory, governed = true, label = 'D', observe = true }) {
   plugin = path.resolve(plugin); directory = path.resolve(directory)
+  // BACKLOG §433: a plugin holding native/ or its bundle marker runs its bundled core from the shell hooks (qh-hook.sh), so an
+  // explicit core seeded below would describe one binary while the hooks ran another. Replay an unbundled plugin with one.
+  if (binary && (existsSync(path.join(plugin, 'native')) || existsSync(path.join(plugin, '.claude-plugin', 'bundle.json')))) {
+    throw new Error(`policy replay: ${plugin} is a bundled plugin, so its hooks run its own native core and not the explicit core ${binary}; replay an unbundled plugin, or pass no binary`)
+  }
   mkdirSync(directory, { recursive: true })
   assert.equal(existsSync(path.join(directory, 'repo')), false, 'each replay owns a fresh directory')
   const home = path.join(directory, 'home'), temp = path.join(directory, 'tmp'), data = path.join(directory, 'data')

@@ -1,0 +1,12 @@
+{
+  "mutations": [
+    {
+      "label": "BACKLOG §433: an explicit core is refused for a bundled plugin, whose hooks run the bundled one",
+      "file": "scripts/policy-replay.mjs",
+      "tests": ["tests/policy-replay.test.mjs"],
+      "from": "  if (binary && (existsSync(path.join(plugin, 'native'))",
+      "to": "  if (false && (existsSync(path.join(plugin, 'native'))",
+      "only": "^(?:an explicit core is refused for a bundled plugin, whose hooks run the bundled one)$"
+    }
+  ]
+}

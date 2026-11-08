@@ -3292,6 +3292,11 @@ Found by the bench peer and reproduced here with scripted sessions through the h
 - **ADR-108 T1's could-not-start advice is given for a tree that moved during the run (found 2026-10-18).** A full `qh-check` passed (exit 0) while this session committed beside it, so its record's before and after trees differ (88ecdb40 → 71700c4f) and it is graded `check.unproven`. The turn end then said "could not be proven to have run … do not run it again on this tree; if it cannot start on an unmodified tree the finding is about this machine". Neither is true of a run the tree moved under: the right action is to run it again on a tree that holds still, and an agent that obeys the advice leaves its work unchecked. The fix: tell a run whose trees differ apart from one that could not be proven to start (`completion-rules.mjs` `couldNotStartOpening`, `COULD_NOT_START`), and say "the tree moved during the run; run it again once the tree holds still". S.
   - **Fixed 2026-10-18, for the release after 3.8.45:** when the latest check's trees before and after differ, R1 now says "the latest `qh-check` on this turn's work proves nothing about it: the tree changed while it ran …, so run it again once the tree holds still" and still asks for the check. Test: `tests/adr-108.test.mjs` `a check the tree moved under is to be run again, not reported as could-not-start`; mutants: the two `BACKLOG §383:` entries in `tests/mutations/plugin/scripts/completion-rules.mjs.json`, RED, and ADR-108 T1's four still RED (one re-aimed).
   - **Left, an advisory from the Claude-host review of v3.8.45..61efcbb6:** `treeMoved` cannot tell a tree another writer moved from a check that changes the tree itself (a formatter, a test writing files git does not ignore); for the second, "run it again once the tree holds still" never comes true, and each rerun records another unproven run. The wording could name both causes and say what fixes the second (a check that writes no tracked or unignored file). S.
+- **Update 2026-11-08:** three items above are settled in the core since: a red check is said as failed (core/hooks/turnend.go:376,
+  ADR-111 T2), a changed tree with no check known is said (`noCheckText`, turnend.go:401), and `git stash push` is a stash, not a
+  push mention (`stashPush`, core/hooks/publish.go:35, with its Node twin). Still open here: adr-next reading a code name or a
+  phrase in a sign-off note as a stop, the `treeMoved` wording that cannot tell another writer from a check that writes the
+  tree, the lifecycle stage and the ADR-111 and ADR-112 deferrals.
 
 ## 384. OPEN 2026-10-19 — A release check judged by its slowdown, not by a load average
 
@@ -4013,7 +4018,7 @@ once, and the class sweep over every record (a Python pass splitting each `**Gov
 fixed the same way; each record's adr-lint exits 0. The first item stays open: a native launch probe needs a Go mutant, which
 `mutate.mjs` cannot run (ADR-110 Follow-ups), and a negative over a detached launch needs a timed wait. The third is ADR-095's.
 
-## 433. OPEN 2026-10-29 — non-blocking findings from the bundled Go release review
+## 433. CLOSED 2026-11-08 (was OPEN 2026-10-29) — non-blocking findings from the bundled Go release review
 
 The recorded Claude Opus 5.5 fallback review of 30f7638b..a13a088e returned clean with these advisories. Codex hit its
 600-second budget without a verdict; it is not approval evidence. Confirmed against source rather than the reviewer's
@@ -4038,6 +4043,10 @@ combined-diff offsets. None accepts a bad archive or bypasses the public pin ver
 **Update 2026-11-08:** the third item is fixed: `scripts/release.mjs` prints the cold-install and promotion step only when
 marketplace-source exits 2, and for any other failure says the public archive or pin failed verification, with its exit.
 tests/release-catalogue.test.mjs drives both through the shared release world; its catalogue mutant is RED. The second stays open.
+**Fixed 2026-11-08, the second item:** `replay` (scripts/policy-replay.mjs) refuses an explicit core for a plugin holding
+`native/` or `.claude-plugin/bundle.json`, before anything runs, saying its hooks run the bundled core; an unbundled plugin is
+replayed with one as before. tests/policy-replay.test.mjs builds both markers and the control (no explicit core, not refused for
+this reason); its catalogue mutant is RED. Every item of this section is now closed.
 
 ## 434. CLOSED 2026-11-08 (was OPEN 2026-10-29) — plugin reviewer frontmatter hooks are ignored by the host
 
@@ -4114,6 +4123,14 @@ read, compare and replace are separate steps across processes, so two hooks can 
 `said` stamp rewrites the snapshot it read (the fix is a short cross-process lock around publish and stamp, bounded by the hook
 budget); and `TestBranchStateRefreshPublishable` tests the helper, not its call site, so bypassing it there is not noticed.
 **Update 2026-11-01 (ADR-137 T3):** adr-context.mjs --hook left the class; pending.go now answers from the core's reader.
+**Update 2026-11-08:** the second paragraph is fixed: `run()` (core/hooks/proc.go) is now `bsRun`, so every hook command it
+starts runs in a process group of its own that is ended at the deadline and once the command returns, and Wait gives a
+grandchild's pipe at most `bsPipeWait`. core/hooks/proc_tree_test.go (run by tests/core-run-tree.test.mjs, POSIX only) was red
+before (5.0 s past a 300 ms deadline, the grandchild alive) and is green, with the control that a command finishing in time keeps
+its answer and what it left in the background is ended. On Windows the change is only that Wait now stops 250 ms after the
+command ends instead of waiting for a grandchild's pipe without bound (ADR-135 Risks: no job object); the landing's `windows`
+job is the evidence there. `mutate.mjs` has no Go lane (ADR-110), so the kill is that red run, not a catalogue entry. Still open
+here: the Node processes the hooks start, the branch-state snapshot's cross-process race, and the publishable helper's call site.
 
 ## 439. CLOSED 2026-11-01 (fixed in ADR-136's branch) — the Go uninteresting-directory rule matches what the Node one does not
 
@@ -4177,13 +4194,23 @@ one spelling) and twice by the core (EvalSymlinks keeps both), so the record is 
 (decisioncorpus_read.go:478, decisioncorpus.go:1409). It needs an index git would not usually build; the fix is a disk-canonical
 identity (the file's on-disk spelling, or os.SameFile) for the once-by-realpath set, with a filesystem-conditional row.
 
-## 444. OPEN 2026-11-01 — an mrw write gets no decision context
+## 444. CLOSED 2026-11-08 (was OPEN 2026-11-01) — an mrw write gets no decision context
 
 Found by the Codex review of 8d872045..77658224 (ADR-137 part B): `decisionContextFor` (core/hooks/publish.go:83-89) reads only
 `tool_input.file_path` or `notebook_path` and returns at once without one. The registered MCP write
 (`mcp__mrw__mrw_write`) supplies `tool_input.plan` (tests/native-hooks.test.mjs:126), and a shell `mrw write` never reaches
 the branch, so the decisions governing a file edited through mrw are not said, before ADR-137 and after it. The fix reads the
 plan's `@@ <path>` headers and answers for each path, gated as today.
+
+Fixed 2026-11-08: `decisionContextFor` (core/hooks/publish.go) answers for each path a write names, said once per answer: an
+edit's file, each path of an MCP mrw plan (`mrwTargets`, the reader the ledger guard already uses, against the session's working
+directory, which is mrw's default root; the MCP call carries no root of its own), and each `@@ <path> <address> <op>` line of a
+shell `mrw … write` heredoc that names no publish. At most ten paths are read, and past that it says how many were not. A shell
+command is a classifier (CLAUDE.md §16), so its boundary is named: not read, and so nothing said, are a plan in a file, a `--grep`
+write, a `cd` before the write, and a write whose `mrw` names another checkout with `-C` or `--root` before its subcommand. Its
+twins in tests/mrw-decision-context.test.mjs: a `cat` heredoc with the same lines names no edit, `-C` and `--root=` say nothing,
+and a `--root` inside the plan's text is no root. That test drives the native hook; two hand mutants (the MCP branch and the
+shell branch turned off) each failed it, since `mutate.mjs` has no Go lane.
 
 ## 445. CLOSED 2026-11-02 (3.8.65) — the core's other real-path sites do not follow a junction on Windows; the ledger guard may fail open there
 

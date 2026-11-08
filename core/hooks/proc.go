@@ -3,8 +3,6 @@
 package hooks
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -59,40 +57,13 @@ func environ(extra map[string]string) []string {
 	return out
 }
 
-// run starts a command with its stdin, waits at most `timeout`, and returns what it said.
+// run starts a command with its stdin, waits at most `timeout`, and returns what it said. It is bsRun: the command's process
+// group is ended at the deadline and once it returns, so a grandchild holding the output pipe neither keeps the hook past its
+// deadline nor outlives it. Killing only the direct child, `sh -c 'sleep 5 & …; wait'` under 300ms returned after 5.0 s and
+// left the sleep running (BACKLOG §438; core/hooks/proc_tree_test.go). A child Node started `detached` is in a session of its
+// own and is not ended by this.
 func run(timeout time.Duration, dir string, env map[string]string, stdin string, name string, args ...string) runResult {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Env = environ(env)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	if stdin != "" {
-		cmd.Stdin = strings.NewReader(stdin)
-	}
-	var out, errOut bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &errOut
-	hideWindow(cmd)
-	err := runObservedCommand(cmd, func() bool { return ctx.Err() == context.DeadlineExceeded })
-	res := runResult{status: -1, stdout: out.String(), stderr: errOut.String()}
-	if ctx.Err() == context.DeadlineExceeded {
-		res.timedOut = true
-		res.err = ctx.Err()
-		return res
-	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		res.status = exitErr.ExitCode()
-		return res
-	}
-	if err != nil {
-		res.err = err
-		return res
-	}
-	res.status = 0
-	return res
+	return bsRun(timeout, dir, env, stdin, name, args...)
 }
 
 // git runs git with GIT_OPTIONAL_LOCKS=0 over process.env and `env`.

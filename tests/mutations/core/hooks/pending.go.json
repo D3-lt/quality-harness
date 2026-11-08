@@ -6,7 +6,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "func() string { return dcDecisionContext(file, root, listing) })",
+      "from": "func() string { return dcDecisionContext(file, root, listed) })",
       "to": "func() string { return \"\" })",
       "only": "^the decision context is delivered once per path per session, and never as a finding$"
     },

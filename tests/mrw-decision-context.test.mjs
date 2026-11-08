@@ -59,10 +59,11 @@ test('an mrw write is told the decisions governing each path its plan names, thr
   assert.match(context('mcp__mrw__mrw_write', { plan: many }), /read for the first 10 of the 11 paths this write names; the rest were not looked at/)
 })
 
-test("one write's paths share one deadline, and the rest are named as not looked at", { skip: noGo }, () => {
-  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestDecisionTargetsShareOneDeadline$', './hooks/'],
+test("one write's paths share one deadline and one listing, and the rest are named as not looked at", { skip: noGo }, () => {
+  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestDecisionTargets', './hooks/'],
     { cwd: path.join(plugin, '..', 'core'), encoding: 'utf8', timeout: 300_000, windowsHide: true })
   const said = `${ran.stdout}\n${ran.stderr}`
   assert.equal(ran.status, 0, said.split('\n').slice(-40).join('\n'))
   assert.match(said, /^--- PASS: TestDecisionTargetsShareOneDeadline \(/m, said)
+  assert.match(said, /^--- PASS: TestDecisionTargetsListTheRepositoryOnce \(/m, said)
 })

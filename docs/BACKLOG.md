@@ -4015,8 +4015,8 @@ rather than the reviewer's diff offsets:
   component timings, not whole-session CPU or token savings, and supersede the earlier prototype timing comparison.
 **Update 2026-11-08:** the second item is fixed: the Governs headers of ADR-119, ADR-120, ADR-121, ADR-122 and ADR-130 list each path
 once, and the class sweep over every record (a Python pass splitting each `**Governs:**` line on commas) found one more, ADR-060,
-fixed the same way; each record's adr-lint exits 0. The first item stays open: a native launch probe needs a Go mutant, which
-`mutate.mjs` cannot run (ADR-110 Follow-ups), and a negative over a detached launch needs a timed wait. The third is ADR-095's.
+fixed the same way; each record's adr-lint exits 0. The first item stays open: a negative over a detached launch needs a timed
+wait, and the probe a native boundary that sees Go start a child. The third is ADR-095's.
 
 ## 433. CLOSED 2026-11-08 (was OPEN 2026-10-29) — non-blocking findings from the bundled Go release review
 
@@ -4129,7 +4129,7 @@ grandchild's pipe at most `bsPipeWait`. core/hooks/proc_tree_test.go (run by tes
 before (5.0 s past a 300 ms deadline, the grandchild alive) and is green, with the control that a command finishing in time keeps
 its answer and what it left in the background is ended. On Windows the change is only that Wait now stops 250 ms after the
 command ends instead of waiting for a grandchild's pipe without bound (ADR-135 Risks: no job object); the landing's `windows`
-job is the evidence there. `mutate.mjs` has no Go lane (ADR-110), so the kill is that red run, not a catalogue entry. Still open
+job is the evidence there. No catalogue mutant: run() is one delegating line, and its smallest break restores the whole old body; the kill is that red run. Still open
 here: the Node processes the hooks start, the branch-state snapshot's cross-process race, and the publishable helper's call site.
 
 ## 439. CLOSED 2026-11-01 (fixed in ADR-136's branch) — the Go uninteresting-directory rule matches what the Node one does not
@@ -4207,13 +4207,18 @@ edit's file, and each path of an MCP mrw plan (`mrwTargets`, the reader the ledg
 working directory, which is mrw's default root; the MCP call carries no root of its own). One deadline (15 s) and a cap (ten
 paths) cover the whole call; past either, the rest are named as not looked at and none of them is stamped as said.
 tests/mrw-decision-context.test.mjs drives the native hook (a governed and an ungoverned Edit, a governed and an ungoverned MCP
-plan, eleven paths past the cap) and runs TestDecisionTargetsShareOneDeadline (core/hooks/decisiontargets_test.go). Hand mutants,
-since `mutate.mjs` has no Go lane: the MCP branch turned off, and the deadline check turned off, each failed its test.
+plan, eleven paths past the cap) and runs TestDecisionTargetsShareOneDeadline (core/hooks/decisiontargets_test.go). Three catalogue
+mutants in tests/mutations/core/hooks/publish.go.json are RED: the MCP branch, the deadline and the listing memo, each turned off.
 The Codex review of d3e832c3..e6968459 (REQUEST CHANGES) found two in the first version, fixed before landing: it also scanned a
 shell command for `mrw … write` and `@@` lines, which took a quoted example for a write and resolved a write after `cd` against
 the wrong directory, so the shell route is removed and a shell `mrw write` gets no decision context, a boundary held by a test
 row (reading it right needs the shell's own heredoc and directory semantics); and each path had a reader budget of its own, so ten
 of them could outlast the hook's 60 s timeout with their stamps written and nothing delivered.
+Its scoped verification of 9c657bdc found the second only half closed: the root lookup and git's two listings (30 s each) ran per
+path, outside the deadline. They follow from the session's directory, so `decisionRepo` now takes them once per call, and only when
+a path needs them; a write of many paths costs what one edit does. TestDecisionTargetsListTheRepositoryOnce counts the listings
+(three paths, one listing; a hand mutant dropping the memo listed three times and failed it). What one path costs is unchanged:
+two listings and one reader budget, as an Edit had before.
 
 ## 445. CLOSED 2026-11-02 (3.8.65) — the core's other real-path sites do not follow a junction on Windows; the ledger guard may fail open there
 

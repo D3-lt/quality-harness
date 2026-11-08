@@ -12,16 +12,16 @@ const decisionReaderFailed = "could-not-look: the decision reader could not run,
 
 // decisionContext is what the Node hook printed for `file` in the repository at `root`. Both arrive canonical
 // (decisionContextFor): the Node hook was handed the same file and spawned in that root, so its process.cwd() was the same
-// real path.
-func decisionContext(file, root string) string {
+// real path. `listing` gives git's listing of the root, taken once for every path of a call (decisionRepo).
+func decisionContext(file, root string, listing func() []string) string {
 	if outsideRoot(root, file) {
 		return ""
 	}
-	listing := trackedPaths(root)
-	if hasDecisionCorpus(listing, dcPlatform()) == "false" {
+	listed := listing()
+	if hasDecisionCorpus(listed, dcPlatform()) == "false" {
 		return ""
 	}
-	return decisionReaderWithin(decisionReaderBudget, func() string { return dcDecisionContext(file, root, listing) })
+	return decisionReaderWithin(decisionReaderBudget, func() string { return dcDecisionContext(file, root, listed) })
 }
 
 // decisionReaderWithin is read's answer, or the could-not-look line when it panics or outlasts the budget. A read past the

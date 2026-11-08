@@ -87,6 +87,7 @@ func decisionContextFor(input *Obj) string {
 		cwd, _ = os.Getwd()
 	}
 	targets := decisionTargets(input)
+	repo := &decisionRepo{cwd: cwd}
 	started := time.Now()
 	var said []string
 	for at, t := range targets {
@@ -98,11 +99,50 @@ func decisionContextFor(input *Obj) string {
 				strconv.Itoa(len(targets))+" paths this write names; the rest were not looked at.")
 			break
 		}
-		if answer := decisionContextForPath(input, cwd, t); answer != "" && !slicesContains(said, answer) {
+		if answer := decisionContextForPath(input, repo, t); answer != "" && !slicesContains(said, answer) {
 			said = append(said, answer)
 		}
 	}
 	return strings.Join(said, "\n\n")
+}
+
+// decisionRepo is the repository a call's paths are read in, and its listing, each found once and only when a path needs it. Both
+// follow from the session's directory, not from a path: found per path, a write of ten paths ran the root lookup and the two git
+// listings ten times, outside any deadline (the scoped verification of 9c657bdc), so many paths now cost what one does.
+type decisionRepo struct {
+	cwd            string
+	looked, listed bool
+	root, failed   string
+	listing        []string
+}
+
+func (r *decisionRepo) rootOf() (root, failed string) {
+	if !r.looked {
+		r.looked = true
+		directory := nearestExistingDirectory(resolvePath(r.cwd))
+		if directory != "" {
+			found := gitRepositoryLookup(directory)
+			if !found.ok {
+				r.failed = "could-not-look: the repository root could not be read, so which decisions govern this edit is unknown."
+			} else if found.root != "" {
+				r.root = canonical(found.root)
+			} else {
+				r.root = canonical(directory)
+			}
+		}
+	}
+	return r.root, r.failed
+}
+
+// decisionListing is trackedPaths, a var so a test can count how often a call lists the repository.
+var decisionListing = trackedPaths
+
+func (r *decisionRepo) tracked() []string {
+	if !r.listed {
+		r.listed = true
+		r.listing = decisionListing(r.root)
+	}
+	return r.listing
 }
 
 // decisionTargetCap and decisionTargetsBudget bound the reads one call makes: each path is a corpus read under its own budget.
@@ -136,27 +176,19 @@ func decisionTargets(input *Obj) []string {
 }
 
 // decisionContextForPath is the decision context for one path, said the first time this session touches it.
-func decisionContextForPath(input *Obj, cwd, t string) string {
-	resolved := canonical(resolveFrom(cwd, t))
+func decisionContextForPath(input *Obj, repo *decisionRepo, t string) string {
+	resolved := canonical(resolveFrom(repo.cwd, t))
 	if alreadyMentionedThisSession(input.Get("session_id"), resolved) {
 		return ""
 	}
-	directory := nearestExistingDirectory(resolvePath(cwd))
-	found := lookup{reason: "no directory"}
-	if directory != "" {
-		found = gitRepositoryLookup(directory)
+	root, failed := repo.rootOf()
+	if failed != "" {
+		return failed
 	}
-	if directory != "" && !found.ok {
-		return "could-not-look: the repository root could not be read, so which decisions govern this edit is unknown."
-	}
-	if directory == "" {
+	if root == "" {
 		return ""
 	}
-	root := found.root
-	if root == "" {
-		root = directory
-	}
-	context := decisionContext(resolved, canonical(root))
+	context := decisionContext(resolved, root, repo.tracked)
 	if context == "" {
 		return ""
 	}

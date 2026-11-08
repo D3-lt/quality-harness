@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "BACKLOG §444: an mrw MCP write is told the decisions governing its plan's paths",
+      "file": "core/hooks/publish.go",
+      "tests": [
+        "tests/mrw-decision-context.test.mjs"
+      ],
+      "from": "\t\treturn mrwTargets(input.Get(\"tool_input\"))",
+      "to": "\t\treturn nil",
+      "only": "^(?:an mrw write is told the decisions governing each path its plan names, through the MCP tool, and nothing for a shell write)$"
+    },
+    {
+      "label": "BACKLOG §444: a write's paths share one deadline",
+      "file": "core/hooks/publish.go",
+      "tests": [
+        "tests/mrw-decision-context.test.mjs"
+      ],
+      "from": "if at == decisionTargetCap || (at > 0 && time.Since(started) >= decisionTargetsBudget) {",
+      "to": "if at == decisionTargetCap || (at > 0 && time.Since(started) >= decisionTargetsBudget && false) {",
+      "only": "^(?:one write's paths share one deadline and one listing, and the rest are named as not looked at)$"
+    },
+    {
+      "label": "BACKLOG §444: a write's paths share one listing of the repository",
+      "file": "core/hooks/publish.go",
+      "tests": [
+        "tests/mrw-decision-context.test.mjs"
+      ],
+      "from": "\t\tr.listed = true\n",
+      "to": "\t\tr.listed = false\n",
+      "only": "^(?:one write's paths share one deadline and one listing, and the rest are named as not looked at)$"
+    },
+    {
       "label": "ADR-120 T13: the Go advisory arm mentions a push in git stash push",
       "file": "core/hooks/publish.go",
       "tests": ["tests/qh-core-parity.test.mjs"],

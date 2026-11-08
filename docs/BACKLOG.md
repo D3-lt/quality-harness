@@ -4203,14 +4203,17 @@ the branch, so the decisions governing a file edited through mrw are not said, b
 plan's `@@ <path>` headers and answers for each path, gated as today.
 
 Fixed 2026-11-08: `decisionContextFor` (core/hooks/publish.go) answers for each path a write names, said once per answer: an
-edit's file, each path of an MCP mrw plan (`mrwTargets`, the reader the ledger guard already uses, against the session's working
-directory, which is mrw's default root; the MCP call carries no root of its own), and each `@@ <path> <address> <op>` line of a
-shell `mrw … write` heredoc that names no publish. At most ten paths are read, and past that it says how many were not. A shell
-command is a classifier (CLAUDE.md §16), so its boundary is named: not read, and so nothing said, are a plan in a file, a `--grep`
-write, a `cd` before the write, and a write whose `mrw` names another checkout with `-C` or `--root` before its subcommand. Its
-twins in tests/mrw-decision-context.test.mjs: a `cat` heredoc with the same lines names no edit, `-C` and `--root=` say nothing,
-and a `--root` inside the plan's text is no root. That test drives the native hook; two hand mutants (the MCP branch and the
-shell branch turned off) each failed it, since `mutate.mjs` has no Go lane.
+edit's file, and each path of an MCP mrw plan (`mrwTargets`, the reader the ledger guard already uses, against the session's
+working directory, which is mrw's default root; the MCP call carries no root of its own). One deadline (15 s) and a cap (ten
+paths) cover the whole call; past either, the rest are named as not looked at and none of them is stamped as said.
+tests/mrw-decision-context.test.mjs drives the native hook (a governed and an ungoverned Edit, a governed and an ungoverned MCP
+plan, eleven paths past the cap) and runs TestDecisionTargetsShareOneDeadline (core/hooks/decisiontargets_test.go). Hand mutants,
+since `mutate.mjs` has no Go lane: the MCP branch turned off, and the deadline check turned off, each failed its test.
+The Codex review of d3e832c3..e6968459 (REQUEST CHANGES) found two in the first version, fixed before landing: it also scanned a
+shell command for `mrw … write` and `@@` lines, which took a quoted example for a write and resolved a write after `cd` against
+the wrong directory, so the shell route is removed and a shell `mrw write` gets no decision context, a boundary held by a test
+row (reading it right needs the shell's own heredoc and directory semantics); and each path had a reader budget of its own, so ten
+of them could outlast the hook's 60 s timeout with their stamps written and nothing delivered.
 
 ## 445. CLOSED 2026-11-02 (3.8.65) — the core's other real-path sites do not follow a junction on Windows; the ledger guard may fail open there
 

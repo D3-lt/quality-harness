@@ -10,11 +10,15 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { remove } from './helpers/remove.mjs'
 import { sourceCore } from './helpers/source-core.mjs'
+import { required } from './helpers/require.mjs'
 
 if (process.env.QUALITY_HARNESS_MUTATION_IN_FLIGHT === '1') delete process.env.QUALITY_HARNESS_QH_BIN
 const plugin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'plugin')
+const goVersion = spawnSync('go', ['version'], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+const noGo = required('go', goVersion.error || goVersion.status !== 0
+  ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false)
 
-test('an mrw write is told the decisions governing each path its plan names, through the MCP tool and the shell', t => {
+test('an mrw write is told the decisions governing each path its plan names, through the MCP tool, and nothing for a shell write', t => {
   const top = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-mrw-context-')))
   t.after(() => remove(top))
   const repo = path.join(top, 'repo')
@@ -46,15 +50,19 @@ test('an mrw write is told the decisions governing each path its plan names, thr
 
   assert.match(context('mcp__mrw__mrw_write', { plan: '@@ src/c.js 1 replace\nx\n@@ src/a.js 1 replace\ny\n' }), /ADR-001/, 'the MCP plan')
   assert.equal(context('mcp__mrw__mrw_write', { plan: '@@ src/c.js 1 replace\nx\n' }), '', 'an MCP plan naming nothing governed')
-  assert.match(context('Bash', { command: "mrw write --no-check <<'PLAN'\n@@ src/b.js 1 replace\nz\nPLAN" }), /ADR-001/, 'a shell mrw write')
-  // A write into another checkout (`-C DIR` or `--root DIR` before the subcommand) names paths under that root, not this one:
-  // nothing is said for them, while a `--root` that only appears in the plan's text is no root.
-  assert.equal(context('Bash', { command: "mrw -C ../other write <<'PLAN'\n@@ src/b.js 1 replace\nz\nPLAN" }), '', 'mrw -C names another checkout')
-  assert.equal(context('Bash', { command: "mrw --root=../other write <<'PLAN'\n@@ src/b.js 1 replace\nz\nPLAN" }), '', 'mrw --root names another checkout')
-  assert.match(context('Bash', { command: "mrw write <<'PLAN'\n@@ src/a.js 1 replace\nrun it with --root\nPLAN" }), /ADR-001/, 'a --root in the plan body')
-  // A heredoc that is no mrw write names no edit, whatever its lines look like.
-  assert.equal(context('Bash', { command: "cat <<'PLAN'\n@@ src/b.js 1 replace\nz\nPLAN" }), '', 'a heredoc that is no mrw write')
+  // A shell `mrw write` is not read, so nothing is said for it (the Codex review of d3e832c3..e6968459: a line scan of shell
+  // text took a quoted example for a write and resolved a write after `cd` against the wrong directory). Held here so a reader
+  // added later is a decision, not an accident.
+  assert.equal(context('Bash', { command: "mrw write --no-check <<'PLAN'\n@@ src/b.js 1 replace\nz\nPLAN" }), '', 'a shell mrw write')
   // Past ten paths the rest are not read, and that is said rather than left as silence.
   const many = Array.from({ length: 11 }, (_, n) => `@@ src/n${n}.js 0 create\nx\n`).join('')
   assert.match(context('mcp__mrw__mrw_write', { plan: many }), /read for the first 10 of the 11 paths this write names; the rest were not looked at/)
+})
+
+test("one write's paths share one deadline, and the rest are named as not looked at", { skip: noGo }, () => {
+  const ran = spawnSync('go', ['test', '-count=1', '-v', '-run', '^TestDecisionTargetsShareOneDeadline$', './hooks/'],
+    { cwd: path.join(plugin, '..', 'core'), encoding: 'utf8', timeout: 300_000, windowsHide: true })
+  const said = `${ran.stdout}\n${ran.stderr}`
+  assert.equal(ran.status, 0, said.split('\n').slice(-40).join('\n'))
+  assert.match(said, /^--- PASS: TestDecisionTargetsShareOneDeadline \(/m, said)
 })

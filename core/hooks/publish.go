@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func containsCommitOrPush(command any) bool {
@@ -77,18 +78,23 @@ func readOnlyVerdict(input *Obj) string {
 }
 
 // decisionContextFor hands over what has already been decided about the files a call is about to touch: an edit's file, or each
-// path an mrw write names, through its MCP plan or a shell `mrw write` plan. By the file field alone, a write through mrw was
-// told nothing (BACKLOG §444). The same answer said twice, a could-not-look for each path, is said once.
+// path an mrw MCP write's plan names. By the file field alone, a write through mrw was told nothing (BACKLOG §444). The same
+// answer said twice, a could-not-look for each path, is said once. A shell `mrw write` is not read: which heredoc feeds which
+// command, and from which directory, is shell semantics a line scan gets wrong (the Codex review of d3e832c3..e6968459).
 func decisionContextFor(input *Obj) string {
 	cwd, ok := input.Get("cwd").(string)
 	if !ok || !filepath.IsAbs(cwd) {
 		cwd, _ = os.Getwd()
 	}
 	targets := decisionTargets(input)
+	started := time.Now()
 	var said []string
 	for at, t := range targets {
-		if at == decisionTargetCap {
-			said = append(said, "decision context was read for the first "+strconv.Itoa(decisionTargetCap)+" of the "+
+		// One deadline for the whole call, well inside the hook's own timeout: past it, or past the cap, the rest are named as not
+		// looked at, and none of them is stamped as said (the Codex review of d3e832c3..e6968459: ten budgets of their own could
+		// outlast the hook, which the host then ends with the stamps written and nothing delivered).
+		if at == decisionTargetCap || (at > 0 && time.Since(started) >= decisionTargetsBudget) {
+			said = append(said, "decision context was read for the first "+strconv.Itoa(at)+" of the "+
 				strconv.Itoa(len(targets))+" paths this write names; the rest were not looked at.")
 			break
 		}
@@ -99,8 +105,10 @@ func decisionContextFor(input *Obj) string {
 	return strings.Join(said, "\n\n")
 }
 
-// decisionTargetCap bounds the reads one call makes: each path is a corpus read under its own budget.
+// decisionTargetCap and decisionTargetsBudget bound the reads one call makes: each path is a corpus read under its own budget.
 const decisionTargetCap = 10
+
+var decisionTargetsBudget = 15 * time.Second // a var so a test can spend it
 
 func slicesContains(list []string, s string) bool {
 	for _, x := range list {
@@ -111,32 +119,11 @@ func slicesContains(list []string, s string) bool {
 	return false
 }
 
-// shellMrwWrite finds `mrw … write` in a shell command, and mrwPlanHeader each `@@ <path> <address> <op>` line of the plan it
-// carries in a heredoc. Not read here, so nothing is said for them: a plan in a file, a `--grep` write, a `cd` before the write,
-// and a write whose `mrw` names another checkout (`-C DIR` or `--root DIR` before the subcommand, shellMrwRoot).
-var shellMrwWrite = regexp.MustCompile(`(?:^|[\s;&|(])mrw\s+(?:[^\n;&|]*\s)?write\b`)
-var shellMrwRoot = regexp.MustCompile(`(?:^|[\s;&|(])mrw\s+(?:[^\n;&|]*\s)?(?:-C|--root)(?:[\s=]|$)`)
-
 func decisionTargets(input *Obj) []string {
-	tool := strOr(input.Get("tool_name"))
-	toolInput := input.Get("tool_input")
-	if tool == mrwWrite {
+	if strOr(input.Get("tool_name")) == mrwWrite {
 		// mrw's MCP server resolves a plan's paths against the root it was started with, "." unless its --root says otherwise;
 		// the call does not carry it, so they are read against the session's working directory.
-		return mrwTargets(toolInput)
-	}
-	if shellTools[tool] {
-		command, ok := get(toolInput, "command").(string)
-		if !ok || !shellMrwWrite.MatchString(command) || shellMrwRoot.MatchString(command) {
-			return nil
-		}
-		var out []string
-		for _, line := range strings.Split(command, "\n") {
-			if header := mrwPlanHeader.FindStringSubmatch(strings.TrimRight(line, "\r")); header != nil && !slicesContains(out, header[1]) {
-				out = append(out, header[1])
-			}
-		}
-		return out
+		return mrwTargets(input.Get("tool_input"))
 	}
 	target := dig(input, "tool_input", "file_path")
 	if nullish(target) {
@@ -207,16 +194,7 @@ func (h *hookRun) onPreToolUse(rec *recorded) {
 		}
 		return
 	}
-	// An `mrw write` through the shell is an edit too (BACKLOG §444). A command that also names commit or push is the publish
-	// path's, below.
-	publishes := shellTools[tool] && mentionsCommitOrPush(dig(input, "tool_input", "command"))
-	if shellTools[tool] && !publishes {
-		if context := decisionContextFor(input); context != "" {
-			h.emitJSON(O("hookSpecificOutput", O("hookEventName", "PreToolUse", "additionalContext", context)))
-		}
-		return
-	}
-	if !publishes {
+	if !shellTools[tool] || !mentionsCommitOrPush(dig(input, "tool_input", "command")) {
 		return
 	}
 	if strict(rec.event(), "publish.requested") {

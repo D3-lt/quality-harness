@@ -69,6 +69,13 @@ test("adr-next finds another record's task by its title, and cannot evaluate an 
   assert.deepEqual(found.blockedBy, ['ADR-001-T1'], `the foreign task is found and pending:\n${found.said}`)
   const twice = run({ 'ADR-001-totals/tasks/other.md': task('# Task ADR-001-T1: add items again') })
   assert.deepEqual(twice.blockedBy, ['ADR-001-T1 (cannot evaluate)'], `two files declare T1, so neither is read as it:\n${twice.said}`)
+  // The Codex review of 1f788548..b7c58181: an approved task whose title names another record (a copy) is stopped where its
+  // own record reads it, so it meets no dependency either. The control: the same approval under its own record's title does.
+  const watched = title => `# ${title}\n\n**Depends-on:** none\n\n## Acceptance\n\nAcceptance is human-observed: a person watches it.\n\n## Verification Log\n- 2026-10-01 · human-observed · approved\n`
+  const copied = run({ 'ADR-001-totals/tasks/notes.md': watched('Task ADR-999-T1: add items') })
+  assert.deepEqual(copied.blockedBy, ['ADR-001-T1'], `a task titled for another record is not done here:\n${copied.said}`)
+  const own = run({ 'ADR-001-totals/tasks/notes.md': watched('Task ADR-001-T1: add items') })
+  assert.equal(own.blockedBy, undefined, `the same approval under its own title meets the dependency:\n${own.said}`)
 })
 
 test('adr-lint sees a cross-record cycle through a task whose title, not its name, gives the id', t => {
@@ -100,4 +107,29 @@ test("adr-lint's index and a sibling's Depends-on know a task whose title, not i
   assert.doesNotMatch(said, /README[^\n]*\bT1\b/, said)
   // The control: the same check still refuses a Depends-on naming no task.
   assert.match(lint('T7'), /Depends-on 'T7' matches no sibling task file/)
+})
+
+// The Codex review of 1f788548..b7c58181: a title-only task depending on itself was found as a sibling and lost the refusal.
+test('adr-lint refuses a self-dependency of a task whose title, not its name, gives the id', t => {
+  const repo = corpus(t, { 'ADR-001-totals/tasks/notes.md': task('# Task ADR-001-T1: add items', 'T1') })
+  const ran = spawnSync('python3', [path.join(repoRoot, 'plugin', 'bin', 'adr-lint'), path.join(repo, 'docs', 'adr', 'ADR-001-totals.md')],
+    { cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  assert.match(ran.stdout + ran.stderr, /notes\.md: Depends-on 'T1' names this task itself/, ran.stdout + ran.stderr)
+})
+
+// The Codex review of 1f788548..b7c58181: the qualified-dependency resolver opened another record's task to read its title,
+// and a FIFO in its place blocked the lint. It is never opened, and the dependency is could-not-look.
+test("adr-lint does not open another record's task that is not a regular file", { skip: process.platform === 'win32' && 'no FIFO on Windows' }, t => {
+  const repo = corpus(t, {
+    'ADR-001-totals/tasks/notes.md': task('# Task ADR-001-T1: add items'),
+    'ADR-002-copy/tasks/T1-use.md': task('# Task ADR-002-T1: use the totals', 'ADR-001-T1'),
+  })
+  const notes = path.join(repo, 'docs', 'adr', 'ADR-001-totals', 'tasks', 'notes.md')
+  remove(notes)
+  assert.equal(spawnSync('mkfifo', [notes], { timeout: 30_000 }).status, 0)
+  const ran = spawnSync('python3', [path.join(repoRoot, 'plugin', 'bin', 'adr-lint'), path.join(repo, 'docs', 'adr', 'ADR-002-copy.md')],
+    { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const said = ran.stdout + ran.stderr
+  assert.notEqual(ran.status, null, `adr-lint did not finish within 60 s (signal ${ran.signal})`)
+  assert.match(said, /Depends-on 'ADR-001-T1' was NOT resolved/, said)
 })

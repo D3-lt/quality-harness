@@ -4554,6 +4554,13 @@ whose lines moved were re-anchored and are RED. adr-lint over all 129 records, a
 `--json` print byte-identical output before and after. Sweep re-run: the `(T\d+)` hits left are README-cell parsers
 (adr-lint:2551, 2647, 6463); the `sorted(…glob(` hits left pick a case-variant README (7190) or suggest a record for a directory
 argument (6926), and neither reads a task's id.
+The Codex review of 1f788548..b7c58181 (REQUEST CHANGES) found three, fixed before landing: a fail-open, where a copied and
+approved `notes.md` titled ADR-999-T1 under ADR-001 met a dependency on ADR-001-T1 (`foreign_state` now also asks `foreign_stop`,
+as `load` does); a regression, where a title-only task's `Depends-on: T1` on itself lost its refusal (the self-dependency check
+now compares `task_key`); and a regression, where the resolver opened a FIFO in another record's tasks and blocked (it now
+leaves a file that is not regular unread, could-not-look). tests/task-identity-readers.test.mjs holds each, with a control for
+the first; three catalogue mutants are RED, three more existing entries were re-anchored and are RED, and the 129-record
+comparison is still byte-identical.
 
 ## 463. OPEN 2026-11-05 — gofmt on one Go test file ran past 120 s on a macOS runner
 

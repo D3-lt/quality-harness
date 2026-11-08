@@ -1158,7 +1158,10 @@ def foreign_state(pointer, corpus_dir):
             # digest, or an affirmative human sign-off. A second definition
             # of "done" is how two tools come to disagree about one corpus.
             fence, first, digest = acceptance(text)
-            return ("done" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
+            # A task whose title names another record is stopped where `load` reads it, so it is not done for an edge
+            # either, whatever its log says (the Codex review of 1f788548..b7c58181: a copied, approved `notes.md` titled
+            # ADR-999-T1 met a dependency on ADR-001-T1).
+            return ("done" if not terminal_stop(text) and not foreign_stop(text, number) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
                                       fence, first, git_root(tasks))
 
                     else "pending")

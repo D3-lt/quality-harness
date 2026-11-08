@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 1f788548..b7c58181: a task titled for another record meets no foreign dependency",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "and not foreign_stop(text, number) and not human_stop(text, git_root(tasks))",
+      "to": "and not human_stop(text, git_root(tasks))",
+      "only": "^(?:adr-next finds another record's task by its title, and cannot evaluate an id two files declare)$"
+    },
+    {
       "label": "BACKLOG §462: another record's task is found by the id it declares, not its stem",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -1410,8 +1420,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "            return (\"done\" if not terminal_stop(text) and not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
-      "to": "            return (\"done\" if not terminal_stop(text) and is_done(text, digest, first == \"human-observed\",",
+      "from": "and not foreign_stop(text, number) and not human_stop(text, git_root(tasks)) and is_done(",
+      "to": "and not foreign_stop(text, number) and is_done(",
       "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
     },
     {
@@ -1830,8 +1840,8 @@
       "label": "ADR-120 T8 (review of c749638e..7a9107e8): a foreign dependent no longer waits on a terminal task",
       "file": "plugin/bin/adr-next",
       "tests": ["tests/adr-next-terminal.test.mjs"],
-      "from": "return (\"done\" if not terminal_stop(text) and not human_stop(",
-      "to": "return (\"done\" if not human_stop(",
+      "from": "return (\"done\" if not terminal_stop(text) and not foreign_stop(",
+      "to": "return (\"done\" if not foreign_stop(",
       "only": "^a task waiting on a task whose own Status is terminal is blocked, local or foreign$"
     },
     {

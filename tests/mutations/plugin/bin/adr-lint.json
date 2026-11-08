@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "Codex review of 1f788548..b7c58181: a title-only task's self-dependency is refused",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "        if task_key(path, text) == d.upper():",
+      "to": "        if id_matches(d, path.stem):",
+      "only": "^(?:adr-lint refuses a self-dependency of a task whose title, not its name, gives the id)$"
+    },
+    {
+      "label": "Codex review of 1f788548..b7c58181: the resolver never opens a foreign task that is not a regular file",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/task-identity-readers.test.mjs"
+      ],
+      "from": "                if not found.is_file():\n                    unread = True",
+      "to": "                if False:\n                    unread = True",
+      "only": "^(?:adr-lint does not open another record's task that is not a regular file)$"
+    },
+    {
       "label": "BACKLOG §462: the cross-record graph knows a task by its title when its name holds no id",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -2462,7 +2482,7 @@
         "tests/evidence-chain.test.mjs"
       ],
       "only": "refuses a task that depends on itself",
-      "from": "        if id_matches(d, path.stem):",
+      "from": "        if task_key(path, text) == d.upper():",
       "to": "        if False:"
     },
     {

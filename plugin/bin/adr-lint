@@ -549,8 +549,14 @@ def resolve_qualified_dep(pointer, root, corpus_dir, tracked):
             # A name holding no id is known by its title's, as the record's own lint knows it (BACKLOG §462): read from the
             # tracked file, and one that cannot be read leaves the dependency unresolved, never refused.
             if not _STEM_TASK_ID.search(stem):
+                found = Path(root) / entry
+                # A FIFO or a directory is never opened: the read would wait forever (the Codex review of
+                # 1f788548..b7c58181), so the dependency is unresolved, could-not-look.
+                if not found.is_file():
+                    unread = True
+                    continue
                 try:
-                    text = (Path(root) / entry).read_text(errors="replace", encoding="utf-8")
+                    text = found.read_text(errors="replace", encoding="utf-8")
                 except OSError:
                     unread = True
                     continue
@@ -1957,7 +1963,9 @@ def check_task(path, all_stems, errors, root, tracked):
     # would bind to a same-numbered sibling — see split_dependencies.
     qualified, local = split_dependencies(dep)
     for d in local:
-        if id_matches(d, path.stem):
+        # By the id the task is known by, its title's when its name holds none (the Codex review of 1f788548..b7c58181:
+        # `notes.md` titled T1 with `Depends-on: T1` was found as a sibling and lost this refusal).
+        if task_key(path, text) == d.upper():
             # A self-dependency passed here and adr-next offered the task as ready (CF4).
             errors.append(f"{path.name}: Depends-on '{d}' names this task itself, so it could never become ready")
         elif not any(id_matches(d, s) for s in all_stems):

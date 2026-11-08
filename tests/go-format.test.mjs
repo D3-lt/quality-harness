@@ -2,9 +2,9 @@
 // wired in, not run voluntarily). Nothing ran either, and two files drifted from gofmt unnoticed (found 2026-10-23).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { remove } from './helpers/remove.mjs'
@@ -19,20 +19,29 @@ const gofmt = (args, input) => spawnSync('gofmt', args, { input, encoding: 'utf8
 const git = args => spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 26, timeout: 60_000, windowsHide: true })
 
 // What git stores, not what the disk holds: a Windows clone made before *.go took eol=lf keeps CRLF in every file a later
-// checkout did not rewrite, and gofmt listed 30 of them there (the Windows check of cec6203c).
+// checkout did not rewrite, and gofmt listed 30 of them there (the Windows check of cec6203c). So each file's index blob is
+// written to a scratch tree and gofmt reads that tree once. Fed one file at a time on its standard input, gofmt ran past 120 s
+// on the largest file, core/hooks/branchstate_collect_test.go, on two macOS runners (land/0744f78b and land/5c22b9bb, BACKLOG
+// §463), where it takes milliseconds here; the scratch tree takes no pipe, and a stall now names its time.
 test('every Go file in the core is as gofmt writes it', { skip: noGo }, () => {
   const listed = git(['ls-files', '-z', '--', 'core/*.go'])
   assert.equal(listed.status, 0, `git could not list the core: ${listed.error?.message ?? listed.stderr}`)
   const files = listed.stdout.split('\0').filter(Boolean)
   assert.ok(files.length > 0, 'the core has Go files')
-  const unformatted = files.filter(file => {
-    const blob = git(['show', `:${file}`])
-    assert.equal(blob.status, 0, `git could not show ${file}: ${blob.stderr}`)
-    const checked = gofmt(['-l'], blob.stdout)
-    assert.equal(checked.status, 0, `gofmt could not run on ${file}: ${checked.error?.message ?? checked.stderr}`)
-    return checked.stdout.trim() !== ''
-  })
-  assert.deepEqual(unformatted, [], `not gofmt-formatted (run gofmt -w on each):\n${unformatted.join('\n')}`)
+  const tree = mkdtempSync(join(tmpdir(), 'qh-gofmt-index-'))
+  try {
+    for (const file of files) {
+      const blob = git(['show', `:${file}`])
+      assert.equal(blob.status, 0, `git could not show ${file}: ${blob.stderr}`)
+      mkdirSync(dirname(join(tree, file)), { recursive: true })
+      writeFileSync(join(tree, file), blob.stdout)
+    }
+    const started = Date.now()
+    const checked = gofmt(['-l', join(tree, 'core')])
+    assert.equal(checked.status, 0, `gofmt could not run over the ${files.length} files of the core after ${Date.now() - started} ms: ${checked.error?.message ?? checked.stderr}`)
+    const unformatted = checked.stdout.split('\n').filter(Boolean).map(line => relative(tree, line).replaceAll('\\', '/')).sort()
+    assert.deepEqual(unformatted, [], `not gofmt-formatted (run gofmt -w on each):\n${unformatted.join('\n')}`)
+  } finally { remove(tree) }
   // DIRTY twins: a file gofmt would rewrite is listed, and so is a CRLF one, which is why the disk is not asked.
   assert.equal(gofmt(['-l'], 'package x\n\n\nvar  a = 1\n').stdout.trim(), '<standard input>')
   assert.equal(gofmt(['-l'], 'package x\r\n\r\nvar a = 1\r\n').stdout.trim(), '<standard input>')

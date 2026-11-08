@@ -702,8 +702,8 @@
         "tests/evidence-chain.test.mjs"
       ],
       "only": "a task whose name mentions another task does not depend on itself",
-      "from": "    return found is not None and found.group(0).upper() == tid.upper()",
-      "to": "    return re.search(rf\"(?<!\\w){re.escape(tid)}(?!\\w)\", stem, re.I) is not None"
+      "from": "        if task_key(path, text) == d.upper():",
+      "to": "        if re.search(rf\"(?<!\\w){re.escape(d)}(?!\\w)\", path.stem, re.I) or task_key(path, text) == d.upper():"
     },
     {
       "label": "lint: a stale spaced JS test title is advised, not skipped as prose (§284)",

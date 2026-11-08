@@ -4562,7 +4562,7 @@ leaves a file that is not regular unread, could-not-look). tests/task-identity-r
 the first; three catalogue mutants are RED, three more existing entries were re-anchored and are RED, and the 129-record
 comparison is still byte-identical.
 
-## 463. OPEN 2026-11-05 — gofmt on one Go test file ran past 120 s on a macOS runner
+## 463. CLOSED 2026-11-08 (was OPEN 2026-11-05) — gofmt on one Go test file ran past 120 s on a macOS runner
 
 `selftest (macos-latest)` of land/0744f78b (run 41918761075) failed one test, tests/go-format.test.mjs "every Go file in the core is
 as gofmt writes it": `gofmt could not run on core/hooks/branchstate_collect_test.go: spawnSync gofmt ETIMEDOUT` at 120 s
@@ -4570,3 +4570,10 @@ as gofmt writes it": `gofmt could not run on core/hooks/branchstate_collect_test
 file is a stall, not a slow runner, so a larger budget is not the fix. One occurrence; the rerun of the failed job is the
 evidence for the release. Next, if it recurs: run gofmt once over all files instead of once per file, and say which file and how
 long the stalled call ran.
+
+It recurred on `selftest (macos-latest)` of land/5c22b9bb (run 42489956678): the same file, the same `spawnSync gofmt ETIMEDOUT`
+at 120 s. That file is the core's largest (155,972 bytes); here `gofmt -l` on its blob through a pipe takes 8 ms. Fixed
+2026-11-08: tests/go-format.test.mjs writes every file's index blob to a scratch tree and runs `gofmt -l` once over it, so no
+file is fed on standard input, and a failure says how long the one call ran. What git stores is still what is checked, and the
+existing twins (a misformatted and a CRLF input, a directory holding a misformatted file) still show it can fail. Why the piped
+call stalled on that runner is not known.

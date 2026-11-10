@@ -6266,7 +6266,7 @@ def check_named_tests_are_run(infos, readme_text, errors):
     # `-run`. A `$NAME` directly before a flag may expand to nothing (`$P-run X` runs `-run X`), so it counts as a flag here;
     # nothing is rewritten, so a filter value is read as written and an expansion-built flag can only add a refusal
     # (the Codex reviews of 5d7b64df and 65da845a; CLAUDE.md §16).
-    narrowing = re.compile(FLAG_START + r"(--run|-run|--filter|-k|--name)(?![\w-])")
+    narrowing = re.compile(FLAG_START + r"(--run|-run|--filter|-k|--name)(?!\w)")
     for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):

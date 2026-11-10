@@ -1558,6 +1558,11 @@ def main():
         errors = []
         lint.check_named_tests_are_run(named(fence, [("it_works", "tests/integ.rs")]), "| T1 | probe | done |", errors)
         assert errors == [], (fence, errors)
+    # The right edge allows a dash: pytest takes `-k-slow` as the expression `-slow` (the Codex verification of
+    # cb4243b7..ee3c01c7), so the fence narrows and a row it never selects stays refused.
+    errors = []
+    lint.check_named_tests_are_run(named("pytest -k-slow tests/t.py", [("test_other", "tests/t.py")]), "| T1 | probe | done |", errors)
+    assert errors and "test_other" in errors[0], errors
     # Codex review of 3.0.0: the file rule matched a DIRECTORY substring, so a unittest
     # call naming tools/test_a.py credited tools/test_b.py; a pytest `::` selector and
     # an `echo` of a runner were credited too. Each is blocked again.

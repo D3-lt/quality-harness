@@ -662,8 +662,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--test|--name)(?![\\w-])\")"
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?!\\w)\")",
+      "to": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--test|--name)(?!\\w)\")"
     },
     {
       "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
@@ -3888,7 +3888,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?!\\w)\")",
       "to": "    narrowing = re.compile(r\"(--run|-run|--filter|-k|--name)\\b\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
@@ -3916,8 +3916,8 @@
       "label": "2026-11-10: Go's --run narrows as -run does",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(FLAG_START + r\"(-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?!\\w)\")",
+      "to": "    narrowing = re.compile(FLAG_START + r\"(-run|--filter|-k|--name)(?!\\w)\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -3934,6 +3934,14 @@
       "tests": ["tests/gates.test.mjs"],
       "from": "        binaries = re.findall(FLAG_START + r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
       "to": "        binaries = re.findall(r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "2026-11-10: a flag's right edge allows a dash (pytest -k-slow)",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?!\\w)\")",
+      "to": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     }
   ]

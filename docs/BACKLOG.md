@@ -4674,3 +4674,8 @@ credited (a fail-open; also with `--test=integ` and `cargo nextest run`). The ow
 or path; directly after a `$NAME` or `${NAME}`), so cargo's readers cannot drift from Go's; the value readers in
 selected_by_filter keep the stricter start, which can only refuse more. Dirty and clean rows for each cargo form are in
 tests/gate-regressions.py, and every affected catalogue entry is RED.
+
+The Codex verification of cb4243b7..ee3c01c7 found the token rule's right edge `(?![\w-])` rejected pytest's attached `-k-slow`
+(pytest takes it as the expression `-slow`), so a row that fence never selects was credited (a fail-open). The owner chose to
+patch (2026-11-10): the right edge is `(?!\w)` again, as before the series; the left edge alone keeps the `-run` inside
+`core-run-tree` from counting. An attached-form row is in tests/gate-regressions.py and its mutant is RED.

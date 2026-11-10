@@ -209,6 +209,22 @@
       "from": "\t\ttraced := winReap(cmd, winReapGrace)\n\t\toutR.Close()",
       "to": "\t\ttraced := cmd\n\t\t_ = cmd.Wait()\n\t\toutR.Close()",
       "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
+    },
+    {
+      "label": "BACKLOG §465: a failed adoption is traced as ended",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": ["tests/core-win-tree.test.mjs"],
+      "from": "\t\ttrace.ended(traced, err, false)\n\t\treturn res",
+      "to": "\t\treturn res",
+      "only": "^(?:a failed adoption and an unconfirmed cleanup write the trace rows they claim)$"
+    },
+    {
+      "label": "BACKLOG §465: an unconfirmed cleanup is traced as a timeout",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": ["tests/core-win-tree.test.mjs"],
+      "from": "\t\ttrace.ended(&exec.Cmd{}, nil, true)",
+      "to": "\t\ttrace.ended(&exec.Cmd{}, nil, false)",
+      "only": "^(?:a failed adoption and an unconfirmed cleanup write the trace rows they claim)$"
     }
   ]
 }

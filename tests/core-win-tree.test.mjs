@@ -31,6 +31,10 @@ test('the shell hook hands the deadline the tree it adopted', { skip }, () => {
   goTests(['TestShellHookAdoptsWhatItStarted'])
 })
 
+test('a failed adoption and an unconfirmed cleanup write the trace rows they claim', { skip }, () => {
+  goTests(['TestHookTraceRowsOnAdoptionAndCleanup'])
+})
+
 test('a run() tree is ended at the deadline and when the command returns', { skip }, () => {
   goTests(['TestWinTreeWatchEndsAtTheDeadline', 'TestWinTreeWatchEndsWhatTheCommandLeft', 'TestWinTreeWatchKillsWhatItCannotResume',
     'TestWinTreeWatchCleanupKeepsTheDeadlineFallback'])

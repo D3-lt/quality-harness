@@ -104,6 +104,9 @@ func bsShell(argv []string, opts bsOpts) bsAnswer {
 // execFileSync waits for it (WaitDelay). Measured 2026-11-01: with run(), `sh -c 'sleep 5 & …; wait'` under a 300ms deadline
 // returned after 5.0s and left the sleep running; with Cancel alone, a parent that exited first left it running (the Codex
 // review of ad84c084..a2ac47a1). TestBranchStateCollectEndsTheTree and …AfterAnEarlyExit hold both.
+// bsWatchTreeOf is the platform's bsWatchTree, a variable so a test can make the adoption fail on any platform (BACKLOG §465).
+var bsWatchTreeOf = bsWatchTree
+
 func bsRun(timeout time.Duration, dir string, env map[string]string, stdin string, name string, args ...string) runResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -127,7 +130,7 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 	traced := cmd
 	if err == nil {
 		trace.started(cmd)
-		end, adoptErr := bsWatchTree(ctx, cmd)
+		end, adoptErr := bsWatchTreeOf(ctx, cmd)
 		if adoptErr != nil {
 			traced = winReap(cmd, winReapGrace)
 			err = adoptErr

@@ -69,6 +69,14 @@
       "from": "\t\t\t\t\tif index > 0 && clock()-viewing >= bsJobViewBudgetMs {",
       "to": "\t\t\t\t\tif false {",
       "only": "^(?:the core collects branch state as the Node collect does)$"
+    },
+    {
+      "label": "BACKLOG §465: bsRun adopts through the seam a test can see",
+      "file": "core/hooks/branchstate_collect.go",
+      "tests": ["tests/core-win-tree.test.mjs"],
+      "from": "\t\tend, adoptErr := bsWatchTreeOf(ctx, cmd)",
+      "to": "\t\tend, adoptErr := bsWatchTree(ctx, cmd)",
+      "only": "^(?:a failed adoption and an unconfirmed cleanup write the trace rows they claim)$"
     }
   ]
 }

@@ -4147,6 +4147,9 @@ publish-hook.mjs post-commit 31.4 ms (each commit the session makes), run-shell-
 an empty request; an artifact pass's gates come on top), statusline.mjs 32.1 ms (each status-line refresh), against 19.8 ms for
 a bare `node -e 0`. A port saves at most that much per event; none is in flight. The snapshot's cross-process race wants a
 record of its own (a lock on persistent state), drafted as Proposed.
+**Update 2026-11-10:** the snapshot's cross-process race is decided by ADR-143 (Accepted 2026-11-10,
+docs/adr/ADR-143-the-snapshot-is-written-under-a-lock.md): an OS file lock around each read, merge and replace, released only by
+unlock or the holder's death. Not executed yet; this section stays open until it is.
 
 ## 439. CLOSED 2026-11-01 (fixed in ADR-136's branch) — the Go uninteresting-directory rule matches what the Node one does not
 
@@ -4188,6 +4191,8 @@ from the Node-spawning core of f9798aac and from the Go reader of ADR-137 T3 ali
 below the root is in the class (the replay's other corpora keep theirs at the root). The fix widens the gate to what the
 reader discovers, or asks the reader unconditionally now that it starts no process; either changes what SessionStart's
 orientation says too, so it wants its own record.
+**Update 2026-11-10:** decided by ADR-141 (Accepted 2026-11-10, docs/adr/ADR-141-a-nested-corpus-is-read.md): the gate also admits
+a corpus below the root through a listing-only predicate shared with the reader. Not executed yet.
 
 ## 442. CLOSED 2026-11-08 (was OPEN 2026-11-01) — a short Governs glob makes the Node reader backtrack for minutes
 
@@ -4219,6 +4224,9 @@ On a case-insensitive macOS volume an index naming one file in two case spelling
 one spelling) and twice by the core (EvalSymlinks keeps both), so the record is printed and charged twice
 (decisioncorpus_read.go:478, decisioncorpus.go:1409). It needs an index git would not usually build; the fix is a disk-canonical
 identity (the file's on-disk spelling, or os.SameFile) for the once-by-realpath set, with a filesystem-conditional row.
+**Update 2026-11-10:** decided by ADR-142 (Accepted 2026-11-10, docs/adr/ADR-142-a-byte-budget-for-the-reader.md): 512 KiB per file,
+128 MiB per look, one read per file whatever its spelling, and a mandatory PARTIAL line when anything that could carry scope went
+unread. Not executed yet.
 
 ## 444. CLOSED 2026-11-08 (was OPEN 2026-11-01) — an mrw write gets no decision context
 
@@ -4567,6 +4575,9 @@ be met by sharding the other two. The slices were also uneven (Python 14/5/9 min
 ten minutes behind the mutation shards. The owner chose to roll back (2026-11-04): ADR-139 is Withdrawn, the tooling restored to
 a1add658. Still open here: the JavaScript floor itself, whose cut needs a raw-V8 merge (c8 or similar) and recalibrated floors, as
 a record of its own; the mutation shards' queueing, which sets the release's wall.
+**Update 2026-11-10:** the JavaScript floor is decided by ADR-144 (Accepted 2026-11-10,
+docs/adr/ADR-144-the-js-floor-merges-raw-coverage.md): measure merged raw V8 coverage against its serial twin on CI before any cut.
+The mutation shards' queueing stays here, deferred by ADR-144's Out of Scope. Not executed yet.
 
 ## 460. CLOSED 2026-11-04 — native-import's fixture gives git 10 s, and a loaded Windows runner took longer
 
@@ -4722,3 +4733,12 @@ printed by another command in the same fence became a filter; and an expression 
 Doing it right means splitting the fence into shell words per command and asking the runner for its real selection (pytest
 `--collect-only`), a design change that would need its own record. The owner chose to keep the conservative refusals (2026-11-10);
 BACKLOG item 20's over-selection of `-k 'alpha and beta'` stands as it was. The branch and its worktree were removed.
+
+## 468. OPEN 2026-11-10 — the artifact pass's lock can be taken from a live holder, and has no Go test
+
+Found while drafting ADR-143 and named by the cold Codex review of its first draft: `claimPassLock` (core/hooks/artifact.go,
+~:262-335) judges a lock stale by its deadline alone, not by its holder's death, so a pass that pauses past the deadline can
+lose the lock to a second claimant while it still runs, and both then work at once. tests/artifact-pass-behind.test.mjs imports
+the retired Node helper, so no test exercises the Go helper. ADR-143 deliberately leaves artifact.go untouched (its Out of
+Scope). The fix is ADR-143's OS lock (`lockFile`, core/hooks/filelock.go once T1 lands) for the artifact pass too, with a test
+whose live holder pauses past the old deadline and keeps the lock.

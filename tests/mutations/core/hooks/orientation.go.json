@@ -87,6 +87,22 @@
       "from": "\t\treturn posixListed(rel)",
       "to": "\t\treturn rel",
       "only": "^(?:the core answers every per-platform record row as Node does)$"
+    },
+    {
+      "label": "BACKLOG §432: SessionStart launching the declared check through sh is seen",
+      "file": "core/hooks/orientation.go",
+      "tests": ["tests/native-observation.test.mjs"],
+      "from": "\tofferPublishHook(cwd, session)\n\tsections := []string{}",
+      "to": "\tofferPublishHook(cwd, session)\n\trun(10*time.Second, cwd, nil, \"\", \"sh\", \"-c\", \"node check.mjs\")\n\tsections := []string{}",
+      "only": "^(?:SessionStart starts no child but git, gh and the install notice)$"
+    },
+    {
+      "label": "BACKLOG §432: SessionStart starting any other child is seen, a marker or not",
+      "file": "core/hooks/orientation.go",
+      "tests": ["tests/native-observation.test.mjs"],
+      "from": "\tofferPublishHook(cwd, session)\n\tsections := []string{}",
+      "to": "\tofferPublishHook(cwd, session)\n\trun(10*time.Second, cwd, nil, \"\", \"true\")\n\tsections := []string{}",
+      "only": "^(?:SessionStart starts no child but git, gh and the install notice)$"
     }
   ]
 }

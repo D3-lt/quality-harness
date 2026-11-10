@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { pathToFileURL } from 'node:url'
 import { offerPublishHook, pluginRootExport, publishHookExports } from './helpers/node-hooks/publish-verdict.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { readEvents } from '../plugin/scripts/event-log.mjs'
@@ -59,18 +58,14 @@ test('an unchecked commit and push receive no check refusal or check nag', t => 
   assert.notEqual(result.output.decision, 'block')
 })
 
-test('SessionStart neither spawns a baseline nor installs a refusing git hook', t => {
+// That SessionStart starts no check is held where the core's children can be seen: tests/native-observation.test.mjs, "SessionStart
+// starts no child but git, gh and the install notice", reads every child from the process trace. A probe on Node's
+// child_process.spawn stood here and could not see the Go core start anything (BACKLOG §432 item 1).
+test('SessionStart neither nags for a check nor installs a refusing git hook', t => {
   const f = fixture(t)
-  const probe = path.join(f.top, 'probe.mjs')
-  const marker = path.join(f.top, 'baseline-started')
-  // Intercept the launch synchronously in the hook process; the test starts no baseline child and uses no sleep.
-  writeFileSync(probe, "import cp from 'node:child_process'; import { syncBuiltinESMExports } from 'node:module'; import { writeFileSync } from 'node:fs'; const original = cp.spawn; cp.spawn = (...args) => { if (args[1]?.includes('--baseline')) { writeFileSync(process.env.QH_BASELINE_MARKER, 'started'); throw new Error('baseline launch intercepted'); } return original(...args); }; syncBuiltinESMExports();\n")
-  f.env.NODE_OPTIONS = `--import=${pathToFileURL(probe).href}`
-  f.env.QH_BASELINE_MARKER = marker
   delete f.env.QUALITY_HARNESS_BASELINE_RUNNER
   const started = f.hook('SessionStart', { source: 'startup' })
   assert.doesNotMatch(started.stdout, /Run it through|completion and commit advisories/)
-  assert.equal(existsSync(marker), false, 'opening a session must not start the project check')
   const exports = readFileSync(f.env.CLAUDE_ENV_FILE, 'utf8')
   assert.doesNotMatch(exports, /prepare-commit-msg|pre-push|qh-publish-(?:commit|push)/)
 })

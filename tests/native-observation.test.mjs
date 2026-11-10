@@ -77,6 +77,22 @@ test('native baseline observation sees a real project check', t => {
   assert.ok(f.rows().every(row => row.schema === 'quality-harness-process-trace-v1'))
 })
 
+// BACKLOG §432 item 1: tests/optional-check.test.mjs watched Node's child_process.spawn for a baseline launch, which cannot see
+// the Go core start anything, and the test above matches one argument list. Here every child the core starts on SessionStart
+// is enumerated from the trace, so a check launched in ANY form (through sh, with other arguments) is seen.
+test('SessionStart starts no child but git, gh and the install notice', t => {
+  const f = fixture(t)
+  for (const source of ['startup', 'resume', 'compact']) {
+    f.invoke(['hook', 'SessionStart'], { hook_event_name: 'SessionStart', source })
+  }
+  const started = f.rows().filter(row => ['attempt', 'exec-attempt'].includes(row.phase))
+  const notices = digest(JSON.stringify([path.join(plugin, 'scripts', 'install-notices.mjs')]))
+  assert.ok(started.length > 0, 'the trace saw the core start its own children (a trace that records nothing proves nothing)')
+  const unexpected = started.filter(row => !['git', 'gh', 'mrw'].includes(row.program) && !(row.program === 'node' && row.argsHash === notices))
+  assert.deepEqual(unexpected.map(row => row.program), [], 'opening, resuming and compacting start nothing else, the declared check in no form')
+  assert.equal(existsSync(f.marker), false)
+})
+
 test('a context attachment contributes once to the exclusive total', t => {
   const top = mkdtempSync(path.join(os.tmpdir(), 'qh-exclusive-'))
   t.after(() => remove(top))

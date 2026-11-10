@@ -4765,8 +4765,10 @@ Found by a Windows peer's corpus-chaos round of v3.8.73 (Windows 11, fixtures py
   and a plain twin; a catalogue mutant is RED. Whether such a link should be followed is a separate question (§8: a check reads
   the listing); it is now at least named.
 Both change what a reader says, so the next release's outside run covers them (§18).
-Class audit (§5), 2026-11-10: counting `.split('\n')` per file over plugin/scripts and scripts (mrw read --count --grep) found 30
-files; the ones that split a record or task file before reading headings or tables are trajectory-metrics.mjs (fixed),
+Class audit (§5), 2026-11-10: `mrw read --count --grep "\.split\('\\n'\)"` over git's plugin/scripts/*.mjs and scripts/*.mjs finds
+121 lines in 51 files (30 was a listing cut off at 30 lines; the Codex review of 2764ed10..b6e814e1 caught it). Every match in the
+readers of record and task files was read; the other files were judged by what they read (program output, JSON-lines ledgers,
+their own logs), not line by line. The ones that split a record or task file before reading headings or tables are trajectory-metrics.mjs (fixed),
 decision-corpus.mjs (:891, :1002; safe, since its reader turns a bare CR into `\n` as it reads, :1044), claims-rate.mjs:51 (a
 JSONL ledger, not a record) and work-next.mjs:433 (a spec's facts table) and :541 (a task README's table), left and filed as §472.
 

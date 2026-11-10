@@ -1513,6 +1513,34 @@ def main():
         "go test -run '^TestOnly$' ./core/hooks/ && node --test tests/core-run-tree.test.mjs",
         [("TestOther", "core/hooks/other_test.go")]), "| T1 | probe | done |", errors)
     assert errors and "TestOther" in errors[0], errors
+    # Codex review of 5d7b64df, the three classes the token rule must keep or reach. Go takes `--run` as `-run`: both forms
+    # still narrow (a fail-open otherwise).
+    for fence in ("go test ./... --run TestOnly", "go test ./... --run=TestOnly", "go test ./... --run 'TestOnly'"):
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [("TestOther", "pkg/other_test.go")]), "| T1 | probe | done |", errors)
+        assert errors and "TestOther" in errors[0], (fence, errors)
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [("TestOnly", "pkg/only_test.go")]), "| T1 | probe | done |", errors)
+        assert errors == [], (fence, errors)
+    # An expansion that may be empty does not hide the flag after it: bash runs `-run TestOnly` here.
+    errors = []
+    lint.check_named_tests_are_run(named("P=; go test ./... $P-run TestOnly", [("TestOther", "pkg/other_test.go")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "TestOther" in errors[0], errors
+    # Cargo's reader too: a path holding `--test` is not the flag; a real `--test` still scopes.
+    errors = []
+    lint.check_named_tests_are_run(named("cargo test --target-dir target/pre--test --lib", [("my_test", "src/lib.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors == [], errors
+    errors = []
+    lint.check_named_tests_are_run(named("cargo test --test integ", [("my_test", "src/lib.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "my_test" in errors[0], errors
+    # The binary reader takes the token rule as well: beside a real `--test integ`, the path's `--test` is not a binary.
+    errors = []
+    lint.check_named_tests_are_run(named("cargo test --target-dir target/pre--test --test integ", [("it_works", "tests/integ.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors == [], errors
     # Codex review of 3.0.0: the file rule matched a DIRECTORY substring, so a unittest
     # call naming tools/test_a.py credited tools/test_b.py; a pytest `::` selector and
     # an `echo` of a runner were credited too. Each is blocked again.

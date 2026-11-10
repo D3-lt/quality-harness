@@ -642,7 +642,7 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "        if not acc or not (narrowing.search(acc) or re.search(r\"\\bcargo\\b.*--test[= ]\", acc)):",
+      "from": "        if not acc or not (narrowing.search(acc) or re.search(r\"\\bcargo\\b.*(?<![\\w./-])--test[= ]\", acc)):",
       "to": "        if not acc or not narrowing.search(acc):"
     },
     {
@@ -662,8 +662,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--test|--name)(?![\\w-])\")"
+      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--test|--name)(?![\\w-])\")"
     },
     {
       "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
@@ -2601,7 +2601,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        acc = without_workspace_filters(inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\")",
+      "from": "        acc = flag_view(without_workspace_filters(inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\"))",
       "to": "        acc = inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\"",
       "only": "focused false-green regressions remain closed"
     },
@@ -2752,8 +2752,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "        binaries = re.findall(r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
-      "to": "        binaries = re.findall(r\"--test[= ]+([^\\s'\\\"]+)\", segment)"
+      "from": "        binaries = re.findall(r\"(?<![\\w./-])--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "to": "        binaries = re.findall(r\"(?<![\\w./-])--test[= ]+([^\\s'\\\"]+)\", segment)"
     },
     {
       "label": "chaos 626934a: adr-lint blocks a record holding NUL bytes",
@@ -3888,8 +3888,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(-run|--filter|-k|--name)\\b\")",
+      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(--run|-run|--filter|-k|--name)\\b\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -3898,8 +3898,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    for m in re.finditer(r\"(?<![\\w./-])(-run|--filter|-k|--name)[= ]+([\\\"\\'])(.+?)\\2\", acc):",
-      "to": "    for m in re.finditer(r\"(-run|--filter|-k|--name)[= ]+([\\\"\\'])(.+?)\\2\", acc):",
+      "from": "    for m in re.finditer(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)[= ]+([\\\"\\'])(.+?)\\2\", acc):",
+      "to": "    for m in re.finditer(r\"(--run|-run|--filter|-k|--name)[= ]+([\\\"\\'])(.+?)\\2\", acc):",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -3908,8 +3908,32 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    for m in re.finditer(r\"(?<![\\w./-])(-run|--filter|-k|--name)[= ]+([^\\s\\'\\\"]+)\", acc):",
-      "to": "    for m in re.finditer(r\"(-run|--filter|-k|--name)[= ]+([^\\s\\'\\\"]+)\", acc):",
+      "from": "    for m in re.finditer(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)[= ]+([^\\s\\'\\\"]+)\", acc):",
+      "to": "    for m in re.finditer(r\"(--run|-run|--filter|-k|--name)[= ]+([^\\s\\'\\\"]+)\", acc):",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "2026-11-10: Go's --run narrows as -run does",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--name)(?![\\w-])\")",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "2026-11-10: an expansion before a flag does not hide it",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "    return re.sub(r\"\\$(?:\\{\\w+\\}|\\w+)(?=-)\", \" \", acc)",
+      "to": "    return acc",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "2026-11-10: a path holding --test is not cargo's flag",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/gates.test.mjs"],
+      "from": "        binaries = re.findall(r\"(?<![\\w./-])--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "to": "        binaries = re.findall(r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
       "only": "^(?:focused false-green regressions remain closed)$"
     }
   ]

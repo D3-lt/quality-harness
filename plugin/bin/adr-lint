@@ -6051,6 +6051,13 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
                         f"red, so a green run of it proves nothing")
 
 
+def flag_view(acc):
+    """The command as the flag readers see it: a shell expansion directly before a `-` may expand to nothing, so it is removed
+    rather than read as a path character that hides the flag (`$PREFIX-run X` runs `-run X`; the Codex review of 5d7b64df). A
+    flag the expansion builds is then seen, the direction a refusal needs (CLAUDE.md §16)."""
+    return re.sub(r"\$(?:\{\w+\}|\w+)(?=-)", " ", acc)
+
+
 def selected_by_filter(acc, name, rel=None):
     """Would the Acceptance command's filter run this test?
 
@@ -6089,8 +6096,8 @@ def selected_by_filter(acc, name, rel=None):
             candidates.append(f"{stem}::{name}")
     # \Q…\E is valid in Go's regexp and invalid in Python's; translate rather
     # than fall through to "selected", which would pass every row.
-    acc = re.sub(r"\\Q(.*?)\\E", lambda m: re.escape(m.group(1)), acc)
-    for m in re.finditer(r"(?<![\w./-])(-run|--filter|-k|--name)[= ]+([\"\'])(.+?)\2", acc):
+    acc = flag_view(re.sub(r"\\Q(.*?)\\E", lambda m: re.escape(m.group(1)), acc))
+    for m in re.finditer(r"(?<![\w./-])(--run|-run|--filter|-k|--name)[= ]+([\"\'])(.+?)\2", acc):
         pat = unwrap(m.group(3))
         try:
             if any(re.search(pat, c) for c in candidates):
@@ -6101,7 +6108,7 @@ def selected_by_filter(acc, name, rel=None):
         if m.group(1) == "-k" and any(tok and any(tok in c for c in candidates)
                                       for tok in re.split(r"\s+(?:and|or|not)\s+|[()]", pat)):
             return True
-    for m in re.finditer(r"(?<![\w./-])(-run|--filter|-k|--name)[= ]+([^\s\'\"]+)", acc):
+    for m in re.finditer(r"(?<![\w./-])(--run|-run|--filter|-k|--name)[= ]+([^\s\'\"]+)", acc):
         try:
             if any(re.search(unwrap(m.group(2)), c) for c in candidates):
                 return True
@@ -6228,7 +6235,7 @@ def cargo_runs(acc, rel):
     for segment in _SEGMENTS.split(acc):
         if not re.search(r"^\s*(?:\w+=\S*\s+)*cargo\s+(?:test|nextest\s+run)\b", segment):
             continue
-        binaries = re.findall(r"--test[= ]+['\"]?([^\s'\"]+)", segment)
+        binaries = re.findall(r"(?<![\w./-])--test[= ]+['\"]?([^\s'\"]+)", segment)
         if not binaries or any(path.endswith(f"tests/{b}.rs") or f"tests/{b}/" in path for b in binaries):
             return True
     return False
@@ -6257,14 +6264,14 @@ def check_named_tests_are_run(infos, readme_text, errors):
     # (reported from outside, 2026-09-26). No runner measured takes it as a name.
     # A flag is its own token: `tests/core-run-tree.test.mjs` holds `-run` and was read as Go's filter, blocking every Go row
     # of a node fence (found by the 3.8.72 release, 2026-11-10; tests/gate-regressions.py has the twin).
-    narrowing = re.compile(r"(?<![\w./-])(-run|--filter|-k|--name)(?![\w-])")
+    narrowing = re.compile(r"(?<![\w./-])(--run|-run|--filter|-k|--name)(?![\w-])")
     for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
             continue
-        acc = without_workspace_filters(inf.get("acc_all") or inf.get("acc_first") or "")
+        acc = flag_view(without_workspace_filters(inf.get("acc_all") or inf.get("acc_first") or ""))
         # A cargo `--test` scopes which rows run, so it asks the question too.
-        if not acc or not (narrowing.search(acc) or re.search(r"\bcargo\b.*--test[= ]", acc)):
+        if not acc or not (narrowing.search(acc) or re.search(r"\bcargo\b.*(?<![\w./-])--test[= ]", acc)):
             continue
         for name, rel in inf.get("tests", []):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):

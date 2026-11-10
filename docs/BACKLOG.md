@@ -4651,3 +4651,11 @@ name filter and every Go row of the done task was refused as "does not select it
 before an argument was read as a filter). Class enumerated with `mrw read --grep` over plugin/bin, plugin/lib and plugin/scripts
 for the flag alternation: these three sites, no other. tests/gate-regressions.py holds the clean row and its dirty twin, and three
 catalogue mutants are RED; the cargo `--test` entry was re-anchored and is RED.
+
+The Codex review of 5d7b64df found the token rule failed open on Go's `--run` (Go takes it as `-run`), so a done row a
+`go test ./... --run X` fence never selects was no longer refused; that a shell expansion directly before a flag (`$P-run X`,
+which bash runs as `-run X`) hid it; and that cargo's two `--test` readers still read a path holding `--test` as the flag. All
+three fixed: `--run` is a narrowing flag, `flag_view` removes an expansion that directly precedes a `-` before any flag reader
+looks, and both cargo readers take the token rule. Each has a dirty and a clean row in tests/gate-regressions.py; three more
+catalogue mutants are RED, and the seven entries anchored on the changed lines were re-anchored and are RED. Left as the review
+found them, pre-existing and failing toward refusal: a quoted flag token and a tab between a flag and its value.

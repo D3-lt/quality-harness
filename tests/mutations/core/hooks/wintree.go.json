@@ -109,6 +109,16 @@
       "from": "\t\tend(ctx.Err() == context.DeadlineExceeded)\n\t\twinRelease",
       "to": "\t\tend(false)\n\t\twinRelease",
       "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
+    },
+    {
+      "label": "ADR-140 verification: an unreaped child's trace reads a stand-in, not the state a Wait in flight writes",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\tcase <-timer.C:\n\t\treturn &exec.Cmd{}",
+      "to": "\tcase <-timer.C:\n\t\treturn cmd",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
     }
   ]
 }

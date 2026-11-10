@@ -61,8 +61,10 @@ func winAdopt(ops winTreeOps, pid int) (*winTree, error) {
 // resumed nor ended never exits, and an unbounded Wait would hang the hook.
 const winReapGrace = time.Second
 
-// winReap waits for a command whose adoption failed, for at most grace.
-func winReap(cmd *exec.Cmd, grace time.Duration) {
+// winReap waits for a command whose adoption failed, for at most grace, and returns the command a trace may read. A child still
+// running at the grace has a Wait in flight that will write its ProcessState, so the trace gets a stand-in with none rather than
+// reading the field that Wait writes (the Codex verification of aab0a182).
+func winReap(cmd *exec.Cmd, grace time.Duration) *exec.Cmd {
 	done := make(chan struct{})
 	go func() {
 		_ = cmd.Wait()
@@ -72,7 +74,9 @@ func winReap(cmd *exec.Cmd, grace time.Duration) {
 	defer timer.Stop()
 	select {
 	case <-done:
+		return cmd
 	case <-timer.C:
+		return &exec.Cmd{}
 	}
 }
 

@@ -74,7 +74,8 @@ func TestWinTreeAdoptKillsWhatItCannotResume(t *testing.T) {
 	}
 }
 
-// A child that could be neither resumed nor ended never exits; winReap returns after its grace anyway.
+// A child that could be neither resumed nor ended never exits; winReap returns after its grace anyway, with a stand-in for the
+// trace, since the Wait still in flight writes the real command's ProcessState. A child that exits is returned itself.
 func TestWinTreeReapIsBounded(t *testing.T) {
 	sleep, err := exec.LookPath("sleep")
 	if err != nil {
@@ -86,9 +87,16 @@ func TestWinTreeReapIsBounded(t *testing.T) {
 	}
 	defer cmd.Process.Kill()
 	started := time.Now()
-	winReap(cmd, 200*time.Millisecond)
-	if waited := time.Since(started); waited > 2*time.Second {
-		t.Fatalf("winReap waited %v for a child that does not exit; its grace was 200ms", waited)
+	traced := winReap(cmd, 200*time.Millisecond)
+	if waited := time.Since(started); waited > 2*time.Second || traced == cmd || traced.ProcessState != nil {
+		t.Fatalf("winReap waited %v and returned the live command %v; its grace was 200ms", waited, traced == cmd)
+	}
+	quick := exec.Command(sleep, "0")
+	if err := quick.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if traced := winReap(quick, 5*time.Second); traced != quick || traced.ProcessState == nil {
+		t.Fatal("a child that exited within the grace is returned with its state")
 	}
 }
 

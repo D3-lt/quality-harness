@@ -206,8 +206,8 @@
       "tests": [
         "tests/core-win-tree.test.mjs"
       ],
-      "from": "\t\twinReap(cmd, winReapGrace)\n\t\toutR.Close()",
-      "to": "\t\t_ = cmd.Wait()\n\t\toutR.Close()",
+      "from": "\t\ttraced := winReap(cmd, winReapGrace)\n\t\toutR.Close()",
+      "to": "\t\ttraced := cmd\n\t\t_ = cmd.Wait()\n\t\toutR.Close()",
       "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
     }
   ]

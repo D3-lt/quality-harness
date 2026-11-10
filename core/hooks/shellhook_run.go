@@ -116,11 +116,11 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 	defer shkReleaseTreeOf(tree)
 	if err != nil {
 		inW.Close()
-		winReap(cmd, winReapGrace)
+		traced := winReap(cmd, winReapGrace)
 		outR.Close()
 		errR.Close()
 		res.err = err
-		trace.ended(cmd, err, false)
+		trace.ended(traced, err, false)
 		return res
 	}
 	trace.started(cmd)
@@ -174,7 +174,8 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 	}
 	outR.Close()
 	if res.cleanupUnconfirmed {
-		trace.ended(cmd, nil, true)
+		// The Wait goroutine may still write ProcessState: the trace reads a stand-in, so it records no status (none was observed).
+		trace.ended(&exec.Cmd{}, nil, true)
 	} else {
 		trace.ended(cmd, waitErr, res.timedOut)
 	}

@@ -124,18 +124,19 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 	done := func() bool { return ctx.Err() == context.DeadlineExceeded }
 	trace := startProcessTrace(cmd, "", "attempt")
 	err := cmd.Start()
+	traced := cmd
 	if err == nil {
 		trace.started(cmd)
 		end, adoptErr := bsWatchTree(ctx, cmd)
 		if adoptErr != nil {
-			winReap(cmd, winReapGrace)
+			traced = winReap(cmd, winReapGrace)
 			err = adoptErr
 		} else {
 			err = cmd.Wait()
 		}
 		end()
 	}
-	trace.ended(cmd, err, done())
+	trace.ended(traced, err, done())
 	res := runResult{status: -1, stdout: out.String(), stderr: errOut.String()}
 	if ctx.Err() == context.DeadlineExceeded {
 		res.timedOut = true

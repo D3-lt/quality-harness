@@ -6090,7 +6090,7 @@ def selected_by_filter(acc, name, rel=None):
     # \Q…\E is valid in Go's regexp and invalid in Python's; translate rather
     # than fall through to "selected", which would pass every row.
     acc = re.sub(r"\\Q(.*?)\\E", lambda m: re.escape(m.group(1)), acc)
-    for m in re.finditer(r"(-run|--filter|-k|--name)[= ]+([\"\'])(.+?)\2", acc):
+    for m in re.finditer(r"(?<![\w./-])(-run|--filter|-k|--name)[= ]+([\"\'])(.+?)\2", acc):
         pat = unwrap(m.group(3))
         try:
             if any(re.search(pat, c) for c in candidates):
@@ -6101,7 +6101,7 @@ def selected_by_filter(acc, name, rel=None):
         if m.group(1) == "-k" and any(tok and any(tok in c for c in candidates)
                                       for tok in re.split(r"\s+(?:and|or|not)\s+|[()]", pat)):
             return True
-    for m in re.finditer(r"(-run|--filter|-k|--name)[= ]+([^\s\'\"]+)", acc):
+    for m in re.finditer(r"(?<![\w./-])(-run|--filter|-k|--name)[= ]+([^\s\'\"]+)", acc):
         try:
             if any(re.search(unwrap(m.group(2)), c) for c in candidates):
                 return True
@@ -6255,7 +6255,9 @@ def check_named_tests_are_run(infos, readme_text, errors):
     # `--test` is not here: cargo's selects a test BINARY and node's is a mode flag,
     # and read as a name filter it blocked every row outside the binary's name
     # (reported from outside, 2026-09-26). No runner measured takes it as a name.
-    narrowing = re.compile(r"(-run|--filter|-k|--name)\b")
+    # A flag is its own token: `tests/core-run-tree.test.mjs` holds `-run` and was read as Go's filter, blocking every Go row
+    # of a node fence (found by the 3.8.72 release, 2026-11-10; tests/gate-regressions.py has the twin).
+    narrowing = re.compile(r"(?<![\w./-])(-run|--filter|-k|--name)(?![\w-])")
     for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):

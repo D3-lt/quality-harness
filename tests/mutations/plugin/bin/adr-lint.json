@@ -662,8 +662,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "    narrowing = re.compile(r\"(-run|--filter|-k|--name)\\b\")",
-      "to": "    narrowing = re.compile(r\"(-run|--filter|-k|--test|--name)\\b\")"
+      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--test|--name)(?![\\w-])\")"
     },
     {
       "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
@@ -3881,6 +3881,36 @@
       "from": "    end = re.search(rf\"\\.(?=[{JS_SPACE}]|\\Z)\", text)",
       "to": "    end = re.search(r\"\\.(?=\\s|\\Z)\", text)",
       "only": "^focused false-green regressions remain closed$"
+    },
+    {
+      "label": "2026-11-10: a narrowing flag is its own token, not letters inside a path",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(-run|--filter|-k|--name)\\b\")",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "2026-11-10: a quoted filter is read only after a flag token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for m in re.finditer(r\"(?<![\\w./-])(-run|--filter|-k|--name)[= ]+([\\\"\\'])(.+?)\\2\", acc):",
+      "to": "    for m in re.finditer(r\"(-run|--filter|-k|--name)[= ]+([\\\"\\'])(.+?)\\2\", acc):",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "2026-11-10: a bare filter is read only after a flag token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for m in re.finditer(r\"(?<![\\w./-])(-run|--filter|-k|--name)[= ]+([^\\s\\'\\\"]+)\", acc):",
+      "to": "    for m in re.finditer(r\"(-run|--filter|-k|--name)[= ]+([^\\s\\'\\\"]+)\", acc):",
+      "only": "^(?:focused false-green regressions remain closed)$"
     }
   ]
 }

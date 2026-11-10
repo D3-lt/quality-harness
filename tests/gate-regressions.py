@@ -1436,6 +1436,9 @@ def main():
     # go -run takes an unanchored regex, so a prefix selects.
     assert lint.selected_by_filter('go test -run "TestLexNorm|TestRankRRF"', "TestLexNormAscii")
     assert not lint.selected_by_filter('go test -run "TestLexNorm"', "TestRankRRF")
+    # A path ending in a flag's letters is not the flag: `./pkg/pre-run "TestB"` must not read as `-run "TestB"`.
+    assert not lint.selected_by_filter('go test -run "TestA" ./pkg/pre-run "TestB"', "TestB")
+    assert not lint.selected_by_filter("go test -run TestA ./pkg/pre-run TestB", "TestB")
     # selected_by_filter is only ever asked about a NARROWING command — a fence
     # with no filter runs everything and satisfies the check trivially. Asserted
     # at the caller, because that is where the guard lives: asking
@@ -1495,6 +1498,20 @@ def main():
     lint.check_named_tests_are_run(named(
         "go test -run '^TestSelected$' ./tools/mutants && python3 -m unittest -v tools/mutants/test_run.py",
         [("TestOther", "tools/mutants/other_test.go")]), "| T1 | probe | done |", errors)
+    assert errors and "TestOther" in errors[0], errors
+    # A path holding a flag's letters is not that flag (found by the 3.8.72 release, 2026-11-10): the node fence
+    # `node --test tests/core-run-tree.test.mjs …` was read as Go's `-run`, so every Go row of a done task was
+    # blocked as "does not select it". A narrowing flag is its own token.
+    errors = []
+    lint.check_named_tests_are_run(named(
+        "node --test tests/core-run-tree.test.mjs tests/core-win-tree.test.mjs",
+        [("TestWinTreeWatchEndsAtTheDeadline", "core/hooks/wintree_test.go")]), "| T1 | probe | done |", errors)
+    assert errors == [], errors
+    # DIRTY twin: the real flag still narrows beside a path that holds its letters.
+    errors = []
+    lint.check_named_tests_are_run(named(
+        "go test -run '^TestOnly$' ./core/hooks/ && node --test tests/core-run-tree.test.mjs",
+        [("TestOther", "core/hooks/other_test.go")]), "| T1 | probe | done |", errors)
     assert errors and "TestOther" in errors[0], errors
     # Codex review of 3.0.0: the file rule matched a DIRECTORY substring, so a unittest
     # call naming tools/test_a.py credited tools/test_b.py; a pytest `::` selector and

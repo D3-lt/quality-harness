@@ -4640,3 +4640,14 @@ winReap's grace, shkRun and bsRun now trace a stand-in command so the trace neve
 writes; the same stand-in is traced on shkRun's cleanup-unconfirmed path. The outcomes were checked by reading the code
 (process_trace.go:301-322: start-error, timeout), and no test asserts the rows those paths write. The fix is a test that enables
 the process trace, drives each path through the shkAdoptTree seam and a fake that never reaps, and reads the rows.
+
+## 466. CLOSED 2026-11-10 (found and fixed the same day) — adr-lint read a path holding `-run` as Go's test filter
+
+Found by the 3.8.72 release's full check at cb4243b7: `every record this repository tracks passes its own adr-lint` failed on
+ADR-140 T3, whose Acceptance runs `node --test tests/core-win-tree.test.mjs tests/core-run-tree.test.mjs`. The narrowing pattern in
+`check_named_tests_are_run` (`(-run|--filter|-k|--name)\b`) matched the `-run` inside `core-run-tree`, so the fence counted as a
+name filter and every Go row of the done task was refused as "does not select it" — a false refusal. A flag is now its own token
+(`(?<![\w./-])…(?![\w-])`), and the two filter readers in `selected_by_filter` take the same lookbehind (a path ending in `-run`
+before an argument was read as a filter). Class enumerated with `mrw read --grep` over plugin/bin, plugin/lib and plugin/scripts
+for the flag alternation: these three sites, no other. tests/gate-regressions.py holds the clean row and its dirty twin, and three
+catalogue mutants are RED; the cargo `--test` entry was re-anchored and is RED.

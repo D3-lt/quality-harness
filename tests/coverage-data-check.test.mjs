@@ -54,6 +54,11 @@ test('every coverage data file is read before the combine: an empty one is left 
     assert.match(out.stdout, new RegExp(`advice: \\.coverage\\.killed\\.${label.length}\\.y .*recorded nothing`), `${label}: said`)
     assert.equal(existsSync(file), false, `${label}: out of the combine`)
   }
+  // DIRTY twin: a schema with no table is not an empty file. A view holds a queryable row, so the file is foreign and fails.
+  const viewOnly = make('.coverage.bad.view.x', 'create view foreign_measurement as select 123 as hits')
+  const viewed = check(goodFile, viewOnly)
+  assert.equal(viewed.status, 1, `a view-only database: ${viewed.stdout}`)
+  assert.equal(existsSync(viewOnly), true, 'a view-only database is never removed')
 
   for (const [label, sql] of [
     ['garbage', null],

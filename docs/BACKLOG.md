@@ -4017,11 +4017,13 @@ rather than the reviewer's diff offsets:
 once, and the class sweep over every record (a Python pass splitting each `**Governs:**` line on commas) found one more, ADR-060,
 fixed the same way; each record's adr-lint exits 0. The first item stays open: a negative over a detached launch needs a timed
 wait, and the probe a native boundary that sees Go start a child. The third is ADR-095's.
-**Update 2026-11-10:** the first item is fixed (2de531b0's round, commit 704cf6af): tests/native-observation.test.mjs, "SessionStart
-starts no child but git, gh and the install notice", reads every child the core starts on startup, resume and compact from the
-process trace and allows only git, gh, mrw and node running install-notices.mjs; two catalogue mutants (SessionStart running
-`sh -c "node check.mjs"`, and one starting `true`, which writes no marker) are RED. The vacuous spawn probe is gone from
-tests/optional-check.test.mjs. Only the third item, ADR-095's, remains.
+**Update 2026-11-10:** the first item is fixed (commit 704cf6af, with the review fixes after it): tests/native-observation.test.mjs,
+"SessionStart starts no child but git, gh and the install notice", reads every child the core starts on startup, resume and compact
+from the process trace and allows node and mrw only with their known arguments (install-notices.mjs; `--version`) and git and gh by
+program; three catalogue mutants (SessionStart running `sh -c "node check.mjs"`, starting `true`, which writes no marker, and running
+`mrw check`) are RED. Not seen, as the Codex review of ca71fd49..05585b3e showed: a launch hidden inside an allowed program (a git
+alias, a gh extension) or a Node preloader in the environment the core passes on, since the trace records the core's own launches.
+The vacuous spawn probe is gone from tests/optional-check.test.mjs. Only the third item, ADR-095's, remains.
 
 ## 433. CLOSED 2026-11-08 (was OPEN 2026-10-29) — non-blocking findings from the bundled Go release review
 

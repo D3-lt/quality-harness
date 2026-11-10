@@ -44,8 +44,16 @@
       "label": "BACKLOG §464: a file killed before its schema (no table, or empty) recorded nothing and is left out",
       "file": "scripts/coverage-data-check.py",
       "tests": ["tests/coverage-data-check.test.mjs"],
-      "from": "            if not tables:\n                return True",
-      "to": "            if not tables:\n                return False",
+      "from": "            if con.execute(\"select count(*) from sqlite_master\").fetchone()[0] == 0:\n                return True",
+      "to": "            if con.execute(\"select count(*) from sqlite_master\").fetchone()[0] == 0:\n                return False",
+      "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
+    },
+    {
+      "label": "BACKLOG §464 review: only an EMPTY schema is a killed file; a view is foreign",
+      "file": "scripts/coverage-data-check.py",
+      "tests": ["tests/coverage-data-check.test.mjs"],
+      "from": "            if con.execute(\"select count(*) from sqlite_master\").fetchone()[0] == 0:",
+      "to": "            if not tables:",
       "only": "^(?:every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails)$"
     }
   ]

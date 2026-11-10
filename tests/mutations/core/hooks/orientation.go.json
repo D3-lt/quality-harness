@@ -103,6 +103,14 @@
       "from": "\tofferPublishHook(cwd, session)\n\tsections := []string{}",
       "to": "\tofferPublishHook(cwd, session)\n\trun(10*time.Second, cwd, nil, \"\", \"true\")\n\tsections := []string{}",
       "only": "^(?:SessionStart starts no child but git, gh and the install notice)$"
+    },
+    {
+      "label": "BACKLOG §432 review: mrw run with any other arguments on SessionStart is seen",
+      "file": "core/hooks/orientation.go",
+      "tests": ["tests/native-observation.test.mjs"],
+      "from": "\tofferPublishHook(cwd, session)\n\tsections := []string{}",
+      "to": "\tofferPublishHook(cwd, session)\n\trun(10*time.Second, cwd, nil, \"\", \"mrw\", \"check\")\n\tsections := []string{}",
+      "only": "^(?:SessionStart starts no child but git, gh and the install notice)$"
     }
   ]
 }

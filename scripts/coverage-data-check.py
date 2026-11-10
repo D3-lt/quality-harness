@@ -27,8 +27,10 @@ def recorded_nothing(path):
         con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
             tables = [row[0] for row in con.execute("select name from sqlite_master where type = 'table'")]
-            if not tables:
-                return True  # killed before coverage.py made its schema: an empty file or a database with no table
+            # Killed before coverage.py made its schema: an empty file, or a database whose schema is empty. A view, an index
+            # or a trigger is a schema someone made, so it is not empty (the Codex review of ca71fd49..05585b3e).
+            if con.execute("select count(*) from sqlite_master").fetchone()[0] == 0:
+                return True
             if "coverage_schema" not in tables or "file" not in tables or not set(tables) <= COVERAGE_TABLES:
                 return False
             return all(con.execute(f'select count(*) from "{table}"').fetchone()[0] == 0 for table in tables)

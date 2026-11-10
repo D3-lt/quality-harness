@@ -79,17 +79,24 @@ test('native baseline observation sees a real project check', t => {
 
 // BACKLOG §432 item 1: tests/optional-check.test.mjs watched Node's child_process.spawn for a baseline launch, which cannot see
 // the Go core start anything, and the test above matches one argument list. Here every child the core starts on SessionStart
-// is enumerated from the trace, so a check launched in ANY form (through sh, with other arguments) is seen.
+// is read from the trace: node and mrw only with the arguments they are known to take, git and gh by program. What it does not
+// see is a launch hidden inside an allowed program (a git alias, a gh extension) or a preloader in the environment the core
+// passes on: the trace records the core's own launches, not their descendants (the Codex review of ca71fd49..05585b3e).
 test('SessionStart starts no child but git, gh and the install notice', t => {
   const f = fixture(t)
   for (const source of ['startup', 'resume', 'compact']) {
     f.invoke(['hook', 'SessionStart'], { hook_event_name: 'SessionStart', source })
   }
   const started = f.rows().filter(row => ['attempt', 'exec-attempt'].includes(row.phase))
-  const notices = digest(JSON.stringify([path.join(plugin, 'scripts', 'install-notices.mjs')]))
+  const only = { node: digest(JSON.stringify([path.join(plugin, 'scripts', 'install-notices.mjs')])), mrw: digest(JSON.stringify(['--version'])) }
   assert.ok(started.length > 0, 'the trace saw the core start its own children (a trace that records nothing proves nothing)')
-  const unexpected = started.filter(row => !['git', 'gh', 'mrw'].includes(row.program) && !(row.program === 'node' && row.argsHash === notices))
-  assert.deepEqual(unexpected.map(row => row.program), [], 'opening, resuming and compacting start nothing else, the declared check in no form')
+  // Windows keeps the `.exe` of a program the core resolved itself (mrw.exe, core/hooks/orientation.go).
+  const unexpected = started.filter(row => {
+    const program = row.program.replace(/\.exe$/i, '')
+    if (program in only) return row.argsHash !== only[program]
+    return !['git', 'gh'].includes(program)
+  })
+  assert.deepEqual(unexpected.map(row => row.program), [], 'opening, resuming and compacting start nothing else, and node and mrw nothing but their known calls')
   assert.equal(existsSync(f.marker), false)
 })
 

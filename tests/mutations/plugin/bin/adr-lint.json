@@ -662,8 +662,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--test|--name)(?![\\w-])\")"
+      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--test|--name)(?![\\w-])\")"
     },
     {
       "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
@@ -2601,7 +2601,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        acc = flag_view(without_workspace_filters(inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\"))",
+      "from": "        acc = without_workspace_filters(inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\")",
       "to": "        acc = inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\"",
       "only": "focused false-green regressions remain closed"
     },
@@ -3888,7 +3888,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
       "to": "    narrowing = re.compile(r\"(--run|-run|--filter|-k|--name)\\b\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
@@ -3916,16 +3916,16 @@
       "label": "2026-11-10: Go's --run narrows as -run does",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(-run|--filter|-k|--name)(?![\\w-])\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
       "label": "2026-11-10: an expansion before a flag does not hide it",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    return re.sub(r\"\\$(?:\\{\\w+\\}|\\w+)(?=-)\", \" \", acc)",
-      "to": "    return acc",
+      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {

@@ -4659,3 +4659,10 @@ three fixed: `--run` is a narrowing flag, `flag_view` removes an expansion that 
 looks, and both cargo readers take the token rule. Each has a dirty and a clean row in tests/gate-regressions.py; three more
 catalogue mutants are RED, and the seven entries anchored on the changed lines were re-anchored and are RED. Left as the review
 found them, pre-existing and failing toward refusal: a quoted flag token and a tab between a flag and its value.
+
+The Codex verification of 65da845a found that `flag_view` rewrote filter VALUES too: in `-run '$P-run TestOther|TestOnly'` it
+made `-run TestOther` appear and credited TestOther (a fail-open), and the pnpm mutant re-anchored over it removed `flag_view`
+as well. Second round on the same classifier, so it was restructured rather than patched (the rule filed 2026-10): nothing is
+rewritten any more; the narrowing pattern itself counts a `$NAME` directly before a flag as a flag, and the value readers are as
+before, so an expansion-built flag can only add a refusal. The quoted-value row is in tests/gate-regressions.py, and the pnpm
+mutant is back to its own mutation.

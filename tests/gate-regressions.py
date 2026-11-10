@@ -1527,6 +1527,13 @@ def main():
     lint.check_named_tests_are_run(named("P=; go test ./... $P-run TestOnly", [("TestOther", "pkg/other_test.go")]),
                                    "| T1 | probe | done |", errors)
     assert errors and "TestOther" in errors[0], errors
+    # And nothing is rewritten: a quoted filter VALUE that holds `$P-run` is read as written. Go's regex
+    # '$P-run TestOther|TestOnly' selects TestOnly only, so TestOther stays refused (the Codex review of 65da845a: rewriting
+    # the value made `-run TestOther` appear and credited it).
+    errors = []
+    lint.check_named_tests_are_run(named("go test ./... -run '$P-run TestOther|TestOnly'", [("TestOther", "pkg/other_test.go")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "TestOther" in errors[0], errors
     # Cargo's reader too: a path holding `--test` is not the flag; a real `--test` still scopes.
     errors = []
     lint.check_named_tests_are_run(named("cargo test --target-dir target/pre--test --lib", [("my_test", "src/lib.rs")]),

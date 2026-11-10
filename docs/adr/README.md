@@ -142,3 +142,7 @@ whose catalog says what each one's decision effect is now.
 | [ADR-138](ADR-138-ci-runs-the-outside-run.md) | A Windows CI job runs the outside run on every release; a person reads only when the readers' output changed | Accepted |
 | [ADR-139](ADR-139-the-landing-run-splits-its-longest-jobs.md) | The landing run's three longest jobs as shards behind fan-ins; withdrawn after measurement: the JS floor cannot go parallel, so it bounds every landing | Withdrawn |
 | [ADR-140](ADR-140-a-windows-gate-tree-ends-by-job.md) | On Windows the core ends a gate's and run()'s whole tree through a job object, not taskkill /T | Accepted |
+| [ADR-141](ADR-141-a-nested-corpus-is-read.md) | The decision-context and SessionStart corpus gate also admits a corpus below the root, through a predicate shared with the reader | Accepted |
+| [ADR-142](ADR-142-a-byte-budget-for-the-reader.md) | Both decision readers bound their reads in bytes (512 KiB a file, 128 MiB a look) and the hook says PARTIAL when anything that could carry scope went unread | Accepted |
+| [ADR-143](ADR-143-the-snapshot-is-written-under-a-lock.md) | The branch-state snapshot's read, merge and replace run under an OS file lock that only unlock or the holder's death releases | Accepted |
+| [ADR-144](ADR-144-the-js-floor-merges-raw-coverage.md) | The serial JavaScript coverage floor is cut over to merged raw V8 coverage only once CI measures it equal to its serial twin | Accepted |

@@ -4017,6 +4017,11 @@ rather than the reviewer's diff offsets:
 once, and the class sweep over every record (a Python pass splitting each `**Governs:**` line on commas) found one more, ADR-060,
 fixed the same way; each record's adr-lint exits 0. The first item stays open: a negative over a detached launch needs a timed
 wait, and the probe a native boundary that sees Go start a child. The third is ADR-095's.
+**Update 2026-11-10:** the first item is fixed (2de531b0's round, commit 704cf6af): tests/native-observation.test.mjs, "SessionStart
+starts no child but git, gh and the install notice", reads every child the core starts on startup, resume and compact from the
+process trace and allows only git, gh, mrw and node running install-notices.mjs; two catalogue mutants (SessionStart running
+`sh -c "node check.mjs"`, and one starting `true`, which writes no marker) are RED. The vacuous spawn probe is gone from
+tests/optional-check.test.mjs. Only the third item, ADR-095's, remains.
 
 ## 433. CLOSED 2026-11-08 (was OPEN 2026-10-29) — non-blocking findings from the bundled Go release review
 
@@ -4131,6 +4136,15 @@ its answer and what it left in the background is ended. On Windows the change is
 command ends instead of waiting for a grandchild's pipe without bound (ADR-135 Risks: no job object); the landing's `windows`
 job is the evidence there. No catalogue mutant: run() is one delegating line, and its smallest break restores the whole old body; the kill is that red run. Still open
 here: the Node processes the hooks start, the branch-state snapshot's cross-process race, and the publishable helper's call site.
+**Update 2026-11-10:** the publishable helper's call site was already held: two catalogue mutants at branchstate_serve.go's call
+(the call replaced by `true`, and by `!cut`) both turn tests/branch-state-native.test.mjs's "a stale cache past the budget …" red
+through its slow gh, so the gap was a missing catalogue entry, now added. The Node processes the hooks start were measured, not
+ported (the owner's direction since 2026-11-03), 2026-11-10 on macOS arm64, Node 24.22.1, load 5.8 on 10 cores, seven runs each in
+a fresh repository, median wall time: install-notices.mjs 33.2 ms (each SessionStart where a check or corpus is present),
+publish-hook.mjs post-commit 31.4 ms (each commit the session makes), run-shell-hook.mjs --batch 28.4 ms (start and refusal of
+an empty request; an artifact pass's gates come on top), statusline.mjs 32.1 ms (each status-line refresh), against 19.8 ms for
+a bare `node -e 0`. A port saves at most that much per event; none is in flight. The snapshot's cross-process race wants a
+record of its own (a lock on persistent state), drafted as Proposed.
 
 ## 439. CLOSED 2026-11-01 (fixed in ADR-136's branch) — the Go uninteresting-directory rule matches what the Node one does not
 
@@ -4623,7 +4637,7 @@ file is fed on standard input, and a failure says how long the one call ran. Wha
 existing twins (a misformatted and a CRLF input, a directory holding a misformatted file) still show it can fail. Why the piped
 call stalled on that runner is not known.
 
-## 464. OPEN 2026-11-10 — the strict Python coverage floor fails the job on a data file a killed child left empty
+## 464. CLOSED 2026-11-10 — the strict Python coverage floor fails the job on a data file a killed child left empty
 
 Measured on the landing run of 74f17b00 (run 42775416426, job 129692662154): `bash scripts/coverage.sh --python` with
 QUALITY_HARNESS_COVERAGE_STRICT=1 printed "FAIL — unreadable coverage data: .coverage.<host>.pid88850.<suffix> … no such table:
@@ -4633,13 +4647,24 @@ coverage.py wrote its schema. Which test ends it is not known; the run kept no l
 right to refuse an unreadable file it cannot account for (ADR-005); the fix is to find that test and either let its child finish
 writing or make the floor tell a file a killed child left empty apart from a corrupt one, with a test showing each.
 
-## 465. OPEN 2026-11-10 — no test asserts the trace rows of a failed job adoption or an unreaped child
+Fixed 2026-11-10 (2de531b0): scripts/coverage-data-check.py also leaves out, and says, a file that holds no table at all or is
+empty — a process killed before coverage.py wrote its schema; a non-database file, a foreign table or any row still fails. The
+test reproduces CI's error ("no such table: coverage_schema") with an empty file and a table-less database, red before; one
+catalogue mutant is RED. Which test kills the child is still not known, and the floor no longer depends on it: the advice line
+names the left-out file, pid included, if it recurs.
+
+## 465. CLOSED 2026-11-10 — no test asserts the trace rows of a failed job adoption or an unreaped child
 
 Found by the Codex verification of aab0a182..74f17b00 (ADR-140): when a Windows child cannot be adopted into a job, or outlives
 winReap's grace, shkRun and bsRun now trace a stand-in command so the trace never reads the ProcessState a Wait still in flight
 writes; the same stand-in is traced on shkRun's cleanup-unconfirmed path. The outcomes were checked by reading the code
 (process_trace.go:301-322: start-error, timeout), and no test asserts the rows those paths write. The fix is a test that enables
 the process trace, drives each path through the shkAdoptTree seam and a fake that never reaps, and reads the rows.
+
+Fixed 2026-11-10 (25fe3201): core/hooks/shellhook_trace_test.go's TestHookTraceRowsOnAdoptionAndCleanup enables the trace and
+drives shkRun's failed adoption (child outliving the grace: attempt, ended, start-error, no pid or status; ended within it:
+execution-error), shkRun's unconfirmed cleanup (attempt, started, ended: timeout, no status or CPU, the pid kept), and bsRun's
+failed adoption through the new bsWatchTreeOf seam. Three catalogue mutants are RED.
 
 ## 466. CLOSED 2026-11-10 (found and fixed the same day) — adr-lint read a path holding `-run` as Go's test filter
 

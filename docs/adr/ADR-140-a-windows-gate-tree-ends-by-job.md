@@ -135,4 +135,7 @@ Windows split is relocked back. No state is persisted.
 
 ## Follow-ups
 
-- [ ] A Windows peer runs the hang scenario through an installed core (ADR-131's outside run on Windows)
+- [x] A Windows peer runs the hang scenario through an installed core (ADR-131's outside run on Windows) — done 2026-11-10 by a
+  Windows 11 peer (Git Bash, Go 1.24.2) with the published v3.8.73 core installed by qh-fetch as QUALITY_HARNESS_QH_BIN:
+  tests/shell-hook-native.test.mjs, core-run-tree, core-win-tree and native-observation 30 pass, 0 fail, 2 skipped by design
+  (both hang and orphan timeout scenarios among the passes), and no sleep.exe running before or 3 s after.

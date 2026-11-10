@@ -133,7 +133,7 @@ See `ADR-141-a-nested-corpus-is-read/tasks/README.md`.
 - The disk arms of discovery in the gate (permanent: boundary: Decision 3, the gate stays listing-only and opens no content)
 - `danglingCorpusLinks` for a nested link (permanent: boundary: Decision 4, it would need a disk walk)
 - The retired Node hook copy in tests/helpers/node-hooks/session-orientation.mjs (permanent: boundary: a test helper that never ships (CLAUDE.md §1), and no test runs it over a nested corpus: `git grep python-monorepo` outside the fixture finds none)
-- `adr-next` recursing more than one level into nested corpora (deferred: docs/adr/ADR-034-a-corpus-root-is-a-question-not-an-empty-answer.md)
+- `adr-next` recursing more than one level into nested corpora (deferred: docs/BACKLOG.md §469)
 - The comment at tests/record-by-name.test.mjs:51-56 naming CORPUS_DIR_NAMES for record directories (permanent: boundary: prose in a test, not behaviour; named here, not edited)
 
 ## Risks

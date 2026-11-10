@@ -4742,3 +4742,10 @@ lose the lock to a second claimant while it still runs, and both then work at on
 the retired Node helper, so no test exercises the Go helper. ADR-143 deliberately leaves artifact.go untouched (its Out of
 Scope). The fix is ADR-143's OS lock (`lockFile`, core/hooks/filelock.go once T1 lands) for the artifact pass too, with a test
 whose live holder pauses past the old deadline and keeps the lock.
+
+## 469. OPEN 2026-11-10 — adr-next does not recurse more than one level into nested corpora
+
+Deferred by ADR-141's Out of Scope (docs/adr/ADR-141-a-nested-corpus-is-read.md): ADR-141 makes the decision-context and SessionStart
+gate admit a corpus below the root, but `adr-next`'s corpus walk keeps ADR-034's one-level recursion
+(docs/adr/ADR-034-a-corpus-root-is-a-question-not-an-empty-answer.md), so a corpus nested deeper is not offered as a work queue.
+Whether it should be is a change to what adr-next says, so it needs its own decision and an outside run (§18).

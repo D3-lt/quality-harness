@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-10",
+  "at": "b54bccfc599ebc6846b9c6e60b45a3ed79faa739",
+  "plugin": "3.8.74",
+  "kind": "probe",
+  "probeSha256": "dbe525deae43f7232021decc0a4ffd0190dfa0108e743cb061a63abd7a9927cd",
+  "readers": "00c2e87f1f6cde57bc4b186b284c7ef882a73dadb31bdbe411e6297a8fe34f1d",
+  "native": {
+    "look": "ok",
+    "at": "b54bccfc599ebc6846b9c6e60b45a3ed79faa739",
+    "sources": "3bdfdaffe7d09a3384278b46b9840f4f44035e35475f8797599c4509ed0fc9f8",
+    "run": "42890674880",
+    "asset": "qh-windows-amd64.exe",
+    "sha256": "b100f60768b2b7e83b3eadeb62582f1ff73e7bae5a693e6c140f4a3cd245f5eb"
+  },
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 69,
+    "undecided": 5,
+    "tasks": 326,
+    "taskDirectories": 65
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 75,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "windows-go-adr-archive",
+  "found": ""
+}

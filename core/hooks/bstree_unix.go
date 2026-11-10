@@ -25,7 +25,7 @@ func bsEndTree(cmd *exec.Cmd) {
 // synchronously, before bsRun returns, so the group is ended before the hook can exit and the window in which its number could
 // name another group is as short as the call itself (the scoped verification of 53e9f6cc). The group id is the started
 // process's pid (Setpgid above).
-func bsWatchTree(ctx context.Context, cmd *exec.Cmd) func() {
+func bsWatchTree(ctx context.Context, cmd *exec.Cmd) (func(), error) {
 	pid := cmd.Process.Pid
 	var once sync.Once
 	end := func() { once.Do(func() { _ = syscall.Kill(-pid, syscall.SIGKILL) }) }
@@ -40,7 +40,7 @@ func bsWatchTree(ctx context.Context, cmd *exec.Cmd) func() {
 	return func() {
 		close(stop)
 		end()
-	}
+	}, nil
 }
 
 // bsPipeWait is how long Wait may wait for a grandchild's output pipe: the command's own timeout, as execFileSync waits, since

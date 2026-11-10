@@ -106,7 +106,7 @@
       "tests": [
         "tests/shell-hook-native.test.mjs"
       ],
-      "from": "\t\tshkEndTree(cmd)\n",
+      "from": "\t\tshkEndTreeOf(cmd, tree)\n",
       "to": "",
       "only": "^(?:the native shell hook says what the Node runner says in every scenario)$"
     },
@@ -159,6 +159,36 @@
       "from": "\t\tif shkRelativePathIsUninteresting(relPath(hookCwd, target)) {",
       "to": "\t\tif false {",
       "only": "^(?:the native edit gate records what the Node one records)$"
+    },
+    {
+      "label": "ADR-140 T2: shkRun adopts the child it started",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\ttree, err := shkAdoptTree(cmd)",
+      "to": "\ttree, err := (*winTree)(nil), error(nil)",
+      "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
+    },
+    {
+      "label": "ADR-140 T2: the deadline ends the tree shkRun adopted",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\tshkEndTreeOf(cmd, tree)",
+      "to": "\t\tshkEndTreeOf(cmd, nil)",
+      "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
+    },
+    {
+      "label": "ADR-140 T2: a failed adoption is a failed start",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\ttree, err := shkAdoptTree(cmd)\n\tif err != nil {",
+      "to": "\ttree, err := shkAdoptTree(cmd)\n\tif err != nil && false {",
+      "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
     }
   ]
 }

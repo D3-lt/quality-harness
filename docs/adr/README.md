@@ -141,3 +141,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-137](ADR-137-the-decision-context-hook-runs-in-the-core.md) | The per-edit decision-context hook is answered by the Go core, a second record mirror | Accepted |
 | [ADR-138](ADR-138-ci-runs-the-outside-run.md) | A Windows CI job runs the outside run on every release; a person reads only when the readers' output changed | Accepted |
 | [ADR-139](ADR-139-the-landing-run-splits-its-longest-jobs.md) | The landing run's three longest jobs as shards behind fan-ins; withdrawn after measurement: the JS floor cannot go parallel, so it bounds every landing | Withdrawn |
+| [ADR-140](ADR-140-a-windows-gate-tree-ends-by-job.md) | On Windows the core ends a gate's and run()'s whole tree through a job object, not taskkill /T | Accepted |

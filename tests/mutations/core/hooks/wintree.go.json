@@ -1,0 +1,84 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-140 T1: a refused assignment still resumes the child",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\t} else {\n\t\t\tops.closeJob(job)\n\t\t}",
+      "to": "\t\t} else {\n\t\t\tops.closeJob(job)\n\t\t\treturn tree, nil\n\t\t}",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 T1: a child that cannot be resumed is killed",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\t_ = ops.kill(pid)",
+      "to": "\t\t_ = pid",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 T1: a job that terminates means no taskkill",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\tif tree != nil && tree.held && ops.terminate(tree.job) == nil {\n\t\treturn\n\t}",
+      "to": "\tif tree != nil && tree.held && ops.terminate(tree.job) == nil {\n\t}",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 T1: no job, or a refused terminate, falls back to taskkill",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\tops.taskkill(pid)",
+      "to": "\t_ = pid",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 T1: only a held job handle is closed",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\tif tree != nil && tree.held {\n\t\tops.closeJob",
+      "to": "\tif tree != nil {\n\t\tops.closeJob",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 T3: run()'s deadline ends the job",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\t\tend(ctx.Err() == context.DeadlineExceeded)",
+      "to": "\t\t\t_ = ctx",
+      "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
+    },
+    {
+      "label": "ADR-140 T3: what run()'s command left is ended once it returns",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\tclose(stop)\n\t\tend(false)",
+      "to": "\t\tclose(stop)",
+      "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
+    },
+    {
+      "label": "ADR-140 T3: run()'s job handle is released",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\tend(false)\n\t\twinRelease(ops, tree)",
+      "to": "\t\tend(false)",
+      "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
+    }
+  ]
+}

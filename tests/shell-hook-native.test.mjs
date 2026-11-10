@@ -143,6 +143,17 @@ function both(f, name, script, payload, options = {}) {
   return runs
 }
 
+// Plays one scenario through each runner apart, for the Windows timeout scenarios where the two differ on purpose (ADR-140).
+function apart(f, name, script, payload, options = {}) {
+  const runs = {}
+  for (const impl of ['node', 'native']) {
+    runs[impl] = f.run(impl, script, payload, { ...options, env: { ...options.env, STUB_PIDFILE: f.pidFile(impl) } })
+    assert.equal(runs[impl].error, undefined, `${impl}, ${name}: ${runs[impl].error}`)
+    runs[impl].text = { stdout: runs[impl].stdout.toString('utf8'), stderr: runs[impl].stderr.toString('utf8') }
+  }
+  return runs
+}
+
 const alive = pid => { try { process.kill(pid, 0); return true } catch (error) { return error.code === 'EPERM' } }
 
 // Whether the process a stub left behind is gone, given a moment to be reaped.
@@ -198,20 +209,24 @@ test('the native shell hook says what the Node runner says in every scenario', a
 
   for (const mode of ['hang', 'orphan']) {
     await t.test(`a timeout ends the gate's whole tree (${mode})`, () => {
-      const runs = both(f, mode, SCRIPT, edit, { env: { STUB_MODE: mode, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(TIMEOUT_MS) } })
-      assert.equal(runs.node.status, 0)
-      assert.match(runs.node.text.stderr, new RegExp(`quality-harness: post-edit-check\\.sh timed out after ${TIMEOUT_MS}ms, so the gates have no verdict on ${escapeRegExp(asBash(file))}\\. Nothing is blocked\\.\\n$`))
+      const options = { env: { STUB_MODE: mode, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(TIMEOUT_MS) } }
+      // On Windows the runners differ on purpose (ADR-140): the core holds the gate in a job object and ends the tree, while
+      // Node's taskkill /T leaves the MSYS-started sleep running and says "cleanup could not be confirmed" (CI's Windows job on
+      // land/c5a296af, 2026-11-01). There each runner runs apart and is held to what it does; elsewhere both say the same bytes.
+      const runs = process.platform === 'win32' ? apart(f, mode, SCRIPT, edit, options) : both(f, mode, SCRIPT, edit, options)
       for (const impl of ['node', 'native']) {
+        assert.equal(runs[impl].status, 0)
+        assert.match(runs[impl].text.stderr, new RegExp(`quality-harness: post-edit-check\\.sh timed out after ${TIMEOUT_MS}ms, so the gates have no verdict on ${escapeRegExp(asBash(file))}\\. Nothing is blocked\\.\\n$`))
         assert.ok(runs[impl].ms < HANG_GUARD_MS, `${impl} returned in ${runs[impl].ms} ms, past its ${HANG_GUARD_MS} ms hang guard`)
         const pid = Number(readFileSync(f.pidFile(impl), 'utf8'))
         assert.ok(pid > 0, `${impl}: the stub recorded the grandchild it left`)
-        // On Windows neither runner ends the tree: CI's Windows job on land/c5a296af (2026-11-01) measured the hang's sleep
-        // outliving the deadline under Node's taskkill /T, with "cleanup could not be confirmed" said, and the core says the
-        // same (both() compared it). There the claim is that the failure is said; elsewhere, that the grandchild is gone.
-        if (process.platform !== 'win32') assert.ok(gone(pid), `${impl}: the grandchild ${pid} outlived the deadline`)
+        if (process.platform !== 'win32' || impl === 'native') assert.ok(gone(pid), `${impl}: the grandchild ${pid} outlived the deadline`)
       }
       if (mode === 'hang') {
-        assert.equal(runs.node.text.stdout, 'before the hang\n', 'what the gate said before the deadline is passed on')
+        for (const impl of ['node', 'native']) {
+          assert.equal(runs[impl].text.stdout, 'before the hang\n', 'what the gate said before the deadline is passed on')
+        }
+        assert.doesNotMatch(runs.native.text.stderr, /cleanup could not be confirmed/)
         if (process.platform === 'win32') assert.match(runs.node.text.stderr, /cleanup could not be confirmed/)
         else assert.doesNotMatch(runs.node.text.stderr, /cleanup could not be confirmed/)
       }

@@ -3,30 +3,25 @@
 package hooks
 
 import (
-	"context"
 	"errors"
 	"os"
 	"os/exec"
-	"strconv"
 	"syscall"
-	"time"
 )
 
-// shkTaskkillBudget is TASKKILL_TIMEOUT_MS: taskkill answers in milliseconds, and one that has not answered in 2s is hung.
-const shkTaskkillBudget = 2 * time.Second
+// shkOwnTree starts the gate suspended, so shkAdopt can put it in a job before it starts anything (ADR-140): `taskkill /T` alone
+// left an MSYS-started grandchild running past the deadline (BACKLOG §440).
+func shkOwnTree(cmd *exec.Cmd) { winSuspend(cmd) }
 
-// shkOwnTree has nothing to set on Windows: taskkill /T finds the tree from the gate's pid.
-func shkOwnTree(cmd *exec.Cmd) {}
+// shkAdopt puts the suspended gate in a job and resumes it (winAdopt).
+func shkAdopt(cmd *exec.Cmd) (*winTree, error) { return winAdopt(winKernel(), cmd.Process.Pid) }
 
-// shkEndTree is terminateProcessTree on win32: `taskkill /PID <pid> /T /F`, the cancel executeNodeCLI uses
-// (bridge_exec_windows.go), bounded by Node's budget for it rather than the bridge's (ADR-136 Decision 3).
-func shkEndTree(cmd *exec.Cmd) {
-	ctx, stop := context.WithTimeout(context.Background(), shkTaskkillBudget)
-	defer stop()
-	kill := exec.CommandContext(ctx, "taskkill.exe", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F")
-	hideWindow(kill)
-	_ = runObservedCommand(kill, func() bool { return ctx.Err() == context.DeadlineExceeded })
-}
+// shkReleaseTree closes the job handle; with no kill-on-close it ends nothing (ADR-140 Decision 4).
+func shkReleaseTree(tree *winTree) { winRelease(winKernel(), tree) }
+
+// shkEndTree ends the job that holds the gate, and runs `taskkill /PID <pid> /T /F` (Node's terminateProcessTree on win32,
+// within its 2 s budget) only when there is no job or ending it failed.
+func shkEndTree(cmd *exec.Cmd, tree *winTree) { winEnd(winKernel(), tree, cmd.Process.Pid) }
 
 // shkSignalName is "" on Windows, where a child exits with a code and no signal.
 func shkSignalName(state *os.ProcessState) string { return "" }

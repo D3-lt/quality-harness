@@ -126,8 +126,13 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 	err := cmd.Start()
 	if err == nil {
 		trace.started(cmd)
-		end := bsWatchTree(ctx, cmd)
-		err = cmd.Wait()
+		end, adoptErr := bsWatchTree(ctx, cmd)
+		if adoptErr != nil {
+			_ = cmd.Wait()
+			err = adoptErr
+		} else {
+			err = cmd.Wait()
+		}
 		end()
 	}
 	trace.ended(cmd, err, done())

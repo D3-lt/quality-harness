@@ -8,14 +8,15 @@ import (
 	"time"
 )
 
-// bsEndTree on Windows kills the command's own process at the deadline (exec's default) and relies on WaitDelay to stop
-// waiting for a grandchild's pipe; ending the grandchild itself would need a job object, which this core does not create
-// (ADR-135 Risks).
-func bsEndTree(cmd *exec.Cmd) {}
+// bsEndTree starts the command suspended, so bsWatchTree can put it in a job before it starts anything (ADR-140); exec's own
+// Cancel still kills the command's process at the deadline.
+func bsEndTree(cmd *exec.Cmd) { winSuspend(cmd) }
 
-// bsWatchTree has no group to end on Windows (ADR-135 Risks); its cleanup does nothing.
-func bsWatchTree(ctx context.Context, cmd *exec.Cmd) func() { return func() {} }
+// bsWatchTree is winWatch over kernel32: the job is ended at the deadline and once Wait returns, as the Unix process group is.
+func bsWatchTree(ctx context.Context, cmd *exec.Cmd) (func(), error) {
+	return winWatch(winKernel(), ctx, cmd.Process.Pid)
+}
 
-// bsPipeWait on Windows is short: the deadline kills only the command's own process, so a grandchild holding the pipe is not
-// ended there, and a full timeout more would nearly double the refresh budget (the scoped verification of 53e9f6cc).
+// bsPipeWait on Windows stays short: when no job could be made, the deadline kills only the command's own process, and a full
+// timeout more would nearly double the refresh budget (the scoped verification of 53e9f6cc).
 func bsPipeWait(timeout time.Duration) time.Duration { return 250 * time.Millisecond }

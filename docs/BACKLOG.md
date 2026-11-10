@@ -4143,13 +4143,23 @@ and adds those rows to tests/shell-hook-parity.test.mjs.
 **Fixed 2026-11-01:** `uninterestingDir` is now case-sensitive over an ASCII-lowered name (`asciiLower`) with `.` spelled out;
 the eleven inputs above are rows in tests/shell-hook-parity.test.mjs (red before the fix), and two catalogue mutants are RED.
 
-## 440. OPEN 2026-11-01 — on Windows a timed-out edit gate's tree is not ended, by Node or by the core
+## 440. CLOSED 2026-11-10 (was OPEN 2026-11-01) — on Windows a timed-out edit gate's tree is not ended, by Node or by the core
 
 Measured on CI's Windows job at land/c5a296af (2026-11-01): in tests/shell-hook-native.test.mjs's hang scenario, a `sleep`
 started by the bash gate outlived the deadline under the Node runner's `taskkill /T /F`, and both runners printed "process
 cleanup could not be confirmed". The core matches Node (ADR-136 Decision 3). The likely cause is that taskkill walks the
 Windows parent links, which MSYS's process starts do not keep for every child. The fix is to start the gate inside a job
 object with kill-on-close, which ends every process it created whatever its parent link; it needs a Windows run to verify.
+
+Fixed 2026-11-10 in the core by ADR-140: the edit gate (`shkRun`) and every `run()` (`bsRun`, which also starts the artifact
+batch's Node runner, core/hooks/artifact.go:155) start their command suspended, put it in a job object and resume it, then end
+the job at the deadline, and `run()`'s also once the command returns; taskkill runs only when no job could be made. This ports
+plugin/lib/fence.py's measured design (BACKLOG §123); kill-on-close is deliberately not set (ADR-140 Decision 4). The order and
+fallbacks are platform-neutral Go tested with fakes (tests/core-win-tree.test.mjs); the real calls are proved on CI's Windows
+job by tests/shell-hook-native.test.mjs's timeout scenarios, now split per runner on Windows (ADR-136 T2–T4 relocked), and by
+core/hooks/proc_tree_windows_test.go. Left as it was: the Node runner (`run-shell-hook.mjs`, `check-child.mjs`) keeps taskkill
+and still says cleanup could not be confirmed on Windows (the owner chose core only), and `executeNodeCLI`, which no registered
+hook reaches on Windows.
 
 ## 441. OPEN 2026-11-01 — a nested decision corpus gets no decision context, before and after ADR-137
 

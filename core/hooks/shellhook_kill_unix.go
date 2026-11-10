@@ -18,9 +18,15 @@ func shkOwnTree(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 }
 
+// shkAdopt has nothing to adopt on Unix: the process group shkOwnTree made is the tree (ADR-140 is the Windows half).
+func shkAdopt(cmd *exec.Cmd) (*winTree, error) { return nil, nil }
+
+// shkReleaseTree has nothing to release on Unix.
+func shkReleaseTree(tree *winTree) {}
+
 // shkEndTree is terminateProcessTree: SIGKILL to the gate's group, and to the gate alone when the group cannot be signalled.
 // The group outlives its leader while any member lives, so its id cannot name another group here.
-func shkEndTree(cmd *exec.Cmd) {
+func shkEndTree(cmd *exec.Cmd, _ *winTree) {
 	if syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) != nil {
 		_ = cmd.Process.Kill()
 	}

@@ -4666,3 +4666,11 @@ as well. Second round on the same classifier, so it was restructured rather than
 rewritten any more; the narrowing pattern itself counts a `$NAME` directly before a flag as a flag, and the value readers are as
 before, so an expansion-built flag can only add a refusal. The quoted-value row is in tests/gate-regressions.py, and the pnpm
 mutant is back to its own mutation.
+
+The Codex verification of the whole series (cb4243b7..7fe66c88) found the same hole in cargo's two `--test` readers:
+`P=; cargo test $P--test integ` runs `--test integ`, but the token rule hid the flag, so rows outside tests/integ.rs were
+credited (a fail-open; also with `--test=integ` and `cargo nextest run`). The owner chose to patch rather than revert
+(2026-11-10). Every reader that decides whether a fence narrows now starts its flag at one shared `FLAG_START` (not inside a word
+or path; directly after a `$NAME` or `${NAME}`), so cargo's readers cannot drift from Go's; the value readers in
+selected_by_filter keep the stricter start, which can only refuse more. Dirty and clean rows for each cargo form are in
+tests/gate-regressions.py, and every affected catalogue entry is RED.

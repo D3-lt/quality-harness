@@ -1548,6 +1548,16 @@ def main():
     lint.check_named_tests_are_run(named("cargo test --target-dir target/pre--test --test integ", [("it_works", "tests/integ.rs")]),
                                    "| T1 | probe | done |", errors)
     assert errors == [], errors
+    # An expansion before cargo's --test may be empty too (the Codex verification of cb4243b7..7fe66c88): bash runs
+    # `--test integ`, so rows outside tests/integ.rs stay refused, in every form, and integ's own row is run.
+    for fence in ("P=; cargo test $P--test integ", "P=; cargo test $P--test=integ", "P=; cargo nextest run ${P}--test integ"):
+        for row in (("my_test", "src/lib.rs"), ("other_test", "tests/other.rs")):
+            errors = []
+            lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)
+            assert errors and row[0] in errors[0], (fence, row, errors)
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [("it_works", "tests/integ.rs")]), "| T1 | probe | done |", errors)
+        assert errors == [], (fence, errors)
     # Codex review of 3.0.0: the file rule matched a DIRECTORY substring, so a unittest
     # call naming tools/test_a.py credited tools/test_b.py; a pytest `::` selector and
     # an `echo` of a runner were credited too. Each is blocked again.

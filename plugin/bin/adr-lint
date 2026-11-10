@@ -6051,6 +6051,12 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
                         f"red, so a green run of it proves nothing")
 
 
+# Where a flag token may start: not inside a word or a path (`tests/core-run-tree.test.mjs` holds `-run`), but directly after a
+# `$NAME` or `${NAME}`, which may expand to nothing (`$P--test integ` runs `--test integ`). Shared by every flag reader that
+# decides whether a fence narrows, so one of them cannot drift from the rest (the Codex reviews of 5d7b64df..7fe66c88, §466).
+FLAG_START = r"(?:(?<![\w./-])|\$(?:\{\w+\}|\w+))"
+
+
 def selected_by_filter(acc, name, rel=None):
     """Would the Acceptance command's filter run this test?
 
@@ -6228,7 +6234,7 @@ def cargo_runs(acc, rel):
     for segment in _SEGMENTS.split(acc):
         if not re.search(r"^\s*(?:\w+=\S*\s+)*cargo\s+(?:test|nextest\s+run)\b", segment):
             continue
-        binaries = re.findall(r"(?<![\w./-])--test[= ]+['\"]?([^\s'\"]+)", segment)
+        binaries = re.findall(FLAG_START + r"--test[= ]+['\"]?([^\s'\"]+)", segment)
         if not binaries or any(path.endswith(f"tests/{b}.rs") or f"tests/{b}/" in path for b in binaries):
             return True
     return False
@@ -6260,14 +6266,14 @@ def check_named_tests_are_run(infos, readme_text, errors):
     # `-run`. A `$NAME` directly before a flag may expand to nothing (`$P-run X` runs `-run X`), so it counts as a flag here;
     # nothing is rewritten, so a filter value is read as written and an expansion-built flag can only add a refusal
     # (the Codex reviews of 5d7b64df and 65da845a; CLAUDE.md §16).
-    narrowing = re.compile(r"(?:(?<![\w./-])|\$(?:\{\w+\}|\w+))(--run|-run|--filter|-k|--name)(?![\w-])")
+    narrowing = re.compile(FLAG_START + r"(--run|-run|--filter|-k|--name)(?![\w-])")
     for tid in done:
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
             continue
         acc = without_workspace_filters(inf.get("acc_all") or inf.get("acc_first") or "")
         # A cargo `--test` scopes which rows run, so it asks the question too.
-        if not acc or not (narrowing.search(acc) or re.search(r"\bcargo\b.*(?<![\w./-])--test[= ]", acc)):
+        if not acc or not (narrowing.search(acc) or re.search(r"\bcargo\b.*" + FLAG_START + r"--test[= ]", acc)):
             continue
         for name, rel in inf.get("tests", []):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):

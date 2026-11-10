@@ -642,7 +642,7 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "        if not acc or not (narrowing.search(acc) or re.search(r\"\\bcargo\\b.*(?<![\\w./-])--test[= ]\", acc)):",
+      "from": "        if not acc or not (narrowing.search(acc) or re.search(r\"\\bcargo\\b.*\" + FLAG_START + r\"--test[= ]\", acc)):",
       "to": "        if not acc or not narrowing.search(acc):"
     },
     {
@@ -662,8 +662,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--test|--name)(?![\\w-])\")"
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--test|--name)(?![\\w-])\")"
     },
     {
       "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
@@ -2752,8 +2752,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "        binaries = re.findall(r\"(?<![\\w./-])--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
-      "to": "        binaries = re.findall(r\"(?<![\\w./-])--test[= ]+([^\\s'\\\"]+)\", segment)"
+      "from": "        binaries = re.findall(FLAG_START + r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "to": "        binaries = re.findall(FLAG_START + r\"--test[= ]+([^\\s'\\\"]+)\", segment)"
     },
     {
       "label": "chaos 626934a: adr-lint blocks a record holding NUL bytes",
@@ -3888,7 +3888,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
       "to": "    narrowing = re.compile(r\"(--run|-run|--filter|-k|--name)\\b\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
@@ -3916,23 +3916,23 @@
       "label": "2026-11-10: Go's --run narrows as -run does",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "to": "    narrowing = re.compile(FLAG_START + r\"(-run|--filter|-k|--name)(?![\\w-])\")",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
       "label": "2026-11-10: an expansion before a flag does not hide it",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "    narrowing = re.compile(r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))(--run|-run|--filter|-k|--name)(?![\\w-])\")",
-      "to": "    narrowing = re.compile(r\"(?<![\\w./-])(--run|-run|--filter|-k|--name)(?![\\w-])\")",
+      "from": "FLAG_START = r\"(?:(?<![\\w./-])|\\$(?:\\{\\w+\\}|\\w+))\"",
+      "to": "FLAG_START = r\"(?<![\\w./-])\"",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
       "label": "2026-11-10: a path holding --test is not cargo's flag",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/gates.test.mjs"],
-      "from": "        binaries = re.findall(r\"(?<![\\w./-])--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "from": "        binaries = re.findall(FLAG_START + r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
       "to": "        binaries = re.findall(r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
       "only": "^(?:focused false-green regressions remain closed)$"
     }

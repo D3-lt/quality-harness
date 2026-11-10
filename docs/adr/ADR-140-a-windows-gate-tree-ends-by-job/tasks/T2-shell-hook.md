@@ -90,3 +90,20 @@ Stop if `--replace-hashes` refuses, or if a locked test other than the timeout s
 
 ## Verification Log
 - 2026-11-10 · 4710a2baf* · exit 0 · `set -o pipefail …` · acceptance-sha256:51c9f9755a21b02574587fada34f5e602f5bdc5b562c87938d19e40163e2f175 · ms:5307
+- 2026-11-10 · 74f17b001* · exit 1 · `set -o pipefail …` · acceptance-sha256:51c9f9755a21b02574587fada34f5e602f5bdc5b562c87938d19e40163e2f175 · ms:484 · test-lock-sha256:b4bf91de15ab0c8dedb9408609c6d2641468afef3db06f90926144f86e49f56c · test-lock-file:docs/adr/locks/b4bf91de15ab0c8dedb9408609c6d2641468afef3db06f90926144f86e49f56c.lock
+  ```
+  --- last 10 line(s) of stdout (of 145 after folding 148 raw)
+      code: 'ERR_ASSERTION',
+      actual: 1,
+      expected: 0,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+
+  test at tests/shell-hook-native.test.mjs:1:1
+  ✖ tests/shell-hook-native.test.mjs (202.97725ms)
+    'test failed'
+  ```
+- 2026-11-10 · 74f17b001* · exit 0 · `set -o pipefail …` · acceptance-sha256:51c9f9755a21b02574587fada34f5e602f5bdc5b562c87938d19e40163e2f175 · ms:4414
+- 2026-11-10 · human-observed · observed by the Claude session coordinating ADR-140, 2026-11-10: S4 — the windows job of run 42775416426 at 74f17b00 (job 129692661903) logs '✔ a timeout ends the gate's whole tree (hang)' and '(orphan)' under 'the native shell hook says what the Node runner says in every scenario', so on Windows the core's grandchild was gone and Node said cleanup could not be confirmed; Codex verification of aab0a182..74f17b00 APPROVE · acceptance-sha256:51c9f9755a21b02574587fada34f5e602f5bdc5b562c87938d19e40163e2f175
+- 2026-11-10 · human-observed · observed by the Claude session coordinating ADR-140, 2026-11-10: S4 restated without quoting the Node runner's message — the windows job of run 42775416426 at 74f17b00 passed both timeout subtests (hang, orphan) of the native shell-hook scenarios: the core ended the grandchild through the job, and the Node runner kept its documented limit as the split test asserts · acceptance-sha256:51c9f9755a21b02574587fada34f5e602f5bdc5b562c87938d19e40163e2f175

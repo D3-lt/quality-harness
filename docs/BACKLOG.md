@@ -4622,3 +4622,21 @@ at 120 s. That file is the core's largest (155,972 bytes); here `gofmt -l` on it
 file is fed on standard input, and a failure says how long the one call ran. What git stores is still what is checked, and the
 existing twins (a misformatted and a CRLF input, a directory holding a misformatted file) still show it can fail. Why the piped
 call stalled on that runner is not known.
+
+## 464. OPEN 2026-11-10 — the strict Python coverage floor fails the job on a data file a killed child left empty
+
+Measured on the landing run of 74f17b00 (run 42775416426, job 129692662154): `bash scripts/coverage.sh --python` with
+QUALITY_HARNESS_COVERAGE_STRICT=1 printed "FAIL — unreadable coverage data: .coverage.<host>.pid88850.<suffix> … no such table:
+coverage_schema" after 27 minutes, and "the floor was not judged". The same job passed at 627ff3c3, whose Linux code differs only
+in trace bookkeeping, and passed on a rerun of the failed job. A Python process the suite starts under coverage was ended before
+coverage.py wrote its schema. Which test ends it is not known; the run kept no list of the suite's killed children. The floor is
+right to refuse an unreadable file it cannot account for (ADR-005); the fix is to find that test and either let its child finish
+writing or make the floor tell a file a killed child left empty apart from a corrupt one, with a test showing each.
+
+## 465. OPEN 2026-11-10 — no test asserts the trace rows of a failed job adoption or an unreaped child
+
+Found by the Codex verification of aab0a182..74f17b00 (ADR-140): when a Windows child cannot be adopted into a job, or outlives
+winReap's grace, shkRun and bsRun now trace a stand-in command so the trace never reads the ProcessState a Wait still in flight
+writes; the same stand-in is traced on shkRun's cleanup-unconfirmed path. The outcomes were checked by reading the code
+(process_trace.go:301-322: start-error, timeout), and no test asserts the rows those paths write. The fix is a test that enables
+the process trace, drives each path through the shkAdoptTree seam and a fake that never reaps, and reads the rows.

@@ -87,3 +87,19 @@ Stop if `GOOS=windows go vet ./hooks/` cannot build the bindings without a new m
 
 ## Verification Log
 - 2026-11-10 · 4710a2baf* · exit 0 · `set -o pipefail …` · acceptance-sha256:2d62a5b61a51b3c7f66958e3d1a68cd02d07509b33a86e4e28e7c9e34f600848 · ms:2076
+- 2026-11-10 · 74f17b001* · exit 1 · `set -o pipefail …` · acceptance-sha256:2d62a5b61a51b3c7f66958e3d1a68cd02d07509b33a86e4e28e7c9e34f600848 · ms:655 · test-lock-sha256:9b179459af40d203bd597d3e1db10b021df65dbd86d7f8dbb5d07867a903495c · test-lock-file:docs/adr/locks/9b179459af40d203bd597d3e1db10b021df65dbd86d7f8dbb5d07867a903495c.lock
+  ```
+  --- last 10 line(s) of stdout (of 119 after folding 122 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: 1,
+      expected: 0,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-10 · 74f17b001* · exit 0 · `set -o pipefail …` · acceptance-sha256:2d62a5b61a51b3c7f66958e3d1a68cd02d07509b33a86e4e28e7c9e34f600848 · ms:2459
+- 2026-11-10 · human-observed · observed by the Claude session coordinating ADR-140, 2026-11-10: S3 — GOOS=windows GOARCH=amd64 go vet ./hooks/ exit 0 on macOS, and CI's go core (windows-latest) and windows jobs of run 42775416426 at 74f17b00 built and ran the kernel32 bindings, both success · acceptance-sha256:2d62a5b61a51b3c7f66958e3d1a68cd02d07509b33a86e4e28e7c9e34f600848

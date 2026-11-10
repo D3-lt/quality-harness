@@ -4679,3 +4679,19 @@ The Codex verification of cb4243b7..ee3c01c7 found the token rule's right edge `
 (pytest takes it as the expression `-slow`), so a row that fence never selects was credited (a fail-open). The owner chose to
 patch (2026-11-10): the right edge is `(?!\w)` again, as before the series; the left edge alone keeps the `-run` inside
 `core-run-tree` from counting. An attached-form row is in tests/gate-regressions.py and its mutant is RED.
+
+## 467. CLOSED 2026-11-10 (accepted as a limit) — adr-lint refuses some rows a quoted flag, a tab, or a pytest -k expression runs
+
+Named as residual risks by the Codex verification of cb4243b7..4a66e3d9 (§466): `check_named_tests_are_run` refuses a done task's
+row as unselected when the fence's filter is a quoted flag token (`'-run' X`), is separated from its value by a tab, or is a
+pytest `-k` boolean expression (`-k 'not slow'`). Each refuses a row the command runs; none credits a row it does not, so each
+fails toward refusal (CLAUDE.md §16).
+
+A fix was written (commit c1f77229, on a branch never merged) and its Codex review, 4a66e3d9..c1f77229, found the text-matching
+approach cannot do better without new fail-opens, each reproduced against pytest 9.0.3 and bash: an evaluator over the test name
+and file stem cannot see markers, parametrize ids, classes or attributes, so `-k 'not slow'` credited a test marked slow; a
+quoted value read up to its first closing quote dropped adjacent fragments (`'gates'" and not malformed"`); a quoted `'-k' x`
+printed by another command in the same fence became a filter; and an expression pytest cannot parse (exit 4) counted as selected.
+Doing it right means splitting the fence into shell words per command and asking the runner for its real selection (pytest
+`--collect-only`), a design change that would need its own record. The owner chose to keep the conservative refusals (2026-11-10);
+BACKLOG item 20's over-selection of `-k 'alpha and beta'` stands as it was. The branch and its worktree were removed.

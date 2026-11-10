@@ -159,6 +159,14 @@
       "from": "`trajectory-metrics: ${totals.shownAbleToFail} / ${totals.evidenced} evidenced task(s) show their `",
       "to": "`trajectory-metrics: ${totals.showsFailing} / ${totals.evidenced} evidenced task(s) show their `",
       "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    },
+    {
+      "label": "v3.8.73 Windows chaos B4: a CR-only task file is read line by line",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": ["tests/trajectory-metrics.test.mjs"],
+      "from": "  const lines = text.split(/\\r\\n|\\r|\\n/)",
+      "to": "  const lines = text.split('\\n')",
+      "only": "^(?:a task file with CR-only or CRLF line endings is read as one with LF)$"
     }
   ]
 }

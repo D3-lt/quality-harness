@@ -99,7 +99,8 @@ export function taskFiles(root, unreadableDirs = [], readdir = readdirSync) {
  * mutation log last; it read as a clean answer, which is the shape §4 is about.
  */
 function section(text, heading) {
-  const lines = text.split('\n')
+  // Every line ending is a line ending: a CR-only file read as one line lost its whole log (a Windows chaos round of v3.8.73).
+  const lines = text.split(/\r\n|\r|\n/)
   const start = lines.findIndex(line => line.trim() === `## ${heading}`)
   if (start < 0) return ''
   const rest = lines.slice(start + 1)

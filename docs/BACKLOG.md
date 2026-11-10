@@ -4749,3 +4749,26 @@ Deferred by ADR-141's Out of Scope (docs/adr/ADR-141-a-nested-corpus-is-read.md)
 gate admit a corpus below the root, but `adr-next`'s corpus walk keeps ADR-034's one-level recursion
 (docs/adr/ADR-034-a-corpus-root-is-a-question-not-an-empty-answer.md), so a corpus nested deeper is not offered as a work queue.
 Whether it should be is a change to what adr-next says, so it needs its own decision and an outside run (§18).
+
+## 470. CLOSED 2026-11-10 (found and fixed the same day) — corpus-report dropped a CR-only task's log, and the probe dropped corpus-report's unread links
+
+Found by a Windows peer's corpus-chaos round of v3.8.73 (Windows 11, fixtures python-monorepo and duplicate-ids, 2026-11-10):
+- B4: a task file whose lines end in a bare CR made corpus-report count it unevidenced (evidence 0, entries 0) while adr-next,
+  work-next and adr-lint read it as before. `section()` in plugin/scripts/trajectory-metrics.mjs split on `\n` only, so the
+  file was one line and no `## Verification Log` heading was found; the conflict scan in the same file already split on
+  `\r\n|\r|\n`. Fixed to split on every line ending; tests/trajectory-metrics.test.mjs reads LF, CRLF and CR alike (CR red
+  before), and a catalogue mutant is RED.
+- A record's tasks directory that is an NTFS junction to a directory outside the tree made corpus-report count 0 tasks while the
+  other readers read 3, and the probe named it nowhere: corpus-report puts such a link in `unreadableDirs` (and its own render
+  says PARTIAL), but corpus-probe's corpusReport entry kept only root, totals and records. The entry now carries
+  `unreadableDirs`; tests/corpus-probe-links.test.mjs builds the link (a junction on Windows, a directory symlink elsewhere)
+  and a plain twin; a catalogue mutant is RED. Whether such a link should be followed is a separate question (§8: a check reads
+  the listing); it is now at least named.
+Both change what a reader says, so the next release's outside run covers them (§18).
+
+## 471. OPEN 2026-11-10 — two task files whose names differ only in Unicode normalization print identically
+
+The same chaos round (X3): `T5-café.md` in NFC and `T5-cafe\u0301.md` in NFD side by side. adr-next correctly reports them as one
+duplicates pair, but every line about them prints the two names the same way (`README.md: task file 'T5-café.md' not listed in the
+index` twice; a duplicates array of two equal-looking strings), so a person cannot tell which file is which. A name whose NFC form
+differs from itself should be printed with an escape or a codepoint hint. Changes reader output: needs the outside run.

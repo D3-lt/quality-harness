@@ -817,6 +817,14 @@
       "from": "filter(task => task.duplicate).map(task => task.duplicate.map(",
       "to": "filter(task => false).map(task => task.duplicate.map(",
       "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "v3.8.73 Windows chaos: a tasks directory corpus-report does not follow is named in the probe",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": ["tests/corpus-probe-links.test.mjs"],
+      "from": ", unreadableDirs: report?.unreadableDirs ?? null }",
+      "to": " }",
+      "only": "^(?:probe: a tasks directory corpus-report does not follow is named in its corpusReport entry)$"
     }
   ]
 }

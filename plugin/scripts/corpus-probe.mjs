@@ -444,7 +444,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
 
   const corpusReport = corpusDirs.map(dir => {
     const report = reader(`corpus-report ${rel(dir)}`, () => timed('corpus-report', rel(dir), () => node('corpus-report.mjs', [dir, '--json'])), note, null, outputLimit)
-    return { root: rel(dir), totals: report?.totals ?? null, records: report?.records ?? null }
+    // The directories corpus-report could not list, or links it does not follow, travel with its totals: without them a tasks
+    // directory that is a link (an NTFS junction) counted 0 tasks while the other readers read it, named nowhere (a Windows chaos
+    // round of v3.8.73, 2026-11-10).
+    return { root: rel(dir), totals: report?.totals ?? null, records: report?.records ?? null, unreadableDirs: report?.unreadableDirs ?? null }
   })
 
   const sweeps = sweep

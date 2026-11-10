@@ -201,3 +201,14 @@ test('a mutation verdict is never parsed and then discarded, whichever verdict i
   assert.equal(nothing.unevidenced, 1)
   assert.equal(nothing.evidenced, 0)
 })
+
+// A Windows chaos round of v3.8.73 (2026-11-10, B4): a task file whose lines end in a bare CR read as one line, so its
+// Verification Log was never found and the task was counted unevidenced, while adr-next read the same file. Every line ending
+// reads as one: LF, CRLF and CR alike.
+test('a task file with CR-only or CRLF line endings is read as one with LF', () => {
+  const body = task({ log: [red, green], mlog: [killed] })
+  for (const [label, text] of [['LF', body], ['CRLF', body.replace(/\n/g, '\r\n')], ['CR', body.replace(/\n/g, '\r')]]) {
+    const totals = measure(taskFiles(corpus({ 'T1-endings': text })))
+    assert.deepEqual([totals.evidenced, totals.entries, totals.redEntries, totals.killed, totals.unevidenced], [1, 2, 1, 1, 0], label)
+  }
+})

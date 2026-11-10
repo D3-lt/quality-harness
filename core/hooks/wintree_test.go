@@ -4,7 +4,9 @@ package hooks
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,8 +14,8 @@ import (
 
 // winFake records the kernel calls in order; each refuse* field makes that call fail.
 type winFake struct {
-	calls                                                  []string
-	refuseJob, refuseAssign, refuseResume, refuseTerminate bool
+	calls                                                              []string
+	refuseJob, refuseAssign, refuseResume, refuseTerminate, refuseKill bool
 }
 
 func (f *winFake) ops() winTreeOps {
@@ -31,7 +33,7 @@ func (f *winFake) ops() winTreeOps {
 		terminate: func(job uintptr) error { return fail(f.refuseTerminate, "terminate") },
 		closeJob:  func(job uintptr) { f.calls = append(f.calls, "closeJob") },
 		taskkill:  func(pid int) { f.calls = append(f.calls, "taskkill") },
-		kill:      func(pid int) error { return fail(false, "kill") },
+		kill:      func(pid int) error { return fail(f.refuseKill, "kill") },
 	}
 }
 
@@ -54,10 +56,60 @@ func TestWinTreeAdoptResumesWhateverTheJob(t *testing.T) {
 }
 
 func TestWinTreeAdoptKillsWhatItCannotResume(t *testing.T) {
-	fake := winFake{refuseResume: true}
-	_, err := winAdopt(fake.ops(), 42)
-	if err == nil || !reflect.DeepEqual(fake.calls, []string{"createJob", "assign", "resume", "kill"}) {
-		t.Fatalf("err %v, calls %v: a child that cannot be resumed is killed and the failure returned", err, fake.calls)
+	for _, c := range []struct {
+		name    string
+		fake    winFake
+		calls   []string
+		unended bool
+	}{
+		{"its job is ended", winFake{refuseResume: true}, []string{"createJob", "assign", "resume", "terminate"}, false},
+		{"no job: the child is killed", winFake{refuseResume: true, refuseJob: true}, []string{"createJob", "resume", "kill"}, false},
+		{"a refused terminate falls to the kill", winFake{refuseResume: true, refuseTerminate: true}, []string{"createJob", "assign", "resume", "terminate", "kill"}, false},
+		{"nothing could end it", winFake{refuseResume: true, refuseJob: true, refuseKill: true}, []string{"createJob", "resume", "kill"}, true},
+	} {
+		_, err := winAdopt(c.fake.ops(), 42)
+		if err == nil || !reflect.DeepEqual(c.fake.calls, c.calls) || strings.Contains(err.Error(), "nor end it") != c.unended {
+			t.Errorf("%s: err %v, calls %v; want calls %v, unended said %v", c.name, err, c.fake.calls, c.calls, c.unended)
+		}
+	}
+}
+
+// A child that could be neither resumed nor ended never exits; winReap returns after its grace anyway.
+func TestWinTreeReapIsBounded(t *testing.T) {
+	sleep, err := exec.LookPath("sleep")
+	if err != nil {
+		t.Skip("no sleep on PATH")
+	}
+	cmd := exec.Command(sleep, "5")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Process.Kill()
+	started := time.Now()
+	winReap(cmd, 200*time.Millisecond)
+	if waited := time.Since(started); waited > 2*time.Second {
+		t.Fatalf("winReap waited %v for a child that does not exit; its grace was 200ms", waited)
+	}
+}
+
+// expiredUnsignalled is a context whose deadline has passed but whose Done never fires, so the cleanup is certain to run before
+// the deadline's goroutine: the order exec's Cancel can produce, made deterministic.
+type expiredUnsignalled struct{ context.Context }
+
+func (expiredUnsignalled) Done() <-chan struct{} { return nil }
+func (expiredUnsignalled) Err() error            { return context.DeadlineExceeded }
+
+// When the deadline has passed, the cleanup still ends the tree as the deadline does (taskkill when there is no job), even
+// when it runs before the deadline's goroutine.
+func TestWinTreeWatchCleanupKeepsTheDeadlineFallback(t *testing.T) {
+	fake := winFake{refuseAssign: true}
+	cleanup, err := winWatch(fake.ops(), expiredUnsignalled{context.Background()}, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup()
+	if want := []string{"createJob", "assign", "closeJob", "resume", "taskkill"}; !reflect.DeepEqual(fake.calls, want) {
+		t.Fatalf("calls %v, want %v", fake.calls, want)
 	}
 }
 
@@ -144,7 +196,7 @@ func TestWinTreeWatchKillsWhatItCannotResume(t *testing.T) {
 		t.Fatal("a command that could not be resumed is a failed run")
 	}
 	cleanup()
-	if want := []string{"createJob", "assign", "resume", "kill", "terminate", "closeJob"}; !reflect.DeepEqual(fake.calls, want) {
+	if want := []string{"createJob", "assign", "resume", "terminate", "terminate", "closeJob"}; !reflect.DeepEqual(fake.calls, want) {
 		t.Fatalf("calls %v, want %v", fake.calls, want)
 	}
 }

@@ -24,7 +24,7 @@ function goTests(names) {
 
 test('the job-tree routine takes every branch it claims', { skip }, () => {
   goTests(['TestWinTreeAdoptResumesWhateverTheJob', 'TestWinTreeAdoptKillsWhatItCannotResume', 'TestWinTreeEndPrefersTheJob',
-    'TestWinTreeEndFallsBackToTaskkill', 'TestWinTreeReleaseClosesOnlyAHeldJob'])
+    'TestWinTreeEndFallsBackToTaskkill', 'TestWinTreeReleaseClosesOnlyAHeldJob', 'TestWinTreeReapIsBounded'])
 })
 
 test('the shell hook hands the deadline the tree it adopted', { skip }, () => {
@@ -32,5 +32,6 @@ test('the shell hook hands the deadline the tree it adopted', { skip }, () => {
 })
 
 test('a run() tree is ended at the deadline and when the command returns', { skip }, () => {
-  goTests(['TestWinTreeWatchEndsAtTheDeadline', 'TestWinTreeWatchEndsWhatTheCommandLeft', 'TestWinTreeWatchKillsWhatItCannotResume'])
+  goTests(['TestWinTreeWatchEndsAtTheDeadline', 'TestWinTreeWatchEndsWhatTheCommandLeft', 'TestWinTreeWatchKillsWhatItCannotResume',
+    'TestWinTreeWatchCleanupKeepsTheDeadlineFallback'])
 })

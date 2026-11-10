@@ -10,7 +10,9 @@ package hooks
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"sync"
+	"time"
 )
 
 // winTreeOps is the kernel's half of a job tree.
@@ -31,8 +33,9 @@ type winTree struct {
 }
 
 // winAdopt puts a suspended child into a new job and resumes it, whatever happened to the job: a child left suspended is a hang
-// wearing the deadline's name. A child that cannot be resumed is killed and the failure returned, so the caller reports a
-// failed start now rather than a timeout later.
+// wearing the deadline's name. A child that cannot be resumed is ended (its job when it has one, else the child alone) and the
+// failure returned, so the caller reports a failed start now rather than a timeout later. When it cannot be ended either, the
+// error says so, and the caller must not wait for it unbounded (winReap).
 func winAdopt(ops winTreeOps, pid int) (*winTree, error) {
 	tree := &winTree{}
 	if job, err := ops.createJob(); err == nil {
@@ -43,10 +46,34 @@ func winAdopt(ops winTreeOps, pid int) (*winTree, error) {
 		}
 	}
 	if err := ops.resume(pid); err != nil {
-		_ = ops.kill(pid)
+		if tree.held && ops.terminate(tree.job) == nil {
+			return tree, fmt.Errorf("could not resume the suspended child %d: %w", pid, err)
+		}
+		if killErr := ops.kill(pid); killErr != nil {
+			return tree, fmt.Errorf("could not resume the suspended child %d (%w), nor end it: %v", pid, err, killErr)
+		}
 		return tree, fmt.Errorf("could not resume the suspended child %d: %w", pid, err)
 	}
 	return tree, nil
+}
+
+// winReapGrace bounds the wait for a child whose adoption failed (the Codex review of 627ff3c3): one that could be neither
+// resumed nor ended never exits, and an unbounded Wait would hang the hook.
+const winReapGrace = time.Second
+
+// winReap waits for a command whose adoption failed, for at most grace.
+func winReap(cmd *exec.Cmd, grace time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+	}
 }
 
 // winEnd ends the tree: the job when it holds the child and terminating it succeeds, taskkill otherwise (no job, or the job
@@ -91,7 +118,9 @@ func winWatch(ops winTreeOps, ctx context.Context, pid int) (func(), error) {
 	}()
 	return func() {
 		close(stop)
-		end(false)
+		// The deadline's end, when the context expired, even if this cleanup runs first: exec's Cancel can let Wait return before
+		// the goroutine above runs, and it must not consume the taskkill fallback (the Codex review of 627ff3c3).
+		end(ctx.Err() == context.DeadlineExceeded)
 		winRelease(ops, tree)
 	}, err
 }

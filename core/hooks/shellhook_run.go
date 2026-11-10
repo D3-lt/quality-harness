@@ -60,8 +60,9 @@ type shkResult struct {
 // shkAdoptTree and shkEndTreeOf are the platform's adopt and end, as variables so a test can see that shkRun calls them in
 // order and hands the end what the adopt returned (ADR-140 T2).
 var (
-	shkAdoptTree = shkAdopt
-	shkEndTreeOf = shkEndTree
+	shkAdoptTree     = shkAdopt
+	shkEndTreeOf     = shkEndTree
+	shkReleaseTreeOf = shkReleaseTree
 )
 
 // shkRun is runWithTimeout: the child in a tree of its own, its stdin written and closed, and at the deadline the whole tree
@@ -111,16 +112,17 @@ func shkRun(executable string, args []string, input string, timeout time.Duratio
 	// ADR-140: on Windows the child was started suspended and is adopted into a job here, before it can start anything; a child
 	// that could not be resumed was killed, and is reported as a failed start rather than waited on until the deadline.
 	tree, err := shkAdoptTree(cmd)
+	// Released whatever the adoption said: a job can hold the child although resuming it failed.
+	defer shkReleaseTreeOf(tree)
 	if err != nil {
 		inW.Close()
-		_ = cmd.Wait()
+		winReap(cmd, winReapGrace)
 		outR.Close()
 		errR.Close()
 		res.err = err
 		trace.ended(cmd, err, false)
 		return res
 	}
-	defer shkReleaseTree(tree)
 	trace.started(cmd)
 	go func() {
 		_, _ = io.WriteString(inW, input)

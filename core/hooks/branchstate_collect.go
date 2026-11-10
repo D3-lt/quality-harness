@@ -128,7 +128,7 @@ func bsRun(timeout time.Duration, dir string, env map[string]string, stdin strin
 		trace.started(cmd)
 		end, adoptErr := bsWatchTree(ctx, cmd)
 		if adoptErr != nil {
-			_ = cmd.Wait()
+			winReap(cmd, winReapGrace)
 			err = adoptErr
 		} else {
 			err = cmd.Wait()

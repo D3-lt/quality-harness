@@ -16,8 +16,8 @@
       "tests": [
         "tests/core-win-tree.test.mjs"
       ],
-      "from": "\t\t_ = ops.kill(pid)",
-      "to": "\t\t_ = pid",
+      "from": "\t\tif killErr := ops.kill(pid); killErr != nil {",
+      "to": "\t\tif killErr := error(nil); killErr != nil {",
       "only": "^(?:the job-tree routine takes every branch it claims)$"
     },
     {
@@ -66,8 +66,8 @@
       "tests": [
         "tests/core-win-tree.test.mjs"
       ],
-      "from": "\t\tclose(stop)\n\t\tend(false)",
-      "to": "\t\tclose(stop)",
+      "from": "\t\tend(ctx.Err() == context.DeadlineExceeded)\n\t\twinRelease(ops, tree)",
+      "to": "\t\twinRelease(ops, tree)",
       "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
     },
     {
@@ -76,8 +76,38 @@
       "tests": [
         "tests/core-win-tree.test.mjs"
       ],
-      "from": "\t\tend(false)\n\t\twinRelease(ops, tree)",
-      "to": "\t\tend(false)",
+      "from": "\t\twinRelease(ops, tree)\n\t}, err",
+      "to": "\t}, err",
+      "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
+    },
+    {
+      "label": "ADR-140 review: a held job is ended when its child cannot be resumed",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\tif tree.held && ops.terminate(tree.job) == nil {\n\t\t\treturn tree, fmt.Errorf(\"could not resume",
+      "to": "\t\tif false {\n\t\t\treturn tree, fmt.Errorf(\"could not resume",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 review: the wait for a child whose adoption failed is bounded",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\tcase <-timer.C:",
+      "to": "\tcase <-make(chan time.Time):",
+      "only": "^(?:the job-tree routine takes every branch it claims)$"
+    },
+    {
+      "label": "ADR-140 review: run()'s cleanup keeps the deadline's taskkill fallback",
+      "file": "core/hooks/wintree.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\tend(ctx.Err() == context.DeadlineExceeded)\n\t\twinRelease",
+      "to": "\t\tend(false)\n\t\twinRelease",
       "only": "^(?:a run\\(\\) tree is ended at the deadline and when the command returns)$"
     }
   ]

@@ -186,8 +186,28 @@
       "tests": [
         "tests/core-win-tree.test.mjs"
       ],
-      "from": "\ttree, err := shkAdoptTree(cmd)\n\tif err != nil {",
-      "to": "\ttree, err := shkAdoptTree(cmd)\n\tif err != nil && false {",
+      "from": "\tdefer shkReleaseTreeOf(tree)\n\tif err != nil {",
+      "to": "\tdefer shkReleaseTreeOf(tree)\n\tif err != nil && false {",
+      "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
+    },
+    {
+      "label": "ADR-140 review: a job that holds an unresumed child is released",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\tdefer shkReleaseTreeOf(tree)\n\tif err != nil {\n\t\tinW.Close()",
+      "to": "\tif err != nil {\n\t\tinW.Close()",
+      "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
+    },
+    {
+      "label": "ADR-140 review: the shell hook bounds its wait for an unadopted child",
+      "file": "core/hooks/shellhook_run.go",
+      "tests": [
+        "tests/core-win-tree.test.mjs"
+      ],
+      "from": "\t\twinReap(cmd, winReapGrace)\n\t\toutR.Close()",
+      "to": "\t\t_ = cmd.Wait()\n\t\toutR.Close()",
       "only": "^(?:the shell hook hands the deadline the tree it adopted)$"
     }
   ]

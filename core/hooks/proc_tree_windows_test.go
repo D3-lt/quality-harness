@@ -63,21 +63,23 @@ func runTreeGone(t *testing.T, pidFile string) {
 func TestRunEndsTheTree(t *testing.T) {
 	pidFile := filepath.ToSlash(filepath.Join(t.TempDir(), "grandchild.pid"))
 	started := time.Now()
-	res := run(2*time.Second, "", nil, "", winTestBash(t), "-c", `sleep 20 & cat /proc/$!/winpid > "$1"; wait`, "bash", pidFile)
+	// The pid is read a second after the start: MSYS's exec gives the program a new Windows pid, and reading at once could name the
+	// one exec replaced (the Codex review of 627ff3c3).
+	res := run(3*time.Second, "", nil, "", winTestBash(t), "-c", `sleep 20 & sleep 1; cat /proc/$!/winpid > "$1"; wait`, "bash", pidFile)
 	elapsed := time.Since(started)
 	if !res.timedOut {
 		t.Fatalf("a command past its deadline was not said to time out: %+v", res)
 	}
 	// A hang guard: the grandchild sleeps 20 s, so anything near that is the wait this fixes.
 	if elapsed > 10*time.Second {
-		t.Fatalf("run() waited %v for a grandchild holding its output; the deadline was 2s", elapsed)
+		t.Fatalf("run() waited %v for a grandchild holding its output; the deadline was 3s", elapsed)
 	}
 	runTreeGone(t, pidFile)
 }
 
 func TestRunEndsWhatAFinishedCommandLeft(t *testing.T) {
 	pidFile := filepath.ToSlash(filepath.Join(t.TempDir(), "grandchild.pid"))
-	res := run(10*time.Second, "", nil, "", winTestBash(t), "-c", `sleep 20 >/dev/null 2>&1 & cat /proc/$!/winpid > "$1"; echo done`, "bash", pidFile)
+	res := run(10*time.Second, "", nil, "", winTestBash(t), "-c", `sleep 20 >/dev/null 2>&1 & sleep 1; cat /proc/$!/winpid > "$1"; echo done`, "bash", pidFile)
 	if res.status != 0 || strings.TrimSpace(res.stdout) != "done" || res.timedOut {
 		t.Fatalf("a command that finished in time lost its answer: %+v", res)
 	}

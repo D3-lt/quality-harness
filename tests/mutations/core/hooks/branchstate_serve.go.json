@@ -74,6 +74,22 @@
       ],
       "from": "\treturn bsUnchangedButOwnCommits(get(previous, \"saidState\"), state, float64(len(walked)))",
       "to": "\treturn false"
+    },
+    {
+      "label": "BACKLOG §438: the inline refresh asks bsRefreshPublishable before it publishes",
+      "file": "core/hooks/branchstate_serve.go",
+      "tests": ["tests/branch-state-native.test.mjs"],
+      "from": "\t\tif bsRefreshPublishable(cut, bsNowMs(), deadline) {",
+      "to": "\t\tif true {",
+      "only": "^(?:a stale cache past the budget is served marked stale and nothing outlives the hook)$"
+    },
+    {
+      "label": "BACKLOG §438: a refresh that returned past its deadline is not published, though nothing was cut",
+      "file": "core/hooks/branchstate_serve.go",
+      "tests": ["tests/branch-state-native.test.mjs"],
+      "from": "\t\tif bsRefreshPublishable(cut, bsNowMs(), deadline) {",
+      "to": "\t\tif !cut {",
+      "only": "^(?:a stale cache past the budget is served marked stale and nothing outlives the hook)$"
     }
   ]
 }

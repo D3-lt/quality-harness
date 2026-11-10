@@ -5,10 +5,12 @@ Usage: coverage-data-check.py <data-file>...
 
 `coverage combine` crashes on some unreadable files and skips others with a warning and exit 0, and the wording varies by cause,
 so each file is read by coverage.py itself, read-only: a writable read INITIALIZES a SQLite file that has no coverage schema,
-turning foreign data into an empty coverage file that passes. One unreadable shape recorded nothing at all: a Python process
-killed while creating its data file leaves coverage.py's own tables and not one row in any (run 41872532283 had one). It is
-removed and said, since it can hold no measurement; a table coverage.py does not make, one row anywhere, or any other unreadable
-file fails, named. These rules were reviewed and verified under ADR-139 T2 (since withdrawn) before they moved here.
+turning foreign data into an empty coverage file that passes. Two unreadable shapes recorded nothing at all: a Python process
+killed while creating its data file leaves coverage.py's own tables and not one row in any (run 41872532283 had one), or, killed
+before coverage.py wrote even its schema, a SQLite file with no table at all or an empty file (run 42775416426, BACKLOG §464:
+"no such table: coverage_schema"). Each is removed and said, since it can hold no measurement; a table coverage.py does not make,
+one row anywhere, or any other unreadable file fails, named. These rules were reviewed and verified under ADR-139 T2 (since
+withdrawn) before they moved here.
 
 Exit: 0 every file readable or left out; 1 a file that cannot be read and is not empty; 2 usage.
 """
@@ -25,6 +27,8 @@ def recorded_nothing(path):
         con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
             tables = [row[0] for row in con.execute("select name from sqlite_master where type = 'table'")]
+            if not tables:
+                return True  # killed before coverage.py made its schema: an empty file or a database with no table
             if "coverage_schema" not in tables or "file" not in tables or not set(tables) <= COVERAGE_TABLES:
                 return False
             return all(con.execute(f'select count(*) from "{table}"').fetchone()[0] == 0 for table in tables)
@@ -46,7 +50,7 @@ def main(paths):
             CoverageData(basename=path, read_only=True).read()
         except Exception as error:
             if recorded_nothing(path):
-                print(f"advice: {os.path.basename(path)} holds tables and no row in any (a process killed while creating it); it recorded nothing and is left out")
+                print(f"advice: {os.path.basename(path)} holds no row in any table (a process killed while creating it); it recorded nothing and is left out")
                 os.remove(path)
             else:
                 bad.append(f"{os.path.basename(path)}: {error}")

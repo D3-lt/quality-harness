@@ -41,6 +41,20 @@ test('every coverage data file is read before the combine: an empty one is left 
   assert.equal(existsSync(empty), false, 'and out of the combine')
   assert.equal(existsSync(goodFile), true, 'a readable file is untouched')
 
+  // BACKLOG §464 (run 42775416426): a process killed before coverage.py wrote even its schema leaves a SQLite file with no table
+  // at all, or an empty file; combine says "no such table: coverage_schema". It recorded nothing, so it is left out and said too.
+  for (const [label, build] of [
+    ['an empty file', file => writeFileSync(file, '')],
+    ['a database with no table', file => assert.equal(spawnSync('python3', ['-c', 'import sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.executescript("create table t (x integer); drop table t;"); c.commit()', file], { encoding: 'utf8', timeout: 60_000, windowsHide: true }).status, 0)],
+  ]) {
+    const file = path.join(scratch, `.coverage.killed.${label.length}.y`)
+    build(file)
+    const out = check(goodFile, file)
+    assert.equal(out.status, 0, `${label}: ${out.stdout}${out.stderr}`)
+    assert.match(out.stdout, new RegExp(`advice: \\.coverage\\.killed\\.${label.length}\\.y .*recorded nothing`), `${label}: said`)
+    assert.equal(existsSync(file), false, `${label}: out of the combine`)
+  }
+
   for (const [label, sql] of [
     ['garbage', null],
     ['an empty coverage_schema table', 'create table coverage_schema (version integer)'],

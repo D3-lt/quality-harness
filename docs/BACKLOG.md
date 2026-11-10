@@ -4772,3 +4772,10 @@ The same chaos round (X3): `T5-café.md` in NFC and `T5-cafe\u0301.md` in NFD si
 duplicates pair, but every line about them prints the two names the same way (`README.md: task file 'T5-café.md' not listed in the
 index` twice; a duplicates array of two equal-looking strings), so a person cannot tell which file is which. A name whose NFC form
 differs from itself should be printed with an escape or a codepoint hint. Changes reader output: needs the outside run.
+
+## 472. OPEN 2026-11-10 — work-next reads a spec's facts table and a task README's table split on `\n` only
+
+The §470 class audit: plugin/scripts/work-next.mjs:433 splits a spec on `\n` before reading its facts table, and :541 splits a
+task README before reading its index table, while the same file's spec reader at :371 splits on `\r?\n` and decision-corpus
+normalises a bare CR at read. A CR-only spec or README would read as one line there; whether that changes an answer is untested.
+The fix is a test with a CR-only spec and README and, if red, splitting on every line ending.

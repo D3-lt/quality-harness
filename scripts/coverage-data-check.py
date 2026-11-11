@@ -72,4 +72,7 @@ def main(paths):
 
 
 if __name__ == "__main__":
+    # A Windows console's code page turns the em dash into mojibake (a Windows peer and run 42985449785); say it in UTF-8.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main(sys.argv[1:]))

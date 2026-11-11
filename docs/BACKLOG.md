@@ -3147,7 +3147,7 @@ starts a child goes through `tests/helpers/remove.mjs`, except a closed list of 
 The enumeration above, re-run on 1f788548 plus this batch, finds 10 files: 9 are on that list (`LOCKED_REMOVES`), and
 tests/event-analyser.test.mjs:308 is a child's script passed as a string, which the sweep rightly does not count.
 
-## 381. OPEN 2026-10-15 — The backlog after the 2026-10-15 sweep: every clear open item, ranked, with the top five
+## 381. CLOSED 2026-11-11 (not done: development stopped, §473) — The backlog after the 2026-10-15 sweep: every clear open item, ranked, with the top five
 
 **How this list was made.** The owner asked for the backlog to be cleaned, the unsure and ambiguous items removed, and the rest ranked with a top five. Three read-only triage passes re-checked every item still open in §302–§379 against the code at b5002a75 (a `file:line` for each), and the items that decide the top five were re-measured here. An item is kept only when it is CLEAR: a concrete defect or change with a repro or a named site and a way to prove it done. An item that was speculative, an unconfirmed or never-reproduced lead, a decision nobody made, or one with no definition of done was declined in its own section with its re-open condition; those sections are archived verbatim, and each names what it carried here. Ranked by severity first (a fail-open, then a false refusal, then wrong output, then hygiene), then by cost.
 
@@ -3267,7 +3267,7 @@ ADR-095's Follow-ups (a per-test verdict cache, the Stop timing outside run) sta
 - 2026-10-20: every task of ADR-119 is done (`docs/adr/ADR-119-what-the-backlog-still-holds/tasks/README.md`), so what it took from this list is answered there, and §389 and §391 are archived. Still open here: item 25 and the several-command negated group, as the re-check above says.
 - 2026-10-21: item 25 is closed by ADR-120 T3 (66cf9843): `@retired` retires a spec fact, and the ADR-040 spec's F-1 rows carry it. The several-command negated group, and the definition and group forms of the lines above (3202-3206, and items (2) and (3) left at 3208), are closed by ADR-120 T1's grammar (13ba9efa), which reads `!`, groups and definitions as units in both cores. ADR-110's SessionEnd reaping (3260) stays open, in ADR-110 T3's scope.
 
-## 382. OPEN 2026-10-16 — What ADR-106's paired benchmark deliberately leaves for after its first verdict
+## 382. CLOSED 2026-11-11 (not done: development stopped, §473) — What ADR-106's paired benchmark deliberately leaves for after its first verdict
 
 Filed with ADR-106 (Proposed). It borrows §30's two-phase, command-graded shape for a different question, with the hidden tests of a SWE-bench-style task as the grader; §30's own question, a case graded by `adr-lint` over the preserved sandbox, stays open.
 
@@ -3275,7 +3275,7 @@ Filed with ADR-106 (Proposed). It borrows §30's two-phase, command-graded shape
 - **A second dataset.** The first verdict holds for one configuration. Re-open after T3, with the dataset T2 did not choose.
 - **Re-grading with augmented tests** (UTBoost, arXiv 2506.09289; SWE-ABS, arXiv 2603.00520). Weak hidden tests count some wrong patches as resolved in both arms. Re-open if T3's verdict turns on a few instances.
 
-## 383. OPEN 2026-10-18 — What ADR-106's verdict found in the turn end, read attempt by attempt
+## 383. CLOSED 2026-11-11 (not done: development stopped, §473) — What ADR-106's verdict found in the turn end, read attempt by attempt
 
 Found by the bench peer and reproduced here with scripted sessions through the hooks at v3.8.40 and at HEAD (`tests/hook-golden.mjs` helpers, scratch only). In Stage 5 block 1, three of Opus P's six false completions ended with no Stop finding at all.
 
@@ -3298,7 +3298,7 @@ Found by the bench peer and reproduced here with scripted sessions through the h
   phrase in a sign-off note as a stop, the `treeMoved` wording that cannot tell another writer from a check that writes the
   tree, the lifecycle stage and the ADR-111 and ADR-112 deferrals.
 
-## 384. OPEN 2026-10-19 — A release check judged by its slowdown, not by a load average
+## 384. CLOSED 2026-11-11 (not done: development stopped, §473) — A release check judged by its slowdown, not by a load average
 
 ADR-115 judges a release check's contention by the 1-minute load average at its start and once the run's own load has decayed
 after it. A load average cannot tell the run's load from other work during the run, so a spike between the two samples is
@@ -3310,14 +3310,14 @@ measured (ADR-115, Alternatives).
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 386. OPEN 2026-10-19 — A fetched `qh` is unsigned, and whether quarantine or SmartScreen stops it is not measured
+## 386. CLOSED 2026-11-11 (not done: development stopped, §473) — A fetched `qh` is unsigned, and whether quarantine or SmartScreen stops it is not measured
 
 ADR-116 publishes `qh` as release assets and fetches the one a machine needs at SessionStart. Neither this repository nor mrw
 signs or notarises a binary. curl does not set macOS's quarantine attribute and a browser download does; whether a binary
 written by Node's fetch is stopped by Gatekeeper, or a Windows one by SmartScreen or Mark-of-the-Web, was not measured on
 2026-10-19. Left: measure both on a real fetched asset before ADR-110 T3 switches `hooks.json`, and sign if either stops it.
 
-## 387. OPEN 2026-10-19 — The ledger guard reads shell text, and the forms it does not read are a boundary, not a pass
+## 387. CLOSED 2026-11-11 (not done: development stopped, §473) — The ledger guard reads shell text, and the forms it does not read are a boundary, not a pass
 
 The Codex review of aae06d72..90b9ceaf found nine forms that both hooks let into the state directory: a `cd`'s own redirection, a
 `$(…)` or backtick substitution, a fourth nested `sh -c`, a `cd` in a subshell or a pipeline, a link at the leaf, a case alias
@@ -3994,7 +3994,7 @@ The read-only Claude review of ADR-130 found that ADR-101 and its T1/T2 Tests ta
 remain historical evidence. Runtime behavior is unaffected. Open: whether ADR-101 should gain a supersession note
 pointing to ADR-130, without rewriting its task evidence.
 
-## 432. OPEN 2026-10-28 — advisory findings from the Go cutover release review
+## 432. CLOSED 2026-11-11 (not done: development stopped, §473) — advisory findings from the Go cutover release review
 
 The recorded Claude fallback review of `v3.8.59..b504ac07` returned clean with these advisories. The Codex run was
 terminated by SIGKILL without a verdict; it is not review evidence. Confirmed against source, with actual source lines
@@ -4095,7 +4095,7 @@ approval. tests/release-evidence-attempt.test.mjs holds the fallback, its contro
 and five could-not-look shapes; two catalogue mutants are RED. The second half is §453's: a release resumed after its landing no
 longer retakes the full check for a sha whose pass it recorded (CLAUDE.md §13 step 1).
 
-## 436. OPEN 2026-10-30 — ADR-133 preserves the existing watcher and productivity research obligation
+## 436. CLOSED 2026-11-11 (not done: development stopped, §473) — ADR-133 preserves the existing watcher and productivity research obligation
 
 ADR-133 separates completion claims and explicitly leaves general watcher/productivity research with ADR-121 and
 ADR-128. Its reporting slice does not establish their outcome or settle ADR-128 T4's existing ownership decision.
@@ -4113,7 +4113,7 @@ unique) needs a relock with `--replace-hashes`. Not caused by ADR-134: adr-verif
 **Fixed 2026-11-01:** the test now expects exactly the short sha git prints for HEAD in that repository, and no narrower than
 `core.abbrev`; ADR-088 T1 was relocked with `--replace-hashes`, and its catalogue mutant (adr-next reading the one sha field)
 is still RED.
-## 438. OPEN 2026-11-01 — Node processes the Go hooks still start, after ADR-135
+## 438. CLOSED 2026-11-11 (not done: development stopped, §473) — Node processes the Go hooks still start, after ADR-135
 
 ADR-135 ports branch-state into the core. Enumerated 2026-11-01 with `git grep -n -E '"node"|\.mjs"' -- 'core/*.go' ':!*_test.go'`,
 the rest of the class stays Node: run-shell-hook.mjs (core/hooks/bridge.go:18, and the artifact pass at artifact.go:82,
@@ -4180,7 +4180,7 @@ core/hooks/proc_tree_windows_test.go. Left as it was: the Node runner (`run-shel
 and still says cleanup could not be confirmed on Windows (the owner chose core only), and `executeNodeCLI`, which no registered
 hook reaches on Windows.
 
-## 441. OPEN 2026-11-01 — a nested decision corpus gets no decision context, before and after ADR-137
+## 441. CLOSED 2026-11-11 (not done: development stopped, §473) — a nested decision corpus gets no decision context, before and after ADR-137
 
 Found by ADR-137 T2's replay and measured 2026-11-01 over a scratch git copy of tests/fixtures/corpora/python-monorepo, whose
 corpus sits at `services/api/docs/adr/`: Node's `decisionContext` for `services/api/duration.py` names
@@ -4210,7 +4210,7 @@ against the new match over 50,957 random glob and path pairs drawn from separato
 characters found no difference. Three new catalogue mutants are RED, and the old `* does not cross a separator` entry was
 re-anchored to the new line and is RED.
 
-## 443. OPEN 2026-11-01 — the decision reader's reads are bounded in time, not in bytes, in Node and the core alike
+## 443. CLOSED 2026-11-11 (not done: development stopped, §473) — the decision reader's reads are bounded in time, not in bytes, in Node and the core alike
 
 Found by the Codex review of 8d872045..980dd773 (ADR-137 part A2). Task files and archive READMEs are read whole, past the
 512 KiB record limit and the 64 MiB screen budget, and cached (core/hooks/decisioncorpus_read.go:758 through
@@ -4540,7 +4540,7 @@ name disagree is refused ("its title declares T2 and its file name T1"), and an 
 tests/adr-lint-task-identity.test.mjs builds that case through the CLI; six catalogue mutants are noticed; the 129-record
 comparison still shows no difference.
 
-## 459. OPEN 2026-11-03 — measure the landing run's critical path before cutting it
+## 459. CLOSED 2026-11-11 (not done: development stopped, §473) — measure the landing run's critical path before cutting it
 
 From ADR-138's Out of Scope, and the owner's choice of 2026-11-03 ("measure first"). The v3.8.68 landing run (41653363871) took
 about 31 minutes, 14:24 to 14:55: `coverage floor (python)` 28 min, `windows` 23 min, `coverage floor` 19 min, `selftest
@@ -4734,7 +4734,7 @@ Doing it right means splitting the fence into shell words per command and asking
 `--collect-only`), a design change that would need its own record. The owner chose to keep the conservative refusals (2026-11-10);
 BACKLOG item 20's over-selection of `-k 'alpha and beta'` stands as it was. The branch and its worktree were removed.
 
-## 468. OPEN 2026-11-10 — the artifact pass's lock can be taken from a live holder, and has no Go test
+## 468. CLOSED 2026-11-11 (not done: development stopped, §473) — the artifact pass's lock can be taken from a live holder, and has no Go test
 
 Found while drafting ADR-143 and named by the cold Codex review of its first draft: `claimPassLock` (core/hooks/artifact.go,
 ~:262-335) judges a lock stale by its deadline alone, not by its holder's death, so a pass that pauses past the deadline can
@@ -4743,7 +4743,7 @@ the retired Node helper, so no test exercises the Go helper. ADR-143 deliberatel
 Scope). The fix is ADR-143's OS lock (`lockFile`, core/hooks/filelock.go once T1 lands) for the artifact pass too, with a test
 whose live holder pauses past the old deadline and keeps the lock.
 
-## 469. OPEN 2026-11-10 — adr-next does not recurse more than one level into nested corpora
+## 469. CLOSED 2026-11-11 (not done: development stopped, §473) — adr-next does not recurse more than one level into nested corpora
 
 Deferred by ADR-141's Out of Scope (docs/adr/ADR-141-a-nested-corpus-is-read.md): ADR-141 makes the decision-context and SessionStart
 gate admit a corpus below the root, but `adr-next`'s corpus walk keeps ADR-034's one-level recursion
@@ -4772,16 +4772,24 @@ their own logs), not line by line. The ones that split a record or task file bef
 decision-corpus.mjs (:891, :1002; safe, since its reader turns a bare CR into `\n` as it reads, :1044), claims-rate.mjs:51 (a
 JSONL ledger, not a record) and work-next.mjs:433 (a spec's facts table) and :541 (a task README's table), left and filed as §472.
 
-## 471. OPEN 2026-11-10 — two task files whose names differ only in Unicode normalization print identically
+## 471. CLOSED 2026-11-11 (not done: development stopped, §473) — two task files whose names differ only in Unicode normalization print identically
 
 The same chaos round (X3): `T5-café.md` in NFC and `T5-cafe\u0301.md` in NFD side by side. adr-next correctly reports them as one
 duplicates pair, but every line about them prints the two names the same way (`README.md: task file 'T5-café.md' not listed in the
 index` twice; a duplicates array of two equal-looking strings), so a person cannot tell which file is which. A name whose NFC form
 differs from itself should be printed with an escape or a codepoint hint. Changes reader output: needs the outside run.
 
-## 472. OPEN 2026-11-10 — work-next reads a spec's facts table and a task README's table split on `\n` only
+## 472. CLOSED 2026-11-11 (not done: development stopped, §473) — work-next reads a spec's facts table and a task README's table split on `\n` only
 
 The §470 class audit: plugin/scripts/work-next.mjs:433 splits a spec on `\n` before reading its facts table, and :541 splits a
 task README before reading its index table, while the same file's spec reader at :371 splits on `\r?\n` and decision-corpus
 normalises a bare CR at read. A CR-only spec or README would read as one line there; whether that changes an answer is untested.
 The fix is a test with a CR-only spec and README and, if red, splitting on every line ending.
+
+## 473. CLOSED 2026-11-11 — development stopped; the repository is frozen
+
+The owner stopped development of quality-harness on 2026-11-11 and asked for it to be frozen. The last release is v3.8.75
+(the native core built with Go 1.27). Every section still open that day is closed as not done, with its text left as it was:
+§381, §382, §383, §384, §386, §387, §432, §436, §438, §441, §443, §459, §468, §469, §471 and §472. The four Accepted records
+no task of which had run, ADR-141, ADR-142, ADR-143 and ADR-144, are Withdrawn unexecuted. Nothing here is a finding that the
+work was wrong; it was not done.

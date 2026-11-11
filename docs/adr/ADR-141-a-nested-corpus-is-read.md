@@ -1,6 +1,6 @@
 # ADR-141: The corpus gate admits what the reader's listing finds
 
-**Status:** Accepted
+**Status:** Withdrawn
 **Date:** 2026-11-10
 **Owner:** Zy
 **Spec:** None — no spec stage; docs/BACKLOG.md §441 is the input
@@ -151,5 +151,10 @@ Revert the two tasks' commits: the gate returns to the root list, the discovery 
 
 ## Follow-ups
 
-- [ ] The §18 outside run: a peer runs `qh hook PreToolUse` and SessionStart over a nested corpus and pastes the output verbatim
-- [ ] Whether corpus-probe should record a PreToolUse decision context per corpus, so ADR-138's probe job can see this surface
+- [x] The §18 outside run: a peer runs `qh hook PreToolUse` and SessionStart over a nested corpus and pastes the output verbatim: moot, withdrawn unexecuted (Outcome)
+- [x] Whether corpus-probe should record a PreToolUse decision context per corpus, so ADR-138's probe job can see this surface: moot, withdrawn unexecuted (Outcome)
+
+## Outcome
+
+Withdrawn 2026-11-11 before any task ran: the owner stopped development of quality-harness and froze the repository
+(docs/BACKLOG.md §473). No code changed under this record; its tasks stay as written, unexecuted.

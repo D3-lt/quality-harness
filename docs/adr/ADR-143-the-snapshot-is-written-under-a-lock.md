@@ -1,6 +1,6 @@
 # ADR-143: The branch-state snapshot is written under an OS file lock
 
-**Status:** Accepted
+**Status:** Withdrawn
 **Date:** 2026-11-10
 **Owner:** Zy
 **Spec:** None — no spec stage; docs/BACKLOG.md §438's third paragraph (the scoped verification of 53e9f6cc) is the input
@@ -175,4 +175,9 @@ ignored by the reverted build and can be deleted by hand; the snapshot's schema 
 
 ## Follow-ups
 
-- [ ] Close the third paragraph of docs/BACKLOG.md §438 once T2 is done.
+- [x] Close the third paragraph of docs/BACKLOG.md §438 once T2 is done.: moot, withdrawn unexecuted (Outcome)
+
+## Outcome
+
+Withdrawn 2026-11-11 before any task ran: the owner stopped development of quality-harness and froze the repository
+(docs/BACKLOG.md §473). No code changed under this record; its tasks stay as written, unexecuted.

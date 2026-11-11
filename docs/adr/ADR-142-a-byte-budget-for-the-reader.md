@@ -1,6 +1,6 @@
 # ADR-142: The decision readers bound their reads in bytes and say what they did not read
 
-**Status:** Accepted
+**Status:** Withdrawn
 **Date:** 2026-11-10
 **Owner:** Zy
 **Spec:** None — no spec stage; docs/BACKLOG.md §443 is the input
@@ -220,4 +220,9 @@ reasons go, and `dcOnceByRealPath` keys by real path. No state is persisted.
 
 ## Follow-ups
 
-- [ ] CLAUDE.md §18 outside run before the release that carries these tasks (CI's outside-run job, ADR-138)
+- [x] CLAUDE.md §18 outside run before the release that carries these tasks (CI's outside-run job, ADR-138): moot, withdrawn unexecuted (Outcome)
+
+## Outcome
+
+Withdrawn 2026-11-11 before any task ran: the owner stopped development of quality-harness and froze the repository
+(docs/BACKLOG.md §473). No code changed under this record; its tasks stay as written, unexecuted.

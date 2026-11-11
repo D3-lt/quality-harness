@@ -1,6 +1,6 @@
 # ADR-144: The JavaScript floor is cut only once a merged raw-V8 measurement equals its serial twin on CI
 
-**Status:** Accepted
+**Status:** Withdrawn
 **Date:** 2026-11-10
 **Owner:** Zy
 **Spec:** None — no spec stage; docs/BACKLOG.md §459 ("the JavaScript floor itself, whose cut needs a raw-V8 merge (c8 or similar) and recalibrated floors, as a record of its own") and the Outcome of the withdrawn ADR-139 are the inputs
@@ -179,3 +179,8 @@ native form and its floors return, and the ruleset, never changed, needs nothing
 
 ## Follow-ups
 
+
+## Outcome
+
+Withdrawn 2026-11-11 before any task ran: the owner stopped development of quality-harness and froze the repository
+(docs/BACKLOG.md §473). No code changed under this record; its tasks stay as written, unexecuted.

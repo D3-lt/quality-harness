@@ -103,7 +103,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install coverage.py
-        run: python3 -m pip install --upgrade coverage ruff==0.15.6
+        run: python3 -m pip install --upgrade "coverage>=7.17.1" ruff==0.15.6
       # STRICT=1 turns "the gates could not be measured" into a failure. A
       # coverage job that silently measures nothing is worse than no job.
       - name: Hold the coverage floor
@@ -132,7 +132,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install coverage.py
-        run: python3 -m pip install --upgrade coverage ruff==0.15.6
+        run: python3 -m pip install --upgrade "coverage>=7.17.1" ruff==0.15.6
       - name: Hold the Python gates' coverage floor
         env:
           QUALITY_HARNESS_COVERAGE_STRICT: '1'
@@ -310,7 +310,7 @@ jobs:
           python-version: '3.12'
       - name: Install the ruff scripts/unused-names.sh pins
         # coverage.py: tests/coverage-data-check.test.mjs skips without it, and a skipped test notices no mutant (BACKLOG §461).
-        run: python3 -m pip install coverage ruff==0.15.6
+        run: python3 -m pip install "coverage>=7.17.1" ruff==0.15.6
       - name: Take the shard plan from ONE snapshot, not twelve prefix restores
         # ⚠ EVERY SHARD MUST SEE THE SAME TIMINGS OR THE PARTITION IS NOT A
         # PARTITION. `shardByCost` is deterministic for a given input and each

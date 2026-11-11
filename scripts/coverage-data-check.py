@@ -12,8 +12,10 @@ before coverage.py wrote even its schema, a SQLite file with no table at all or 
 one row anywhere, or any other unreadable file fails, named. These rules were reviewed and verified under ADR-139 T2 (since
 withdrawn) before they moved here.
 
-Exit: 0 every file readable or left out; 1 a file that cannot be read and is not empty; 2 usage.
+Exit: 0 every file readable or left out; 1 a file that cannot be read and is not empty; 2 usage; 3 UNRUN, coverage.py too old to
+read a file read-only (nothing judged).
 """
+import inspect
 import os
 import sqlite3
 import sys
@@ -45,6 +47,14 @@ def main(paths):
         print("usage: coverage-data-check.py <data-file>...", file=sys.stderr)
         return 2
     from coverage import CoverageData
+    # `read_only` arrived in coverage.py 7.17.1 (measured 2026-11-11 over 7.13.4 to 7.17.2). An older one raises its own TypeError
+    # on every file, which used to be said as unreadable data (a Windows peer, coverage.py 7.13.4); that is a tool we could not
+    # run, not a finding about the data.
+    if "read_only" not in inspect.signature(CoverageData.__init__).parameters:
+        import coverage
+
+        print(f"UNRUN — coverage.py {coverage.__version__} cannot read a data file read-only; it needs 7.17.1 or later. Nothing was judged.")
+        return 3
 
     bad = []
     for path in paths:

@@ -12,10 +12,11 @@ import { fileURLToPath } from 'node:url'
 import { remove } from './helpers/remove.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const hasCoverage = spawnSync('python3', ['-c', 'import coverage'], { timeout: 60_000, windowsHide: true }).status === 0
+// The checker reads with `read_only`, which coverage.py has from 7.17.1; an older one is UNRUN (the stub test below), not a failure.
+const hasCoverage = spawnSync('python3', ['-c', 'import inspect, coverage; assert "read_only" in inspect.signature(coverage.CoverageData.__init__).parameters'], { timeout: 60_000, windowsHide: true }).status === 0
 const partial = 'create table context (id integer primary key, context text); create table coverage_schema (version integer); create table file (id integer primary key, path text); create table meta (key text, value text);'
 
-test('every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails', { skip: hasCoverage ? false : 'coverage.py is not importable by python3 (the coverage jobs install it)' }, t => {
+test('every coverage data file is read before the combine: an empty one is left out, anything else unreadable fails', { skip: hasCoverage ? false : 'coverage.py 7.17.1 or later is not importable by python3 (the coverage jobs install it)' }, t => {
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-coverage-data-'))
   t.after(() => remove(scratch))
   const gate = path.join(scratch, 'gate.py')
@@ -74,4 +75,26 @@ test('every coverage data file is read before the combine: an empty one is left 
     assert.equal(existsSync(bad), true, `${label}: never removed`)
   }
   assert.equal(check().status, 2, 'nothing to check is a usage error')
+})
+
+// A Windows peer's coverage.py 7.13.4 has no `read_only`, and every file was then said as unreadable data, FAIL. A coverage.py too
+// old to read read-only is UNRUN, exit 3, and no file is touched. A stub module stands in for the old version, so this runs anywhere.
+test('a coverage.py too old to read read-only is UNRUN, not a finding about the data', t => {
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-coverage-old-'))
+  t.after(() => remove(scratch))
+  const stub = path.join(scratch, 'stub', 'coverage')
+  mkdirSync(stub, { recursive: true })
+  writeFileSync(path.join(stub, '__init__.py'), '__version__ = "7.13.4"\nclass CoverageData:\n    def __init__(self, basename=None):\n        pass\n    def read(self):\n        raise AssertionError("must not be read")\n')
+  const data = path.join(scratch, '.coverage.old.1.x')
+  writeFileSync(data, 'not a database')
+  const run = spawnSync('python3', [path.join(repoRoot, 'scripts', 'coverage-data-check.py'), data], { encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, PYTHONPATH: path.join(scratch, 'stub') } })
+  assert.equal(run.status, 3, run.stdout + run.stderr)
+  assert.match(run.stdout, /^UNRUN — coverage\.py 7\.13\.4 cannot read a data file read-only; it needs 7\.17\.1 or later/)
+  assert.doesNotMatch(run.stdout, /FAIL/)
+  assert.equal(existsSync(data), true, 'nothing is removed')
+  // DIRTY twin: the same stub with `read_only` reads the file, so the version check is what made the run above UNRUN.
+  writeFileSync(path.join(stub, '__init__.py'), '__version__ = "7.17.1"\nclass CoverageData:\n    def __init__(self, basename=None, read_only=False):\n        self.basename = basename\n    def read(self):\n        raise RuntimeError("file is not a database")\n')
+  const read = spawnSync('python3', [path.join(repoRoot, 'scripts', 'coverage-data-check.py'), data], { encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, PYTHONPATH: path.join(scratch, 'stub') } })
+  assert.equal(read.status, 1, read.stdout + read.stderr)
+  assert.match(read.stdout, /FAIL — unreadable coverage data: \.coverage\.old\.1\.x: file is not a database/)
 })

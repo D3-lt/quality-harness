@@ -135,9 +135,9 @@ if [ "$SURFACE" != js ]; then
 printf '\n== Python gates (bin/) ==\n'
 # The gates run as children of the JS suite, so coverage has to start itself
 # inside every Python process the suite spawns rather than wrapping one command.
-if ! python3 -c 'import coverage' >/dev/null 2>&1; then
-  printf 'SKIPPED — coverage.py is not importable by python3.\n'
-  printf '  Install it (pip install coverage) to measure the gates in bin/.\n'
+if ! python3 -c 'import inspect, coverage; assert "read_only" in inspect.signature(coverage.CoverageData.__init__).parameters' >/dev/null 2>&1; then
+  printf 'SKIPPED — coverage.py 7.17.1 or later is not importable by python3 (its data files are read read-only).\n'
+  printf '  Install it (pip install "coverage>=7.17.1") to measure the gates in bin/.\n'
   if [ "$STRICT" = "1" ]; then
     printf 'FAIL — QUALITY_HARNESS_COVERAGE_STRICT=1 and the gates could not be measured.\n'
     exit 1

@@ -4794,7 +4794,10 @@ The owner stopped development of quality-harness on 2026-11-11 and asked for it 
 no task of which had run, ADR-141, ADR-142, ADR-143 and ADR-144, are Withdrawn unexecuted. Nothing here is a finding that the
 work was wrong; it was not done.
 
-## 474. CLOSED 2026-11-19 (asked for and done the same day) — the Codex reviewer is the model the installed Codex ranks first
+## 474. CLOSED 2026-11-19 (asked for and done the same day) — the Codex reviewer is `gpt-6.2-sol`, and `--model` names another for one run
+
+WHAT SHIPPED is the last paragraph of this section. Everything between here and there is the record of a lookup that asked the
+installed Codex for its first-ranked model: it was built, reviewed ten times, and removed before anything was pushed.
 
 The owner, 2026-11-19, with the repository frozen (§473): "for codex review use gpt-6.2-sol", and then, offered a pin bump or the
 latest model, chose the latest. Until now `CODEX_MODEL` in plugin/scripts/host-review.mjs pinned `gpt-6.1-sol` (ADR-098 T1), so
@@ -4868,6 +4871,18 @@ lookup is could-not-tell and the built-in model is used, said); a description wr
 and beginning `models` passed the help check, so the word is read in the command-name column; and the new tests read their rows
 from a fixed path under the repository, which an inherited `QUALITY_HARNESS_STATE_DIR` moves, so they ask the launcher's own
 resolver where the row is. Wording it also named: a test and a mutant said "the model that ran".
+The whole-range review after that round (9dc14883) still requested changes: a row with a duplicate member whose later key,
+written with an escape, masks an earlier fractional rank; and a help line of prose at command indentation beginning `models `.
+By its own account each needs a Codex that prints what 0.170.0 does not. Ten reviews had each found one more input to the same
+two parsers, so the owner chose, 2026-11-19, to drop the lookup.
+WHAT SHIPPED: `CODEX_MODEL` is `gpt-6.2-sol`, and `--model <name>` names another reviewer for one run in both command-line forms,
+so a later model needs no release. Nothing is parsed. The name is the value of `-m`, so it must start with a letter or a digit
+and hold only letters, digits, dots, dashes and underscores, at most 128; anything else, and a `--model` with no name after it,
+is refused before anything runs. A row's `model` is the name the launcher passed. Whether a named model offers the effort is
+Codex's to say. Kept from the rounds above, since it is not about the lookup: a schema-valid `unavailable` answer is `unproven`
+(ADR-119 T2), with its findings, printed model and a default reason. `codexModel`, the help check, the rank check and their
+tests and mutants are gone; tests/codex-launcher.test.mjs holds three tests for the override and the catalogue ten mutants.
+ADR-098 T1 is re-locked on the test as it stands. The skills' descriptions name no model.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

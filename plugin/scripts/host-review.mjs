@@ -14,10 +14,14 @@ import path from 'node:path'
 import { cloneStateDir } from './event-log.mjs'
 import { isMainModule } from './main-module.mjs'
 
-// What a run is given when the installed Codex could not name its first-ranked model (`codexModel` below).
+// The Codex reviewer, unless `--model` names another (BACKLOG §474: the owner, 2026-11-19, so that a new model needs no
+// release). `gpt-6.2-sol` ran at high effort on codex-cli 0.170.0 (2026-11-19) before it was written here.
 export const CODEX_MODEL = 'gpt-6.2-sol'
-// The review-grade efforts it exposes: `codex debug models --bundled` on codex-cli 0.170.0 (2026-11-19) lists low, medium,
-// high, xhigh, max and ultra for `gpt-6.2-sol`, as 0.162.0 did for `gpt-6.1-sol`; low and medium are not a verdict-bearing review.
+// A model name becomes the value of `-m`: it starts with a letter or digit, so Codex never reads it as an option.
+export const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+// The review-grade efforts: `codex debug models --bundled` on codex-cli 0.170.0 (2026-11-19) lists low, medium, high, xhigh,
+// max and ultra for `gpt-6.2-sol`, as 0.162.0 did for `gpt-6.1-sol`; low and medium are not a verdict-bearing review. Whether
+// another model named with `--model` offers the effort is Codex's to say: it refuses, and the review is unavailable.
 export const EFFORTS = new Set(['high', 'xhigh', 'max', 'ultra'])
 // One budget for every Codex run, and the run is killed at it: a review that outlives it is unavailable, never clean.
 export const CODEX_TIMEOUT_MS = 600_000
@@ -160,109 +164,28 @@ function acceptsIgnoreUserConfig(bin, run) {
   return Boolean(help && !help.error && help.status === 0 && String(help.stdout ?? '').includes('--ignore-user-config'))
 }
 
-// The owner, 2026-11-19: the reviewer is the model the installed Codex ranks first, so a new model needs no release.
-// `codex debug models --bundled` (codex-cli 0.170.0, 2026-11-19) prints {models: [{slug, priority, visibility,
-// supported_reasoning_levels: [{effort}]}]} in about 900 KB, with gpt-6.2-sol at priority 1. The model is the listed one
-// of lowest priority that offers the effort, and it is still passed by name, so a row's model is the one the launcher asked
-// for. Anything else is could-not-tell (a build without the command, another shape, no such model, two sharing the first
-// rank): the run is given CODEX_MODEL and `modelNote` says why. Every row is read or none is, and a row is read only when
-// each field holds a value measured on 0.170.0: a row outside them might be the first-ranked one, so it is not skipped
-// (§16; Codex reviews of cccf5af8 and 5bb58e48, finding 1 of each). A later Codex with a new visibility or effort word
-// therefore gets CODEX_MODEL, said, until those sets are measured again; so does every effort when one row, hidden or
-// low-ranked, is outside them. The note names the kind of failure, never the row, and CODEX_MODEL is tried without asking
-// whether it offers the effort: Codex refuses it if not, and that is an unavailable review.
-// The probe is run exactly as the review is: the same name, the same working directory, the same environment. So whatever
-// file that name resolves to, both calls run it. Three review rounds tried to run it elsewhere and then say which names
-// mean the same from any directory, and each met one more path shape (Windows drive-relative, a PATH holding `.`,
-// `/proc/self/cwd`); nothing is classified now. A build is first asked whether it has the command (`debug --help` lists
-// `models` on 0.170.0): one that does not, and a test's stand-in, is never sent `debug models`.
-// It is the command line's `pick`; a caller that passes none (a test faking `run`) is given CODEX_MODEL and starts no probe.
-const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
-const MODEL_VISIBILITY = new Set(['list', 'hide'])
-const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-// `models` in the command-name column of the help's Commands section, up to its first blank line. The column is where the
-// first command starts: `models-cache` is another command, and a description wrapped onto a line of its own is indented
-// further (Codex reviews of b54439ab and 9133bf8b).
-function listsModels(text) {
-  const lines = String(text).split(/\r?\n/)
-  const start = lines.findIndex(line => /^Commands:\s*$/.test(line))
-  if (start < 0) return false
-  const column = /^(\s+)\S/.exec(lines[start + 1] ?? '')?.[1]
-  if (!column) return false
-  for (const line of lines.slice(start + 1)) {
-    if (!line.trim()) return false
-    if (line.startsWith(column) && /^models(?:\s|$)/.test(line.slice(column.length))) return true
-  }
-  return false
-}
-// Why a probe did not answer, or null when it did: a call that could not be made is never said to have answered no.
-const probeFailure = (child, what) => !child ? `${what} could not be run`
-  : child.error ? `${what} failed: ${child.error.code ?? child.error.message ?? 'it could not be run'}`
-    : child.signal ? `${what} was stopped by ${child.signal}`
-      : child.status !== 0 ? `${what} exited ${child.status}` : null
-export function codexModel({ bin, effort, run = spawnSync }) {
-  const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })
-  const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
-  const help = run(bin, ['debug', '--help'], probe)
-  const unasked = probeFailure(help, 'asking which commands it has')
-  if (unasked) return builtIn(unasked)
-  if (!listsModels(help.stdout ?? '')) return builtIn('this build lists no `debug models` command')
-  const child = run(bin, ['debug', 'models', '--bundled'], probe)
-  const unlisted = probeFailure(child, 'its model list')
-  if (unlisted) return builtIn(unlisted)
-  // A rank is read as it was written: `0.99999999999999999` parses to 1 (Codex review of 9133bf8b). The reviver's third
-  // argument carries a value's source text (Node 22 and later); where it does not, nothing shows how a rank was written,
-  // and that is could-not-tell. 0.170.0 writes each rank as plain digits.
-  let listed
-  let unwritten = false
-  const asWritten = (key, value, context) => {
-    if (key === 'priority' && !/^\d{1,9}$/.test(context?.source ?? '')) unwritten = true
-    return value
-  }
-  try { listed = JSON.parse(String(child.stdout ?? ''), asWritten)?.models } catch { /* not JSON: could not tell */ }
-  if (!Array.isArray(listed)) return builtIn('its model list is not in the shape this reads')
-  if (unwritten) return builtIn('a rank in its model list is not written as a whole number')
-  // One pass, no spread: a list of a hundred thousand rows fits the buffer and overflowed `Math.min(...)` (finding 3).
-  let first = null
-  let sharing = 0
-  for (const entry of listed) {
-    const readable = entry && typeof entry === 'object' && typeof entry.slug === 'string' && MODEL_SLUG.test(entry.slug)
-      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)
-      && Array.isArray(entry.supported_reasoning_levels) && entry.supported_reasoning_levels.length > 0
-      && entry.supported_reasoning_levels.every(level => MODEL_EFFORTS.has(level?.effort))
-    if (!readable) return builtIn('a row of its model list is not in the shape this reads')
-    if (entry.visibility !== 'list' || !entry.supported_reasoning_levels.some(level => level.effort === effort)) continue
-    if (first === null || entry.priority < first.priority) { first = entry; sharing = 1 } else if (entry.priority === first.priority) sharing += 1
-  }
-  if (!first) return builtIn(`it lists no model that offers ${effort}`)
-  if (sharing !== 1) return builtIn(`${sharing} of its models share the first rank`)
-  return { model: first.slug }
-}
-const builtInModel = () => ({ model: CODEX_MODEL })
-
 // One Codex run through `codexInvocation`: { text } on success, or { reason } — a run past its budget says so, and a run
-// stopped by a signal before it says which signal: only the deadline is the budget. Both carry the model it was given.
-export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, run = spawnSync, pick = builtInModel }) {
+// stopped by a signal before it says which signal: only the deadline is the budget.
+export function runCodex({ bin, repo, effort, model = CODEX_MODEL, prompt, skipGitRepoCheck = false, run = spawnSync }) {
   let directory
   try { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-')) } catch (error) {
     return { reason: `a temporary directory for its final message could not be made (${error.code ?? error.message})` }
   }
   try {
-    const picked = pick({ bin, effort })
-    const call = codexInvocation({ bin, repo, effort, model: picked.model, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
+    const call = codexInvocation({ bin, repo, effort, model, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
     const child = run(call.bin, call.argv, call.options)
     if (child?.error?.code === 'ETIMEDOUT') {
-      return { ...picked, reason: `codex was killed at its budget of ${CODEX_TIMEOUT_MS / 1000} s` }
+      return { reason: `codex was killed at its budget of ${CODEX_TIMEOUT_MS / 1000} s` }
     }
-    if (child?.signal) return { ...picked, reason: `codex was stopped by ${child.signal} before it finished` }
+    if (child?.signal) return { reason: `codex was stopped by ${child.signal} before it finished` }
     // Its own last stderr line says why: a bare exit status told a quota from a dropped stream from a bad contract by nothing.
     // codex ends stderr with a "tokens used" footer, which is not a reason, so that is skipped (measured 2026-10-15).
     const lines = String(child?.stderr ?? '').trim().split('\n').map(line => line.trim()).filter(line => line && !/^(?:tokens used|[\d,]+)$/.test(line))
     const said = lines.at(-1)?.slice(0, 300)
-    if (!child || child.error || child.status !== 0) return { ...picked, reason: child?.error?.message ?? `codex exited ${child?.status}${said ? `: ${said}` : ''}` }
+    if (!child || child.error || child.status !== 0) return { reason: child?.error?.message ?? `codex exited ${child?.status}${said ? `: ${said}` : ''}` }
     let text = ''
     try { text = readFileSync(path.join(directory, 'last-message.txt'), 'utf8') } catch { /* an older build: stdout carries it */ }
-    return { ...picked, text: text.trim() ? text : String(child.stdout ?? '') }
+    return { text: text.trim() ? text : String(child.stdout ?? '') }
   } finally {
     try { rmSync(directory, { recursive: true, force: true }) } catch (error) {
       process.stderr.write(`host-review: the temporary directory ${directory} was not removed (${error.code ?? error.message})\n`)
@@ -315,7 +238,7 @@ export function recordReview(repo, row) {
   }
 }
 
-export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, pick, output } = {}) {
+export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
   const target = { repo, scope, requirements, evidence }
   if (host === 'cursor' || host === 'claude') {
@@ -334,16 +257,19 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
     return review
   }
   if (host !== 'codex') return unavailable(host ?? null, null, 'unknown host')
-  if (!EFFORTS.has(effort)) return unavailable('codex', effort, `effort is not one of ${[...EFFORTS].join(', ')}`, CODEX_MODEL)
-  if (output !== undefined) return reviewFromOutput(output, { host: 'codex', model: CODEX_MODEL, effort })
+  // `--model` names the reviewer for this run; with none it is CODEX_MODEL. Either is passed with `-m`, so the row's model
+  // is the one the launcher asked for.
+  const named = model ?? CODEX_MODEL
+  if (typeof named !== 'string' || !MODEL_NAME.test(named)) return unavailable('codex', effort, NOT_A_MODEL_NAME)
+  if (!EFFORTS.has(effort)) return unavailable('codex', effort, `effort is not one of ${[...EFFORTS].join(', ')}`, named)
+  if (output !== undefined) return reviewFromOutput(output, { host: 'codex', model: named, effort })
   const bin = (resolve ?? resolveCodex)()
-  if (!bin) return unavailable('codex', effort, 'codex binary is absent', CODEX_MODEL)
+  if (!bin) return unavailable('codex', effort, 'codex binary is absent', named)
   const missing = missingTarget(target)
-  if (missing) return unavailable('codex', effort, missing, CODEX_MODEL)
+  if (missing) return unavailable('codex', effort, missing, named)
   const range = scopeRange(repo, scope)
-  const result = runCodex({ bin, repo, effort, prompt: `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`, run, pick })
-  const given = result.model ?? CODEX_MODEL
-  const review = { ...(result.reason ? unavailable('codex', effort, result.reason, given) : reviewFromOutput(result.text, { host: 'codex', model: given, effort })), ...(result.modelNote ? { modelNote: result.modelNote } : {}) }
+  const result = runCodex({ bin, repo, effort, model: named, prompt: `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`, run })
+  const review = result.reason ? unavailable('codex', effort, result.reason, named) : reviewFromOutput(result.text, { host: 'codex', model: named, effort })
   recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, bound: review.bound, reportedModel: review.reportedModel, effort, ...range, status: review.status, findings: review.findings.length })
   return review
 }
@@ -438,6 +364,8 @@ function claudeReview(child, model) {
   return reviewFromOutput(envelope.result.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''), { host: 'claude', model, effort: null })
 }
 
+const NOT_A_MODEL_NAME = '--model is not a model name: letters, digits, dots, dashes and underscores, starting with a letter or a digit'
+
 function arg(name, argv = process.argv) {
   const index = argv.indexOf(name)
   return index >= 0 ? argv[index + 1] : undefined
@@ -447,7 +375,7 @@ function arg(name, argv = process.argv) {
 // advice), run through `runCodex`, and Codex's final message printed as it is. Code 2 with the reason when it could not run.
 // `--range <base>..<head>` names what it reviewed, resolved before the run; the row records the status of the last
 // VERDICT line (ADR-100 T1). Exported with its seams so the row is testable without a real Codex.
-export function promptFileReview({ argv = process.argv, resolve = resolveCodex, run = spawnSync, pick } = {}) {
+export function promptFileReview({ argv = process.argv, resolve = resolveCodex, run = spawnSync } = {}) {
   const effort = arg('--effort', argv) ?? 'high'
   const repo = arg('--repo', argv)
   const file = arg('--prompt-file', argv)
@@ -455,6 +383,9 @@ export function promptFileReview({ argv = process.argv, resolve = resolveCodex, 
   if (arg('--host', argv) !== 'codex') return fail('--prompt-file runs Codex only: pass --host codex')
   if (!EFFORTS.has(effort)) return fail(`effort is not one of ${[...EFFORTS].join(', ')}`)
   if (typeof repo !== 'string' || !repo) return fail('no repository was named (--repo)')
+  // `--model` with no name after it is refused, never read as "the default".
+  const model = argv.includes('--model') ? String(arg('--model', argv) ?? '') : CODEX_MODEL
+  if (!MODEL_NAME.test(model)) return fail(NOT_A_MODEL_NAME)
   let range = { base: null, head: null, exact: false }
   if (argv.includes('--range')) {
     // A revision may hold dots (a release tag, `v3.8.25`), so the base is the shortest prefix before `..`. A three-dot
@@ -469,30 +400,28 @@ export function promptFileReview({ argv = process.argv, resolve = resolveCodex, 
   if (!prompt.trim()) return fail('the prompt file is empty')
   const bin = resolve()
   if (!bin) return fail('codex binary is absent')
-  const result = runCodex({ bin, repo, effort, prompt, skipGitRepoCheck: argv.includes('--skip-git-repo-check'), run, pick })
+  const result = runCodex({ bin, repo, effort, model, prompt, skipGitRepoCheck: argv.includes('--skip-git-repo-check'), run })
   const text = result.reason ? '' : result.text
   const status = result.reason || !text.trim() ? 'unavailable' : verdictStatus(text)
-  recordReview(repo, { host: 'codex', model: result.model ?? CODEX_MODEL, bound: status === 'unavailable' ? 'unproven' : 'pinned', effort, ...range, status, findings: null })
-  const note = result.modelNote ? `host-review: ${result.modelNote}\n` : ''
-  const failed = reason => ({ code: 2, out: '', err: `${note}${fail(reason).err}` })
-  if (result.reason) return failed(result.reason)
-  if (!text.trim()) return failed('codex returned an empty final message')
-  return { code: 0, out: text.endsWith('\n') ? text : `${text}\n`, err: note }
+  recordReview(repo, { host: 'codex', model, bound: status === 'unavailable' ? 'unproven' : 'pinned', effort, ...range, status, findings: null })
+  if (result.reason) return fail(result.reason)
+  if (!text.trim()) return fail('codex returned an empty final message')
+  return { code: 0, out: text.endsWith('\n') ? text : `${text}\n`, err: '' }
 }
 
 if (isMainModule(import.meta.url)) {
   if (process.argv.includes('--prompt-file')) {
-    const said = promptFileReview({ pick: codexModel })
+    const said = promptFileReview()
     process.stdout.write(said.out)
     process.stderr.write(said.err)
     process.exit(said.code)
   }
+  // For Codex, `--model` with no name after it is passed on as an empty one, which is refused; the other hosts keep theirs.
+  const named = arg('--host') === 'codex' && process.argv.includes('--model') ? arg('--model') ?? '' : arg('--model') ?? null
   const result = hostReview({
-    host: arg('--host'), effort: arg('--effort') ?? 'high', model: arg('--model') ?? null, repo: arg('--repo'),
+    host: arg('--host'), effort: arg('--effort') ?? 'high', model: named, repo: arg('--repo'),
     scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',
-    pick: codexModel,
   })
-  if (result.modelNote) process.stderr.write(`host-review: ${result.modelNote}\n`)
   process.stdout.write(`${JSON.stringify(result)}\n`)
   process.exit(result.status === 'unavailable' ? 2 : 0)
 }

@@ -26,7 +26,7 @@
       "label": "ADR-100 T1: the prompt-file form records the review it ran",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/review-ledger.test.mjs"],
-      "from": "  recordReview(repo, { host: 'codex', model: result.model ?? CODEX_MODEL, bound: status === 'unavailable' ? 'unproven' : 'pinned', effort, ...range, status, findings: null })",
+      "from": "  recordReview(repo, { host: 'codex', model, bound: status === 'unavailable' ? 'unproven' : 'pinned', effort, ...range, status, findings: null })",
       "to": "  void status"
     },
     {
@@ -346,156 +346,68 @@
       "to": "bound: 'pinned',"
     },
     {
-      "label": "BACKLOG §474: the reviewer is the lowest priority, not the highest",
+      "label": "BACKLOG §474: the run is given the model that was named",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the reviewer is the model the installed Codex ranks first for the effort$",
-      "from": "if (first === null || entry.priority < first.priority) { first = entry; sharing = 1 }",
-      "to": "if (first === null || entry.priority > first.priority) { first = entry; sharing = 1 }"
-    },
-    {
-      "label": "BACKLOG §474: a hidden model is not the reviewer",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the reviewer is the model the installed Codex ranks first for the effort$",
-      "from": "if (entry.visibility !== 'list' || !entry.supported_reasoning_levels.some(level => level.effort === effort)) continue",
-      "to": "if (!entry.supported_reasoning_levels.some(level => level.effort === effort)) continue"
-    },
-    {
-      "label": "BACKLOG §474: a model that does not offer the effort is not the reviewer",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the reviewer is the model the installed Codex ranks first for the effort$",
-      "from": "if (entry.visibility !== 'list' || !entry.supported_reasoning_levels.some(level => level.effort === effort)) continue",
-      "to": "if (entry.visibility !== 'list') continue"
-    },
-    {
-      "label": "BACKLOG §474: the run is given the model that was picked",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the reviewer is the model the installed Codex ranks first for the effort$",
-      "from": "const call = codexInvocation({ bin, repo, effort, model: picked.model, prompt,",
+      "only": "^--model names the reviewer for one run, and the row records the name that was passed$",
+      "from": "const call = codexInvocation({ bin, repo, effort, model, prompt,",
       "to": "const call = codexInvocation({ bin, repo, effort, prompt,"
     },
     {
-      "label": "BACKLOG §474: two models sharing the first rank is could-not-tell",
+      "label": "BACKLOG §474: the JSON form's result and row name the model that was passed",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (sharing !== 1) return builtIn(",
-      "to": "if (sharing < 1) return builtIn("
+      "only": "^--model names the reviewer for one run, and the row records the name that was passed$",
+      "from": "reviewFromOutput(result.text, { host: 'codex', model: named, effort })",
+      "to": "reviewFromOutput(result.text, { host: 'codex', model: CODEX_MODEL, effort })"
     },
     {
-      "label": "BACKLOG §474: a slug that is not a model name is not passed to Codex",
+      "label": "BACKLOG §474: the prompt-file row names the model that was passed",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "typeof entry.slug === 'string' && MODEL_SLUG.test(entry.slug)",
-      "to": "typeof entry.slug === 'string'"
+      "only": "^--model names the reviewer for one run, and the row records the name that was passed$",
+      "from": "recordReview(repo, { host: 'codex', model, bound: status",
+      "to": "recordReview(repo, { host: 'codex', model: CODEX_MODEL, bound: status"
     },
     {
-      "label": "BACKLOG §474: the prompt-file row names the model the launcher asked for",
+      "label": "BACKLOG §474: the JSON form refuses a name that is not a model name",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the prompt-file row names the model the launcher asked for, and standard error says when Codex could not name one$",
-      "from": "model: result.model ?? CODEX_MODEL, bound: status",
-      "to": "model: CODEX_MODEL, bound: status"
+      "only": "^a --model that is not a model name is refused before anything runs$",
+      "from": "if (typeof named !== 'string' || !MODEL_NAME.test(named)) return unavailable(",
+      "to": "if (false) return unavailable("
     },
     {
-      "label": "BACKLOG §474: the prompt-file command line wires the lookup",
+      "label": "BACKLOG §474: the prompt-file form refuses a name that is not a model name",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the command line asks the installed Codex for its first-ranked model, in both forms$",
-      "from": "    const said = promptFileReview({ pick: codexModel })",
-      "to": "    const said = promptFileReview()"
+      "only": "^a --model that is not a model name is refused before anything runs$",
+      "from": "if (!MODEL_NAME.test(model)) return fail(NOT_A_MODEL_NAME)",
+      "to": "if (false) return fail(NOT_A_MODEL_NAME)"
     },
     {
-      "label": "BACKLOG §474: the JSON command line wires the lookup",
+      "label": "BACKLOG §474: a model name starts with a letter or a digit",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the command line asks the installed Codex for its first-ranked model, in both forms$",
-      "from": "    pick: codexModel,",
-      "to": "    pick: undefined,"
+      "only": "^a --model that is not a model name is refused before anything runs$",
+      "from": "export const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/",
+      "to": "export const MODEL_NAME = /^[A-Za-z0-9._-]{1,128}$/"
     },
     {
-      "label": "BACKLOG §474: a row that cannot be read is could-not-tell, not skipped",
+      "label": "BACKLOG §474: a bare --model in the prompt-file form is not the default",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (!readable) return builtIn('a row of its model list is not in the shape this reads')",
-      "to": "if (!readable) continue"
+      "only": "^a --model that is not a model name is refused before anything runs$",
+      "from": "const model = argv.includes('--model') ? String(arg('--model', argv) ?? '') : CODEX_MODEL",
+      "to": "const model = arg('--model', argv) ?? CODEX_MODEL"
     },
     {
-      "label": "BACKLOG §474: a probe stopped by a signal says which",
+      "label": "BACKLOG §474: a bare --model in the JSON form is not the default",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "    : child.signal ? `${what} was stopped by ${child.signal}`",
-      "to": "    : false ? `${what} was stopped by ${child.signal}`"
-    },
-    {
-      "label": "BACKLOG §474: a build that lists no debug models command is not sent it",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (!listsModels(help.stdout ?? '')) return builtIn(",
-      "to": "if (false) return builtIn("
-    },
-    {
-      "label": "BACKLOG §474: models is a command of its own, not models-cache",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "/^models(?:\\s|$)/.test(line.slice(column.length))",
-      "to": "/^models\\b/.test(line.slice(column.length))"
-    },
-    {
-      "label": "BACKLOG §474: models is read in the command-name column, not in a wrapped description",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (line.startsWith(column) && /^models(?:\\s|$)/.test(line.slice(column.length))) return true",
-      "to": "if (/^\\s+models(?:\\s|$)/.test(line)) return true"
-    },
-    {
-      "label": "BACKLOG §474: a rank is read as it was written",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (key === 'priority' && !/^\\d{1,9}$/.test(context?.source ?? '')) unwritten = true",
-      "to": "if (false) unwritten = true"
-    },
-    {
-      "label": "BACKLOG §474: models is read in the Commands section only",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "    if (!line.trim()) return false",
-      "to": "    if (!line.trim()) continue"
-    },
-    {
-      "label": "BACKLOG §474: a help that could not be asked is not said to list no command",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "  if (unasked) return builtIn(unasked)",
-      "to": "  if (unasked) return builtIn('this build lists no `debug models` command')"
-    },
-    {
-      "label": "BACKLOG §474: the probe runs in the review's own directory",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the probe runs as the review does: the same name, in the same directory$",
-      "from": "const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }",
-      "to": "const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, cwd: os.tmpdir() }"
-    },
-    {
-      "label": "BACKLOG §474: an unavailable answer with no reason still says why",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/host-review.test.mjs"],
-      "only": "^a reviewer that answers unavailable in the schema is unproven, never pinned$",
-      "from": "parsed.status === 'unavailable' ? 'the reviewer answered that it was unavailable' : '',",
-      "to": "'',"
+      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
+      "from": "arg('--host') === 'codex' && process.argv.includes('--model') ? arg('--model') ?? '' : arg('--model') ?? null",
+      "to": "arg('--model') ?? null"
     },
     {
       "label": "BACKLOG §474: an answer of unavailable in the schema is unproven",
@@ -506,28 +418,12 @@
       "to": "    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',"
     },
     {
-      "label": "BACKLOG §474: a visibility that was never measured is not read",
+      "label": "BACKLOG §474: an unavailable answer with no reason still says why",
       "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)",
-      "to": "      && typeof entry.visibility === 'string' && Number.isInteger(entry.priority)"
-    },
-    {
-      "label": "BACKLOG §474: a row with no rank is not read",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)",
-      "to": "      && MODEL_VISIBILITY.has(entry.visibility) && true"
-    },
-    {
-      "label": "BACKLOG §474: an effort word that was never measured is not read",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "      && entry.supported_reasoning_levels.every(level => MODEL_EFFORTS.has(level?.effort))",
-      "to": "      && entry.supported_reasoning_levels.every(level => typeof level?.effort === 'string')"
+      "tests": ["tests/host-review.test.mjs"],
+      "only": "^a reviewer that answers unavailable in the schema is unproven, never pinned$",
+      "from": "parsed.status === 'unavailable' ? 'the reviewer answered that it was unavailable' : '',",
+      "to": "'',"
     }
   ]
 }

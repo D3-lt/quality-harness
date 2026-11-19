@@ -222,6 +222,10 @@ test('a --model that is not a model name is refused before anything runs', () =>
     assert.deepEqual([promptFileReview({ argv, resolve: () => '/bin/codex', run: runs.run }).code, runs.calls.length], [2, 0])
   }
   assert.equal(hostReview({ ...review, repo: ownRepo, model: 7, run: runs.run }).status, 'unavailable')
+  // A second `--model` is refused whatever the first was: the later one is not quietly ignored (review of b03f504d).
+  for (const extra of [['--model'], ['--model', 'gpt-8-sol'], ['--model', '-m']]) {
+    assert.deepEqual([promptFileReview({ argv: [...fileForm, '--model', 'gpt-7-sol', ...extra], resolve: () => '/bin/codex', run: runs.run }).code, runs.calls.length], [2, 0], extra.join(' '))
+  }
   // CLEAN: the names a catalogue holds are names.
   for (const name of ['gpt-6.2-sol', 'gpt-5.5', 'codex-auto-review', 'o3', 'g'.repeat(128)]) assert.equal(MODEL_NAME.test(name), true, name)
 })
@@ -248,5 +252,12 @@ require('node:fs').writeFileSync(a[a.indexOf('-o') + 1], JSON.stringify({ status
     const bare = cli([...form, '--model'])
     assert.equal(bare.status, 2, form[0])
     assert.match(`${bare.stdout}${bare.stderr}`, /--model is not a model name/, form[0])
+    assert.equal(cli([...form, '--model', 'gpt-7-sol', '--model']).status, 2, `${form[0]}: a second --model`)
+  }
+  // A requirement or a piece of evidence that reads `--model` is review input, not the option (it was at 8866a0b7).
+  for (const literal of [['--requirements', '--model'], ['--evidence', '--model'], ['--requirements', '--model', '--evidence', '--model']]) {
+    const said = cli(['--scope', 'uncommitted', ...literal])
+    assert.equal(said.status, 0, `${literal.join(' ')}: ${said.stdout}${said.stderr}`)
+    assert.equal(JSON.parse(said.stdout).model, CODEX_MODEL)
   }
 })

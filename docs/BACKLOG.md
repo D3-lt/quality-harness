@@ -4883,6 +4883,9 @@ Codex's to say. Kept from the rounds above, since it is not about the lookup: a 
 (ADR-119 T2), with its findings, printed model and a default reason. `codexModel`, the help check, the rank check and their
 tests and mutants are gone; tests/codex-launcher.test.mjs holds three tests for the override and the catalogue ten mutants.
 ADR-098 T1 is re-locked on the test as it stands. The skills' descriptions name no model.
+The whole-range review of that (b03f504d) found two in the way the command line found `--model`, both fixed: a second `--model`
+after a good one was ignored, so more than one is refused; and a requirement or a piece of evidence that literally reads
+`--model` was taken for the option, which 8866a0b7 passed through as text, so the options that take a value are walked in order.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

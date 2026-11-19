@@ -394,19 +394,35 @@
       "to": "export const MODEL_NAME = /^[A-Za-z0-9._-]{1,128}$/"
     },
     {
-      "label": "BACKLOG §474: a bare --model in the prompt-file form is not the default",
+      "label": "BACKLOG §474: a --model with no name after it is not the default",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^a --model that is not a model name is refused before anything runs$",
-      "from": "const model = argv.includes('--model') ? String(arg('--model', argv) ?? '') : CODEX_MODEL",
-      "to": "const model = arg('--model', argv) ?? CODEX_MODEL"
+      "from": "  return named.length === 1 && typeof named[0] === 'string' ? named[0] : ''",
+      "to": "  return named.length === 1 && typeof named[0] === 'string' ? named[0] : null"
     },
     {
-      "label": "BACKLOG §474: a bare --model in the JSON form is not the default",
+      "label": "BACKLOG §474: a second --model is refused",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a --model that is not a model name is refused before anything runs$",
+      "from": "  return named.length === 1 && typeof named[0] === 'string' ? named[0] : ''",
+      "to": "  return typeof named[0] === 'string' ? named[0] : ''"
+    },
+    {
+      "label": "BACKLOG §474: another option's value is not the --model option",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^the command line passes --model through in both forms, and refuses a bare one$",
-      "from": "arg('--host') === 'codex' && process.argv.includes('--model') ? arg('--model') ?? '' : arg('--model') ?? null",
+      "from": "    if (argv[index] === '--model') named.push(argv[index + 1])\n    index += 1",
+      "to": "    if (argv[index] === '--model') named.push(argv[index + 1])"
+    },
+    {
+      "label": "BACKLOG §474: the JSON form reads Codex's --model through the walker",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
+      "from": "arg('--host') === 'codex' ? codexModelOption(process.argv) : arg('--model') ?? null",
       "to": "arg('--model') ?? null"
     },
     {

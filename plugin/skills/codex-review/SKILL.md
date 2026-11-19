@@ -142,8 +142,8 @@ clone's state directory, shared by every worktree, where this repository's relea
 reviewed (ADR-100). A row records the host, the model (the one the launcher passed), `bound` (`pinned`, or `unproven` when
 the run returned nothing), the effort, the status of the last `VERDICT:` line, and the range resolved to full shas. A
 `host-review.mjs` run without `--prompt-file`, which reads the reviewer's own model line, records `bound: disagrees` and
-the `reportedModel` it printed when that is not the model the launcher passed, and `bound: unproven` when the reviewer
-answered that it was unavailable. A malformed or unresolvable range runs nothing and
+the `reportedModel` it printed when that is not the model the launcher passed. When the reviewer answered that it was
+unavailable the row is `bound: unproven`, whatever name it printed. A malformed or unresolvable range runs nothing and
 exits 2.
 
 What the launcher runs, built in one place (`codexInvocation` in `host-review.mjs`), shown so a reader can check a

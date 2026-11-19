@@ -8,8 +8,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { CODEX_MODEL, CODEX_TIMEOUT_MS, MODEL_NAME, REVIEWS_FILE, codexInvocation, hostReview, promptFileReview } from '../plugin/scripts/host-review.mjs'
+import { CODEX_MODEL, CODEX_MODEL_ENV, CODEX_TIMEOUT_MS, MODEL_NAME, REVIEWS_FILE, codexInvocation, codexReviewer, hostReview, promptFileReview } from '../plugin/scripts/host-review.mjs'
 import { cloneStateDir } from '../plugin/scripts/event-log.mjs'
+
+// A developer's own override must not decide what these tests see.
+delete process.env[CODEX_MODEL_ENV]
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-codex-launch-')))
@@ -177,7 +180,7 @@ test('the token footer codex ends its stderr with is not the reason', () => {
   assert.match(result.reason, /codex exited 1: ERROR: quota exceeded$/)
 })
 
-// BACKLOG §474 (the owner, 2026-11-19): `--model` names the reviewer for one run, so a new model needs no release.
+// BACKLOG §474 (the owner, 2026-11-19): the environment names another reviewer for a run, so a new model needs no release.
 // A repository of this file's own for the runs below: each leaves a review row, read back where the launcher writes it.
 const ownRepo = path.join(scratch, 'own')
 mkdirSync(ownRepo)
@@ -186,51 +189,51 @@ const lastRow = () => JSON.parse(readFileSync(path.join(cloneStateDir(ownRepo), 
 const given = runs => { const argv = runs.review().args; return argv[argv.indexOf('-m') + 1] }
 const ownContract = path.join(scratch, 'own-contract.txt')
 writeFileSync(ownContract, 'CODEX-REVIEW-LEAF: read it')
-const fileForm = ['node', 'host-review.mjs', '--host', 'codex', '--effort', 'high', '--repo', ownRepo, '--prompt-file', ownContract]
+const fileForm = ['--host', 'codex', '--effort', 'high', '--repo', ownRepo, '--prompt-file', ownContract]
+const named = name => ({ [CODEX_MODEL_ENV]: name })
 
-test('--model names the reviewer for one run, and the row records the name that was passed', () => {
+test('the environment names the reviewer for a run, and the row records the name that was passed', () => {
   const runs = fake({ status: 0, stdout: clean })
-  const result = hostReview({ ...review, repo: ownRepo, model: 'gpt-7-sol', run: runs.run })
+  const result = hostReview({ ...review, repo: ownRepo, env: named('gpt-7-sol'), run: runs.run })
   assert.deepEqual([given(runs), result.model, result.bound, lastRow().model, lastRow().bound], ['gpt-7-sol', 'gpt-7-sol', 'pinned', 'gpt-7-sol', 'pinned'])
-  // CLEAN twin: with none named it is CODEX_MODEL.
+  // CLEAN twin: with the variable unset it is CODEX_MODEL.
   const plain = fake({ status: 0, stdout: clean })
-  const usual = hostReview({ ...review, repo: ownRepo, run: plain.run })
+  const usual = hostReview({ ...review, repo: ownRepo, env: {}, run: plain.run })
   assert.deepEqual([given(plain), usual.model, lastRow().model], [CODEX_MODEL, CODEX_MODEL, CODEX_MODEL])
   // The prompt-file form, the one the skills launch through.
   const verdicts = fake({ status: 0, stdout: 'VERDICT: APPROVE\n' })
-  assert.equal(promptFileReview({ argv: [...fileForm, '--model', 'gpt-7-sol'], resolve: () => '/bin/codex', run: verdicts.run }).code, 0)
+  assert.equal(promptFileReview({ argv: fileForm, resolve: () => '/bin/codex', env: named('gpt-7-sol'), run: verdicts.run }).code, 0)
   assert.deepEqual([given(verdicts), lastRow().model, lastRow().bound, lastRow().status], ['gpt-7-sol', 'gpt-7-sol', 'pinned', 'clean'])
   const usualFile = fake({ status: 0, stdout: 'VERDICT: APPROVE\n' })
-  assert.equal(promptFileReview({ argv: fileForm, resolve: () => '/bin/codex', run: usualFile.run }).code, 0)
+  assert.equal(promptFileReview({ argv: fileForm, resolve: () => '/bin/codex', env: {}, run: usualFile.run }).code, 0)
   assert.deepEqual([given(usualFile), lastRow().model], [CODEX_MODEL, CODEX_MODEL])
+  // A `--model` option is the other hosts': for Codex it changes nothing, as it changed nothing at 8866a0b7.
+  const option = fake({ status: 0, stdout: clean })
+  assert.equal(hostReview({ ...review, repo: ownRepo, model: 'gpt-8-sol', env: {}, run: option.run }).model, CODEX_MODEL)
+  assert.equal(given(option), CODEX_MODEL)
 })
 
-test('a --model that is not a model name is refused before anything runs', () => {
-  // It becomes the value of `-m`: an option, a second word or a shell fragment is not a name, and neither is none at all.
-  for (const name of ['', '-c', '--config=x', '.hidden', 'gpt 7', 'gpt-7;rm', 'gpt-7\n', 'g'.repeat(129)]) {
+test('a reviewer name that is not a model name is refused before anything runs', () => {
+  // It becomes the value of `-m`: an option, a second word or a shell fragment is not a name, and neither is an empty one.
+  for (const name of ['', ' ', '-c', '--config=x', '.hidden', 'gpt 7', 'gpt-7;rm', 'gpt-7\n', 'g'.repeat(129)]) {
+    assert.equal(codexReviewer(named(name)), null, JSON.stringify(name))
     const runs = fake({ status: 0, stdout: clean })
-    const result = hostReview({ ...review, repo: ownRepo, model: name, run: runs.run })
+    const result = hostReview({ ...review, repo: ownRepo, env: named(name), run: runs.run })
     assert.deepEqual([result.status, runs.calls.length], ['unavailable', 0], JSON.stringify(name))
-    assert.match(result.reason, /--model is not a model name/)
-    const said = promptFileReview({ argv: [...fileForm, '--model', name], resolve: () => '/bin/codex', run: runs.run })
+    assert.match(result.reason, /QUALITY_HARNESS_CODEX_MODEL is not a model name/)
+    const said = promptFileReview({ argv: fileForm, resolve: () => '/bin/codex', env: named(name), run: runs.run })
     assert.deepEqual([said.code, runs.calls.length], [2, 0], JSON.stringify(name))
-    assert.match(said.err, /--model is not a model name/)
+    assert.match(said.err, /QUALITY_HARNESS_CODEX_MODEL is not a model name/)
   }
-  // `--model` with nothing after it, or with the next flag after it, is refused: never read as "the default".
-  const runs = fake({ status: 0, stdout: 'VERDICT: APPROVE\n' })
-  for (const argv of [[...fileForm, '--model'], ['node', 'host-review.mjs', '--model', '--host', 'codex', '--effort', 'high', '--repo', ownRepo, '--prompt-file', ownContract]]) {
-    assert.deepEqual([promptFileReview({ argv, resolve: () => '/bin/codex', run: runs.run }).code, runs.calls.length], [2, 0])
+  // CLEAN: the names a catalogue holds are names, and an unset variable is the default.
+  for (const name of ['gpt-6.2-sol', 'gpt-5.5', 'codex-auto-review', 'o3', 'g'.repeat(128)]) {
+    assert.equal(MODEL_NAME.test(name), true, name)
+    assert.equal(codexReviewer(named(name)), name)
   }
-  assert.equal(hostReview({ ...review, repo: ownRepo, model: 7, run: runs.run }).status, 'unavailable')
-  // A second `--model` is refused whatever the first was: the later one is not quietly ignored (review of b03f504d).
-  for (const extra of [['--model'], ['--model', 'gpt-8-sol'], ['--model', '-m']]) {
-    assert.deepEqual([promptFileReview({ argv: [...fileForm, '--model', 'gpt-7-sol', ...extra], resolve: () => '/bin/codex', run: runs.run }).code, runs.calls.length], [2, 0], extra.join(' '))
-  }
-  // CLEAN: the names a catalogue holds are names.
-  for (const name of ['gpt-6.2-sol', 'gpt-5.5', 'codex-auto-review', 'o3', 'g'.repeat(128)]) assert.equal(MODEL_NAME.test(name), true, name)
+  assert.equal(codexReviewer({}), CODEX_MODEL)
 })
 
-test('the command line passes --model through in both forms, and refuses a bare one', t => {
+test('the command line reads the reviewer from its environment, in both forms', t => {
   if (process.platform === 'win32') return t.skip('a #!/usr/bin/env node stub on CODEX_CLI_PATH cannot be executed on Windows')
   const stub = path.join(scratch, 'codex-names')
   writeFileSync(stub, `#!/usr/bin/env node
@@ -239,28 +242,22 @@ if (a[1] === '--help') process.exit(0)
 require('node:fs').writeFileSync(a[a.indexOf('-o') + 1], JSON.stringify({ status: 'clean', findings: [], model: a[a.indexOf('-m') + 1] }))
 `)
   chmodSync(stub, 0o755)
-  const cli = args => spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'host-review.mjs'), '--host', 'codex', '--effort', 'high', '--repo', ownRepo, ...args],
-    { encoding: 'utf8', timeout: 60_000, env: { ...process.env, CODEX_CLI_PATH: stub }, windowsHide: true })
+  const cli = (form, env) => spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'host-review.mjs'), '--host', 'codex', '--effort', 'high', '--repo', ownRepo, ...form],
+    { encoding: 'utf8', timeout: 60_000, env: { ...process.env, CODEX_CLI_PATH: stub, ...env }, windowsHide: true })
   for (const form of [['--prompt-file', ownContract], ['--scope', 'uncommitted']]) {
-    const named = cli([...form, '--model', 'gpt-7-sol'])
-    assert.equal(named.status, 0, named.stderr)
-    assert.equal(JSON.parse(named.stdout).model, 'gpt-7-sol', form[0])
-    const usual = cli(form)
+    const other = cli(form, named('gpt-7-sol'))
+    assert.equal(other.status, 0, other.stderr)
+    assert.equal(JSON.parse(other.stdout).model, 'gpt-7-sol', form[0])
+    const usual = cli(form, {})
     assert.equal(usual.status, 0, usual.stderr)
     assert.equal(JSON.parse(usual.stdout).model, CODEX_MODEL, form[0])
-    // DIRTY: `--model` with no name after it runs nothing and says why.
-    const bare = cli([...form, '--model'])
-    assert.equal(bare.status, 2, form[0])
-    assert.match(`${bare.stdout}${bare.stderr}`, /--model is not a model name/, form[0])
-    assert.equal(cli([...form, '--model', 'gpt-7-sol', '--model']).status, 2, `${form[0]}: a second --model`)
-    // An option only the other form has takes no value in this one, so it does not hide a second `--model` behind it.
-    const other = form[0] === '--scope' ? '--range' : '--requirements'
-    assert.equal(cli([...form, '--model', 'gpt-7-sol', other, '--model', 'gpt-8-sol']).status, 2, `${form[0]}: a second --model after ${other}`)
+    // DIRTY: a variable that is set and names nothing runs nothing and says why.
+    const empty = cli(form, named(''))
+    assert.equal(empty.status, 2, form[0])
+    assert.match(`${empty.stdout}${empty.stderr}`, /QUALITY_HARNESS_CODEX_MODEL is not a model name/, form[0])
   }
-  // A requirement or a piece of evidence that reads `--model` is review input, not the option (it was at 8866a0b7).
-  for (const literal of [['--requirements', '--model'], ['--evidence', '--model'], ['--requirements', '--model', '--evidence', '--model']]) {
-    const said = cli(['--scope', 'uncommitted', ...literal])
-    assert.equal(said.status, 0, `${literal.join(' ')}: ${said.stdout}${said.stderr}`)
-    assert.equal(JSON.parse(said.stdout).model, CODEX_MODEL)
-  }
+  // Text that reads `--model` is review input, as it was at 8866a0b7, wherever it stands.
+  const literal = cli(['--scope', 'uncommitted', '--requirements', '--model', '--evidence', '--model'], {})
+  assert.equal(literal.status, 0, `${literal.stdout}${literal.stderr}`)
+  assert.equal(JSON.parse(literal.stdout).model, CODEX_MODEL)
 })

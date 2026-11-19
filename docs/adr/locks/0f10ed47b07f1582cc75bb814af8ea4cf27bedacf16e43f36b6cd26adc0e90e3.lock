@@ -1,0 +1,16 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/codex-launcher.test.mjs	a Codex run closes stdin and is killed at its budget	cf7e57de38c1249c378ee2c281a25b0bd5225ace0f9eead8d5de3e8c46dd97eb
+body	tests/codex-launcher.test.mjs	a Codex run past its budget is unavailable, never clean	c56b2b50660619d8233fb019d24cc2cd3b73fbf44b8f1c3427dc8a07e284ead5
+body	tests/codex-launcher.test.mjs	a Codex run stopped by a signal before its deadline is unavailable, and not called the budget	cb59ef25068cee41d3cb03eb613f4c76c0536b490a7256384e07d82e4d9c527a
+body	tests/codex-launcher.test.mjs	a Codex run that exits non-zero says why, from its own last stderr line	7ea9c3f8c9a00d0e8d1943e3f53f941a7c4e9526951511862ab454978a7d9b44
+body	tests/codex-launcher.test.mjs	a reviewer name that is not a model name is refused before anything runs	7bef09f51a6b3e69706140f718e79ee3a7183a18844c32953f1037c1374d86b5
+body	tests/codex-launcher.test.mjs	a skill that builds its own codex exec command is found in any spelling	7180b4991f2d4200e557efeee0edcf48b9b0d7247e9a73dc22ddf2cd8115203a
+body	tests/codex-launcher.test.mjs	a temporary directory that cannot be made is unavailable, not a throw	dc87be65fe416b997ef2b2e4c07d476df04d14ed30e41ee6025639bb3d5d0071
+body	tests/codex-launcher.test.mjs	both Codex skills launch through host-review and keep their recursion markers	8f590ebf22fed930385d7cc66f1109afdfa8ce56cc972d0f07abf3a6425f5db0
+body	tests/codex-launcher.test.mjs	the Codex command line has one builder and one model	f1eb6152da0df29c4b364d669330d305f3f9597c72432b1883937082c13fe778
+body	tests/codex-launcher.test.mjs	the command line reads the reviewer from its environment, in both forms	d6fd575bf98b5a7f6355d8487a14cc8a1e5a3a040785f0cad93766973cd3128f
+body	tests/codex-launcher.test.mjs	the environment names the reviewer for a run, and the row records the name that was passed	7b243e51abaf72f94068601e86aaff3ed716970e16caf8ff90604847d26235f7
+body	tests/codex-launcher.test.mjs	the help probe is killed hard at its own deadline	a2123b607d03c41ab7be5a1e2da8004cde22352c6b330df0a2daa43372ddaf88
+body	tests/codex-launcher.test.mjs	the invocation the codex-review skill shows is the one the launcher builds	5c65bcf22004ab13d1719d9f7742271fbac841f6d0a498cd1e52ec628e3e148b
+body	tests/codex-launcher.test.mjs	the prompt-file form sends the caller's prompt and prints the final message	ea23c64e46a97a7883520e215315522540220ab68e1e17c77f1bb8648f2475a9
+body	tests/codex-launcher.test.mjs	the token footer codex ends its stderr with is not the reason	5004df8f56da0efa9a9b02bac963d930b61b7871061d25f77c8e06844e80a113

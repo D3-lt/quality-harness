@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { CODEX_MODEL, PI_UNMEASURED, hostReview, reviewFromOutput } from '../plugin/scripts/host-review.mjs'
+import { CODEX_MODEL, CODEX_MODEL_ENV, PI_UNMEASURED, hostReview, reviewFromOutput } from '../plugin/scripts/host-review.mjs'
+
+// A developer's own override must not decide what these tests see.
+delete process.env[CODEX_MODEL_ENV]
 
 const finding = {
   file: 'a.js', problem: 'p', impact: 'i', evidence: 'a.js:1', minimal_fix: 'f', severity: 'blocking',

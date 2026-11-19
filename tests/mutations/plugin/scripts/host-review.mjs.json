@@ -349,7 +349,7 @@
       "label": "BACKLOG §474: the run is given the model that was named",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^--model names the reviewer for one run, and the row records the name that was passed$",
+      "only": "^the environment names the reviewer for a run, and the row records the name that was passed$",
       "from": "const call = codexInvocation({ bin, repo, effort, model, prompt,",
       "to": "const call = codexInvocation({ bin, repo, effort, prompt,"
     },
@@ -357,7 +357,7 @@
       "label": "BACKLOG §474: the JSON form's result and row name the model that was passed",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^--model names the reviewer for one run, and the row records the name that was passed$",
+      "only": "^the environment names the reviewer for a run, and the row records the name that was passed$",
       "from": "reviewFromOutput(result.text, { host: 'codex', model: named, effort })",
       "to": "reviewFromOutput(result.text, { host: 'codex', model: CODEX_MODEL, effort })"
     },
@@ -365,7 +365,7 @@
       "label": "BACKLOG §474: the prompt-file row names the model that was passed",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^--model names the reviewer for one run, and the row records the name that was passed$",
+      "only": "^the environment names the reviewer for a run, and the row records the name that was passed$",
       "from": "recordReview(repo, { host: 'codex', model, bound: status",
       "to": "recordReview(repo, { host: 'codex', model: CODEX_MODEL, bound: status"
     },
@@ -373,73 +373,57 @@
       "label": "BACKLOG §474: the JSON form refuses a name that is not a model name",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a --model that is not a model name is refused before anything runs$",
-      "from": "if (typeof named !== 'string' || !MODEL_NAME.test(named)) return unavailable(",
-      "to": "if (false) return unavailable("
+      "only": "^a reviewer name that is not a model name is refused before anything runs$",
+      "from": "if (named === null) return unavailable('codex', effort, NOT_A_MODEL_NAME)",
+      "to": "if (false) return unavailable('codex', effort, NOT_A_MODEL_NAME)"
     },
     {
       "label": "BACKLOG §474: the prompt-file form refuses a name that is not a model name",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a --model that is not a model name is refused before anything runs$",
-      "from": "if (!MODEL_NAME.test(model)) return fail(NOT_A_MODEL_NAME)",
+      "only": "^a reviewer name that is not a model name is refused before anything runs$",
+      "from": "if (model === null) return fail(NOT_A_MODEL_NAME)",
       "to": "if (false) return fail(NOT_A_MODEL_NAME)"
     },
     {
       "label": "BACKLOG §474: a model name starts with a letter or a digit",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a --model that is not a model name is refused before anything runs$",
+      "only": "^a reviewer name that is not a model name is refused before anything runs$",
       "from": "export const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/",
       "to": "export const MODEL_NAME = /^[A-Za-z0-9._-]{1,128}$/"
     },
     {
-      "label": "BACKLOG §474: a --model with no name after it is not the default",
+      "label": "BACKLOG §474: a variable set to nothing is not the default",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a --model that is not a model name is refused before anything runs$",
-      "from": "  return named.length === 1 && typeof named[0] === 'string' ? named[0] : ''",
-      "to": "  return named.length === 1 && typeof named[0] === 'string' ? named[0] : null"
+      "only": "^a reviewer name that is not a model name is refused before anything runs$",
+      "from": "  if (named === undefined) return CODEX_MODEL",
+      "to": "  if (!named) return CODEX_MODEL"
     },
     {
-      "label": "BACKLOG §474: a second --model is refused",
+      "label": "BACKLOG §474: a name that is not a model name is refused, not replaced by the default",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^a --model that is not a model name is refused before anything runs$",
-      "from": "  return named.length === 1 && typeof named[0] === 'string' ? named[0] : ''",
-      "to": "  return typeof named[0] === 'string' ? named[0] : ''"
+      "only": "^a reviewer name that is not a model name is refused before anything runs$",
+      "from": "MODEL_NAME.test(named) ? named : null",
+      "to": "MODEL_NAME.test(named) ? named : CODEX_MODEL"
     },
     {
-      "label": "BACKLOG §474: another option's value is not the --model option",
+      "label": "BACKLOG §474: the JSON command line reads the variable from its own environment",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
-      "from": "    if (argv[index] === '--model') named.push(argv[index + 1])\n    index += 1",
-      "to": "    if (argv[index] === '--model') named.push(argv[index + 1])"
+      "only": "^the command line reads the reviewer from its environment, in both forms$",
+      "from": "  const named = codexReviewer(env)",
+      "to": "  const named = codexReviewer({})"
     },
     {
-      "label": "BACKLOG §474: the JSON form reads Codex's --model through the walker",
+      "label": "BACKLOG §474: the prompt-file command line reads the variable from its own environment",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
-      "from": "arg('--host') === 'codex' ? codexModelOption(process.argv, JSON_VALUE_OPTIONS) : arg('--model') ?? null",
-      "to": "arg('--model') ?? null"
-    },
-    {
-      "label": "BACKLOG §474: the JSON form walks its own options, not the prompt-file form's",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
-      "from": "codexModelOption(process.argv, JSON_VALUE_OPTIONS)",
-      "to": "codexModelOption(process.argv, FILE_VALUE_OPTIONS)"
-    },
-    {
-      "label": "BACKLOG §474: the prompt-file form walks its own options, not the JSON form's",
-      "file": "plugin/scripts/host-review.mjs",
-      "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
-      "from": "codexModelOption(argv, FILE_VALUE_OPTIONS)",
-      "to": "codexModelOption(argv, JSON_VALUE_OPTIONS)"
+      "only": "^the command line reads the reviewer from its environment, in both forms$",
+      "from": "  const model = codexReviewer(env)",
+      "to": "  const model = codexReviewer({})"
     },
     {
       "label": "BACKLOG §474: an answer of unavailable in the schema is unproven",

@@ -32,7 +32,7 @@ steps below.
 
 ## Non-negotiable contract
 
-- Launch through the plugin's one Codex launcher (below), which pins `gpt-6.2-sol` unless `--model <name>` names another, and passes exactly one of `high`,
+- Launch through the plugin's one Codex launcher (below), which pins `gpt-6.2-sol` unless `QUALITY_HARNESS_CODEX_MODEL` names another, and passes exactly one of `high`,
   `xhigh`, `max`, or `ultra`.
 - Run in a read-only sandbox and ephemeral session. Codex must not edit, stage, commit, push, deploy,
   or contact anyone.
@@ -77,7 +77,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high
 ```
 
 The launcher resolves Codex (`CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then `command -v codex`), runs it
-read-only and ephemeral with `-m gpt-6.2-sol` (or the `--model` name) and the effort, adds `--ignore-user-config` when the installed build lists
+read-only and ephemeral with `-m gpt-6.2-sol` (or the `QUALITY_HARNESS_CODEX_MODEL` name) and the effort, adds `--ignore-user-config` when the installed build lists
 it, closes stdin, and kills the run at its budget. Exit 0: standard output is Codex's final message. Exit 2: Codex was
 unavailable, killed at the budget, or returned nothing; report Codex unavailable without substituting another reviewer
 under the same name. Add `--skip-git-repo-check` only for explicitly scoped non-Git work. Name untrusted files for Codex

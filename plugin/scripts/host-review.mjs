@@ -14,14 +14,26 @@ import path from 'node:path'
 import { cloneStateDir } from './event-log.mjs'
 import { isMainModule } from './main-module.mjs'
 
-// The Codex reviewer, unless `--model` names another (BACKLOG §474: the owner, 2026-11-19, so that a new model needs no
-// release). `gpt-6.2-sol` ran at high effort on codex-cli 0.170.0 (2026-11-19) before it was written here.
+// The Codex reviewer, unless the environment names another for the run (BACKLOG §474: the owner, 2026-11-19, so that a
+// new model needs no release). `gpt-6.2-sol` ran at high effort on codex-cli 0.170.0 (2026-11-19) before it was written here.
 export const CODEX_MODEL = 'gpt-6.2-sol'
 // A model name becomes the value of `-m`: it starts with a letter or digit, so Codex never reads it as an option.
 export const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+// The override is a variable, not an option: this command line is read by first occurrence, so an option could be given
+// twice, swallowed as another option's value, or be a requirement's own text, and three review rounds each found one more
+// such shape. A variable is set once or not at all.
+export const CODEX_MODEL_ENV = 'QUALITY_HARNESS_CODEX_MODEL'
+// The reviewer for a run: CODEX_MODEL, or the variable's name. Set to anything that is not a model name, the empty string
+// included, it is null: the run is refused, never given the default.
+export function codexReviewer(env = process.env) {
+  const named = env[CODEX_MODEL_ENV]
+  if (named === undefined) return CODEX_MODEL
+  return typeof named === 'string' && MODEL_NAME.test(named) ? named : null
+}
+const NOT_A_MODEL_NAME = `${CODEX_MODEL_ENV} is not a model name: letters, digits, dots, dashes and underscores, starting with a letter or a digit`
 // The review-grade efforts: `codex debug models --bundled` on codex-cli 0.170.0 (2026-11-19) lists low, medium, high, xhigh,
 // max and ultra for `gpt-6.2-sol`, as 0.162.0 did for `gpt-6.1-sol`; low and medium are not a verdict-bearing review. Whether
-// another model named with `--model` offers the effort is Codex's to say: it refuses, and the review is unavailable.
+// another model named in the variable offers the effort is Codex's to say: it refuses, and the review is unavailable.
 export const EFFORTS = new Set(['high', 'xhigh', 'max', 'ultra'])
 // One budget for every Codex run, and the run is killed at it: a review that outlives it is unavailable, never clean.
 export const CODEX_TIMEOUT_MS = 600_000
@@ -238,7 +250,7 @@ export function recordReview(repo, row) {
   }
 }
 
-export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
+export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, env = process.env, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
   const target = { repo, scope, requirements, evidence }
   if (host === 'cursor' || host === 'claude') {
@@ -257,10 +269,9 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
     return review
   }
   if (host !== 'codex') return unavailable(host ?? null, null, 'unknown host')
-  // `--model` names the reviewer for this run; with none it is CODEX_MODEL. Either is passed with `-m`, so the row's model
-  // is the one the launcher asked for.
-  const named = model ?? CODEX_MODEL
-  if (typeof named !== 'string' || !MODEL_NAME.test(named)) return unavailable('codex', effort, NOT_A_MODEL_NAME)
+  // The row's model is the one the launcher passed with `-m`. A `--model` option is the other hosts' and is not read here.
+  const named = codexReviewer(env)
+  if (named === null) return unavailable('codex', effort, NOT_A_MODEL_NAME)
   if (!EFFORTS.has(effort)) return unavailable('codex', effort, `effort is not one of ${[...EFFORTS].join(', ')}`, named)
   if (output !== undefined) return reviewFromOutput(output, { host: 'codex', model: named, effort })
   const bin = (resolve ?? resolveCodex)()
@@ -364,36 +375,18 @@ function claudeReview(child, model) {
   return reviewFromOutput(envelope.result.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''), { host: 'claude', model, effort: null })
 }
 
-const NOT_A_MODEL_NAME = '--model is not a model name: letters, digits, dots, dashes and underscores, starting with a letter or a digit'
 
 function arg(name, argv = process.argv) {
   const index = argv.indexOf(name)
   return index >= 0 ? argv[index + 1] : undefined
 }
 
-// The options of each form that take a value. Walking them in order keeps a value that happens to read `--model` (a
-// requirement, a piece of evidence) from being taken for the option (Codex review of b03f504d). Each form has its own:
-// an option only the other form has takes no value here, so it cannot swallow a second `--model` (review of f3f5359f).
-const JSON_VALUE_OPTIONS = new Set(['--host', '--effort', '--model', '--repo', '--scope', '--requirements', '--evidence'])
-const FILE_VALUE_OPTIONS = new Set(['--host', '--effort', '--model', '--repo', '--prompt-file', '--range'])
-// Codex's `--model`: null when it is not given, the name when it is given once with a word after it, and otherwise the
-// empty string, which is not a model name and so is refused: given twice, or with nothing after it.
-function codexModelOption(argv, valueOptions) {
-  const named = []
-  for (let index = 2; index < argv.length; index += 1) {
-    if (!valueOptions.has(argv[index])) continue
-    if (argv[index] === '--model') named.push(argv[index + 1])
-    index += 1
-  }
-  if (named.length === 0) return null
-  return named.length === 1 && typeof named[0] === 'string' ? named[0] : ''
-}
 
 // The `--prompt-file` form is the skills' launcher: the caller's own prompt (codex-review's VERDICT block, codex-advise's
 // advice), run through `runCodex`, and Codex's final message printed as it is. Code 2 with the reason when it could not run.
 // `--range <base>..<head>` names what it reviewed, resolved before the run; the row records the status of the last
 // VERDICT line (ADR-100 T1). Exported with its seams so the row is testable without a real Codex.
-export function promptFileReview({ argv = process.argv, resolve = resolveCodex, run = spawnSync } = {}) {
+export function promptFileReview({ argv = process.argv, resolve = resolveCodex, run = spawnSync, env = process.env } = {}) {
   const effort = arg('--effort', argv) ?? 'high'
   const repo = arg('--repo', argv)
   const file = arg('--prompt-file', argv)
@@ -401,8 +394,8 @@ export function promptFileReview({ argv = process.argv, resolve = resolveCodex, 
   if (arg('--host', argv) !== 'codex') return fail('--prompt-file runs Codex only: pass --host codex')
   if (!EFFORTS.has(effort)) return fail(`effort is not one of ${[...EFFORTS].join(', ')}`)
   if (typeof repo !== 'string' || !repo) return fail('no repository was named (--repo)')
-  const model = codexModelOption(argv, FILE_VALUE_OPTIONS) ?? CODEX_MODEL
-  if (!MODEL_NAME.test(model)) return fail(NOT_A_MODEL_NAME)
+  const model = codexReviewer(env)
+  if (model === null) return fail(NOT_A_MODEL_NAME)
   let range = { base: null, head: null, exact: false }
   if (argv.includes('--range')) {
     // A revision may hold dots (a release tag, `v3.8.25`), so the base is the shortest prefix before `..`. A three-dot
@@ -433,10 +426,8 @@ if (isMainModule(import.meta.url)) {
     process.stderr.write(said.err)
     process.exit(said.code)
   }
-  // The other hosts keep reading their `--model` as they did.
-  const named = arg('--host') === 'codex' ? codexModelOption(process.argv, JSON_VALUE_OPTIONS) : arg('--model') ?? null
   const result = hostReview({
-    host: arg('--host'), effort: arg('--effort') ?? 'high', model: named, repo: arg('--repo'),
+    host: arg('--host'), effort: arg('--effort') ?? 'high', model: arg('--model') ?? null, repo: arg('--repo'),
     scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',
   })
   process.stdout.write(`${JSON.stringify(result)}\n`)

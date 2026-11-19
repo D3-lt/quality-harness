@@ -11,6 +11,9 @@ import { CLAUDE_MODEL, CODEX_MODEL, hostReview, promptFileReview, verdictStatus 
 import { main, reviewEvidence } from '../scripts/release-evidence.mjs'
 import { cloneStateDir, stateDir } from '../plugin/scripts/event-log.mjs'
 
+// A developer's own reviewer override must not decide what these tests see.
+delete process.env.QUALITY_HARNESS_CODEX_MODEL
+
 const git = (cwd, ...args) => {
   const run = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 30_000 })
   assert.equal(run.status, 0, `git ${args.join(' ')}: ${run.stderr}`)

@@ -32,8 +32,8 @@ delegate the review, or restart a lifecycle. Without the marker, follow the disp
 ## Non-negotiable contract
 
 - Launch every run through the plugin's one Codex launcher, `host-review.mjs --prompt-file` (below). It pins model
-  `gpt-6.2-sol`, unless `--model <name>` names another for that run, and passes the selected effort explicitly, so
-  neither is inherited from ambient config or silently downgraded.
+  `gpt-6.2-sol`, unless `QUALITY_HARNESS_CODEX_MODEL` names another for that run, and passes the selected effort
+  explicitly, so neither is inherited from ambient config or silently downgraded.
 - Enforce a read-only sandbox. Codex may inspect and run safe checks but must not edit, stage, commit,
   push, deploy, or message anyone.
 - The launcher runs a fresh ephemeral session with a unique temporary output, closes stdin, and kills the run at its
@@ -132,9 +132,9 @@ Codex's final message. Exit 2: Codex was unavailable, killed at the budget, or r
 says which; report it as a failed review and do not substitute another reviewer under Codex's name. For an explicit
 non-Git artifact review add `--skip-git-repo-check`. Remove the contract's directory after the result is reported.
 
-Add `--model <name>` only when the user asks for another reviewer model: the launcher passes that name in place of
-`gpt-6.2-sol` for the one run, and refuses a name that is not a model name. Codex refuses a model or effort it does not
-offer, and that is a failed review.
+Set `QUALITY_HARNESS_CODEX_MODEL=<name>` in the launch's environment only when the user asks for another reviewer model:
+the launcher passes that name in place of `gpt-6.2-sol` for the one run, and refuses to run when the variable is set to
+anything that is not a model name. Codex refuses a model or effort it does not offer, and that is a failed review.
 
 `--range` names the commits the contract reviews, as two revisions (`<base>..<head>`, the same range the contract's scope
 names; omit it only for uncommitted work, which no range holds). The launcher records each run in `reviews.jsonl` in the

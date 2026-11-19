@@ -4796,8 +4796,9 @@ work was wrong; it was not done.
 
 ## 474. CLOSED 2026-11-19 (asked for and done the same day) — the Codex reviewer is `gpt-6.2-sol`, and `--model` names another for one run
 
-WHAT SHIPPED is the last paragraph of this section. Everything between here and there is the record of a lookup that asked the
-installed Codex for its first-ranked model: it was built, reviewed ten times, and removed before anything was pushed.
+WHAT SHIPPED is the paragraph near the end of this section that begins with those words. Everything before it is the record of
+two things built, reviewed and removed before anything was pushed: a lookup that asked the installed Codex for its first-ranked
+model, and then a `--model` option.
 
 The owner, 2026-11-19, with the repository frozen (§473): "for codex review use gpt-6.2-sol", and then, offered a pin bump or the
 latest model, chose the latest. Until now `CODEX_MODEL` in plugin/scripts/host-review.mjs pinned `gpt-6.1-sol` (ADR-098 T1), so
@@ -4875,7 +4876,7 @@ The whole-range review after that round (9dc14883) still requested changes: a ro
 written with an escape, masks an earlier fractional rank; and a help line of prose at command indentation beginning `models `.
 By its own account each needs a Codex that prints what 0.170.0 does not. Ten reviews had each found one more input to the same
 two parsers, so the owner chose, 2026-11-19, to drop the lookup.
-WHAT SHIPPED: `CODEX_MODEL` is `gpt-6.2-sol`, and `--model <name>` names another reviewer for one run in both command-line forms,
+THE FIRST OVERRIDE, an option, which did not ship either: `CODEX_MODEL` is `gpt-6.2-sol`, and `--model <name>` names another reviewer for one run in both command-line forms,
 so a later model needs no release. Nothing is parsed. The name is the value of `-m`, so it must start with a letter or a digit
 and hold only letters, digits, dots, dashes and underscores, at most 128; anything else, and a `--model` with no name after it,
 is refused before anything runs. A row's `model` is the name the launcher passed. Whether a named model offers the effort is
@@ -4891,6 +4892,18 @@ forms, so an option only the other form has (`--range` in the JSON form, `--requ
 second `--model` as its value. Each form now walks its own options. Left for later, with its evidence: CLAUDE.md §12,
 `.claude/rules/12-reviews.md` and the codex-review skill say every run is recorded, while `recordReview` warns on a failed
 append and still returns the review (host-review.mjs, "the review was not recorded"); the wording predates this change.
+The review of that (126bbfce) found the same class a third time: a repeated `--effort` took the second `--model` as its value,
+and a caller passing its options without the `node script` prefix had its first two skipped. This command line is read by
+first occurrence throughout (`arg`), so an option can always be given twice, swallowed, or be another option's own text. The
+override was therefore taken out of the command line.
+WHAT SHIPPED: `CODEX_MODEL` is `gpt-6.2-sol`. Setting `QUALITY_HARNESS_CODEX_MODEL=<name>` in the environment of a run names
+another Codex reviewer for it, in both forms, so a later model needs no release. A variable is set once or not at all, so
+nothing is parsed. The name becomes the value of `-m`: it must start with a letter or a digit and hold only letters, digits,
+dots, dashes and underscores, at most 128; a variable set to anything else, the empty string included, refuses the run before
+anything starts. A row's `model` is the name the launcher passed. Whether a named model offers the effort is Codex's to say.
+For Codex a `--model` option changes nothing, as at 8866a0b7; it is the other hosts'. Kept from the first rounds: a
+schema-valid `unavailable` answer is `unproven` (ADR-119 T2), with its findings, printed model and a default reason. Tests:
+three in tests/codex-launcher.test.mjs and one in tests/host-review.test.mjs; twelve catalogue mutants.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

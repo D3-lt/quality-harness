@@ -1,7 +1,7 @@
 ---
 name: codex-review
 description: >-
-  Run a fresh-context, read-only Codex GPT-6.1 Sol review in any project. Use for an independent
+  Run a fresh-context, read-only Codex review in any project. Use for an independent
   review of uncommitted changes, a commit, a branch/base diff, an ADR, a plan, or explicitly named
   artifacts; use when the user asks for codex-review, an external Codex pass, or a verdict-bearing
   review. Routes high, xhigh, max, or ultra effort from task risk and breadth. Do not use for open-ended
@@ -31,9 +31,9 @@ delegate the review, or restart a lifecycle. Without the marker, follow the disp
 
 ## Non-negotiable contract
 
-- Launch every run through the plugin's one Codex launcher, `host-review.mjs --prompt-file` (below). It pins model
-  `gpt-6.1-sol` and passes the selected effort explicitly, so neither is inherited from ambient config or silently
-  downgraded.
+- Launch every run through the plugin's one Codex launcher, `host-review.mjs --prompt-file` (below). It names the model
+  the installed Codex ranks first for the selected effort and passes both explicitly, so neither is inherited from
+  ambient config or silently downgraded.
 - Enforce a read-only sandbox. Codex may inspect and run safe checks but must not edit, stage, commit,
   push, deploy, or message anyone.
 - The launcher runs a fresh ephemeral session with a unique temporary output, closes stdin, and kills the run at its
@@ -98,8 +98,8 @@ honestly fits, state it before running, and pass it explicitly:
 
 Do not promote merely because the user says “review thoroughly”; route on actual breadth, risk, and
 ambiguity. Do not accept another effort string; the launcher refuses one. On a new or upgraded Codex installation,
-verify that the bundled `gpt-6.1-sol` catalog exposes the chosen level with `"<absolute-codex>" debug models --bundled`.
-If the level is unavailable, fail clearly instead of substituting another model or effort.
+`"<absolute-codex>" debug models --bundled` shows which model the launcher will name: the listed one of lowest `priority`
+that offers the chosen level. If the level is unavailable, fail clearly instead of substituting another effort.
 
 ## Establish execution evidence
 
@@ -125,21 +125,24 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high
 ```
 
 The launcher resolves Codex (`CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then `command -v codex`), passes
-`-s read-only`, `-c 'sandbox_mode="read-only"'`, `--ephemeral`, `-m gpt-6.1-sol` and the effort, adds
+`-s read-only`, `-c 'sandbox_mode="read-only"'`, `--ephemeral`, `-m <model>` and the effort, adds
 `--ignore-user-config` when the installed build lists it (so user MCP/config drift cannot change the run), writes the
 final message to a unique temporary file, closes stdin, and kills the run at its budget. Exit 0: standard output is
 Codex's final message. Exit 2: Codex was unavailable, killed at the budget, or returned nothing, and standard error
 says which; report it as a failed review and do not substitute another reviewer under Codex's name. For an explicit
 non-Git artifact review add `--skip-git-repo-check`. Remove the contract's directory after the result is reported.
 
+The model is the one the installed Codex ranks first (`debug models --bundled`: listed, lowest `priority`, offering the
+effort). When Codex cannot say, the launcher names `gpt-6.2-sol` and says so on standard error.
+
 `--range` names the commits the contract reviews, as two revisions (`<base>..<head>`, the same range the contract's scope
 names; omit it only for uncommitted work, which no range holds). The launcher records each run in `reviews.jsonl` in the
 clone's state directory, shared by every worktree, where this repository's release gate reads whether every shipped commit since the last tag was
-reviewed (ADR-100). A row records the host, the model (the pinned one), `bound` (`pinned`, or `unproven` when the run
-returned nothing), the effort, the status of the last `VERDICT:` line, and the range resolved to full shas. A
+reviewed (ADR-100). A row records the host, the model (the one the launcher named), `bound` (`pinned`, or `unproven` when
+the run returned nothing), the effort, the status of the last `VERDICT:` line, and the range resolved to full shas. A
 `host-review.mjs` run without `--prompt-file`, which reads the reviewer's own model line, records `bound: disagrees` and
-the `reportedModel` it printed when that is not the pinned model. A malformed or unresolvable range runs nothing and
-exits 2.
+the `reportedModel` it printed when that is not the model the launcher named. A malformed or unresolvable range runs
+nothing and exits 2.
 
 What the launcher runs, built in one place (`codexInvocation` in `host-review.mjs`), shown so a reader can check a
 run against it; do not type it yourself:
@@ -147,7 +150,7 @@ run against it; do not type it yourself:
 ```text
 <codex> exec <optional-ignore-user-config> \
   -C "<repo-root>" -s read-only \
-  -m gpt-6.1-sol -c 'model_reasoning_effort="<high|xhigh|max|ultra>"' \
+  -m <first-ranked-model> -c 'model_reasoning_effort="<high|xhigh|max|ultra>"' \
   -c 'sandbox_mode="read-only"' --ephemeral \
   -o "<absolute-unique-output>" \
   "CODEX-REVIEW-LEAF: <the contract file's text>"

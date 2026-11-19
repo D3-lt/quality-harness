@@ -1,7 +1,7 @@
 ---
 name: codex-advise
 description: >-
-  Ask a fresh-context, read-only Codex GPT-6.1 Sol session for grounded advice in any project. Use for
+  Ask a fresh-context, read-only Codex session for grounded advice in any project. Use for
   an independent second opinion on architecture, ADR shaping, design tradeoffs, debugging hypotheses,
   incident reasoning, or a difficult technical decision. Routes high, xhigh, max, or ultra effort from
   task risk and breadth. Do not use for a verdict-bearing change review (use codex-review), routine
@@ -32,8 +32,8 @@ steps below.
 
 ## Non-negotiable contract
 
-- Launch through the plugin's one Codex launcher (below), which pins `gpt-6.1-sol` and passes exactly one of `high`,
-  `xhigh`, `max`, or `ultra`.
+- Launch through the plugin's one Codex launcher (below), which names the model the installed Codex ranks first and
+  passes exactly one of `high`, `xhigh`, `max`, or `ultra`.
 - Run in a read-only sandbox and ephemeral session. Codex must not edit, stage, commit, push, deploy,
   or contact anyone.
 - Ask a concrete question, name the relevant repository/artifacts, and separate observed facts from
@@ -64,8 +64,8 @@ An explicit valid choice wins. Otherwise select and state the lowest honest tier
 | `ultra` | Broad high-impact architecture, migration/incident strategy, irreversible choice, or an explicitly exhaustive question where automatic delegation materially helps. |
 
 Never silently downgrade. Reject other effort strings; the launcher refuses one. On a new or upgraded installation, use
-`"<absolute-codex>" debug models --bundled` to confirm the chosen level under `gpt-6.1-sol`; fail clearly if that exact
-combination is unavailable.
+`"<absolute-codex>" debug models --bundled` to confirm a listed model offers the chosen level; fail clearly if none
+does.
 
 ## Launch the advisor
 
@@ -77,7 +77,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high
 ```
 
 The launcher resolves Codex (`CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then `command -v codex`), runs it
-read-only and ephemeral with `-m gpt-6.1-sol` and the effort, adds `--ignore-user-config` when the installed build lists
+read-only and ephemeral with `-m <model>` (the one Codex ranks first, as codex-review describes) and the effort, adds `--ignore-user-config` when the installed build lists
 it, closes stdin, and kills the run at its budget. Exit 0: standard output is Codex's final message. Exit 2: Codex was
 unavailable, killed at the budget, or returned nothing; report Codex unavailable without substituting another reviewer
 under the same name. Add `--skip-git-repo-check` only for explicitly scoped non-Git work. Name untrusted files for Codex

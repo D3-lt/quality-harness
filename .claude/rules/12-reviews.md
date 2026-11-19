@@ -41,9 +41,9 @@ campaign.
 ## The launcher and its record (ADR-100, 2026-10-13)
 
 The rules above are what `plugin/scripts/host-review.mjs` now does, so §12 points at it rather than restating them: stdin
-closed, a hard kill at `CODEX_TIMEOUT_MS`, the model pinned in `CODEX_MODEL`, and the contract's leaf instruction forbidding
+closed, a hard kill at `CODEX_TIMEOUT_MS`, the model named by the launcher (the one the installed Codex ranks first, `CODEX_MODEL` when it cannot say, BACKLOG §474), and the contract's leaf instruction forbidding
 a nested `codex exec`. What it adds is the record: every run it starts appends a row to `reviews.jsonl` holding `host`,
-`model` (the pinned one), `bound` (`pinned`, `disagrees` or `unproven`), `reportedModel` (what the reviewer printed, when
+`model` (the one the launcher named), `bound` (`pinned`, `disagrees` or `unproven`), `reportedModel` (what the reviewer printed, when
 it differs), `effort`, `base`, `head`, `exact`, `status` and `findings` (ADR-119 T2), and `release-evidence` reads its range
 and status. Before that, whether a review ran before a tag was prose; v3.8.22's
 release took 34 tool calls between its bump and its tag (measured 2026-10-13 over that session's transcript), and none of

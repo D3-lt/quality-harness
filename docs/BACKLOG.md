@@ -4793,3 +4793,29 @@ The owner stopped development of quality-harness on 2026-11-11 and asked for it 
 §381, §382, §383, §384, §386, §387, §432, §436, §438, §441, §443, §459, §468, §469, §471 and §472. The four Accepted records
 no task of which had run, ADR-141, ADR-142, ADR-143 and ADR-144, are Withdrawn unexecuted. Nothing here is a finding that the
 work was wrong; it was not done.
+
+## 474. CLOSED 2026-11-19 (asked for and done the same day) — the Codex reviewer is the model the installed Codex ranks first
+
+The owner, 2026-11-19, with the repository frozen (§473): "for codex review use gpt-6.2-sol", and then, offered a pin bump or the
+latest model, chose the latest. Until now `CODEX_MODEL` in plugin/scripts/host-review.mjs pinned `gpt-6.1-sol` (ADR-098 T1), so
+a new model cost a release.
+- The command line now asks the installed Codex. `codex debug models --bundled` on codex-cli 0.170.0 prints `{models: [{slug,
+  priority, visibility, supported_reasoning_levels}]}` in about 900 KB, with `gpt-6.2-sol` at priority 1. The model is the listed
+  one of lowest priority that offers the effort. It is still passed with `-m`, so a row's `model` is what ran and `bound` keeps
+  its meaning (ADR-119 T2).
+- Could-not-tell is said, not guessed: a build without the command, another shape, no model offering the effort, a slug that is
+  not a model name, or two sharing the first rank gives the run `CODEX_MODEL`, now `gpt-6.2-sol`, and standard error says why.
+  `gpt-6.2-sol` was run once at high effort on 0.170.0 before it was written down (§16), and it answered.
+- The lookup is the command line's alone (`pick`); `hostReview` and `promptFileReview` called without one start no probe. The
+  first version probed through the injected `run`, and a locked fake in tests/review-ledger.test.mjs, which writes wherever `-o`
+  points, wrote a file named `debug` into the repository (§9). The probe also runs in the run's temporary directory.
+- "First-ranked" is one observation on one Codex version (§16). If a later Codex ranks first a model that is no reviewer, the
+  launcher names it, and nothing here can see that. The skills' descriptions no longer name a model.
+- ADR-098 T1's locked test asserted the literal `gpt-6.1-sol`. It asserts `gpt-6.2-sol` now and the task is re-locked with
+  `adr-verify --relock --replace-hashes`, a lock weaker than first-red, as adr-lint says.
+Tests: tests/codex-launcher.test.mjs, four added (the ranking with a hidden and a low-effort decoy, eight could-not-tell rows with
+a clean twin, the prompt-file row, the command line through a stub Codex); eight catalogue mutants beside them.
+Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
+host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
+gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two
+catalogue files, `.claude/rules/12-reviews.md` and CLAUDE.md §12; all are changed.

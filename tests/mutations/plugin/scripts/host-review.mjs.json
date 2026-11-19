@@ -394,10 +394,10 @@
       "to": "typeof entry.slug === 'string'"
     },
     {
-      "label": "BACKLOG §474: the prompt-file row names the model that ran",
+      "label": "BACKLOG §474: the prompt-file row names the model the launcher asked for",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the prompt-file row names the model that ran, and standard error says when Codex could not name one$",
+      "only": "^the prompt-file row names the model the launcher asked for, and standard error says when Codex could not name one$",
       "from": "model: result.model ?? CODEX_MODEL, bound: status",
       "to": "model: CODEX_MODEL, bound: status"
     },
@@ -446,8 +446,24 @@
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (/^\\s+models(?:\\s|$)/.test(line)) return true",
-      "to": "if (/^\\s+models\\b/.test(line)) return true"
+      "from": "/^models(?:\\s|$)/.test(line.slice(column.length))",
+      "to": "/^models\\b/.test(line.slice(column.length))"
+    },
+    {
+      "label": "BACKLOG §474: models is read in the command-name column, not in a wrapped description",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "if (line.startsWith(column) && /^models(?:\\s|$)/.test(line.slice(column.length))) return true",
+      "to": "if (/^\\s+models(?:\\s|$)/.test(line)) return true"
+    },
+    {
+      "label": "BACKLOG §474: a rank is read as it was written",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "if (key === 'priority' && !/^\\d{1,9}$/.test(context?.source ?? '')) unwritten = true",
+      "to": "if (false) unwritten = true"
     },
     {
       "label": "BACKLOG §474: models is read in the Commands section only",
@@ -498,12 +514,12 @@
       "to": "      && typeof entry.visibility === 'string' && Number.isInteger(entry.priority)"
     },
     {
-      "label": "BACKLOG §474: a rank that is not a whole number is not read",
+      "label": "BACKLOG §474: a row with no rank is not read",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
       "from": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)",
-      "to": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isFinite(entry.priority)"
+      "to": "      && MODEL_VISIBILITY.has(entry.visibility) && true"
     },
     {
       "label": "BACKLOG §474: an effort word that was never measured is not read",

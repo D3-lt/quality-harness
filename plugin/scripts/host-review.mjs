@@ -180,15 +180,18 @@ function acceptsIgnoreUserConfig(bin, run) {
 const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const MODEL_VISIBILITY = new Set(['list', 'hide'])
 const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-// `models` as a command of its own in the help's Commands section, up to the first blank line: not `models-cache`, and not
-// a line of prose that begins with the word (Codex review of b54439ab).
+// `models` in the command-name column of the help's Commands section, up to its first blank line. The column is where the
+// first command starts: `models-cache` is another command, and a description wrapped onto a line of its own is indented
+// further (Codex reviews of b54439ab and 9133bf8b).
 function listsModels(text) {
   const lines = String(text).split(/\r?\n/)
   const start = lines.findIndex(line => /^Commands:\s*$/.test(line))
   if (start < 0) return false
+  const column = /^(\s+)\S/.exec(lines[start + 1] ?? '')?.[1]
+  if (!column) return false
   for (const line of lines.slice(start + 1)) {
     if (!line.trim()) return false
-    if (/^\s+models(?:\s|$)/.test(line)) return true
+    if (line.startsWith(column) && /^models(?:\s|$)/.test(line.slice(column.length))) return true
   }
   return false
 }
@@ -207,9 +210,18 @@ export function codexModel({ bin, effort, run = spawnSync }) {
   const child = run(bin, ['debug', 'models', '--bundled'], probe)
   const unlisted = probeFailure(child, 'its model list')
   if (unlisted) return builtIn(unlisted)
+  // A rank is read as it was written: `0.99999999999999999` parses to 1 (Codex review of 9133bf8b). The reviver's third
+  // argument carries a value's source text (Node 22 and later); where it does not, nothing shows how a rank was written,
+  // and that is could-not-tell. 0.170.0 writes each rank as plain digits.
   let listed
-  try { listed = JSON.parse(String(child.stdout ?? ''))?.models } catch { /* not JSON: could not tell */ }
+  let unwritten = false
+  const asWritten = (key, value, context) => {
+    if (key === 'priority' && !/^\d{1,9}$/.test(context?.source ?? '')) unwritten = true
+    return value
+  }
+  try { listed = JSON.parse(String(child.stdout ?? ''), asWritten)?.models } catch { /* not JSON: could not tell */ }
   if (!Array.isArray(listed)) return builtIn('its model list is not in the shape this reads')
+  if (unwritten) return builtIn('a rank in its model list is not written as a whole number')
   // One pass, no spread: a list of a hundred thousand rows fits the buffer and overflowed `Math.min(...)` (finding 3).
   let first = null
   let sharing = 0

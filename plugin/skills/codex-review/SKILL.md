@@ -98,9 +98,10 @@ honestly fits, state it before running, and pass it explicitly:
 
 Do not promote merely because the user says “review thoroughly”; route on actual breadth, risk, and
 ambiguity. Do not accept another effort string; the launcher refuses one. On a new or upgraded Codex installation,
-`"<absolute-codex>" debug models --bundled` shows which model the launcher will name: the listed one of lowest `priority`
-that offers the chosen level. When no listed model offers it, the launcher still tries `gpt-6.2-sol` at that level and
-says so on standard error; a refusal there is a failed review. Never substitute another effort.
+`"<absolute-codex>" debug models --bundled` shows the list the launcher reads. It names the listed model of lowest `priority`
+that offers the chosen level. When it cannot (no listed model offers the level, two share that rank, or a row is not one it
+can read), it tries `gpt-6.2-sol` at that level and says so on standard error; a refusal there is a failed review. Never
+substitute another effort.
 
 ## Establish execution evidence
 

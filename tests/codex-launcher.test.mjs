@@ -9,6 +9,7 @@ import path from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { CODEX_MODEL, CODEX_TIMEOUT_MS, REVIEWS_FILE, codexInvocation, codexModel, hostReview, promptFileReview } from '../plugin/scripts/host-review.mjs'
+import { cloneStateDir } from '../plugin/scripts/event-log.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-codex-launch-')))
@@ -207,7 +208,8 @@ test('the reviewer is the model the installed Codex ranks first for the effort',
   assert.equal(runs.given(), 'gpt-new-sol')
   assert.deepEqual([result.status, result.model, result.bound, result.modelNote], ['clean', 'gpt-new-sol', 'pinned', undefined])
   // Its row is in this file's own repository, naming the model the launcher asked for.
-  assert.equal(JSON.parse(readFileSync(path.join(ownRepo, '.git', 'quality-harness', REVIEWS_FILE), 'utf8').trim().split('\n').at(-1)).model, 'gpt-new-sol')
+  // The row is read where the launcher writes it, so an inherited QUALITY_HARNESS_STATE_DIR does not hide it (review of 9133bf8b).
+  assert.equal(JSON.parse(readFileSync(path.join(cloneStateDir(ownRepo), REVIEWS_FILE), 'utf8').trim().split('\n').at(-1)).model, 'gpt-new-sol')
   // The effort decides: the model first for `high` that does not offer `ultra` is not the `ultra` reviewer.
   const ultra = catalogued([entry('gpt-new-sol', 1, ['high']), entry('gpt-deep', 3, ['high', 'ultra'])])
   hostReview({ ...mine, effort: 'ultra', run: ultra.run, pick: ultra.pick })
@@ -236,16 +238,22 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
     [[entry('gpt-a', 1), entry('gpt-b', 1)], /2 of its models share the first rank/],
     // A row this cannot read is could-not-tell even when a readable row ranks below it: it might be the first (finding 1).
     [[entry('--config=x', 0), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
-    [[entry('gpt-text-rank', '1'), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('gpt-text-rank', '1'), entry('gpt-valid', 2)], /a rank in its model list is not written as a whole number/],
     [[entry('g'.repeat(200), 1), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     [[{ slug: 'gpt-odd', priority: 1, visibility: 'list', supported_reasoning_levels: 'high' }, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     [[null, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[{ slug: 'gpt-list', priority: 1, visibility: 'list', supported_reasoning_levels: [null] }, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     // A field holding a value never measured is not read either (review of 5bb58e48, finding 1): a misspelt visibility,
     // a rank that is not a whole number, an effort word nobody has seen, a row offering nothing.
     [[entry('gpt-typo', 1, ['high'], 'lsit'), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
-    [[entry('gpt-half', 0.5), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('gpt-half', 0.5), entry('gpt-valid', 2)], /a rank in its model list is not written as a whole number/],
+    // A rank that only parses to a whole number, one written twice, and one whose key is written with an escape.
+    [`{"models":[${JSON.stringify(entry('gpt-rounds', 7)).replace('"priority":7', '"priority":0.99999999999999999')},${JSON.stringify(entry('gpt-valid', 2))}]}`, /a rank in its model list is not written as a whole number/],
+    [`{"models":[${JSON.stringify(entry('gpt-escaped', 7)).replace('"priority":7', '"priority":7,"\\u0070riority":0.99999999999999999')},${JSON.stringify(entry('gpt-valid', 2))}]}`, /a rank in its model list is not written as a whole number/],
+    [`{"models":[${JSON.stringify(entry('gpt-exponent', 7)).replace('"priority":7', '"priority":1e0')},${JSON.stringify(entry('gpt-valid', 2))}]}`, /a rank in its model list is not written as a whole number/],
     [[entry('gpt-empty-effort', 1, ['high', '']), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     [[entry('gpt-offers-nothing', 1, []), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[{ slug: 'gpt-no-rank', visibility: 'list', supported_reasoning_levels: [{ effort: 'high' }] }, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     // The probe itself: killed at its deadline, stopped by a signal, or never started.
     [{ error: { code: 'ETIMEDOUT' }, signal: 'SIGKILL', status: null }, /ETIMEDOUT/],
     [{ signal: 'SIGTERM', status: null }, /its model list was stopped by SIGTERM/],
@@ -266,6 +274,7 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
     [{ status: 0, stdout: 'Usage: codex debug\n\nCommands:\n  app-server  Tooling\n' }, noCommand],
     [{ status: 0, stdout: 'see the models page\n' }, noCommand],
     [{ status: 0, stdout: 'Commands:\n  models-cache  Tooling\n' }, noCommand],
+    [{ status: 0, stdout: 'Commands:\n  models-cache  Tools for cached\n                models and their metadata\n  help          Print this message\n' }, noCommand],
     [{ status: 0, stdout: 'Options:\n  models are chosen by rank\n' }, noCommand],
     [{ status: 0, stdout: 'Commands:\n  app-server  Tooling\n\nOptions:\n  models  not a command\n' }, noCommand],
     [{ status: 2, stdout: DEBUG_HELP }, /asking which commands it has exited 2/],
@@ -285,7 +294,7 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
   assert.deepEqual([plain.given(), result.modelNote, plain.calls.some(call => call.args[0] === 'debug')], [CODEX_MODEL, undefined, false])
 })
 
-test('the prompt-file row names the model that ran, and standard error says when Codex could not name one', () => {
+test('the prompt-file row names the model the launcher asked for, and standard error says when Codex could not name one', () => {
   const repo = path.join(scratch, 'ledger')
   mkdirSync(repo)
   const made = spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 30_000, windowsHide: true })
@@ -293,7 +302,7 @@ test('the prompt-file row names the model that ran, and standard error says when
   const contract = path.join(scratch, 'contract.txt')
   writeFileSync(contract, 'CODEX-REVIEW-LEAF: read it')
   const argv = ['node', 'host-review.mjs', '--host', 'codex', '--effort', 'high', '--repo', repo, '--prompt-file', contract]
-  const lastRow = () => JSON.parse(readFileSync(path.join(repo, '.git', 'quality-harness', REVIEWS_FILE), 'utf8').trim().split('\n').at(-1))
+  const lastRow = () => JSON.parse(readFileSync(path.join(cloneStateDir(repo), REVIEWS_FILE), 'utf8').trim().split('\n').at(-1))
   const run = listed => (bin, args) => args[0] === 'debug' && args[1] === '--help' ? { status: 0, stdout: DEBUG_HELP } : args[1] === '--help' ? { status: 0, stdout: '' } : args[0] === 'debug' ? listed : { status: 0, stdout: 'VERDICT: APPROVE\n' }
   const launch = listed => promptFileReview({ argv, resolve: () => '/bin/codex', run: run(listed), pick: options => codexModel({ ...options, run: run(listed) }) })
   const named = launch({ status: 0, stdout: JSON.stringify({ models: [entry('gpt-new-sol', 1)] }) })

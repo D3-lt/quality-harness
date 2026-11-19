@@ -4808,7 +4808,7 @@ a new model cost a release.
   `gpt-6.2-sol` was run once at high effort on 0.170.0 before it was written down (§16), and it answered.
 - The lookup is the command line's alone (`pick`); `hostReview` and `promptFileReview` called without one start no probe. The
   first version probed through the injected `run`, and a locked fake in tests/review-ledger.test.mjs, which writes wherever `-o`
-  points, wrote a file named `debug` into the repository (§9). The probe also runs in the run's temporary directory.
+  points, wrote a file named `debug` into the repository (§9). (That version also ran the probe in the run's temporary directory; a later round removed that, below.)
 - "First-ranked" is one observation on one Codex version (§16). If a later Codex ranks first a model that is no reviewer, the
   launcher names it, and nothing here can see that. The skills' descriptions no longer name a model.
 - ADR-098 T1's locked test asserted the literal `gpt-6.1-sol`. It asserts `gpt-6.2-sol` now and the task is re-locked with
@@ -4859,6 +4859,15 @@ regression, which is the case §12 keeps open, and the last two were ended by re
 The verification review of that (b54439ab): the path question got "none". Two small ones on the new help check, fixed as named:
 `models-cache` passed for `models`, so the word is now read as a command of its own in the help's Commands section; and a help
 call that timed out was reported as a build with no such command, so a probe that could not be asked now says that it failed.
+The gate then refused the release (ADR-125): six commits' newest review still said changes were requested, so a verification
+review had to hold all of them. That review of the whole range (9133bf8b: findings b, c, e, f resolved; four blocking) and the
+round the owner chose to run after it (2026-11-19, "one more fix round"): ADR-098 T1's lock was stale again, since test bodies
+changed after the re-lock, and is re-locked last; a rank of `0.99999999999999999` parses to 1, so each rank is read from its
+source text through the JSON reviver and must be plain digits (on a Node older than 22, which gives a reviver no source, the
+lookup is could-not-tell and the built-in model is used, said); a description wrapped onto its own line
+and beginning `models` passed the help check, so the word is read in the command-name column; and the new tests read their rows
+from a fixed path under the repository, which an inherited `QUALITY_HARNESS_STATE_DIR` moves, so they ask the launcher's own
+resolver where the row is. Wording it also named: a test and a mutant said "the model that ran".
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

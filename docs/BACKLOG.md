@@ -4886,6 +4886,11 @@ ADR-098 T1 is re-locked on the test as it stands. The skills' descriptions name 
 The whole-range review of that (b03f504d) found two in the way the command line found `--model`, both fixed: a second `--model`
 after a good one was ignored, so more than one is refused; and a requirement or a piece of evidence that literally reads
 `--model` was taken for the option, which 8866a0b7 passed through as text, so the options that take a value are walked in order.
+The review of that fix (f3f5359f) confirmed the second and found the first incomplete: the walk used one list of options for both
+forms, so an option only the other form has (`--range` in the JSON form, `--requirements` in the prompt-file form) swallowed a
+second `--model` as its value. Each form now walks its own options. Left for later, with its evidence: CLAUDE.md §12,
+`.claude/rules/12-reviews.md` and the codex-review skill say every run is recorded, while `recordReview` warns on a failed
+append and still returns the review (host-review.mjs, "the review was not recorded"); the wording predates this change.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

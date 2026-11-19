@@ -422,8 +422,24 @@
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^the command line passes --model through in both forms, and refuses a bare one$",
-      "from": "arg('--host') === 'codex' ? codexModelOption(process.argv) : arg('--model') ?? null",
+      "from": "arg('--host') === 'codex' ? codexModelOption(process.argv, JSON_VALUE_OPTIONS) : arg('--model') ?? null",
       "to": "arg('--model') ?? null"
+    },
+    {
+      "label": "BACKLOG §474: the JSON form walks its own options, not the prompt-file form's",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
+      "from": "codexModelOption(process.argv, JSON_VALUE_OPTIONS)",
+      "to": "codexModelOption(process.argv, FILE_VALUE_OPTIONS)"
+    },
+    {
+      "label": "BACKLOG §474: the prompt-file form walks its own options, not the JSON form's",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^the command line passes --model through in both forms, and refuses a bare one$",
+      "from": "codexModelOption(argv, FILE_VALUE_OPTIONS)",
+      "to": "codexModelOption(argv, JSON_VALUE_OPTIONS)"
     },
     {
       "label": "BACKLOG §474: an answer of unavailable in the schema is unproven",

@@ -371,15 +371,17 @@ function arg(name, argv = process.argv) {
   return index >= 0 ? argv[index + 1] : undefined
 }
 
-// The options that take a value. Walking them in order keeps a value that happens to read `--model` (a requirement, a
-// piece of evidence) from being taken for the option (Codex review of b03f504d).
-const VALUE_OPTIONS = new Set(['--host', '--effort', '--model', '--repo', '--scope', '--requirements', '--evidence', '--prompt-file', '--range'])
+// The options of each form that take a value. Walking them in order keeps a value that happens to read `--model` (a
+// requirement, a piece of evidence) from being taken for the option (Codex review of b03f504d). Each form has its own:
+// an option only the other form has takes no value here, so it cannot swallow a second `--model` (review of f3f5359f).
+const JSON_VALUE_OPTIONS = new Set(['--host', '--effort', '--model', '--repo', '--scope', '--requirements', '--evidence'])
+const FILE_VALUE_OPTIONS = new Set(['--host', '--effort', '--model', '--repo', '--prompt-file', '--range'])
 // Codex's `--model`: null when it is not given, the name when it is given once with a word after it, and otherwise the
 // empty string, which is not a model name and so is refused: given twice, or with nothing after it.
-function codexModelOption(argv) {
+function codexModelOption(argv, valueOptions) {
   const named = []
   for (let index = 2; index < argv.length; index += 1) {
-    if (!VALUE_OPTIONS.has(argv[index])) continue
+    if (!valueOptions.has(argv[index])) continue
     if (argv[index] === '--model') named.push(argv[index + 1])
     index += 1
   }
@@ -399,7 +401,7 @@ export function promptFileReview({ argv = process.argv, resolve = resolveCodex, 
   if (arg('--host', argv) !== 'codex') return fail('--prompt-file runs Codex only: pass --host codex')
   if (!EFFORTS.has(effort)) return fail(`effort is not one of ${[...EFFORTS].join(', ')}`)
   if (typeof repo !== 'string' || !repo) return fail('no repository was named (--repo)')
-  const model = codexModelOption(argv) ?? CODEX_MODEL
+  const model = codexModelOption(argv, FILE_VALUE_OPTIONS) ?? CODEX_MODEL
   if (!MODEL_NAME.test(model)) return fail(NOT_A_MODEL_NAME)
   let range = { base: null, head: null, exact: false }
   if (argv.includes('--range')) {
@@ -432,7 +434,7 @@ if (isMainModule(import.meta.url)) {
     process.exit(said.code)
   }
   // The other hosts keep reading their `--model` as they did.
-  const named = arg('--host') === 'codex' ? codexModelOption(process.argv) : arg('--model') ?? null
+  const named = arg('--host') === 'codex' ? codexModelOption(process.argv, JSON_VALUE_OPTIONS) : arg('--model') ?? null
   const result = hostReview({
     host: arg('--host'), effort: arg('--effort') ?? 'high', model: named, repo: arg('--repo'),
     scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',

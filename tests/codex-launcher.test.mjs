@@ -253,6 +253,9 @@ require('node:fs').writeFileSync(a[a.indexOf('-o') + 1], JSON.stringify({ status
     assert.equal(bare.status, 2, form[0])
     assert.match(`${bare.stdout}${bare.stderr}`, /--model is not a model name/, form[0])
     assert.equal(cli([...form, '--model', 'gpt-7-sol', '--model']).status, 2, `${form[0]}: a second --model`)
+    // An option only the other form has takes no value in this one, so it does not hide a second `--model` behind it.
+    const other = form[0] === '--scope' ? '--range' : '--requirements'
+    assert.equal(cli([...form, '--model', 'gpt-7-sol', other, '--model', 'gpt-8-sol']).status, 2, `${form[0]}: a second --model after ${other}`)
   }
   // A requirement or a piece of evidence that reads `--model` is review input, not the option (it was at 8866a0b7).
   for (const literal of [['--requirements', '--model'], ['--evidence', '--model'], ['--requirements', '--model', '--evidence', '--model']]) {

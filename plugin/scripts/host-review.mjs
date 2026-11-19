@@ -179,13 +179,14 @@ function acceptsIgnoreUserConfig(bin, run) {
 const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const MODEL_VISIBILITY = new Set(['list', 'hide'])
 const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-// POSIX: a bare name is found on PATH, and a path from the root is whole. Windows: only a drive with a separator after it
-// or a UNC path; a bare name is looked for in the working directory first, `\bin\codex.exe` takes the working directory's
-// drive, and `C:bin\codex.exe` that drive's own directory.
+// POSIX: only a path from the root; a bare name is found through PATH, and a PATH holding `.` finds it in the working
+// directory (Codex review of 4ec1bc63). Windows: only a drive with a separator after it or a UNC path; a bare name is
+// looked for in the working directory first, `\bin\codex.exe` takes the working directory's drive, and `C:bin\codex.exe`
+// that drive's own directory.
 export function sameFromAnywhere(bin, platform = process.platform) {
   if (typeof bin !== 'string' || !bin) return false
   if (platform === 'win32') return /^[A-Za-z]:[\\/]/.test(bin) || /^[\\/]{2}[^\\/]/.test(bin)
-  return !bin.includes('/') || bin.startsWith('/')
+  return bin.startsWith('/')
 }
 export function codexModel({ bin, effort, run = spawnSync, cwd, platform = process.platform }) {
   const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })

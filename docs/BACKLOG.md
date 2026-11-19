@@ -4844,6 +4844,10 @@ as a parameter (§7). (3) An `unavailable` answer with no reason lost its defaul
 row check the review asked to have named: one row outside the measured values, hidden or low-ranked, gives every effort the
 built-in model; the note names the kind of failure and not the row; and `CODEX_MODEL` is tried without asking whether it offers
 the effort, so Codex refuses it if not and the review is unavailable.
+The verification review of that third fix (4ec1bc63: REQUEST CHANGES, two blocking, both small and fixed as it named them):
+a bare `codex` was still called the same from anywhere on POSIX, and a `PATH` holding `.` finds it in the working directory, so
+on POSIX only a path from the root is; and the prompt-file test handed `/bin/codex` to the lookup on the runner's own platform,
+which on Windows is not a whole path, so it names the platform as its neighbours do.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

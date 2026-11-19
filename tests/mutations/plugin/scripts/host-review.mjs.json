@@ -450,6 +450,14 @@
       "to": "if (platform === 'win32') return /^[A-Za-z]:/.test(bin) || /^[\\\\/]/.test(bin)"
     },
     {
+      "label": "BACKLOG §474: a bare name is not a whole path on POSIX",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^the probe is not started for a Codex whose path depends on the directory$",
+      "from": "  return bin.startsWith('/')",
+      "to": "  return !bin.includes('/') || bin.startsWith('/')"
+    },
+    {
       "label": "BACKLOG §474: an unavailable answer with no reason still says why",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/host-review.test.mjs"],

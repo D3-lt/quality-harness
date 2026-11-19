@@ -275,7 +275,7 @@ test('the prompt-file row names the model that ran, and standard error says when
   const argv = ['node', 'host-review.mjs', '--host', 'codex', '--effort', 'high', '--repo', repo, '--prompt-file', contract]
   const lastRow = () => JSON.parse(readFileSync(path.join(repo, '.git', 'quality-harness', REVIEWS_FILE), 'utf8').trim().split('\n').at(-1))
   const run = listed => (bin, args) => args[1] === '--help' ? { status: 0, stdout: '' } : args[0] === 'debug' ? listed : { status: 0, stdout: 'VERDICT: APPROVE\n' }
-  const launch = listed => promptFileReview({ argv, resolve: () => '/bin/codex', run: run(listed), pick: options => codexModel({ ...options, run: run(listed) }) })
+  const launch = listed => promptFileReview({ argv, resolve: () => '/bin/codex', run: run(listed), pick: options => codexModel({ ...options, run: run(listed), platform: 'linux' }) })
   const named = launch({ status: 0, stdout: JSON.stringify({ models: [entry('gpt-new-sol', 1)] }) })
   assert.deepEqual([named.code, named.err], [0, ''])
   assert.deepEqual([lastRow().model, lastRow().bound, lastRow().status], ['gpt-new-sol', 'pinned', 'clean'])
@@ -289,7 +289,7 @@ test('the prompt-file row names the model that ran, and standard error says when
 test('the probe is not started for a Codex whose path depends on the directory', () => {
   // The probe runs in a temporary directory, where `bin/codex` names nothing or something else (finding 2, twice).
   const rows = [
-    ['linux', ['codex', '/opt/bin/codex', '/opt/link/../codex'], ['bin/codex', './codex', '../codex', '']],
+    ['linux', ['/opt/bin/codex', '/opt/link/../codex'], ['codex', 'bin/codex', './codex', '../codex', '']],
     ['win32', ['C:\\bin\\codex.exe', 'c:/bin/codex.exe', '\\\\server\\share\\codex.exe'], ['codex', 'codex.exe', 'bin\\codex.exe', 'C:bin\\codex.exe', '\\bin\\codex.exe', '/bin/codex', '.\\codex.exe']],
   ]
   for (const [platform, whole, depends] of rows) {

@@ -70,7 +70,7 @@ export function reviewFromOutput(text, { host, model = null, effort = null } = {
     bound: !pin || parsed.status === 'unavailable' ? 'unproven' : disagrees ? 'disagrees' : 'pinned',
     ...(disagrees ? { reportedModel: printed } : {}),
     findings: parsed.findings,
-    reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+    reason: typeof parsed.reason === 'string' && parsed.reason ? parsed.reason : parsed.status === 'unavailable' ? 'the reviewer answered that it was unavailable' : '',
   }
 }
 
@@ -168,14 +168,28 @@ function acceptsIgnoreUserConfig(bin, run) {
 // rank): the run is given CODEX_MODEL and `modelNote` says why. Every row is read or none is, and a row is read only when
 // each field holds a value measured on 0.170.0: a row outside them might be the first-ranked one, so it is not skipped
 // (§16; Codex reviews of cccf5af8 and 5bb58e48, finding 1 of each). A later Codex with a new visibility or effort word
-// therefore gets CODEX_MODEL, said, until those sets are measured again. The probe runs in the run's own temporary
-// directory: it needs no repository.
+// therefore gets CODEX_MODEL, said, until those sets are measured again; so does every effort when one row, hidden or
+// low-ranked, is outside them. The note names the kind of failure, never the row, and CODEX_MODEL is tried without asking
+// whether it offers the effort: Codex refuses it if not, and that is an unavailable review.
+// The probe runs in the run's own temporary directory, since it needs no repository. So it is started only for a Codex
+// whose name means the same from any directory (`sameFromAnywhere`); for any other it is could-not-tell. Two rounds of
+// rewriting a relative path each met one more Windows path shape (Codex reviews of 5bb58e48 and 02941eba), so no path is
+// rewritten.
 // It is the command line's `pick`; a caller that passes none (a test faking `run`) is given CODEX_MODEL and starts no probe.
 const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const MODEL_VISIBILITY = new Set(['list', 'hide'])
 const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-export function codexModel({ bin, effort, run = spawnSync, cwd }) {
+// POSIX: a bare name is found on PATH, and a path from the root is whole. Windows: only a drive with a separator after it
+// or a UNC path; a bare name is looked for in the working directory first, `\bin\codex.exe` takes the working directory's
+// drive, and `C:bin\codex.exe` that drive's own directory.
+export function sameFromAnywhere(bin, platform = process.platform) {
+  if (typeof bin !== 'string' || !bin) return false
+  if (platform === 'win32') return /^[A-Za-z]:[\\/]/.test(bin) || /^[\\/]{2}[^\\/]/.test(bin)
+  return !bin.includes('/') || bin.startsWith('/')
+}
+export function codexModel({ bin, effort, run = spawnSync, cwd, platform = process.platform }) {
   const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })
+  if (!sameFromAnywhere(bin, platform)) return builtIn('it is named by a path that depends on the directory, and the lookup runs in another')
   const child = run(bin, ['debug', 'models', '--bundled'], { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], cwd, windowsHide: true })
   if (!child) return builtIn('its model list could not be run')
   if (child.error) return builtIn(child.error.code ?? child.error.message ?? 'its model list could not be run')
@@ -210,9 +224,7 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
     return { reason: `a temporary directory for its final message could not be made (${error.code ?? error.message})` }
   }
   try {
-    // The probe runs elsewhere, so a Codex named by a relative path is named whole for it. Joined, never resolved: resolving
-    // rewrites `link/../codex`, which names another file when `link` is a symlink (Codex review of 5bb58e48, finding 2).
-    const picked = pick({ bin: /[\\/]/.test(bin) && !path.isAbsolute(bin) ? `${process.cwd()}${path.sep}${bin}` : bin, effort, cwd: directory })
+    const picked = pick({ bin, effort, cwd: directory })
     const call = codexInvocation({ bin, repo, effort, model: picked.model, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
     const child = run(call.bin, call.argv, call.options)
     if (child?.error?.code === 'ETIMEDOUT') {

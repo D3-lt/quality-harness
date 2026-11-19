@@ -158,6 +158,10 @@ test('a reviewer that answers unavailable in the schema is unproven, never pinne
   assert.deepEqual([result.findings, result.reportedModel], [[finding], 'GPT-6 (Codex)'])
   // With no pin, the model it printed is still the one recorded.
   assert.deepEqual([reviewFromOutput(said('unavailable', 'printed-model'), { host: 'cursor' }).model], ['printed-model'])
+  // With no reason given, the result still says why it is unavailable (review of 02941eba, finding 3).
+  const silent = reviewFromOutput(JSON.stringify({ status: 'unavailable', findings: [] }), { host: 'codex', model: CODEX_MODEL, effort: 'high' })
+  assert.equal(silent.reason, 'the reviewer answered that it was unavailable')
+  assert.equal(reviewFromOutput(JSON.stringify({ status: 'clean', findings: [] }), { host: 'codex', model: CODEX_MODEL, effort: 'high' }).reason, '')
   // CLEAN twin: the same answer saying evidence-limited is pinned.
   assert.equal(reviewFromOutput(said('evidence-limited'), { host: 'codex', model: CODEX_MODEL, effort: 'high' }).bound, 'pinned')
 })

@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { CODEX_MODEL, CODEX_TIMEOUT_MS, REVIEWS_FILE, codexInvocation, codexModel, hostReview, promptFileReview } from '../plugin/scripts/host-review.mjs'
+import { CODEX_MODEL, CODEX_TIMEOUT_MS, REVIEWS_FILE, codexInvocation, codexModel, hostReview, promptFileReview, sameFromAnywhere } from '../plugin/scripts/host-review.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-codex-launch-')))
@@ -188,7 +188,8 @@ const catalogued = listed => {
     return Array.isArray(listed) ? { status: 0, stdout: JSON.stringify({ models: listed }) } : typeof listed === 'string' ? { status: 0, stdout: listed } : listed
   }
   const given = () => { const argv = calls.find(call => call.args[0] === 'exec' && call.args[1] !== '--help').args; return argv[argv.indexOf('-m') + 1] }
-  return { calls, run, given, pick: options => codexModel({ ...options, run }) }
+  // The platform is named, so `/bin/codex` is a whole path on a Windows runner too (§7).
+  return { calls, run, given, pick: options => codexModel({ ...options, run, platform: 'linux' }) }
 }
 
 // A repository of this file's own for the runs below: each leaves a review row, and `/repo` resolves to wherever the
@@ -285,15 +286,25 @@ test('the prompt-file row names the model that ran, and standard error says when
   assert.deepEqual([lastRow().model, lastRow().bound], [CODEX_MODEL, 'pinned'])
 })
 
-test('the probe is handed the whole path of a Codex named by a relative one', () => {
-  // The probe runs in a temporary directory, where `bin/codex` names nothing (finding 2).
-  const seen = []
-  const pick = options => { seen.push(options.bin); return { model: CODEX_MODEL } }
-  const relative = path.join('bin', 'codex')
-  // A whole path is handed over as spelled: resolving `link/../codex` names another file when `link` is a symlink.
-  const whole = `${path.resolve('link')}${path.sep}..${path.sep}codex`
-  for (const bin of [relative, 'codex', whole]) hostReview({ ...mine, resolve: () => bin, run: fake({ status: 0, stdout: clean }).run, pick })
-  assert.deepEqual(seen, [`${process.cwd()}${path.sep}${relative}`, 'codex', whole])
+test('the probe is not started for a Codex whose path depends on the directory', () => {
+  // The probe runs in a temporary directory, where `bin/codex` names nothing or something else (finding 2, twice).
+  const rows = [
+    ['linux', ['codex', '/opt/bin/codex', '/opt/link/../codex'], ['bin/codex', './codex', '../codex', '']],
+    ['win32', ['C:\\bin\\codex.exe', 'c:/bin/codex.exe', '\\\\server\\share\\codex.exe'], ['codex', 'codex.exe', 'bin\\codex.exe', 'C:bin\\codex.exe', '\\bin\\codex.exe', '/bin/codex', '.\\codex.exe']],
+  ]
+  for (const [platform, whole, depends] of rows) {
+    for (const bin of whole) assert.equal(sameFromAnywhere(bin, platform), true, `${platform}: ${bin}`)
+    for (const bin of depends) assert.equal(sameFromAnywhere(bin, platform), false, `${platform}: ${bin}`)
+  }
+  // DIRTY, through the launcher: such a Codex is reviewed on the built-in model, told why, and nothing is run to ask it.
+  const runs = catalogued([entry('gpt-new-sol', 1)])
+  const result = hostReview({ ...mine, resolve: () => 'bin/codex', run: runs.run, pick: runs.pick })
+  assert.deepEqual([runs.given(), result.model, runs.calls.some(call => call.args[0] === 'debug')], [CODEX_MODEL, CODEX_MODEL, false])
+  assert.match(result.modelNote, /named by a path that depends on the directory/)
+  // CLEAN twin: the same list through a whole path names its first-ranked model, and the probe is handed that path as spelled.
+  const whole = catalogued([entry('gpt-new-sol', 1)])
+  hostReview({ ...mine, resolve: () => '/opt/link/../codex', run: whole.run, pick: whole.pick })
+  assert.deepEqual([whole.given(), whole.calls.find(call => call.args[0] === 'debug').bin], ['gpt-new-sol', '/opt/link/../codex'])
 })
 
 test('the command line asks the installed Codex for its first-ranked model, in both forms', t => {

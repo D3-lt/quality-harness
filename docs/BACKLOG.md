@@ -4856,6 +4856,9 @@ been there so a test's stand-in Codex, sent `debug models`, would not write into
 whether it has the command (`debug --help` lists `models` on 0.170.0), and one that does not list it is never sent it. Five
 review rounds on one change is more than §12 allows for; each of the four after the first was blocked by a fail-open or a
 regression, which is the case §12 keeps open, and the last two were ended by removing the classifier, not by one more row.
+The verification review of that (b54439ab): the path question got "none". Two small ones on the new help check, fixed as named:
+`models-cache` passed for `models`, so the word is now read as a command of its own in the help's Commands section; and a help
+call that timed out was reported as a build with no such command, so a probe that could not be asked now says that it failed.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

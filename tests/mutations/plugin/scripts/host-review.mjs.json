@@ -430,24 +430,40 @@
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (child.signal) return builtIn(`its model list was stopped by ${child.signal}`)",
-      "to": "if (false) return builtIn(`its model list was stopped by ${child.signal}`)"
+      "from": "    : child.signal ? `${what} was stopped by ${child.signal}`",
+      "to": "    : false ? `${what} was stopped by ${child.signal}`"
     },
     {
       "label": "BACKLOG §474: a build that lists no debug models command is not sent it",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "if (!help || help.error || help.status !== 0 || !/^\\s*models\\b/m.test(String(help.stdout ?? ''))) return builtIn(",
+      "from": "if (!listsModels(help.stdout ?? '')) return builtIn(",
       "to": "if (false) return builtIn("
     },
     {
-      "label": "BACKLOG §474: models is a listed command, not a word in the help",
+      "label": "BACKLOG §474: models is a command of its own, not models-cache",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
-      "from": "!/^\\s*models\\b/m.test(String(help.stdout ?? ''))",
-      "to": "!/models/.test(String(help.stdout ?? ''))"
+      "from": "if (/^\\s+models(?:\\s|$)/.test(line)) return true",
+      "to": "if (/^\\s+models\\b/.test(line)) return true"
+    },
+    {
+      "label": "BACKLOG §474: models is read in the Commands section only",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "    if (!line.trim()) return false",
+      "to": "    if (!line.trim()) continue"
+    },
+    {
+      "label": "BACKLOG §474: a help that could not be asked is not said to list no command",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "  if (unasked) return builtIn(unasked)",
+      "to": "  if (unasked) return builtIn('this build lists no `debug models` command')"
     },
     {
       "label": "BACKLOG §474: the probe runs in the review's own directory",

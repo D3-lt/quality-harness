@@ -180,16 +180,33 @@ function acceptsIgnoreUserConfig(bin, run) {
 const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const MODEL_VISIBILITY = new Set(['list', 'hide'])
 const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+// `models` as a command of its own in the help's Commands section, up to the first blank line: not `models-cache`, and not
+// a line of prose that begins with the word (Codex review of b54439ab).
+function listsModels(text) {
+  const lines = String(text).split(/\r?\n/)
+  const start = lines.findIndex(line => /^Commands:\s*$/.test(line))
+  if (start < 0) return false
+  for (const line of lines.slice(start + 1)) {
+    if (!line.trim()) return false
+    if (/^\s+models(?:\s|$)/.test(line)) return true
+  }
+  return false
+}
+// Why a probe did not answer, or null when it did: a call that could not be made is never said to have answered no.
+const probeFailure = (child, what) => !child ? `${what} could not be run`
+  : child.error ? `${what} failed: ${child.error.code ?? child.error.message ?? 'it could not be run'}`
+    : child.signal ? `${what} was stopped by ${child.signal}`
+      : child.status !== 0 ? `${what} exited ${child.status}` : null
 export function codexModel({ bin, effort, run = spawnSync }) {
   const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })
   const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
   const help = run(bin, ['debug', '--help'], probe)
-  if (!help || help.error || help.status !== 0 || !/^\s*models\b/m.test(String(help.stdout ?? ''))) return builtIn('this build lists no `debug models` command')
+  const unasked = probeFailure(help, 'asking which commands it has')
+  if (unasked) return builtIn(unasked)
+  if (!listsModels(help.stdout ?? '')) return builtIn('this build lists no `debug models` command')
   const child = run(bin, ['debug', 'models', '--bundled'], probe)
-  if (!child) return builtIn('its model list could not be run')
-  if (child.error) return builtIn(child.error.code ?? child.error.message ?? 'its model list could not be run')
-  if (child.signal) return builtIn(`its model list was stopped by ${child.signal}`)
-  if (child.status !== 0) return builtIn(`its model list exited ${child.status}`)
+  const unlisted = probeFailure(child, 'its model list')
+  if (unlisted) return builtIn(unlisted)
   let listed
   try { listed = JSON.parse(String(child.stdout ?? ''))?.models } catch { /* not JSON: could not tell */ }
   if (!Array.isArray(listed)) return builtIn('its model list is not in the shape this reads')

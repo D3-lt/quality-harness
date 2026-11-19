@@ -259,12 +259,25 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
     assert.match(result.modelNote, why)
     assert.ok(result.modelNote.endsWith(`the run is given ${CODEX_MODEL}`), result.modelNote)
   }
-  // A build whose `debug --help` lists no `models` command, or cannot be asked, is never sent `debug models`.
-  for (const help of [{ status: 0, stdout: 'Usage: codex debug\n\nCommands:\n  app-server  Tooling\n' }, { status: 0, stdout: 'see the models page\n' }, { status: 2, stdout: DEBUG_HELP }, { error: { code: 'ENOENT' }, status: null }, null]) {
+  // A build whose `debug --help` lists no `models` command is never sent `debug models`; neither is one that could not be
+  // asked, and that one is not said to have answered no.
+  const noCommand = /this build lists no `debug models` command/
+  const helps = [
+    [{ status: 0, stdout: 'Usage: codex debug\n\nCommands:\n  app-server  Tooling\n' }, noCommand],
+    [{ status: 0, stdout: 'see the models page\n' }, noCommand],
+    [{ status: 0, stdout: 'Commands:\n  models-cache  Tooling\n' }, noCommand],
+    [{ status: 0, stdout: 'Options:\n  models are chosen by rank\n' }, noCommand],
+    [{ status: 0, stdout: 'Commands:\n  app-server  Tooling\n\nOptions:\n  models  not a command\n' }, noCommand],
+    [{ status: 2, stdout: DEBUG_HELP }, /asking which commands it has exited 2/],
+    [{ error: { code: 'ETIMEDOUT' }, signal: 'SIGKILL', status: null, stdout: '' }, /asking which commands it has failed: ETIMEDOUT/],
+    [{ signal: 'SIGTERM', status: null }, /asking which commands it has was stopped by SIGTERM/],
+    [null, /asking which commands it has could not be run/],
+  ]
+  for (const [help, why] of helps) {
     const runs = catalogued([entry('gpt-new-sol', 1)], help)
     const result = hostReview({ ...mine, run: runs.run, pick: runs.pick })
     assert.deepEqual([runs.given(), runs.listing()], [CODEX_MODEL, undefined], JSON.stringify(help))
-    assert.match(result.modelNote, /this build lists no `debug models` command/)
+    assert.match(result.modelNote, why)
   }
   // CLEAN twin: a caller that passes no `pick` starts no probe and is told nothing.
   const plain = catalogued([entry('gpt-new-sol', 1)])

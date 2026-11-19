@@ -55,6 +55,9 @@ export function reviewFromOutput(text, { host, model = null, effort = null } = {
   if (!validReview(parsed)) {
     return unavailable(host, effort, 'the host did not return the review schema', model)
   }
+  // ADR-119 T2: a reviewer that answers in the schema that it was unavailable reviewed nothing, so its row is unproven too
+  // (Codex review of cccf5af8, finding 6: it kept `pinned`).
+  if (parsed.status === 'unavailable') return unavailable(host, effort, typeof parsed.reason === 'string' && parsed.reason ? parsed.reason : 'the reviewer answered that it was unavailable', model)
   const printed = typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model.trim() : null
   // ADR-119 T2: the model the launcher pinned is the model (runs pinned to gpt-6.1-sol printed "gpt-6" and "Codex"). A printed
   // one that differs is kept as `reportedModel`; with no pin, what it printed is all there is, and nothing proves it.
@@ -161,26 +164,37 @@ function acceptsIgnoreUserConfig(bin, run) {
 // The owner, 2026-11-19: the reviewer is the model the installed Codex ranks first, so a new model needs no release.
 // `codex debug models --bundled` (codex-cli 0.170.0, 2026-11-19) prints {models: [{slug, priority, visibility,
 // supported_reasoning_levels: [{effort}]}]} in about 900 KB, with gpt-6.2-sol at priority 1. The model is the listed one
-// of lowest priority that offers the effort, and it is still passed by name, so a row's model is what ran. Anything else
-// is could-not-tell (a build without the command, another shape, no such model, two sharing the first rank): the run is
-// given CODEX_MODEL and `modelNote` says why. The probe runs in the run's own temporary directory: it needs no repository.
+// of lowest priority that offers the effort, and it is still passed by name, so a row's model is the one the launcher asked
+// for. Anything else is could-not-tell (a build without the command, another shape, no such model, two sharing the first
+// rank): the run is given CODEX_MODEL and `modelNote` says why. Every row is read or none is: a row this cannot read might
+// be the first-ranked one, so it is not skipped (§16; Codex review of cccf5af8, finding 1). The probe runs in the run's
+// own temporary directory: it needs no repository.
 // It is the command line's `pick`; a caller that passes none (a test faking `run`) is given CODEX_MODEL and starts no probe.
-const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 export function codexModel({ bin, effort, run = spawnSync, cwd }) {
   const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })
   const child = run(bin, ['debug', 'models', '--bundled'], { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], cwd, windowsHide: true })
-  if (!child || child.error || child.status !== 0) return builtIn(child?.error?.code ?? child?.error?.message ?? `its model list exited ${child?.status}`)
+  if (!child) return builtIn('its model list could not be run')
+  if (child.error) return builtIn(child.error.code ?? child.error.message ?? 'its model list could not be run')
+  if (child.signal) return builtIn(`its model list was stopped by ${child.signal}`)
+  if (child.status !== 0) return builtIn(`its model list exited ${child.status}`)
   let listed
   try { listed = JSON.parse(String(child.stdout ?? ''))?.models } catch { /* not JSON: could not tell */ }
   if (!Array.isArray(listed)) return builtIn('its model list is not in the shape this reads')
-  const offered = listed.filter(entry => entry && typeof entry === 'object' && typeof entry.slug === 'string' && MODEL_SLUG.test(entry.slug)
-    && entry.visibility === 'list' && Number.isFinite(entry.priority) && Array.isArray(entry.supported_reasoning_levels)
-    && entry.supported_reasoning_levels.some(level => level?.effort === effort))
-  if (!offered.length) return builtIn(`it lists no model that offers ${effort}`)
-  const first = Math.min(...offered.map(entry => entry.priority))
-  const ranked = offered.filter(entry => entry.priority === first)
-  if (ranked.length !== 1) return builtIn(`${ranked.length} of its models share the first rank`)
-  return { model: ranked[0].slug }
+  // One pass, no spread: a list of a hundred thousand rows fits the buffer and overflowed `Math.min(...)` (finding 3).
+  let first = null
+  let sharing = 0
+  for (const entry of listed) {
+    const readable = entry && typeof entry === 'object' && typeof entry.slug === 'string' && MODEL_SLUG.test(entry.slug)
+      && typeof entry.visibility === 'string' && Number.isFinite(entry.priority) && Array.isArray(entry.supported_reasoning_levels)
+      && entry.supported_reasoning_levels.every(level => typeof level?.effort === 'string')
+    if (!readable) return builtIn('a row of its model list is not in the shape this reads')
+    if (entry.visibility !== 'list' || !entry.supported_reasoning_levels.some(level => level.effort === effort)) continue
+    if (first === null || entry.priority < first.priority) { first = entry; sharing = 1 } else if (entry.priority === first.priority) sharing += 1
+  }
+  if (!first) return builtIn(`it lists no model that offers ${effort}`)
+  if (sharing !== 1) return builtIn(`${sharing} of its models share the first rank`)
+  return { model: first.slug }
 }
 const builtInModel = () => ({ model: CODEX_MODEL })
 
@@ -192,7 +206,8 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
     return { reason: `a temporary directory for its final message could not be made (${error.code ?? error.message})` }
   }
   try {
-    const picked = pick({ bin, effort, cwd: directory })
+    // The probe runs elsewhere, so a Codex named by a relative path is named whole for it (finding 2).
+    const picked = pick({ bin: /[\\/]/.test(bin) ? path.resolve(bin) : bin, effort, cwd: directory })
     const call = codexInvocation({ bin, repo, effort, model: picked.model, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
     const child = run(call.bin, call.argv, call.options)
     if (child?.error?.code === 'ETIMEDOUT') {

@@ -4801,8 +4801,8 @@ latest model, chose the latest. Until now `CODEX_MODEL` in plugin/scripts/host-r
 a new model cost a release.
 - The command line now asks the installed Codex. `codex debug models --bundled` on codex-cli 0.170.0 prints `{models: [{slug,
   priority, visibility, supported_reasoning_levels}]}` in about 900 KB, with `gpt-6.2-sol` at priority 1. The model is the listed
-  one of lowest priority that offers the effort. It is still passed with `-m`, so a row's `model` is what ran and `bound` keeps
-  its meaning (ADR-119 T2).
+  one of lowest priority that offers the effort. It is still passed with `-m`, so a row's `model` is the one the launcher
+  asked for (what the backend then ran is not observed) and `bound` keeps its meaning (ADR-119 T2).
 - Could-not-tell is said, not guessed: a build without the command, another shape, no model offering the effort, a slug that is
   not a model name, or two sharing the first rank gives the run `CODEX_MODEL`, now `gpt-6.2-sol`, and standard error says why.
   `gpt-6.2-sol` was run once at high effort on 0.170.0 before it was written down (§16), and it answered.
@@ -4813,8 +4813,18 @@ a new model cost a release.
   launcher names it, and nothing here can see that. The skills' descriptions no longer name a model.
 - ADR-098 T1's locked test asserted the literal `gpt-6.1-sol`. It asserts `gpt-6.2-sol` now and the task is re-locked with
   `adr-verify --relock --replace-hashes`, a lock weaker than first-red, as adr-lint says.
-Tests: tests/codex-launcher.test.mjs, four added (the ranking with a hidden and a low-effort decoy, eight could-not-tell rows with
-a clean twin, the prompt-file row, the command line through a stub Codex); eight catalogue mutants beside them.
+Tests: tests/codex-launcher.test.mjs (the ranking with a hidden and a low-effort decoy and a list of 140,000 rows, the
+could-not-tell rows with a clean twin, the prompt-file row, a relative Codex path, both command-line forms through a stub Codex
+with and without a model list) and one in tests/host-review.test.mjs; a catalogue mutant beside each.
+Codex review of cccf5af8 (gpt-6.2-sol, high, through this launcher: REQUEST CHANGES, seven findings), each confirmed against
+source and fixed in the next commit: (1) fail-open, a row it could not read was skipped, so a malformed first-ranked row let
+the next one win unsaid; any unreadable row is now could-not-tell. (2) A Codex named by a relative path was not found by the
+probe, which runs in another directory; the probe is handed the whole path. (3) `Math.min(...)` over a long list threw; the
+rank is taken in one pass, and a slug is at most 128 characters. (4) The new tests wrote review rows for `/repo`; they use a
+repository of their own. (5) The `--scope` form's wiring, a failing list at the command line, and a probe stopped by a signal
+were untested; they are tested, and a signal is named. (6) Not from this change: an exit-0 answer in the schema saying
+`unavailable` was recorded `pinned`; it is `unproven` (ADR-119 T2). (7) "What ran" overstated what is observed; the row holds
+the model the launcher asked for, and both skills now say what happens when no listed model offers the level.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

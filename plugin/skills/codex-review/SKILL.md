@@ -99,7 +99,8 @@ honestly fits, state it before running, and pass it explicitly:
 Do not promote merely because the user says “review thoroughly”; route on actual breadth, risk, and
 ambiguity. Do not accept another effort string; the launcher refuses one. On a new or upgraded Codex installation,
 `"<absolute-codex>" debug models --bundled` shows which model the launcher will name: the listed one of lowest `priority`
-that offers the chosen level. If the level is unavailable, fail clearly instead of substituting another effort.
+that offers the chosen level. When no listed model offers it, the launcher still tries `gpt-6.2-sol` at that level and
+says so on standard error; a refusal there is a failed review. Never substitute another effort.
 
 ## Establish execution evidence
 
@@ -138,7 +139,7 @@ effort). When Codex cannot say, the launcher names `gpt-6.2-sol` and says so on 
 `--range` names the commits the contract reviews, as two revisions (`<base>..<head>`, the same range the contract's scope
 names; omit it only for uncommitted work, which no range holds). The launcher records each run in `reviews.jsonl` in the
 clone's state directory, shared by every worktree, where this repository's release gate reads whether every shipped commit since the last tag was
-reviewed (ADR-100). A row records the host, the model (the one the launcher named), `bound` (`pinned`, or `unproven` when
+reviewed (ADR-100). A row records the host, the model (the one the launcher asked for), `bound` (`pinned`, or `unproven` when
 the run returned nothing), the effort, the status of the last `VERDICT:` line, and the range resolved to full shas. A
 `host-review.mjs` run without `--prompt-file`, which reads the reviewer's own model line, records `bound: disagrees` and
 the `reportedModel` it printed when that is not the model the launcher named. A malformed or unresolvable range runs

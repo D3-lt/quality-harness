@@ -64,8 +64,8 @@ An explicit valid choice wins. Otherwise select and state the lowest honest tier
 | `ultra` | Broad high-impact architecture, migration/incident strategy, irreversible choice, or an explicitly exhaustive question where automatic delegation materially helps. |
 
 Never silently downgrade. Reject other effort strings; the launcher refuses one. On a new or upgraded installation, use
-`"<absolute-codex>" debug models --bundled` to confirm a listed model offers the chosen level; fail clearly if none
-does.
+`"<absolute-codex>" debug models --bundled` to see whether a listed model offers the chosen level. When none does, the
+launcher tries `gpt-6.2-sol` at that level and says so on standard error; report a refusal as Codex unavailable.
 
 ## Launch the advisor
 

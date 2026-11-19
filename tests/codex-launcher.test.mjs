@@ -191,16 +191,26 @@ const catalogued = listed => {
   return { calls, run, given, pick: options => codexModel({ ...options, run }) }
 }
 
+// A repository of this file's own for the runs below: each leaves a review row, and `/repo` resolves to wherever the
+// state directory falls back to (Codex review of cccf5af8, finding 4).
+const ownRepo = path.join(scratch, 'own')
+mkdirSync(ownRepo)
+assert.equal(spawnSync('git', ['init', '-q'], { cwd: ownRepo, encoding: 'utf8', timeout: 30_000, windowsHide: true }).status, 0)
+const mine = { ...review, repo: ownRepo }
 test('the reviewer is the model the installed Codex ranks first for the effort', () => {
   // A hidden model and one that does not offer the effort both rank above the reviewer, and are not it.
   const runs = catalogued([entry('gpt-old-sol', 4), entry('gpt-new-sol', 1), entry('gpt-new-astra', 2), entry('gpt-hidden', 0, ['high'], 'hide'), entry('gpt-low-only', 0, ['low'])])
-  const result = hostReview({ ...review, run: runs.run, pick: runs.pick })
+  const result = hostReview({ ...mine, run: runs.run, pick: runs.pick })
   assert.equal(runs.given(), 'gpt-new-sol')
   assert.deepEqual([result.status, result.model, result.bound, result.modelNote], ['clean', 'gpt-new-sol', 'pinned', undefined])
   // The effort decides: the model first for `high` that does not offer `ultra` is not the `ultra` reviewer.
   const ultra = catalogued([entry('gpt-new-sol', 1, ['high']), entry('gpt-deep', 3, ['high', 'ultra'])])
-  hostReview({ ...review, effort: 'ultra', run: ultra.run, pick: ultra.pick })
+  hostReview({ ...mine, effort: 'ultra', run: ultra.run, pick: ultra.pick })
   assert.equal(ultra.given(), 'gpt-deep')
+  // A list longer than an argument list may be is read in one pass (finding 3: `Math.min(...)` threw past 131072 rows).
+  const long = catalogued([...Array.from({ length: 140_000 }, (_, row) => entry(`gpt-row-${row}`, row + 2)), entry('gpt-last-is-first', 1)])
+  hostReview({ ...mine, run: long.run, pick: long.pick })
+  assert.equal(long.given(), 'gpt-last-is-first')
   // The probe: stdin closed, killed hard at its own deadline, no window, and room for the 900 KB the real list takes.
   const probe = runs.calls.find(call => call.args[0] === 'debug')
   assert.deepEqual(probe.args, ['debug', 'models', '--bundled'])
@@ -221,12 +231,20 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
     [{ error: { code: 'ENOBUFS' }, status: null }, /ENOBUFS/],
     [[entry('gpt-low-only', 1, ['low'])], /lists no model that offers high/],
     [[entry('gpt-a', 1), entry('gpt-b', 1)], /2 of its models share the first rank/],
-    [[entry('--config=x', 1)], /lists no model that offers high/],
-    [[entry('gpt-text-rank', '1')], /lists no model that offers high/],
+    // A row this cannot read is could-not-tell even when a readable row ranks below it: it might be the first (finding 1).
+    [[entry('--config=x', 0), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('gpt-text-rank', '1'), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('g'.repeat(200), 1), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[{ slug: 'gpt-odd', priority: 1, visibility: 'list', supported_reasoning_levels: 'high' }, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[null, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    // The probe itself: killed at its deadline, stopped by a signal, or never started.
+    [{ error: { code: 'ETIMEDOUT' }, signal: 'SIGKILL', status: null }, /ETIMEDOUT/],
+    [{ signal: 'SIGTERM', status: null }, /its model list was stopped by SIGTERM/],
+    [null, /its model list could not be run/],
   ]
   for (const [listed, why] of rows) {
     const runs = catalogued(listed)
-    const result = hostReview({ ...review, run: runs.run, pick: runs.pick })
+    const result = hostReview({ ...mine, run: runs.run, pick: runs.pick })
     assert.equal(runs.given(), CODEX_MODEL, JSON.stringify(listed))
     assert.deepEqual([result.status, result.model], ['clean', CODEX_MODEL], JSON.stringify(listed))
     assert.match(result.modelNote, why)
@@ -234,14 +252,14 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
   }
   // CLEAN twin: a caller that passes no `pick` starts no probe and is told nothing.
   const plain = catalogued([entry('gpt-new-sol', 1)])
-  const result = hostReview({ ...review, run: plain.run })
+  const result = hostReview({ ...mine, run: plain.run })
   assert.deepEqual([plain.given(), result.modelNote, plain.calls.some(call => call.args[0] === 'debug')], [CODEX_MODEL, undefined, false])
 })
 
 test('the prompt-file row names the model that ran, and standard error says when Codex could not name one', () => {
   const repo = path.join(scratch, 'ledger')
   mkdirSync(repo)
-  const made = spawnSync('git', ['init', '-q', repo], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  const made = spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 30_000, windowsHide: true })
   assert.equal(made.status, 0, made.stderr)
   const contract = path.join(scratch, 'contract.txt')
   writeFileSync(contract, 'CODEX-REVIEW-LEAF: read it')
@@ -259,21 +277,38 @@ test('the prompt-file row names the model that ran, and standard error says when
   assert.deepEqual([lastRow().model, lastRow().bound], [CODEX_MODEL, 'pinned'])
 })
 
-test('the command line asks the installed Codex for its first-ranked model', t => {
+test('the probe is handed the whole path of a Codex named by a relative one', () => {
+  // The probe runs in a temporary directory, where `bin/codex` names nothing (finding 2).
+  const seen = []
+  const pick = options => { seen.push(options.bin); return { model: CODEX_MODEL } }
+  const whole = path.resolve('bin', 'codex')
+  for (const bin of [path.join('bin', 'codex'), 'codex', whole]) hostReview({ ...mine, resolve: () => bin, run: fake({ status: 0, stdout: clean }).run, pick })
+  assert.deepEqual(seen, [whole, 'codex', whole])
+})
+
+test('the command line asks the installed Codex for its first-ranked model, in both forms', t => {
   if (process.platform === 'win32') return t.skip('a #!/usr/bin/env node stub on CODEX_CLI_PATH cannot be executed on Windows')
   const stub = path.join(scratch, 'codex-lists')
   writeFileSync(stub, `#!/usr/bin/env node
 const a = process.argv.slice(2)
 if (a[1] === '--help') process.exit(0)
-if (a[0] === 'debug') { console.log(JSON.stringify({ models: [${JSON.stringify(entry('gpt-stub-first', 1))}] })); process.exit(0) }
-require('node:fs').writeFileSync(a[a.indexOf('-o') + 1], 'RAN ' + a[a.indexOf('-m') + 1])
+if (a[0] === 'debug') { if (process.env.STUB_LIST === 'fail') process.exit(1); console.log(JSON.stringify({ models: [${JSON.stringify(entry('gpt-stub-first', 1))}] })); process.exit(0) }
+require('node:fs').writeFileSync(a[a.indexOf('-o') + 1], JSON.stringify({ status: 'clean', findings: [], model: a[a.indexOf('-m') + 1] }))
 `)
   chmodSync(stub, 0o755)
   const contract = path.join(scratch, 'cli-contract.txt')
   writeFileSync(contract, 'CODEX-ADVISE-LEAF: hello')
-  const ran = spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'host-review.mjs'), '--host', 'codex', '--effort', 'high', '--repo', scratch, '--prompt-file', contract],
-    { encoding: 'utf8', timeout: 60_000, env: { ...process.env, CODEX_CLI_PATH: stub }, windowsHide: true })
-  assert.equal(ran.status, 0, ran.stderr)
-  assert.equal(ran.stdout.trim(), 'RAN gpt-stub-first')
-  assert.doesNotMatch(ran.stderr, /did not name/)
+  const cli = (form, list) => spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'host-review.mjs'), '--host', 'codex', '--effort', 'high', '--repo', ownRepo, ...form],
+    { encoding: 'utf8', timeout: 60_000, env: { ...process.env, CODEX_CLI_PATH: stub, STUB_LIST: list }, windowsHide: true })
+  for (const form of [['--prompt-file', contract], ['--scope', 'uncommitted']]) {
+    const named = cli(form, 'ok')
+    assert.equal(named.status, 0, named.stderr)
+    assert.equal(JSON.parse(named.stdout).model, 'gpt-stub-first', form[0])
+    assert.doesNotMatch(named.stderr, /did not name/, form[0])
+    // DIRTY: the same Codex without a model list still reviews, on the built-in model, and standard error says why.
+    const builtIn = cli(form, 'fail')
+    assert.equal(builtIn.status, 0, builtIn.stderr)
+    assert.equal(JSON.parse(builtIn.stdout).model, CODEX_MODEL, form[0])
+    assert.match(builtIn.stderr, /host-review: the installed Codex did not name its first-ranked model \(its model list exited 1\)/, form[0])
+  }
 })

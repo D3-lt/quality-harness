@@ -147,3 +147,13 @@ test('every documented host-review command names the repository and the scope', 
     assert.ok(seen >= 1, `${file} documents the command`)
   }
 })
+
+// Codex review of cccf5af8, finding 6: an exit-0 answer in the schema saying `unavailable` kept `bound: pinned`, and
+// ADR-119 T2 says a review that did not happen is unproven.
+test('a reviewer that answers unavailable in the schema is unproven, never pinned', () => {
+  const said = status => JSON.stringify({ status, findings: [], model: CODEX_MODEL, ...(status === 'unavailable' ? { reason: 'quota' } : {}) })
+  const result = reviewFromOutput(said('unavailable'), { host: 'codex', model: CODEX_MODEL, effort: 'high' })
+  assert.deepEqual([result.status, result.model, result.bound, result.reason], ['unavailable', CODEX_MODEL, 'unproven', 'quota'])
+  // CLEAN twin: the same answer saying clean is pinned.
+  assert.equal(reviewFromOutput(said('clean'), { host: 'codex', model: CODEX_MODEL, effort: 'high' }).bound, 'pinned')
+})

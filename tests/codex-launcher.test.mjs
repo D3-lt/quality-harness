@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { CODEX_MODEL, CODEX_TIMEOUT_MS, REVIEWS_FILE, codexInvocation, codexModel, hostReview, promptFileReview, sameFromAnywhere } from '../plugin/scripts/host-review.mjs'
+import { CODEX_MODEL, CODEX_TIMEOUT_MS, REVIEWS_FILE, codexInvocation, codexModel, hostReview, promptFileReview } from '../plugin/scripts/host-review.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-codex-launch-')))
@@ -177,19 +177,21 @@ test('the token footer codex ends its stderr with is not the reason', () => {
 })
 
 // BACKLOG §474 (the owner, 2026-11-19): the reviewer is the model the installed Codex ranks first, not a name a release
-// must change. A fake whose `debug models --bundled` answers with `listed`; every other call is the review itself.
+// must change. A fake whose `debug --help` answers with `help`, whose `debug models --bundled` answers with `listed`, and
+// whose every other call is the review itself.
+const DEBUG_HELP = 'Debugging tools\n\nCommands:\n  models        Render the raw model catalog as JSON\n  help          Print this message\n'
 const entry = (slug, priority, efforts = ['high', 'xhigh'], visibility = 'list') => ({ slug, priority, visibility, supported_reasoning_levels: efforts.map(effort => ({ effort })) })
-const catalogued = listed => {
+const catalogued = (listed, help = { status: 0, stdout: DEBUG_HELP }) => {
   const calls = []
   const run = (bin, args, options) => {
     calls.push({ bin, args, options })
+    if (args[0] === 'debug' && args[1] === '--help') return help
     if (args[1] === '--help') return { status: 0, stdout: 'Usage: codex exec\n' }
     if (args[0] !== 'debug') return { status: 0, stdout: clean }
     return Array.isArray(listed) ? { status: 0, stdout: JSON.stringify({ models: listed }) } : typeof listed === 'string' ? { status: 0, stdout: listed } : listed
   }
   const given = () => { const argv = calls.find(call => call.args[0] === 'exec' && call.args[1] !== '--help').args; return argv[argv.indexOf('-m') + 1] }
-  // The platform is named, so `/bin/codex` is a whole path on a Windows runner too (§7).
-  return { calls, run, given, pick: options => codexModel({ ...options, run, platform: 'linux' }) }
+  return { calls, run, given, listing: () => calls.find(call => call.args[0] === 'debug' && call.args[1] === 'models'), pick: options => codexModel({ ...options, run }) }
 }
 
 // A repository of this file's own for the runs below: each leaves a review row, and `/repo` resolves to wherever the
@@ -215,15 +217,13 @@ test('the reviewer is the model the installed Codex ranks first for the effort',
   hostReview({ ...mine, run: long.run, pick: long.pick })
   assert.equal(long.given(), 'gpt-last-is-first')
   // The probe: stdin closed, killed hard at its own deadline, no window, and room for the 900 KB the real list takes.
-  const probe = runs.calls.find(call => call.args[0] === 'debug')
+  const probe = runs.listing()
   assert.deepEqual(probe.args, ['debug', 'models', '--bundled'])
   assert.equal(probe.options.stdio[0], 'ignore')
   assert.equal(probe.options.killSignal, 'SIGKILL')
   assert.equal(probe.options.windowsHide, true)
   assert.ok(probe.options.timeout > 0 && probe.options.timeout <= CODEX_TIMEOUT_MS)
   assert.ok(probe.options.maxBuffer >= 8 * 1024 * 1024, `the probe's buffer holds the list: ${probe.options.maxBuffer}`)
-  // It runs in the run's own temporary directory, never the repository.
-  assert.ok(path.basename(probe.options.cwd).startsWith('qh-codex-'), probe.options.cwd)
 })
 
 test('a Codex that cannot name its first-ranked model is given the built-in one, and the result says why', () => {
@@ -259,6 +259,13 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
     assert.match(result.modelNote, why)
     assert.ok(result.modelNote.endsWith(`the run is given ${CODEX_MODEL}`), result.modelNote)
   }
+  // A build whose `debug --help` lists no `models` command, or cannot be asked, is never sent `debug models`.
+  for (const help of [{ status: 0, stdout: 'Usage: codex debug\n\nCommands:\n  app-server  Tooling\n' }, { status: 0, stdout: 'see the models page\n' }, { status: 2, stdout: DEBUG_HELP }, { error: { code: 'ENOENT' }, status: null }, null]) {
+    const runs = catalogued([entry('gpt-new-sol', 1)], help)
+    const result = hostReview({ ...mine, run: runs.run, pick: runs.pick })
+    assert.deepEqual([runs.given(), runs.listing()], [CODEX_MODEL, undefined], JSON.stringify(help))
+    assert.match(result.modelNote, /this build lists no `debug models` command/)
+  }
   // CLEAN twin: a caller that passes no `pick` starts no probe and is told nothing.
   const plain = catalogued([entry('gpt-new-sol', 1)])
   const result = hostReview({ ...mine, run: plain.run })
@@ -274,8 +281,8 @@ test('the prompt-file row names the model that ran, and standard error says when
   writeFileSync(contract, 'CODEX-REVIEW-LEAF: read it')
   const argv = ['node', 'host-review.mjs', '--host', 'codex', '--effort', 'high', '--repo', repo, '--prompt-file', contract]
   const lastRow = () => JSON.parse(readFileSync(path.join(repo, '.git', 'quality-harness', REVIEWS_FILE), 'utf8').trim().split('\n').at(-1))
-  const run = listed => (bin, args) => args[1] === '--help' ? { status: 0, stdout: '' } : args[0] === 'debug' ? listed : { status: 0, stdout: 'VERDICT: APPROVE\n' }
-  const launch = listed => promptFileReview({ argv, resolve: () => '/bin/codex', run: run(listed), pick: options => codexModel({ ...options, run: run(listed), platform: 'linux' }) })
+  const run = listed => (bin, args) => args[0] === 'debug' && args[1] === '--help' ? { status: 0, stdout: DEBUG_HELP } : args[1] === '--help' ? { status: 0, stdout: '' } : args[0] === 'debug' ? listed : { status: 0, stdout: 'VERDICT: APPROVE\n' }
+  const launch = listed => promptFileReview({ argv, resolve: () => '/bin/codex', run: run(listed), pick: options => codexModel({ ...options, run: run(listed) }) })
   const named = launch({ status: 0, stdout: JSON.stringify({ models: [entry('gpt-new-sol', 1)] }) })
   assert.deepEqual([named.code, named.err], [0, ''])
   assert.deepEqual([lastRow().model, lastRow().bound, lastRow().status], ['gpt-new-sol', 'pinned', 'clean'])
@@ -286,25 +293,17 @@ test('the prompt-file row names the model that ran, and standard error says when
   assert.deepEqual([lastRow().model, lastRow().bound], [CODEX_MODEL, 'pinned'])
 })
 
-test('the probe is not started for a Codex whose path depends on the directory', () => {
-  // The probe runs in a temporary directory, where `bin/codex` names nothing or something else (finding 2, twice).
-  const rows = [
-    ['linux', ['/opt/bin/codex', '/opt/link/../codex'], ['codex', 'bin/codex', './codex', '../codex', '']],
-    ['win32', ['C:\\bin\\codex.exe', 'c:/bin/codex.exe', '\\\\server\\share\\codex.exe'], ['codex', 'codex.exe', 'bin\\codex.exe', 'C:bin\\codex.exe', '\\bin\\codex.exe', '/bin/codex', '.\\codex.exe']],
-  ]
-  for (const [platform, whole, depends] of rows) {
-    for (const bin of whole) assert.equal(sameFromAnywhere(bin, platform), true, `${platform}: ${bin}`)
-    for (const bin of depends) assert.equal(sameFromAnywhere(bin, platform), false, `${platform}: ${bin}`)
+test('the probe runs as the review does: the same name, in the same directory', () => {
+  // Whatever file a name resolves to, both calls then run it; nothing decides which names are safe (five review rounds).
+  for (const bin of ['bin/codex', 'codex', '/opt/link/../codex', 'C:bin\\codex.exe']) {
+    const runs = catalogued([entry('gpt-new-sol', 1)])
+    hostReview({ ...mine, resolve: () => bin, run: runs.run, pick: runs.pick })
+    const review = runs.calls.find(call => call.args[0] === 'exec' && call.args[1] !== '--help')
+    for (const call of runs.calls.filter(each => each.args[0] === 'debug')) {
+      assert.deepEqual([call.bin, call.options.cwd, call.options.env], [review.bin, review.options.cwd, review.options.env], `${bin}: ${call.args.join(' ')}`)
+    }
+    assert.deepEqual([runs.given(), runs.calls.filter(each => each.args[0] === 'debug').length, review.bin], ['gpt-new-sol', 2, bin])
   }
-  // DIRTY, through the launcher: such a Codex is reviewed on the built-in model, told why, and nothing is run to ask it.
-  const runs = catalogued([entry('gpt-new-sol', 1)])
-  const result = hostReview({ ...mine, resolve: () => 'bin/codex', run: runs.run, pick: runs.pick })
-  assert.deepEqual([runs.given(), result.model, runs.calls.some(call => call.args[0] === 'debug')], [CODEX_MODEL, CODEX_MODEL, false])
-  assert.match(result.modelNote, /named by a path that depends on the directory/)
-  // CLEAN twin: the same list through a whole path names its first-ranked model, and the probe is handed that path as spelled.
-  const whole = catalogued([entry('gpt-new-sol', 1)])
-  hostReview({ ...mine, resolve: () => '/opt/link/../codex', run: whole.run, pick: whole.pick })
-  assert.deepEqual([whole.given(), whole.calls.find(call => call.args[0] === 'debug').bin], ['gpt-new-sol', '/opt/link/../codex'])
 })
 
 test('the command line asks the installed Codex for its first-ranked model, in both forms', t => {
@@ -312,6 +311,7 @@ test('the command line asks the installed Codex for its first-ranked model, in b
   const stub = path.join(scratch, 'codex-lists')
   writeFileSync(stub, `#!/usr/bin/env node
 const a = process.argv.slice(2)
+if (a[0] === 'debug' && a[1] === '--help') { console.log('Commands:\\n  models  Render the raw model catalog as JSON'); process.exit(0) }
 if (a[1] === '--help') process.exit(0)
 if (a[0] === 'debug') { if (process.env.STUB_LIST === 'fail') process.exit(1); console.log(JSON.stringify({ models: [${JSON.stringify(entry('gpt-stub-first', 1))}] })); process.exit(0) }
 require('node:fs').writeFileSync(a[a.indexOf('-o') + 1], JSON.stringify({ status: 'clean', findings: [], model: a[a.indexOf('-m') + 1] }))

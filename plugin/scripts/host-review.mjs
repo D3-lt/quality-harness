@@ -171,27 +171,21 @@ function acceptsIgnoreUserConfig(bin, run) {
 // therefore gets CODEX_MODEL, said, until those sets are measured again; so does every effort when one row, hidden or
 // low-ranked, is outside them. The note names the kind of failure, never the row, and CODEX_MODEL is tried without asking
 // whether it offers the effort: Codex refuses it if not, and that is an unavailable review.
-// The probe runs in the run's own temporary directory, since it needs no repository. So it is started only for a Codex
-// whose name means the same from any directory (`sameFromAnywhere`); for any other it is could-not-tell. Two rounds of
-// rewriting a relative path each met one more Windows path shape (Codex reviews of 5bb58e48 and 02941eba), so no path is
-// rewritten.
+// The probe is run exactly as the review is: the same name, the same working directory, the same environment. So whatever
+// file that name resolves to, both calls run it. Three review rounds tried to run it elsewhere and then say which names
+// mean the same from any directory, and each met one more path shape (Windows drive-relative, a PATH holding `.`,
+// `/proc/self/cwd`); nothing is classified now. A build is first asked whether it has the command (`debug --help` lists
+// `models` on 0.170.0): one that does not, and a test's stand-in, is never sent `debug models`.
 // It is the command line's `pick`; a caller that passes none (a test faking `run`) is given CODEX_MODEL and starts no probe.
 const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const MODEL_VISIBILITY = new Set(['list', 'hide'])
 const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-// POSIX: only a path from the root; a bare name is found through PATH, and a PATH holding `.` finds it in the working
-// directory (Codex review of 4ec1bc63). Windows: only a drive with a separator after it or a UNC path; a bare name is
-// looked for in the working directory first, `\bin\codex.exe` takes the working directory's drive, and `C:bin\codex.exe`
-// that drive's own directory.
-export function sameFromAnywhere(bin, platform = process.platform) {
-  if (typeof bin !== 'string' || !bin) return false
-  if (platform === 'win32') return /^[A-Za-z]:[\\/]/.test(bin) || /^[\\/]{2}[^\\/]/.test(bin)
-  return bin.startsWith('/')
-}
-export function codexModel({ bin, effort, run = spawnSync, cwd, platform = process.platform }) {
+export function codexModel({ bin, effort, run = spawnSync }) {
   const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })
-  if (!sameFromAnywhere(bin, platform)) return builtIn('it is named by a path that depends on the directory, and the lookup runs in another')
-  const child = run(bin, ['debug', 'models', '--bundled'], { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], cwd, windowsHide: true })
+  const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
+  const help = run(bin, ['debug', '--help'], probe)
+  if (!help || help.error || help.status !== 0 || !/^\s*models\b/m.test(String(help.stdout ?? ''))) return builtIn('this build lists no `debug models` command')
+  const child = run(bin, ['debug', 'models', '--bundled'], probe)
   if (!child) return builtIn('its model list could not be run')
   if (child.error) return builtIn(child.error.code ?? child.error.message ?? 'its model list could not be run')
   if (child.signal) return builtIn(`its model list was stopped by ${child.signal}`)
@@ -225,7 +219,7 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
     return { reason: `a temporary directory for its final message could not be made (${error.code ?? error.message})` }
   }
   try {
-    const picked = pick({ bin, effort, cwd: directory })
+    const picked = pick({ bin, effort })
     const call = codexInvocation({ bin, repo, effort, model: picked.model, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
     const child = run(call.bin, call.argv, call.options)
     if (child?.error?.code === 'ETIMEDOUT') {

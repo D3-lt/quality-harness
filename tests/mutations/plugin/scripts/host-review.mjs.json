@@ -434,28 +434,28 @@
       "to": "if (false) return builtIn(`its model list was stopped by ${child.signal}`)"
     },
     {
-      "label": "BACKLOG §474: a Codex whose path depends on the directory is not probed",
+      "label": "BACKLOG §474: a build that lists no debug models command is not sent it",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the probe is not started for a Codex whose path depends on the directory$",
-      "from": "if (!sameFromAnywhere(bin, platform)) return builtIn(",
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "if (!help || help.error || help.status !== 0 || !/^\\s*models\\b/m.test(String(help.stdout ?? ''))) return builtIn(",
       "to": "if (false) return builtIn("
     },
     {
-      "label": "BACKLOG §474: a Windows path on the current drive is not a whole path",
+      "label": "BACKLOG §474: models is a listed command, not a word in the help",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the probe is not started for a Codex whose path depends on the directory$",
-      "from": "if (platform === 'win32') return /^[A-Za-z]:[\\\\/]/.test(bin) || /^[\\\\/]{2}[^\\\\/]/.test(bin)",
-      "to": "if (platform === 'win32') return /^[A-Za-z]:/.test(bin) || /^[\\\\/]/.test(bin)"
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "!/^\\s*models\\b/m.test(String(help.stdout ?? ''))",
+      "to": "!/models/.test(String(help.stdout ?? ''))"
     },
     {
-      "label": "BACKLOG §474: a bare name is not a whole path on POSIX",
+      "label": "BACKLOG §474: the probe runs in the review's own directory",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
-      "only": "^the probe is not started for a Codex whose path depends on the directory$",
-      "from": "  return bin.startsWith('/')",
-      "to": "  return !bin.includes('/') || bin.startsWith('/')"
+      "only": "^the probe runs as the review does: the same name, in the same directory$",
+      "from": "const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }",
+      "to": "const probe = { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, cwd: os.tmpdir() }"
     },
     {
       "label": "BACKLOG §474: an unavailable answer with no reason still says why",

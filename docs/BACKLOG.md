@@ -4848,6 +4848,14 @@ The verification review of that third fix (4ec1bc63: REQUEST CHANGES, two blocki
 a bare `codex` was still called the same from anywhere on POSIX, and a `PATH` holding `.` finds it in the working directory, so
 on POSIX only a path from the root is; and the prompt-file test handed `/bin/codex` to the lookup on the runner's own platform,
 which on Windows is not a whole path, so it names the platform as its neighbours do.
+The verification review of that (aa3c7131: one blocking, a fail-open present in both revisions): `/proc/self/cwd/../codex` is a
+path from the root that still depends on the working directory. That was a third round of naming which paths are safe, so the
+question is removed instead of answered: the probe is run exactly as the review is (the same name, working directory and
+environment), and whatever file the name resolves to, both calls run it. Nothing classifies a path. The temporary directory had
+been there so a test's stand-in Codex, sent `debug models`, would not write into the repository; a build is now asked first
+whether it has the command (`debug --help` lists `models` on 0.170.0), and one that does not list it is never sent it. Five
+review rounds on one change is more than §12 allows for; each of the four after the first was blocked by a fail-open or a
+regression, which is the case §12 keeps open, and the last two were ended by removing the classifier, not by one more row.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

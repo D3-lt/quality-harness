@@ -55,9 +55,6 @@ export function reviewFromOutput(text, { host, model = null, effort = null } = {
   if (!validReview(parsed)) {
     return unavailable(host, effort, 'the host did not return the review schema', model)
   }
-  // ADR-119 T2: a reviewer that answers in the schema that it was unavailable reviewed nothing, so its row is unproven too
-  // (Codex review of cccf5af8, finding 6: it kept `pinned`).
-  if (parsed.status === 'unavailable') return unavailable(host, effort, typeof parsed.reason === 'string' && parsed.reason ? parsed.reason : 'the reviewer answered that it was unavailable', model)
   const printed = typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model.trim() : null
   // ADR-119 T2: the model the launcher pinned is the model (runs pinned to gpt-6.1-sol printed "gpt-6" and "Codex"). A printed
   // one that differs is kept as `reportedModel`; with no pin, what it printed is all there is, and nothing proves it.
@@ -68,7 +65,9 @@ export function reviewFromOutput(text, { host, model = null, effort = null } = {
     host,
     model: pin ?? printed,
     effort,
-    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',
+    // A reviewer that answers in the schema that it was unavailable reviewed nothing: unproven, with what it said kept
+    // (Codex review of cccf5af8, finding 6, and of 5bb58e48, finding 3).
+    bound: !pin || parsed.status === 'unavailable' ? 'unproven' : disagrees ? 'disagrees' : 'pinned',
     ...(disagrees ? { reportedModel: printed } : {}),
     findings: parsed.findings,
     reason: typeof parsed.reason === 'string' ? parsed.reason : '',
@@ -166,11 +165,15 @@ function acceptsIgnoreUserConfig(bin, run) {
 // supported_reasoning_levels: [{effort}]}]} in about 900 KB, with gpt-6.2-sol at priority 1. The model is the listed one
 // of lowest priority that offers the effort, and it is still passed by name, so a row's model is the one the launcher asked
 // for. Anything else is could-not-tell (a build without the command, another shape, no such model, two sharing the first
-// rank): the run is given CODEX_MODEL and `modelNote` says why. Every row is read or none is: a row this cannot read might
-// be the first-ranked one, so it is not skipped (§16; Codex review of cccf5af8, finding 1). The probe runs in the run's
-// own temporary directory: it needs no repository.
+// rank): the run is given CODEX_MODEL and `modelNote` says why. Every row is read or none is, and a row is read only when
+// each field holds a value measured on 0.170.0: a row outside them might be the first-ranked one, so it is not skipped
+// (§16; Codex reviews of cccf5af8 and 5bb58e48, finding 1 of each). A later Codex with a new visibility or effort word
+// therefore gets CODEX_MODEL, said, until those sets are measured again. The probe runs in the run's own temporary
+// directory: it needs no repository.
 // It is the command line's `pick`; a caller that passes none (a test faking `run`) is given CODEX_MODEL and starts no probe.
 const MODEL_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+const MODEL_VISIBILITY = new Set(['list', 'hide'])
+const MODEL_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
 export function codexModel({ bin, effort, run = spawnSync, cwd }) {
   const builtIn = why => ({ model: CODEX_MODEL, modelNote: `the installed Codex did not name its first-ranked model (${why}); the run is given ${CODEX_MODEL}` })
   const child = run(bin, ['debug', 'models', '--bundled'], { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], cwd, windowsHide: true })
@@ -186,8 +189,9 @@ export function codexModel({ bin, effort, run = spawnSync, cwd }) {
   let sharing = 0
   for (const entry of listed) {
     const readable = entry && typeof entry === 'object' && typeof entry.slug === 'string' && MODEL_SLUG.test(entry.slug)
-      && typeof entry.visibility === 'string' && Number.isFinite(entry.priority) && Array.isArray(entry.supported_reasoning_levels)
-      && entry.supported_reasoning_levels.every(level => typeof level?.effort === 'string')
+      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)
+      && Array.isArray(entry.supported_reasoning_levels) && entry.supported_reasoning_levels.length > 0
+      && entry.supported_reasoning_levels.every(level => MODEL_EFFORTS.has(level?.effort))
     if (!readable) return builtIn('a row of its model list is not in the shape this reads')
     if (entry.visibility !== 'list' || !entry.supported_reasoning_levels.some(level => level.effort === effort)) continue
     if (first === null || entry.priority < first.priority) { first = entry; sharing = 1 } else if (entry.priority === first.priority) sharing += 1
@@ -206,8 +210,9 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
     return { reason: `a temporary directory for its final message could not be made (${error.code ?? error.message})` }
   }
   try {
-    // The probe runs elsewhere, so a Codex named by a relative path is named whole for it (finding 2).
-    const picked = pick({ bin: /[\\/]/.test(bin) ? path.resolve(bin) : bin, effort, cwd: directory })
+    // The probe runs elsewhere, so a Codex named by a relative path is named whole for it. Joined, never resolved: resolving
+    // rewrites `link/../codex`, which names another file when `link` is a symlink (Codex review of 5bb58e48, finding 2).
+    const picked = pick({ bin: /[\\/]/.test(bin) && !path.isAbsolute(bin) ? `${process.cwd()}${path.sep}${bin}` : bin, effort, cwd: directory })
     const call = codexInvocation({ bin, repo, effort, model: picked.model, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
     const child = run(call.bin, call.argv, call.options)
     if (child?.error?.code === 'ETIMEDOUT') {

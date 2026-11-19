@@ -4825,6 +4825,16 @@ repository of their own. (5) The `--scope` form's wiring, a failing list at the 
 were untested; they are tested, and a signal is named. (6) Not from this change: an exit-0 answer in the schema saying
 `unavailable` was recorded `pinned`; it is `unproven` (ADR-119 T2). (7) "What ran" overstated what is observed; the row holds
 the model the launcher asked for, and both skills now say what happens when no listed model offers the level.
+The one scoped verification review of that fix (5bb58e48, same reviewer and effort: REQUEST CHANGES, three blocking), fixed in
+the commit after it, with no further review round (§12): (1) fail-open, the row check took any string as a visibility or an
+effort and any number as a rank, so `visibility: "lsit"` was skipped unsaid and a rank of 0.5 could win. Two rounds each found
+one more input, so the check is bounded instead of patched: a row is read only when its visibility, every effort and its rank
+hold a value measured on 0.170.0 (`list` or `hide`; the six effort words; a whole number), and anything else is
+could-not-tell. The cost is named: a later Codex with a new word gets `CODEX_MODEL`, said, until the sets are measured again.
+(2) Regression, `path.resolve` rewrote a whole path through `link/..`; a relative path is joined to the working directory and
+a whole one is handed over as spelled. (3) Regression, the `unavailable` answer lost its findings and printed model; they are
+kept and only `bound` changes. Its non-blocking notes: the tests now assert their rows land in their own repository, and the
+codex-review skill says when `bound` is `unproven`.
 Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds the name in 24 files, 58 lines. Two are in
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two

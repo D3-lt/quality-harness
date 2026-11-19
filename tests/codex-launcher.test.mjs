@@ -203,6 +203,8 @@ test('the reviewer is the model the installed Codex ranks first for the effort',
   const result = hostReview({ ...mine, run: runs.run, pick: runs.pick })
   assert.equal(runs.given(), 'gpt-new-sol')
   assert.deepEqual([result.status, result.model, result.bound, result.modelNote], ['clean', 'gpt-new-sol', 'pinned', undefined])
+  // Its row is in this file's own repository, naming the model the launcher asked for.
+  assert.equal(JSON.parse(readFileSync(path.join(ownRepo, '.git', 'quality-harness', REVIEWS_FILE), 'utf8').trim().split('\n').at(-1)).model, 'gpt-new-sol')
   // The effort decides: the model first for `high` that does not offer `ultra` is not the `ultra` reviewer.
   const ultra = catalogued([entry('gpt-new-sol', 1, ['high']), entry('gpt-deep', 3, ['high', 'ultra'])])
   hostReview({ ...mine, effort: 'ultra', run: ultra.run, pick: ultra.pick })
@@ -237,6 +239,12 @@ test('a Codex that cannot name its first-ranked model is given the built-in one,
     [[entry('g'.repeat(200), 1), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     [[{ slug: 'gpt-odd', priority: 1, visibility: 'list', supported_reasoning_levels: 'high' }, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     [[null, entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    // A field holding a value never measured is not read either (review of 5bb58e48, finding 1): a misspelt visibility,
+    // a rank that is not a whole number, an effort word nobody has seen, a row offering nothing.
+    [[entry('gpt-typo', 1, ['high'], 'lsit'), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('gpt-half', 0.5), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('gpt-empty-effort', 1, ['high', '']), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
+    [[entry('gpt-offers-nothing', 1, []), entry('gpt-valid', 2)], /a row of its model list is not in the shape/],
     // The probe itself: killed at its deadline, stopped by a signal, or never started.
     [{ error: { code: 'ETIMEDOUT' }, signal: 'SIGKILL', status: null }, /ETIMEDOUT/],
     [{ signal: 'SIGTERM', status: null }, /its model list was stopped by SIGTERM/],
@@ -281,9 +289,11 @@ test('the probe is handed the whole path of a Codex named by a relative one', ()
   // The probe runs in a temporary directory, where `bin/codex` names nothing (finding 2).
   const seen = []
   const pick = options => { seen.push(options.bin); return { model: CODEX_MODEL } }
-  const whole = path.resolve('bin', 'codex')
-  for (const bin of [path.join('bin', 'codex'), 'codex', whole]) hostReview({ ...mine, resolve: () => bin, run: fake({ status: 0, stdout: clean }).run, pick })
-  assert.deepEqual(seen, [whole, 'codex', whole])
+  const relative = path.join('bin', 'codex')
+  // A whole path is handed over as spelled: resolving `link/../codex` names another file when `link` is a symlink.
+  const whole = `${path.resolve('link')}${path.sep}..${path.sep}codex`
+  for (const bin of [relative, 'codex', whole]) hostReview({ ...mine, resolve: () => bin, run: fake({ status: 0, stdout: clean }).run, pick })
+  assert.deepEqual(seen, [`${process.cwd()}${path.sep}${relative}`, 'codex', whole])
 })
 
 test('the command line asks the installed Codex for its first-ranked model, in both forms', t => {

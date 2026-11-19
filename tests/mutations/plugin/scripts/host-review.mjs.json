@@ -310,16 +310,16 @@
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/host-review.test.mjs"],
       "only": "^(?:a review row records the model the launcher pinned, and a printed model that differs as disagrees)$",
-      "from": "    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
-      "to": "    bound: !pin ? 'unproven' : 'pinned',"
+      "from": "    bound: !pin || parsed.status === 'unavailable' ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
+      "to": "    bound: !pin || parsed.status === 'unavailable' ? 'unproven' : 'pinned',"
     },
     {
       "label": "ADR-119 T2: no pin is unproven",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/host-review.test.mjs"],
       "only": "^(?:a host with no pinned model records what it printed, as unproven)$",
-      "from": "    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
-      "to": "    bound: !printed ? 'unproven' : disagrees ? 'disagrees' : 'pinned',"
+      "from": "    bound: !pin || parsed.status === 'unavailable' ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
+      "to": "    bound: !printed || parsed.status === 'unavailable' ? 'unproven' : disagrees ? 'disagrees' : 'pinned',"
     },
     {
       "label": "ADR-119 T2: the Codex row carries its bound and the printed model",
@@ -438,16 +438,48 @@
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/codex-launcher.test.mjs"],
       "only": "^the probe is handed the whole path of a Codex named by a relative one$",
-      "from": "const picked = pick({ bin: /[\\\\/]/.test(bin) ? path.resolve(bin) : bin, effort, cwd: directory })",
+      "from": "const picked = pick({ bin: /[\\\\/]/.test(bin) && !path.isAbsolute(bin) ? `${process.cwd()}${path.sep}${bin}` : bin, effort, cwd: directory })",
       "to": "const picked = pick({ bin, effort, cwd: directory })"
+    },
+    {
+      "label": "BACKLOG §474: a whole path is handed over as it was spelled",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^the probe is handed the whole path of a Codex named by a relative one$",
+      "from": "const picked = pick({ bin: /[\\\\/]/.test(bin) && !path.isAbsolute(bin) ? `${process.cwd()}${path.sep}${bin}` : bin, effort, cwd: directory })",
+      "to": "const picked = pick({ bin: /[\\\\/]/.test(bin) ? path.resolve(bin) : bin, effort, cwd: directory })"
     },
     {
       "label": "BACKLOG §474: an answer of unavailable in the schema is unproven",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/host-review.test.mjs"],
       "only": "^a reviewer that answers unavailable in the schema is unproven, never pinned$",
-      "from": "if (parsed.status === 'unavailable') return unavailable(host, effort,",
-      "to": "if (false) return unavailable(host, effort,"
+      "from": "    bound: !pin || parsed.status === 'unavailable' ? 'unproven' : disagrees ? 'disagrees' : 'pinned',",
+      "to": "    bound: !pin ? 'unproven' : disagrees ? 'disagrees' : 'pinned',"
+    },
+    {
+      "label": "BACKLOG §474: a visibility that was never measured is not read",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)",
+      "to": "      && typeof entry.visibility === 'string' && Number.isInteger(entry.priority)"
+    },
+    {
+      "label": "BACKLOG §474: a rank that is not a whole number is not read",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isInteger(entry.priority)",
+      "to": "      && MODEL_VISIBILITY.has(entry.visibility) && Number.isFinite(entry.priority)"
+    },
+    {
+      "label": "BACKLOG §474: an effort word that was never measured is not read",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/codex-launcher.test.mjs"],
+      "only": "^a Codex that cannot name its first-ranked model is given the built-in one, and the result says why$",
+      "from": "      && entry.supported_reasoning_levels.every(level => MODEL_EFFORTS.has(level?.effort))",
+      "to": "      && entry.supported_reasoning_levels.every(level => typeof level?.effort === 'string')"
     }
   ]
 }

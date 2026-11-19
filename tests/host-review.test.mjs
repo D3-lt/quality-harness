@@ -149,11 +149,15 @@ test('every documented host-review command names the repository and the scope', 
 })
 
 // Codex review of cccf5af8, finding 6: an exit-0 answer in the schema saying `unavailable` kept `bound: pinned`, and
-// ADR-119 T2 says a review that did not happen is unproven.
+// ADR-119 T2 says a review that did not happen is unproven. What it said is kept (review of 5bb58e48, finding 3).
 test('a reviewer that answers unavailable in the schema is unproven, never pinned', () => {
-  const said = status => JSON.stringify({ status, findings: [], model: CODEX_MODEL, ...(status === 'unavailable' ? { reason: 'quota' } : {}) })
-  const result = reviewFromOutput(said('unavailable'), { host: 'codex', model: CODEX_MODEL, effort: 'high' })
+  const finding = { file: 'a.mjs', problem: 'p', impact: 'i', evidence: 'e', minimal_fix: 'f', severity: 'advisory' }
+  const said = (status, model = CODEX_MODEL) => JSON.stringify({ status, findings: [finding], model, ...(status === 'unavailable' ? { reason: 'quota' } : {}) })
+  const result = reviewFromOutput(said('unavailable', 'GPT-6 (Codex)'), { host: 'codex', model: CODEX_MODEL, effort: 'high' })
   assert.deepEqual([result.status, result.model, result.bound, result.reason], ['unavailable', CODEX_MODEL, 'unproven', 'quota'])
-  // CLEAN twin: the same answer saying clean is pinned.
-  assert.equal(reviewFromOutput(said('clean'), { host: 'codex', model: CODEX_MODEL, effort: 'high' }).bound, 'pinned')
+  assert.deepEqual([result.findings, result.reportedModel], [[finding], 'GPT-6 (Codex)'])
+  // With no pin, the model it printed is still the one recorded.
+  assert.deepEqual([reviewFromOutput(said('unavailable', 'printed-model'), { host: 'cursor' }).model], ['printed-model'])
+  // CLEAN twin: the same answer saying evidence-limited is pinned.
+  assert.equal(reviewFromOutput(said('evidence-limited'), { host: 'codex', model: CODEX_MODEL, effort: 'high' }).bound, 'pinned')
 })

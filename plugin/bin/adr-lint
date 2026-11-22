@@ -5514,6 +5514,9 @@ def test_body(text, name, python=False, php=False, swift=False, rust=False):
     return stripped[start:start + nxt.start()] if nxt else stripped[start:]
 
 
+# Cached: a pure function of its arguments (str in, str out), and test_body / check_tests_can_fail ask it for
+# the same whole file once per test name in it (6156 scans, 2538 distinct, on a 258-task record).
+@lru_cache(maxsize=None)
 def code_only(text, python=False, swift=False, rust=False):
     """Drop line comments, block comments and string literals.
 

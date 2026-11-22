@@ -3943,6 +3943,14 @@
       "from": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?!\\w)\")",
       "to": "    narrowing = re.compile(FLAG_START + r\"(--run|-run|--filter|-k|--name)(?![\\w-])\")",
       "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "qhpool: QH_LINT_JOBS above 1 runs the evidence checks on a process pool",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/adr-lint-pool.test.mjs"],
+      "from": "        evidence_pool = LintPool(jobs, list(evidence.values())) if jobs > 1 else None",
+      "to": "        evidence_pool = LintPool(jobs, list(evidence.values())) if jobs > 99 else None",
+      "only": "^adr-lint at QH_LINT_JOBS=4 prints and exits exactly as at 1"
     }
   ]
 }

@@ -51,6 +51,7 @@ one that just ran (ADR-031).
 """
 import ast
 import hashlib
+import io
 import ipaddress
 import json
 import os
@@ -59,7 +60,7 @@ import shlex
 import subprocess
 import sys
 import unicodedata
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
@@ -2801,7 +2802,7 @@ def claimed_done_ids(readme_text, infos):
     return readme_done + [t for t in own_done_claims(infos or {}) if t not in readme_done]
 
 
-def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent, anywhere=head_rows):
+def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent, anywhere=head_rows, each=None):
     """ADR-117 T2: a log row the committed file does not hold is refused unless an adr-verify receipt names it.
 
     Every task, done or not: a typed red row in a pending task reads later as the red half of a cycle that did not
@@ -2810,7 +2811,8 @@ def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_di
     so it is not told twice. Could-not-look accuses nothing (ADR-005): no repository, git silent, a receipts file that
     could not be read."""
     for tid, inf in sorted(infos.items()):
-        _receipts_task(tid, inf, errors, committed, receipts, absent, anywhere)
+        (each or run_task)(_receipts_task, tid, inf, errors=errors, committed=committed, receipts=receipts, absent=absent,
+                           anywhere=anywhere)
 
 
 def _receipts_task(tid, inf, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent, anywhere=head_rows):
@@ -2854,11 +2856,11 @@ def _receipts_task(tid, inf, errors, committed=committed_lines, receipts=receipt
                    "updating the installed plugin is the remedy" if older else ""))
 
 
-def check_verification(infos, readme_text, errors, committed=committed_lines):
+def check_verification(infos, readme_text, errors, committed=committed_lines, each=None):
     """A `done` claim, the README's or the task file's own, requires tool-written passing evidence in the task's log."""
     readme_done = list(done_task_ids(readme_text)) if readme_text else []
     for tid in readme_done + [t for t in own_done_claims(infos) if t not in readme_done]:
-        _verification_task(tid, infos.get(tid), readme_done, errors, committed)
+        (each or run_task)(_verification_task, tid, infos.get(tid), readme_done, errors=errors, committed=committed)
 
 
 def _verification_task(tid, inf, readme_done, errors, committed=committed_lines):
@@ -3077,7 +3079,7 @@ def record_is_frozen(record, root, tracked):
     return False
 
 
-def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None):
+def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None, each=None):
     """Refuse done when a first-red test-body lock no longer holds (ADR-050).
 
     A FROZEN record's lock findings are advice: tests are deleted after a record
@@ -3089,7 +3091,7 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
     frozen = record is not None and record_is_frozen(record, root, tracked)
     moves = {}
     for tid in done:
-        _test_lock_task(tid, infos.get(tid), root, frozen, errors, moves)
+        (each or run_task)(_test_lock_task, tid, infos.get(tid), root, frozen, errors=errors, moves=moves)
     # One change to a declared check, relocked across many tasks, is one line naming them (BACKLOG §392).
     for pair, tasks in moves.items():
         if len(tasks) == 1:
@@ -5181,7 +5183,7 @@ def unproven_test(errors, inf, tid, name, rel, done, frozen, undecodable=False):
         errors.append(message, evidence=True)
 
 
-def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=None):
+def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=None, each=None):
     # Paths outside the tree are reported ONCE each: a task naming one file in
     # eight Tests rows has one problem, not eight.
     reported_outside = set()
@@ -5203,7 +5205,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
     frozen = record is not None and record_is_frozen(record, root, tracked)
     done = set(claimed_done_ids(readme_text, infos))
     for tid in evidenced_task_ids(infos, readme_text):
-        _tests_exist_task(tid, infos.get(tid), root, tracked, done, frozen, errors, reported_outside)
+        (each or run_task)(_tests_exist_task, tid, infos.get(tid), root, tracked, done, frozen, errors=errors,
+                           reported_outside=reported_outside)
 
 
 def _tests_exist_task(tid, inf, root, tracked, done, frozen, errors, reported_outside):
@@ -5983,7 +5986,7 @@ def check_go_acceptance_fences(infos, errors, root, tracked):
                 f"or make the exclusion package-specific")
 
 
-def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=None):
+def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=None, each=None):
     """A test named by a `done` task must contain a failure path.
 
     Measured 2026-08-21: the existence check passes on a function that asserts
@@ -6003,7 +6006,7 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
     frozen = record is not None and record_is_frozen(record, root, tracked)
     done = set(claimed_done_ids(readme_text, infos))
     for tid in evidenced_task_ids(infos, readme_text):
-        _tests_can_fail_task(tid, infos.get(tid), root, tracked, done, frozen, errors)
+        (each or run_task)(_tests_can_fail_task, tid, infos.get(tid), root, tracked, done, frozen, errors=errors)
 
 
 def _tests_can_fail_task(tid, inf, root, tracked, done, frozen, errors):
@@ -6939,6 +6942,216 @@ def gate_identity():
     return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
+# THE PER-TASK CHECKS ON N PROCESSES (QH_LINT_JOBS). Measured on a 258-task record: one core, and about 93% of
+# the time in work that is independent per task (check_task, and the per-task bodies of check_verification,
+# check_receipts, check_test_lock, check_tests_exist and check_tests_can_fail). Each of those checks calls its
+# per-task body through `each`, which is `run_task` (call it here, the serial path) unless a LintPool is given.
+# The pool keeps the output byte for byte: the children only RECORD what a body said, and the parent says it, in
+# the serial order, on the real Findings.
+
+
+def run_task(fn, *args, **kwargs):
+    """The serial path of a per-task check: the body runs here, on the caller's Findings."""
+    return fn(*args, **kwargs)
+
+
+def lint_jobs(environ=None, platform=None, cpus=None):
+    """How many processes run the per-task checks: QH_LINT_JOBS, else the CPUs this process may use, at most 16.
+
+    1 is the serial path, unchanged. Linux only: the pool FORKS, so a child inherits the record as already read and
+    is handed nothing but call numbers. Elsewhere fork is missing (Windows) or unsafe once system frameworks are
+    loaded (macOS), and spawn would re-import this script and re-read the whole corpus in every child, so it stays 1.
+    A value that is not a positive whole number is 1 as well: the setting may only ever make a run faster."""
+    environ = os.environ if environ is None else environ
+    platform = sys.platform if platform is None else platform
+    if not platform.startswith("linux"):
+        return 1
+    raw = environ.get("QH_LINT_JOBS", "").strip()
+    if raw:
+        return int(raw) if re.fullmatch(r"[0-9]+", raw) and int(raw) >= 1 else 1
+    if cpus is None:
+        cpus = len(os.sched_getaffinity(0))
+    return max(1, min(cpus, 16))
+
+
+def pool_jobs():
+    """lint_jobs, or 1 when this gate was loaded under a name pickle cannot find it by (a test's loader)."""
+    me = sys.modules.get(__name__)
+    return lint_jobs() if getattr(me, "_pool_batch", None) is _pool_batch else 1
+
+
+class _Recorder:
+    """A Findings in a pool child: it says nothing, it records every call, and the parent replays them."""
+
+    def __init__(self, demotion):
+        self.demotion = demotion
+        self.events = []
+
+    def append(self, message, evidence=False):
+        self.events.append(("append", message, evidence))
+
+    def advise(self, message):
+        self.events.append(("advise", message))
+
+    def unprove(self, message):
+        self.events.append(("unprove", message))
+
+    @contextmanager
+    def protected(self):
+        self.events.append(("enter",))
+        try:
+            yield
+        finally:
+            self.events.append(("leave",))
+
+
+class _SaidOnce(set):
+    """check_tests_exist's `reported_outside` in a pool child: an `add` is recorded, so the parent can drop the
+    advice that follows it when an earlier task already said that path."""
+
+    def __init__(self, events):
+        super().__init__()
+        self.events = events
+
+    def add(self, item):
+        super().add(item)
+        self.events.append(("once", item))
+
+
+# In a pool child only: the listed calls and the length UNLISTED_DIRECTORIES had when it forked. Never set in the
+# parent; a fresh child of a later pool gets its own.
+_CHILD = None
+
+
+def _pool_child(calls, unlisted):
+    global _CHILD
+    _CHILD = (calls, unlisted)
+
+
+def _pool_batch(batch):
+    """In a pool child: run each listed call of `batch` against a recorder; return per call what it said, returned,
+    added to UNLISTED_DIRECTORIES, printed and raised. A SystemExit (refuse_irregular) is a result too: the parent
+    raises it in its turn, so a run stops where the serial run stops."""
+    calls, unlisted = _CHILD
+    results = []
+    for i in batch:
+        fn, args, kwargs, _key = calls[i]
+        # Each call starts from the list as the parent had it, so what it adds is exactly what it would have added.
+        del UNLISTED_DIRECTORIES[unlisted:]
+        recorder = _Recorder(getattr(kwargs.get("errors"), "demotion", None))
+        mine = dict(kwargs, errors=recorder)
+        if "moves" in mine:
+            mine["moves"] = {}
+        if "reported_outside" in mine:
+            mine["reported_outside"] = _SaidOnce(recorder.events)
+        out, err = io.StringIO(), io.StringIO()
+        value = raised = None
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                value = fn(*args, **mine)
+            except (Exception, SystemExit) as exc:
+                raised = exc
+        if "moves" in mine:
+            value = mine["moves"]
+        results.append((i, recorder.events, value, list(UNLISTED_DIRECTORIES[unlisted:]), out.getvalue(),
+                        err.getvalue(), raised))
+    return results
+
+
+class LintPool:
+    """Per-task checks on forked processes, said exactly as the serial run says them.
+
+    `plan` is a list of callables, each taking `run` and calling checks with `each=run`. They are called once here
+    with a hook that only LISTS the calls, in the serial order; the children run those calls against recorders; then
+    the caller calls the same checks again with `each=pool.replay`, which takes the next listed call's result and
+    replays its findings, prints and exception on the real Findings. Dispatched task by task (one child reads one
+    task's test files for all its checks, so code_only's cache still pays), in contiguous batches, about four per
+    process."""
+
+    def __init__(self, jobs, plan):
+        self._calls = []
+        for listed in plan:
+            listed(self._list)
+        self._next = 0
+        self._results = {}
+        self._futures = {}
+        order = sorted(range(len(self._calls)), key=lambda i: (self._calls[i][3], i))
+        workers = min(jobs, len(order) // 4)
+        self._pool = None
+        if workers < 2:
+            return
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+        size = -(-len(order) // (workers * 4))
+        # A child flushes the standard streams it inherited when it exits: anything still buffered here would be
+        # printed twice.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        self._pool = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("fork"),
+                                         initializer=_pool_child, initargs=(self._calls, len(UNLISTED_DIRECTORIES)))
+        for start in range(0, len(order), size):
+            batch = order[start:start + size]
+            future = self._pool.submit(_pool_batch, batch)
+            for i in batch:
+                self._futures[i] = future
+
+    def _list(self, fn, *args, **kwargs):
+        self._calls.append((fn, args, kwargs, str(args[0]) if args else ""))
+
+    def replay(self, fn, *args, errors, **shared):
+        i = self._next
+        self._next += 1
+        listed = self._calls[i] if i < len(self._calls) else None
+        if listed is None or listed[0] is not fn or listed[1][:1] != args[:1]:
+            raise RuntimeError(f"LintPool: call {i} is {fn.__name__}{args[:1]}, listed as "
+                               f"{listed[0].__name__ + str(listed[1][:1]) if listed else 'nothing'}")
+        if self._pool is None:
+            return fn(*args, errors=errors, **shared)
+        if i not in self._results:
+            for found in self._futures.pop(i).result():
+                self._results[found[0]] = found[1:]
+        events, value, unlisted, out, err, raised = self._results.pop(i)
+        UNLISTED_DIRECTORIES.extend(d for d in unlisted if d not in UNLISTED_DIRECTORIES)
+        sys.stdout.write(out)
+        sys.stderr.write(err)
+        if raised is not None:
+            self.close(check=False)
+            raise raised
+        said = shared.get("reported_outside")
+        skip = False
+        held = []
+        for event in events:
+            if event[0] == "once":
+                skip = event[1] in said
+                said.add(event[1])
+            elif skip:
+                skip = False
+            elif event[0] == "append":
+                errors.append(event[1], evidence=event[2])
+            elif event[0] == "advise":
+                errors.advise(event[1])
+            elif event[0] == "unprove":
+                errors.unprove(event[1])
+            elif event[0] == "enter":
+                held.append(errors.protected())
+                held[-1].__enter__()
+            else:
+                held.pop().__exit__(None, None, None)
+        if "moves" in shared:
+            for pair, tasks in value.items():
+                shared["moves"].setdefault(pair, []).extend(tasks)
+            return None
+        return value
+
+    def close(self, check=True):
+        """Stop the children; with `check`, every listed call must have been replayed."""
+        if self._pool is not None:
+            self._pool.shutdown(wait=True, cancel_futures=True)
+            self._pool = None
+        if check and self._next != len(self._calls):
+            raise RuntimeError(f"LintPool: {len(self._calls) - self._next} listed call(s) never replayed")
+
+
 def report_version():
     print(gate_identity())
 
@@ -7211,12 +7424,18 @@ def main():
         infos = {}
         declared = {}   # every id a file declares (title, else stem) -> the files declaring it, in task_order
         said = set()
+        # check_task is per file and the dearest thing here after the evidence checks: on `jobs` processes it runs
+        # ahead of this loop, and each file's findings are said in their place below (LintPool).
+        jobs = pool_jobs()
+        task_pool = LintPool(jobs, [lambda run: [run(check_task, p, stems, errors=errors, root=root, tracked=tracked)
+                                                 for p in task_files]]) if jobs > 1 else None
+        run = task_pool.replay if task_pool else run_task
         for p in task_files:
             task_text = p.read_text(errors="replace", encoding="utf-8")
             terminal = terminal_task_status(task_text)
             if terminal:
                 withdrawn_tasks[p.name] = terminal
-            covers, info = check_task(p, stems, errors, root, tracked)
+            covers, info = run(check_task, p, stems, errors=errors, root=root, tracked=tracked)
             all_covers |= covers
             if info is None:
                 continue  # a task nobody could read: its NUL finding is the one thing said about it
@@ -7238,6 +7457,8 @@ def main():
                                   f"declare it; give one of them its own id", evidence=True)
                     continue
                 infos[key] = info
+        if task_pool:
+            task_pool.close()
         # An id declared by more than one file, by title as adr-next reads it, is the same refusal: a titled copy whose
         # name holds no id was otherwise no task at all (BACKLOG §458). Named in task_order, the same on every platform.
         for own, files in declared.items():
@@ -7270,17 +7491,30 @@ def main():
         # not a check (CLAUDE.md §8). `None` when git could not answer, which the
         # check treats as "could not look" and skips rather than reporting absence.
         check_produced_symbols(infos, readme_text, errors, tracked_text(root, tracked))
+        # The per-task evidence checks, listed once: on `jobs` processes they all start here, and each is said in
+        # its own place below, so the order of every line stays the serial one (LintPool).
+        evidence = {
+            "verification": lambda run: check_verification(infos, readme_text, errors, each=run),
+            "receipts": lambda run: check_receipts(infos, errors, each=run),
+            "test_lock": lambda run: check_test_lock(infos, readme_text, errors, root, adr, tracked, each=run),
+            "tests_exist": lambda run: check_tests_exist(infos, readme_text, errors, root, tracked, adr, each=run),
+            "tests_can_fail": lambda run: check_tests_can_fail(infos, readme_text, errors, root, tracked, adr, each=run),
+        }
+        evidence_pool = LintPool(jobs, list(evidence.values())) if jobs > 1 else None
+        run = evidence_pool.replay if evidence_pool else run_task
         with errors.protected():
-            check_verification(infos, readme_text, errors)
-            check_receipts(infos, errors)
-            check_test_lock(infos, readme_text, errors, root, adr, tracked)
+            evidence["verification"](run)
+            evidence["receipts"](run)
+            evidence["test_lock"](run)
             check_task_status_vocabulary(infos, readme_text, errors)
 
             check_status_allows_execution(adr, readme_text, errors, infos)
-            check_tests_exist(infos, readme_text, errors, root, tracked, adr)
-            check_tests_can_fail(infos, readme_text, errors, root, tracked, adr)
+            evidence["tests_exist"](run)
+            evidence["tests_can_fail"](run)
             check_mutation_evidence(infos, readme_text, errors)
             check_named_tests_are_run(infos, readme_text, errors)
+        if evidence_pool:
+            evidence_pool.close()
         check_file_collisions(infos, errors)
         check_contract_table(adr, stems, errors)
 

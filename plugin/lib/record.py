@@ -4304,6 +4304,11 @@ class LockMove(str):
         move.pair, move.body = pair, body
         return move
 
+    def __reduce__(self):
+        # Rebuilt from its three parts: a str subclass pickles as its text alone, and __new__ needs all three
+        # (adr-lint's LintPool hands lock advice back from a child process).
+        return (LockMove, (self[:len(self) - len(self.body)], self.body, self.pair))
+
 def lock_findings(vlog, *, root, tests, label="", advise=True):
     """blocks and advice for a done claim against first-red hashes.
 

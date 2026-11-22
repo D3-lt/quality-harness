@@ -127,7 +127,7 @@ test('LintPool says what the serial run says, in its order, from other processes
   assert.ok(stopped[4].endsWith('refused 7\n'))
 })
 
-test('QH_LINT_JOBS, else the usable CPUs up to 16; 1 off Linux or for anything but a positive whole number', () => {
+test('QH_LINT_JOBS, else the usable CPUs up to 8; 1 off Linux or for anything but a positive whole number', () => {
   const run = spawnSync(python, [...prefix, '-c', load + String.raw`
 print(json.dumps([m.lint_jobs(environ=env, platform=plat, cpus=cpus) for env, plat, cpus in [
     ({"QH_LINT_JOBS": "4"}, "linux", 64), ({"QH_LINT_JOBS": " 32 "}, "linux", 8),
@@ -136,7 +136,7 @@ print(json.dumps([m.lint_jobs(environ=env, platform=plat, cpus=cpus) for env, pl
     ({}, "linux", 64), ({}, "linux", 3), ({"QH_LINT_JOBS": "8"}, "darwin", 64), ({}, "win32", 64)]]))
 `, lint], { encoding: 'utf8', timeout: 60_000, env: UTF8 })
   assert.equal(run.status, 0, run.stderr)
-  assert.deepEqual(JSON.parse(run.stdout), [4, 32, 1, 1, 1, 1, 16, 3, 1, 1])
+  assert.deepEqual(JSON.parse(run.stdout), [4, 32, 1, 1, 1, 1, 8, 3, 1, 1])
 })
 
 // Twelve done tasks, each naming a missing test, a path outside the repository and a test that asserts nothing. With

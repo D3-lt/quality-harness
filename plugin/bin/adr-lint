@@ -6956,7 +6956,7 @@ def run_task(fn, *args, **kwargs):
 
 
 def lint_jobs(environ=None, platform=None, cpus=None):
-    """How many processes run the per-task checks: QH_LINT_JOBS, else the CPUs this process may use, at most 16.
+    """How many processes run the per-task checks: QH_LINT_JOBS, else the CPUs this process may use, at most 8.
 
     1 is the serial path, unchanged. Linux only: the pool FORKS, so a child inherits the record as already read and
     is handed nothing but call numbers. Elsewhere fork is missing (Windows) or unsafe once system frameworks are
@@ -6971,7 +6971,7 @@ def lint_jobs(environ=None, platform=None, cpus=None):
         return int(raw) if re.fullmatch(r"[0-9]+", raw) and int(raw) >= 1 else 1
     if cpus is None:
         cpus = len(os.sched_getaffinity(0))
-    return max(1, min(cpus, 16))
+    return max(1, min(cpus, 8))
 
 
 def pool_jobs():

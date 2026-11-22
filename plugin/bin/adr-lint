@@ -338,6 +338,12 @@ VLOG_TIMED_RE = re.compile(
     r"`(?P<command>[^`]+)`(?: · acceptance-sha256:(?P<digest>[0-9a-f]{64}))?"
     + MS_FIELD + STEPS_FIELD.replace("?P<steps>", "") + TEST_LOCK_FIELD_ANON + r"$")
 
+# `rev-parse --show-toplevel` once per directory for ONE command-line run, which writes nothing:
+# 419 children -> 1 on a 258-task corpus (2026-11-22). None, the default, asks git every time,
+# so an in-process caller that builds repositories between calls (the regression suite) reads
+# fresh answers; only main() turns it on.
+_TOPLEVELS = None
+
 def committed_lines(path, run=None):
     """The lines HEAD holds for `path`, or None when git could not answer.
 
@@ -361,7 +367,13 @@ def committed_lines(path, run=None):
     target = Path(path)
     directory = target.parent if target.parent != Path("") else Path(".")
     try:
-        top = runner(["git", "-C", str(directory), "rev-parse", "--show-toplevel"], None)
+        argv = ["git", "-C", str(directory), "rev-parse", "--show-toplevel"]
+        if run is None and _TOPLEVELS is not None:
+            if str(directory) not in _TOPLEVELS:
+                _TOPLEVELS[str(directory)] = runner(argv, None)
+            top = _TOPLEVELS[str(directory)]
+        else:
+            top = runner(argv, None)
         if top.returncode != 0:
             return None
         root = Path(top.stdout.strip())
@@ -6903,6 +6915,8 @@ def report_version():
 
 
 def main():
+    global _TOPLEVELS
+    _TOPLEVELS = {}  # a lint run writes nothing, so a directory's top level holds for the run
     if "--version" in sys.argv[1:]:
         report_version()
         sys.exit(0)

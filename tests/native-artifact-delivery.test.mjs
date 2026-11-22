@@ -9,13 +9,17 @@ const probe = spawnSync('go', ['version'], { encoding: 'utf8', timeout: 30_000, 
 const skip = required('go', probe.error || probe.status !== 0 ? 'Go is unavailable for native artifact reconciliation' : false)
 
 test('native artifact reconciliation rejects stale arrivals and preserves current and unknown findings', { skip }, () => {
-  const result = spawnSync('go', ['test', './hooks', '-run', '^TestArtifactImport', '-count=1', '-v'], {
+  const names = [
+    'TestArtifactImportArrivalOrder', 'TestArtifactImportKeepsUncertainAndCurrent',
+    'TestArtifactImportReadsOncePerPath', 'TestArtifactImportSkipsSingleIdentityReads', 'TestArtifactPassRequiresLedger',
+  ]
+  const result = spawnSync('go', ['test', './hooks', '-run', '^(' + names.join('|') + ')$', '-count=1', '-v'], {
     cwd: core, encoding: 'utf8', timeout: 120_000, windowsHide: true,
     env: { ...process.env, GOMAXPROCS: '2', GOFLAGS: '-p=2' },
   })
   assert.equal(result.error, undefined, result.error?.message)
   assert.equal(result.status, 0, result.stdout + result.stderr)
-  for (const name of ['TestArtifactImportArrivalOrder', 'TestArtifactImportKeepsUncertainAndCurrent', 'TestArtifactImportReadsOncePerPath', 'TestArtifactImportSkipsSingleIdentityReads']) {
+  for (const name of names) {
     assert.match(result.stdout, new RegExp('^--- PASS: ' + name + '\\b', 'm'), result.stdout)
   }
 })

@@ -134,10 +134,27 @@ test('adr-lint at QH_LINT_JOBS=4 prints and exits exactly as at 1, on findings i
   git('init', '-q')
   git('add', '-A')
   git('commit', '-qm', 'corpus')
-  const at = jobs => spawnSync(python, [...prefix, lint, join(adr, 'ADR-001-totals.md')],
+  // The gate runs as a program (runpy, as `__main__`), with every process pool it starts counted, so a run that
+  // quietly stayed serial cannot pass for a pooled one.
+  const counted = [
+    'import atexit, concurrent.futures as cf, os, runpy, sys',
+    'started = []',
+    'class Counted(cf.ProcessPoolExecutor):',
+    '    def __init__(self, *args, **kwargs):',
+    '        started.append(kwargs.get("max_workers"))',
+    '        super().__init__(*args, **kwargs)',
+    'cf.ProcessPoolExecutor = Counted',
+    'atexit.register(lambda: sys.__stderr__.write(f"\\npools started: {len(started)}\\n"))',
+    'sys.argv = sys.argv[1:]',
+    'runpy.run_path(sys.argv[0], run_name="__main__")',
+  ].join('\n')
+  const at = jobs => spawnSync(python, [...prefix, '-c', counted, lint, join(adr, 'ADR-001-totals.md')],
     { cwd: scratch, encoding: 'utf8', timeout: 120_000, env: { ...UTF8, QH_LINT_JOBS: String(jobs) } })
+  const pools = run => [run.stderr.replace(/\npools started: (\d+)\n$/, ''), Number(run.stderr.match(/pools started: (\d+)\n$/)?.[1])]
   const serial = at(1)
   const pooled = at(4)
+  assert.equal(pools(serial)[1], 0, 'QH_LINT_JOBS=1 starts no pool')
+  assert.equal(pools(pooled)[1], 2, 'QH_LINT_JOBS=4 runs check_task and the evidence checks on a pool each')
   assert.equal(serial.status, 1, serial.stdout + serial.stderr)
   for (const n of [1, 12]) {
     assert.match(serial.stdout, new RegExp(`T${n}-task\\.md.*TestMissing${n}`), `T${n}'s missing test is found`)
@@ -146,6 +163,6 @@ test('adr-lint at QH_LINT_JOBS=4 prints and exits exactly as at 1, on findings i
   }
   assert.equal(serial.stdout.split('points OUTSIDE this repository').length, 2, 'the outside path is said once')
   assert.equal(pooled.stdout, serial.stdout)
-  assert.equal(pooled.stderr, serial.stderr)
+  assert.equal(pools(pooled)[0], pools(serial)[0])
   assert.equal(pooled.status, serial.status)
 })

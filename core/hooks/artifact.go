@@ -705,7 +705,7 @@ func (h *hookRun) startArtifactPass(targets []string, identities map[string]any,
 
 // RunArtifactPass is `qh hook --artifact-pass <request>`: the pass itself. It gates the request's targets a chunk at a time and
 // appends each verdict with what its gate said to the pass ledger as ONE line, holds the machine lease while it gates
-// (ADR-077), and releases its own lock and no other. 2 is a request it could not read.
+// (ADR-077), and releases its own lock and no other. Exit 2 means the request or its ledger could not be used.
 func RunArtifactPass(requestFile string) int {
 	trace := artifactProcessTrace(requestFile)
 	status := runArtifactPass(requestFile)
@@ -733,12 +733,21 @@ func runArtifactPass(requestFile string) int {
 	if !ok1 || !ok2 || !ok3 || !ok4 {
 		return 2
 	}
+	defer releasePassLock(lock, token)
+	ledgerFailed := false
 	write := func(entry *Obj) {
+		// A later pass.ended would hide an earlier lost row from importPassVerdicts.
+		if ledgerFailed {
+			return
+		}
 		row := O("at", isoNow(), "pass", token)
 		for _, k := range entry.keys {
 			row.Set(k, entry.vals[k])
 		}
-		appendLine(ledger, stringify(row)+"\n")
+		if !appendLine(ledger, stringify(row)+"\n") {
+			ledgerFailed = true
+			fmt.Fprintln(os.Stderr, "artifact pass: could not write the pass ledger")
+		}
 	}
 	targets := []string{}
 	blobs := map[string]any{}
@@ -765,6 +774,9 @@ func runArtifactPass(requestFile string) int {
 		}
 	}
 	write(O("event", "pass.started", "pid", float64(os.Getpid()), "targets", targets))
+	if ledgerFailed {
+		return 2
+	}
 	// A lease that cannot be taken changes nothing about the pass.
 	held, _ := takeLease(leaseDir(), "quality-harness artifact pass", cwd, "running")
 	ledgerDirectory, err := os.MkdirTemp(os.TempDir(), "quality-harness-gates-")
@@ -784,7 +796,9 @@ func runArtifactPass(requestFile string) int {
 		releaseLease(held)
 	}
 	write(O("event", "pass.ended", "reason", reason))
-	releasePassLock(lock, token)
+	if ledgerFailed {
+		return 2
+	}
 	return 0
 }
 

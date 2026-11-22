@@ -6,7 +6,7 @@
       "tests": [
         "tests/qh-check-timeout.test.mjs"
       ],
-      "from": "return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000",
+      "from": "return Math.max(1, Math.min(MAX_TIMER_MS, Math.floor(ms)))",
       "to": "return CHECK_TIMEOUT_SECONDS * 1_000"
     },
     {

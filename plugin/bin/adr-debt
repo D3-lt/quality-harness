@@ -41,6 +41,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple, Optional
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -266,13 +267,21 @@ def git_root(d):
     return None
 
 
+class Resolution(NamedTuple):
+    kind: str
+    ok: bool
+    shown: str = ""
+    path: Optional[Path] = None
+    root: Optional[Path] = None
+
+
 def resolve(pointer, md_file, scan_dir):
-    """Return (kind, ok). Path-like and ADR-id pointers must resolve; rest pass."""
+    """Keep the observed destination for both the receipt and archive checks."""
     p = pointer.strip().strip("`")
     if not p:
-        return "empty", False
+        return Resolution("empty", False)
     if p.startswith(("http://", "https://")):
-        return "url", True
+        return Resolution("url", True)
     # THE LEADING TOKEN, when it is a record id, and the prose after it is prose.
     # This corpus's own ADR template already states the rule for `Invalidates:`
     # — "only the leading token, because the prose after it is prose: `ADR-001 —
@@ -285,18 +294,23 @@ def resolve(pointer, md_file, scan_dir):
     lead = re.match(r"^(ADR-?\s?\d+)(?![\w-])", p, re.I)
     if lead:
         return _resolve_adr_id(lead.group(1), scan_dir)
-    ptoks = [t.strip("`,.;:") for t in p.split()
-             if "/" in t or t.endswith(".md")]
+    ptoks = [t.strip("`,.;:").replace("\\", "/") for t in p.split()
+             if "/" in t or "\\" in t or t.endswith(".md")]
     if ptoks:
         roots = [md_file.parent, scan_dir]
         root = git_root(md_file.parent)
         if root:
             roots.append(root)
-        return "path", any((r / t).exists() for t in ptoks for r in roots)
+        for token in ptoks:
+            for base in roots:
+                path = base / token
+                if path.exists():
+                    return Resolution("path", True, token, path, root)
+        return Resolution("path", False)
     m = re.search(r"(?<!\w)(ADR-?\d+)(?!\w)", p, re.I)
     if m:
         return _resolve_adr_id(m.group(1), scan_dir)
-    return "ref", True  # F-n, issue key, prose — listed, not resolved here
+    return Resolution("ref", True)  # F-n, issue key, prose — listed, not resolved here
 
 
 def _walked(scan_dir, markdown=False):
@@ -315,23 +329,27 @@ def _walked(scan_dir, markdown=False):
     return paths
 
 
+def adr_number_pattern(token):
+    digits = re.sub(r"\D", "", token).lstrip("0") or "0"
+    return re.compile(r"(?<![^\W_])ADR[-_ ]?0*" + digits + r"(?![^\W_])", re.I)
+
+
 def _resolve_adr_id(token, scan_dir):
-    """("adr", whether this corpus holds a record with that number), or ("adr-archive", True)
-    when only a sibling archive does.
+    """Resolve a record in the corpus or retain the sibling archive that holds it.
 
     One body, two callers — the leading-token test above and the anywhere-in-the
     -string fallback below it — because two copies of a resolver is how the two
     come to disagree about what counts as the same record (ADR-009).
     """
-    pat = re.sub(r"[-_\s]", "", token).lower()
-    walked = _walked(scan_dir)
-    hits = [f for f in walked if f.name.lower().endswith(".md")
-            and pat in re.sub(r"[-_]", "", f.stem).lower()] + \
-           [d for d in walked if d.is_dir()
-            and pat == re.sub(r"[-_]", "", d.name).lower()]
-    if hits:
-        return "adr", True
-    return ("adr-archive", True) if _archive_holding(pat, scan_dir) else ("adr", False)
+    pat = adr_number_pattern(token)
+    if any((p.name.lower().endswith(".md") and pat.search(p.stem))
+           or (pat.fullmatch(p.name) and p.is_dir()) for p in _walked(scan_dir)):
+        return Resolution("adr", True)
+    archive = _archive_holding(pat, scan_dir)
+    if archive is None:
+        return Resolution("adr", False)
+    shown = (Path(scan_dir).parent / archive.name).as_posix()
+    return Resolution("adr-archive", True, f"{shown} ({token})")
 
 
 # The exact line adr-lint's ARCHIVE_LIFECYCLE_RE and adr-retire-check recognise an archive by.
@@ -359,21 +377,26 @@ def _archive_holding(pat, scan_dir):
             names = [p.name for p in sibling.iterdir() if p.is_file()]
         except OSError:
             continue
-        if any(n.lower().endswith(".md") and pat in re.sub(r"[-_]", "", n[:-3]).lower() for n in names):
+        if any(n.lower().endswith(".md") and pat.search(n[:-3]) for n in names):
             return sibling
     return None
 
 
 def adr_id_of(md_file, scan_dir):
-    """The ADR this file belongs to: its own name, or the nearest ancestor's."""
-    for part in [md_file.name] + [d.name for d in md_file.parents]:
+    """Read ownership from the path inside this corpus, including the corpus directory itself."""
+    corpus = Path(os.path.abspath(scan_dir))
+    try:
+        relative = Path(os.path.abspath(md_file)).relative_to(corpus)
+    except ValueError:
+        return None
+    for part in (*reversed(relative.parts), corpus.name):
         m = re.search(r"(?<!\w)ADR-?(\d+)(?!\w)", part, re.I)
         if m:
             return "ADR-" + m.group(1)
     return None
 
 
-def unswept(pointer, md_file, scan_dir):
+def unswept(target, scan_dir):
     """(is_unswept, dest) — the pointer resolves, but into a place NOTHING sweeps.
 
     A deferral into an archive is undeliverable by construction, and it is strictly worse than an
@@ -384,22 +407,20 @@ def unswept(pointer, md_file, scan_dir):
     — each pointer resolved, each read as filed, and none could ever resurface. An archived ADR is a
     decision record; future work belongs somewhere a sweep will find it.
     """
-    kind, ok = resolve(pointer, md_file, scan_dir)
-    if kind == "adr-archive":
-        lead = re.search(r"(?<!\w)(ADR-?\s?\d+)(?!\w)", pointer, re.I)
-        found = _archive_holding(re.sub(r"[-_\s]", "", lead.group(1)).lower(), scan_dir)
-        # Spelled from the scan directory as given, never resolved: a resolved path names this machine's home.
-        return True, f"{(Path(scan_dir).parent / found.name).as_posix()} ({lead.group(1)})"
-    if kind != "path" or not ok:
-        return False, None
-    t = pointer.strip().strip("`").split()[0].rstrip(",.;")
-    for part in Path(t).parts:
-        if "archive" in part.lower():
-            return True, t
+    if target.kind == "adr-archive":
+        return True, target.shown
+    if target.path is not None:
+        # Inspect the destination relative to the project, keeping the checkout's own name out.
+        try:
+            relative = Path(os.path.relpath(target.path, target.root or scan_dir))
+        except ValueError:  # Different Windows drives have no relative path.
+            relative = target.path
+        if any("archive" in part.lower() for part in relative.parts):
+            return True, target.shown
     return False, None
 
 
-def receipted(pointer, md_file, scan_dir, src_id):
+def receipted(target, scan_dir, src_id):
     """Does the destination this deferral points at actually MENTION the source?
 
     A pointer that resolves is not a pointer that was honoured. Measured
@@ -411,26 +432,11 @@ def receipted(pointer, md_file, scan_dir, src_id):
     Returns (checked, ok, dest). checked=False means this is not a path pointer,
     or it points back into the ADR's own tree, where naming itself proves nothing.
     """
-    if not src_id:
+    dest = target.path
+    if not src_id or dest is None or not dest.is_file() or adr_id_of(dest, scan_dir) == src_id:
         return False, True, None
-    p = pointer.strip().strip("`")
-    toks = [t.strip("`,.;:") for t in p.split() if "/" in t or t.endswith(".md")]
-    roots = [md_file.parent, scan_dir]
-    root = git_root(md_file.parent)
-    if root:
-        roots.append(root)
-    for t in toks:
-        for r in roots:
-            dest = r / t
-            if not dest.is_file():
-                continue
-            if adr_id_of(dest, scan_dir) == src_id:
-                return False, True, None  # same ADR's own tree
-            pat = re.sub(r"[-_]", "", src_id).lower()
-            body = re.sub(r"[-_]", "", receipt_text(dest, root)).lower()
-            # Said as the pointer wrote it: `dest` is resolved against the git root, which names this machine's home.
-            return True, pat in body, Path(t).as_posix()
-    return False, True, None
+    body = receipt_text(dest, target.root)
+    return True, bool(adr_number_pattern(src_id).search(body)), target.shown
 
 
 # A backlog that is an index (CLAUDE.md §10): a closed section's text moved verbatim to an archive file and
@@ -594,16 +600,15 @@ def main():
                 for ln in text.splitlines():
                     pointer = deferred_pointer(ln)
                     if pointer is not None:
-                        kind, ok = resolve(pointer, md, scan_dir)
+                        target = resolve(pointer, md, scan_dir)
                         item = (scan_dir, rel, pointer.strip(), clipped(ln.strip(), 70))
                         deferred.append(item)
-                        if not ok:
-                            broken.append(item + (kind,))
-                        chk, got, dest = receipted(pointer, md, scan_dir,
-                                                   adr_id_of(md, scan_dir))
+                        if not target.ok:
+                            broken.append(item + (target.kind,))
+                        chk, got, dest = receipted(target, scan_dir, adr_id_of(md, scan_dir))
                         if chk and not got:
                             unreceipted.append(item + (dest,))
-                        dead, where = unswept(pointer, md, scan_dir)
+                        dead, where = unswept(target, scan_dir)
                         if dead:
                             unswept_items.append(item + (where,))
                 continue
@@ -620,16 +625,15 @@ def main():
                     externals.append((scan_dir, rel, external[0], external[1],
                                       s[2:trailing[1]].strip()))
                 elif pointer is not None:
-                    kind, ok = resolve(pointer, md, scan_dir)
+                    target = resolve(pointer, md, scan_dir)
                     item = (scan_dir, rel, pointer.strip(), s[2:trailing[1]].strip())
                     deferred.append(item)
-                    if not ok:
-                        broken.append(item + (kind,))
-                    chk, got, dest = receipted(pointer, md, scan_dir,
-                                               adr_id_of(md, scan_dir))
+                    if not target.ok:
+                        broken.append(item + (target.kind,))
+                    chk, got, dest = receipted(target, scan_dir, adr_id_of(md, scan_dir))
                     if chk and not got:
                         unreceipted.append(item + (dest,))
-                    dead, where = unswept(pointer, md, scan_dir)
+                    dead, where = unswept(target, scan_dir)
                     if dead:
                         unswept_items.append(item + (where,))
                 elif span and re.match(r"external\b", span[0] or ""):

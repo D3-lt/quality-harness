@@ -918,8 +918,6 @@ def check_spec(path, mode, root_override, collect):
                                   f"delete the test, or tag the row @implemented if the behaviour still holds")
 
     if mode == "implemented":
-        root = repo_root(Path(path), root_override)
-        stack = detect_stack(root)
         ran = 0
         for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=sc["cmd"])
                              for sc in scenarios]:

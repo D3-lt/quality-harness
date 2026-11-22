@@ -55,8 +55,8 @@
       "tests": [
         "tests/adr-debt-archive.test.mjs"
       ],
-      "from": "            return True, pat in body, Path(t).as_posix()",
-      "to": "            return True, pat in body, dest"
+      "from": "return True, bool(adr_number_pattern(src_id).search(body)), target.shown",
+      "to": "return True, bool(adr_number_pattern(src_id).search(body)), dest"
     },
     {
       "label": "adr-debt: a pointer to a record in the sibling archive resolves there",
@@ -64,8 +64,8 @@
       "tests": [
         "tests/adr-debt-archive.test.mjs"
       ],
-      "from": "    return (\"adr-archive\", True) if _archive_holding(pat, scan_dir) else (\"adr\", False)",
-      "to": "    return (\"adr\", False)"
+      "from": "    if archive is None:",
+      "to": "    if True:"
     },
     {
       "label": "adr-debt: a sibling is an archive only when its catalog says so",
@@ -82,7 +82,7 @@
       "tests": [
         "tests/adr-debt-archive.test.mjs"
       ],
-      "from": "    if kind == \"adr-archive\":",
+      "from": "    if target.kind == \"adr-archive\":",
       "to": "    if False:"
     },
     {
@@ -91,8 +91,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "        return \"path\", any((r / t).exists() for t in ptoks for r in roots)",
-      "to": "        return \"path\", True",
+      "from": "        return Resolution(\"path\", False)",
+      "to": "        return Resolution(\"path\", True)",
       "only": "^(?:adr-debt resolves the pointers it can, and reports the ones it cannot)$"
     },
     {

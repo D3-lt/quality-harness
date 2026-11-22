@@ -2810,238 +2810,247 @@ def check_receipts(infos, errors, committed=committed_lines, receipts=receipt_di
     so it is not told twice. Could-not-look accuses nothing (ADR-005): no repository, git silent, a receipts file that
     could not be read."""
     for tid, inf in sorted(infos.items()):
-        if inf.get("path") is None:
-            continue
-        rows = [b for b in inf.get("vlog", []) if VLOG_RE.match(b)]
-        rows += [b for b in inf.get("mlog", []) if MLOG_RE.match(b) and b not in rows]
-        if not rows:
-            continue
-        known = committed(inf["path"])
-        judged = known is not None
-        if not judged:
-            if not absent(inf["path"]):
-                continue
-            known = frozenset()
-        held = {ln.strip() for ln in known}
-        fresh = []
-        for row in rows:
-            stamped = VLOG_TIMED_RE.match(row)
-            if row.strip() not in held and not (judged and stamped and not stamped.group("digest")):
-                fresh.append(row)
-        if fresh and not judged:
-            kept = anywhere(inf["path"], fresh)
-            if kept is None:
-                continue
-            fresh = [row for row in fresh if row not in kept]
-        names = receipts(inf["path"]) if fresh else None
-        # ADR-119 T3 (BACKLOG §389): when no receipt names ANY row of the task, the rows may come from an adr-verify older
-        # than receipts — a forwarder resolving an older installed plugin — and the refusal says so and what fixes it.
-        older = names is not None and not any(receipt_digest(row) in names for row in rows)
-        for row in [] if names is None else fresh:
-            if receipt_digest(row) not in names:
-                errors.append(
-                    f"{inf['path'].name}: {tid} has a log row that is not in the committed file, and no adr-verify "
-                    f"receipt names it — `{clipped(row.strip(), 120)}`. adr-verify leaves a receipt in the repository's "
-                    f"state directory for every row it writes; a row typed by hand is not evidence. Re-run "
-                    f"`adr-verify <task.md>` (ADR-117)"
-                    + (". No receipt names any row of this task, so its writer may predate receipts (3.8.48): an "
-                       "adr-verify reached through a forwarder runs the newest installed plugin, not this checkout's, and "
-                       "updating the installed plugin is the remedy" if older else ""))
+        _receipts_task(tid, inf, errors, committed, receipts, absent, anywhere)
+
+
+def _receipts_task(tid, inf, errors, committed=committed_lines, receipts=receipt_digests, absent=head_absent, anywhere=head_rows):
+    """One task of check_receipts, its findings in the order the loop gave them (`LintPool` runs it apart)."""
+    if inf.get("path") is None:
+        return
+    rows = [b for b in inf.get("vlog", []) if VLOG_RE.match(b)]
+    rows += [b for b in inf.get("mlog", []) if MLOG_RE.match(b) and b not in rows]
+    if not rows:
+        return
+    known = committed(inf["path"])
+    judged = known is not None
+    if not judged:
+        if not absent(inf["path"]):
+            return
+        known = frozenset()
+    held = {ln.strip() for ln in known}
+    fresh = []
+    for row in rows:
+        stamped = VLOG_TIMED_RE.match(row)
+        if row.strip() not in held and not (judged and stamped and not stamped.group("digest")):
+            fresh.append(row)
+    if fresh and not judged:
+        kept = anywhere(inf["path"], fresh)
+        if kept is None:
+            return
+        fresh = [row for row in fresh if row not in kept]
+    names = receipts(inf["path"]) if fresh else None
+    # ADR-119 T3 (BACKLOG §389): when no receipt names ANY row of the task, the rows may come from an adr-verify older
+    # than receipts — a forwarder resolving an older installed plugin — and the refusal says so and what fixes it.
+    older = names is not None and not any(receipt_digest(row) in names for row in rows)
+    for row in [] if names is None else fresh:
+        if receipt_digest(row) not in names:
+            errors.append(
+                f"{inf['path'].name}: {tid} has a log row that is not in the committed file, and no adr-verify "
+                f"receipt names it — `{clipped(row.strip(), 120)}`. adr-verify leaves a receipt in the repository's "
+                f"state directory for every row it writes; a row typed by hand is not evidence. Re-run "
+                f"`adr-verify <task.md>` (ADR-117)"
+                + (". No receipt names any row of this task, so its writer may predate receipts (3.8.48): an "
+                   "adr-verify reached through a forwarder runs the newest installed plugin, not this checkout's, and "
+                   "updating the installed plugin is the remedy" if older else ""))
 
 
 def check_verification(infos, readme_text, errors, committed=committed_lines):
     """A `done` claim, the README's or the task file's own, requires tool-written passing evidence in the task's log."""
     readme_done = list(done_task_ids(readme_text)) if readme_text else []
     for tid in readme_done + [t for t in own_done_claims(infos) if t not in readme_done]:
-        inf = infos.get(tid)
-        if inf is None:
-            continue
-        where = "README.md" if tid in readme_done else inf["path"].name
-        # ADR-074 T4: a step that promised a human look, on a task done without a human sign-off.
-        # Advice only: `done` keeps its rule, so nothing below changes because of this. A task whose
-        # ACCEPTANCE is human-observed already gets the blocking error below for the same missing
-        # sign-off, so it is not told twice (the /code-review of ADR-074).
-        unsigned = [] if inf["human"] else unsigned_human_proof_steps(inf.get("text") or "")
-        if unsigned:
-            errors.advise(f"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} "
-                          f"{'names' if len(unsigned) == 1 else 'name'} "
-                          f"[proof: human: …] with no '· human-observed ·' sign-off in its Verification Log; "
-                          f"record what a human observed with `adr-verify {inf['path'].name} --human \"…\"`. "
-                          f"This is advice: done is unchanged")
-        if inf["human"]:
-            # A `--human-mutant` row also says `· human-observed ·`, but it is mutation evidence,
-            # never a sign-off (an outside run of 3.8.8): it does not satisfy this check.
-            signs = [b.strip() for b in inf["vlog"] if "· human-observed ·" in b and "· human-observed · mutant " not in b]
-            # ADR-113 T4: a sign-off counts for the Acceptance it was taken on. One with no digest is legacy, which means
-            # already committed, as a digest-less exit row is; one for another Acceptance is evidence for none.
-            current = signoff_digest(sections_of(inf.get("text") or "").get("Acceptance"))
-            known = committed(inf["path"]) if inf.get("path") is not None else None
-            recorded = None if known is None else {k.strip() for k in known}
-            standing = [(b, signoff_binding(b, current)[0]) for b in signs]
-            fresh = [b for b, s in standing if s == "legacy" and recorded is not None and b not in recorded]
-            for b in fresh:
-                errors.append(f"{where}: {tid} has a human-observed sign-off carrying no acceptance-sha256 that is not "
-                              f"in the committed file — a sign-off with no digest is legacy evidence, and legacy means "
-                              f"already recorded. Re-sign with `adr-verify {inf['path'].name} --human \"…\"`, which "
-                              f"writes the digest itself")
-            if not signs:
-                errors.append(f"{where}: {tid} marked done but its Verification Log has no "
-                              f"'· human-observed ·' sign-off entry (adr-verify --human)")
-            elif not any(s == "bound" or (s == "legacy" and b not in fresh) for b, s in standing) \
-                    and any(s == "stale" for _b, s in standing):
-                errors.append(f"{where}: {tid} marked done but its human-observed sign-off was taken on another "
-                              f"Acceptance — the Acceptance changed after it was signed, so the sign-off proves "
-                              f"nothing about this one. Re-sign with `adr-verify {inf['path'].name} --human \"…\"`")
-            continue
-        entries = [b for b in inf["vlog"] if VLOG_RE.match(b)]
-        # A digest-less row is legacy evidence, and legacy means ALREADY WRITTEN
-        # DOWN. Reported 2026-09-01 (GitHub issue #4), reproduced on 2.44.0: the
-        # digest was optional in this grammar, so the field that binds evidence to
-        # the fence it proved was opt-out by omission, and step one of a full
-        # pending -> done forgery was typing a line with the digest left off.
-        #
-        # Tolerated where HEAD already has it, because corpora written before the
-        # field existed must not turn red for having complied with the rules of
-        # their day. Refused where it is new, because nothing recorded it. The
-        # asymmetry is the whole fix: it costs an existing corpus nothing and
-        # costs a forger the price of running the command.
+        _verification_task(tid, infos.get(tid), readme_done, errors, committed)
+
+
+def _verification_task(tid, inf, readme_done, errors, committed=committed_lines):
+    """One task of check_verification, its findings in the order the loop gave them (`LintPool` runs it apart)."""
+    if inf is None:
+        return
+    where = "README.md" if tid in readme_done else inf["path"].name
+    # ADR-074 T4: a step that promised a human look, on a task done without a human sign-off.
+    # Advice only: `done` keeps its rule, so nothing below changes because of this. A task whose
+    # ACCEPTANCE is human-observed already gets the blocking error below for the same missing
+    # sign-off, so it is not told twice (the /code-review of ADR-074).
+    unsigned = [] if inf["human"] else unsigned_human_proof_steps(inf.get("text") or "")
+    if unsigned:
+        errors.advise(f"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} "
+                      f"{'names' if len(unsigned) == 1 else 'name'} "
+                      f"[proof: human: …] with no '· human-observed ·' sign-off in its Verification Log; "
+                      f"record what a human observed with `adr-verify {inf['path'].name} --human \"…\"`. "
+                      f"This is advice: done is unchanged")
+    if inf["human"]:
+        # A `--human-mutant` row also says `· human-observed ·`, but it is mutation evidence,
+        # never a sign-off (an outside run of 3.8.8): it does not satisfy this check.
+        signs = [b.strip() for b in inf["vlog"] if "· human-observed ·" in b and "· human-observed · mutant " not in b]
+        # ADR-113 T4: a sign-off counts for the Acceptance it was taken on. One with no digest is legacy, which means
+        # already committed, as a digest-less exit row is; one for another Acceptance is evidence for none.
+        current = signoff_digest(sections_of(inf.get("text") or "").get("Acceptance"))
         known = committed(inf["path"]) if inf.get("path") is not None else None
-        # A ROW TAKEN OUT IS A CHANGE TO THE EVIDENCE (ADR-021). Every field in an
-        # entry is defended — the digest binds a row to the fence it proved, the
-        # duration is a value the file cannot produce — and all of it defends what
-        # a row SAYS. Nothing defended the log against a row being removed, which
-        # was measured through this CLI on 2026-09-01: deleting the red `exit 1`
-        # run produced output identical to the baseline, and the log then implies
-        # a red-green cycle that did not happen.
-        #
-        # `known is not None` because None is "I could not look" — no repository,
-        # no git, a file never committed. Accusing every task in a corpus that has
-        # no `.git` would be a filter reporting absence it never observed (ADR-005).
-        #
-        # Filtered through VLOG_RE on BOTH sides because `committed` returns every
-        # line of the committed file, and an unfiltered comparison would accuse the
-        # correction notes this corpus writes into task files routinely.
-        # Against the WHOLE current file, never only its Verification Log: a `--human-mutant` row in
-        # the Mutation Log matches VLOG_RE too, and on a clean tree it was reported as removed, with
-        # an instruction to re-run adr-verify (a Windows corpus-chaos run of v3.8.9). Sorted, so the
-        # advice comes out in one order: a set made it flip between runs.
-        if known is not None:
-            here = {ln.strip() for ln in (inf.get("text") or "").split("\n")}
-            for gone in sorted({b for b in known if VLOG_RE.match(b) and b.strip() not in here}):
-                errors.advise(
-                    f"{inf['path'].name}: {tid} had an acceptance entry that the committed "
-                    f"file still holds and this file no longer has — `{gone.strip()}` is no "
-                    f"longer in this file. A row is evidence of a run that happened; removing "
-                    f"one changes what the log claims about the work. If the fence changed, "
-                    f"re-run `adr-verify <task.md>` on a clean tree rather than editing the log")
-        for row in entries:
-            # THE FLOOR IS CALLED HERE, and it shipped in 2.47.0 without this line.
-            # `implausibly_fast` was defined, asserted three times directly, and
-            # called from nothing — one grep hit in the whole plugin. A row
-            # claiming exit 0 in 3ms against a fence that starts a container
-            # passed clean. Reported on GitHub issue #6 and verified on Windows.
-            #
-            # It is this repository's own most-common shipped defect: the fence was
-            # satisfied by the component while the SELECTION did not exist, and
-            # the mutation evidence could not see it either, because a mutant in
-            # the predicate's body is killed by the direct assertions whether or
-            # not anything calls it.
-            timed = VLOG_TIMED_RE.match(row)
-            # A lock snapshot runs no fence by design and records ms:0; it claims no run,
-            # so the floor has nothing to judge (reported from outside, 2026-09-26).
-            # Exit 0 only: a failing command may stop at its first error — a `go test` red-first row
-            # exits 1 in 192 ms because the test does not exist yet (BACKLOG §349 item 4). Only a
-            # command that PASSED must have finished, and that is what the floor asks.
-            if timed and timed.group("ms") and timed.group("exit") == "0" and not vlog_row_is_lock_snapshot(row) \
-                    and implausibly_fast(int(timed.group("ms")),
-                                                                inf.get("acc_all", "")):
-                errors.advise(
-                    f"{inf['path'].name}: {tid} records exit {timed.group('exit')} in "
-                    f"{timed.group('ms')}ms, which is too short to have run this task's "
-                    f"Acceptance fence at all. A duration is the one field in an entry the "
-                    f"task file cannot produce; this one could not have been produced by "
-                    f"the command it sits beside. Re-run `adr-verify <task.md>`")
-            # DURATION_REQUIRED_FROM is wired here. It was defined, named "required from a date" in its comment, and
-            # read by nothing but the tests, until an orphan sweep that no longer counts comments found it (2026-10-23).
-            # adr-verify writes `ms:` into every row it records, so a run row dated on or after the cutover without one
-            # was not written by it. Advice, as the floor above is; a lock snapshot records ms:0 and is no exception.
-            if timed and not timed.group("ms") and row[2:12] >= DURATION_REQUIRED_FROM:
-                errors.advise(
-                    f"{inf['path'].name}: {tid} has an acceptance entry dated {row[2:12]}, on or after "
-                    f"{DURATION_REQUIRED_FROM}, that carries no `ms:` duration. adr-verify records one in every "
-                    f"entry it writes, so this one was not written by it. Re-run `adr-verify <task.md>`")
-            if timed and not timed.group("digest") \
-                    and known is not None and row not in known:
-                errors.append(
-                    f"{inf['path'].name}: {tid} has an acceptance entry carrying no "
-                    f"acceptance-sha256 that is not in the committed file — a row with no "
-                    f"digest is legacy evidence, and legacy means already recorded. Re-run "
-                    f"`adr-verify <task.md>`, which writes the entry and its digest itself")
-        passing = [b for b in entries if "· exit 0 ·" in b and not vlog_row_is_lock_snapshot(b)]
-        # TRAJECTORY, not just outcome. Everything else here asks whether the
-        # check PASSED; this asks whether the sequence that produced the pass was
-        # the one the task claimed. Ordered Steps step 1 is required to say
-        # "establish the failing test", and that requirement has always been
-        # about the PROSE — a task could say TDD and show a log that only ever
-        # passed, which proves the fence runs and not that it can fail here.
-        #
-        # ADVICE, never blocking, for two reasons. Six records in this
-        # repository's own corpus were written after the code shipped and say so
-        # in their opening; failing them retroactively is the day-one gate people
-        # switch off. And the shape is legitimate for a task whose work was
-        # already done — what is wrong is leaving it unsaid, not the ordering.
-        # A KILLED MUTANT already shows the fence can fail — by breaking the
-        # mechanism rather than by running before the work. That is the same
-        # property from the other direction, and advising on top of it would be
-        # noise on a task that has already proved the thing. Measured on this
-        # corpus 2026-08-28: without this clause the check fires on nine tasks,
-        # six of which had killed a mutant.
-        killed = any("mutant killed" in b for b in inf.get("mlog", []))
-        if passing and entries and "· exit 0 ·" in entries[0] and not inf["human"] and not killed:
-            errors.advise(f"{tid}: every Verification Log entry passed, so nothing here shows the "
-                          f"fence could fail — the first entry should be the TDD red run. If the "
-                          f"work predated the record, say so in the task rather than leaving the "
-                          f"log to imply a red-green cycle that did not happen")
-        if not passing:
+        recorded = None if known is None else {k.strip() for k in known}
+        standing = [(b, signoff_binding(b, current)[0]) for b in signs]
+        fresh = [b for b, s in standing if s == "legacy" and recorded is not None and b not in recorded]
+        for b in fresh:
+            errors.append(f"{where}: {tid} has a human-observed sign-off carrying no acceptance-sha256 that is not "
+                          f"in the committed file — a sign-off with no digest is legacy evidence, and legacy means "
+                          f"already recorded. Re-sign with `adr-verify {inf['path'].name} --human \"…\"`, which "
+                          f"writes the digest itself")
+        if not signs:
             errors.append(f"{where}: {tid} marked done but its Verification Log has no "
-                          f"exit-0 entry — run adr-verify, don't hand-declare")
-            continue
-        if inf["acc_all"]:
-            want_digest = acceptance_digest(inf["acc_all"])
-            digest_matches = [m for b in passing
-                              if (m := VLOG_DIGEST_RE.match(b))
-                              and m.group("digest") == want_digest]
-            legacy_matches = []
-            if "\n" not in inf["acc_all"]:
-                want = inf["acc_first"].replace("`", "'")
-                legacy_matches = [m for b in passing
-                                  if (m := VLOG_LEGACY_RE.match(b))
-                                  and not m.group("command").rstrip().endswith(" …")
-                                  and m.group("command").strip() == want]
-            if not digest_matches and not legacy_matches:
-                legacy_note = (" Legacy no-digest evidence cannot prove a multi-line fence."
-                               if "\n" in inf["acc_all"] else "")
-                # "Acceptance changed after verification" is an observation only a
-                # digest row supports: it names the fence it ran against, and the
-                # mismatch IS the change. With no digest row nothing was recorded
-                # against anything — a legacy-only log was told both sentences at
-                # once (reported 2026-09-23 from a Windows desktop). Say what was seen.
-                changed_note = (" Acceptance changed after verification;" if any(VLOG_DIGEST_RE.match(b) for b in passing)
-                                else " No exit-0 entry names this fence's digest;")
-                # The digest is NOT named. It is derivable from the fence by anyone
-                # holding the file, so this is a convenience withdrawn rather than a
-                # secret kept — but the message that rejected a forged digest used to
-                # print the one that would have worked, and pasting it back produced
-                # [PASS] (GitHub issue #4). Saying how to recompute it is just as
-                # actionable and hands nothing over.
-                errors.append(f"{where}: {tid} marked done but no exit-0 entry carries the "
-                              f"current Acceptance digest."
-                              f"{legacy_note}{changed_note} re-run "
-                              f"`adr-verify <task.md>` to record an entry against the fence as "
-                              f"it now stands. ⚠ That run is appended whatever it exits: if the "
-                              f"fence no longer passes here — usually an environment it does not "
-                              f"set up for itself — fix the fence FIRST, or the log gains a failed "
-                              f"run on a task that was done")
+                          f"'· human-observed ·' sign-off entry (adr-verify --human)")
+        elif not any(s == "bound" or (s == "legacy" and b not in fresh) for b, s in standing) \
+                and any(s == "stale" for _b, s in standing):
+            errors.append(f"{where}: {tid} marked done but its human-observed sign-off was taken on another "
+                          f"Acceptance — the Acceptance changed after it was signed, so the sign-off proves "
+                          f"nothing about this one. Re-sign with `adr-verify {inf['path'].name} --human \"…\"`")
+        return
+    entries = [b for b in inf["vlog"] if VLOG_RE.match(b)]
+    # A digest-less row is legacy evidence, and legacy means ALREADY WRITTEN
+    # DOWN. Reported 2026-09-01 (GitHub issue #4), reproduced on 2.44.0: the
+    # digest was optional in this grammar, so the field that binds evidence to
+    # the fence it proved was opt-out by omission, and step one of a full
+    # pending -> done forgery was typing a line with the digest left off.
+    #
+    # Tolerated where HEAD already has it, because corpora written before the
+    # field existed must not turn red for having complied with the rules of
+    # their day. Refused where it is new, because nothing recorded it. The
+    # asymmetry is the whole fix: it costs an existing corpus nothing and
+    # costs a forger the price of running the command.
+    known = committed(inf["path"]) if inf.get("path") is not None else None
+    # A ROW TAKEN OUT IS A CHANGE TO THE EVIDENCE (ADR-021). Every field in an
+    # entry is defended — the digest binds a row to the fence it proved, the
+    # duration is a value the file cannot produce — and all of it defends what
+    # a row SAYS. Nothing defended the log against a row being removed, which
+    # was measured through this CLI on 2026-09-01: deleting the red `exit 1`
+    # run produced output identical to the baseline, and the log then implies
+    # a red-green cycle that did not happen.
+    #
+    # `known is not None` because None is "I could not look" — no repository,
+    # no git, a file never committed. Accusing every task in a corpus that has
+    # no `.git` would be a filter reporting absence it never observed (ADR-005).
+    #
+    # Filtered through VLOG_RE on BOTH sides because `committed` returns every
+    # line of the committed file, and an unfiltered comparison would accuse the
+    # correction notes this corpus writes into task files routinely.
+    # Against the WHOLE current file, never only its Verification Log: a `--human-mutant` row in
+    # the Mutation Log matches VLOG_RE too, and on a clean tree it was reported as removed, with
+    # an instruction to re-run adr-verify (a Windows corpus-chaos run of v3.8.9). Sorted, so the
+    # advice comes out in one order: a set made it flip between runs.
+    if known is not None:
+        here = {ln.strip() for ln in (inf.get("text") or "").split("\n")}
+        for gone in sorted({b for b in known if VLOG_RE.match(b) and b.strip() not in here}):
+            errors.advise(
+                f"{inf['path'].name}: {tid} had an acceptance entry that the committed "
+                f"file still holds and this file no longer has — `{gone.strip()}` is no "
+                f"longer in this file. A row is evidence of a run that happened; removing "
+                f"one changes what the log claims about the work. If the fence changed, "
+                f"re-run `adr-verify <task.md>` on a clean tree rather than editing the log")
+    for row in entries:
+        # THE FLOOR IS CALLED HERE, and it shipped in 2.47.0 without this line.
+        # `implausibly_fast` was defined, asserted three times directly, and
+        # called from nothing — one grep hit in the whole plugin. A row
+        # claiming exit 0 in 3ms against a fence that starts a container
+        # passed clean. Reported on GitHub issue #6 and verified on Windows.
+        #
+        # It is this repository's own most-common shipped defect: the fence was
+        # satisfied by the component while the SELECTION did not exist, and
+        # the mutation evidence could not see it either, because a mutant in
+        # the predicate's body is killed by the direct assertions whether or
+        # not anything calls it.
+        timed = VLOG_TIMED_RE.match(row)
+        # A lock snapshot runs no fence by design and records ms:0; it claims no run,
+        # so the floor has nothing to judge (reported from outside, 2026-09-26).
+        # Exit 0 only: a failing command may stop at its first error — a `go test` red-first row
+        # exits 1 in 192 ms because the test does not exist yet (BACKLOG §349 item 4). Only a
+        # command that PASSED must have finished, and that is what the floor asks.
+        if timed and timed.group("ms") and timed.group("exit") == "0" and not vlog_row_is_lock_snapshot(row) \
+                and implausibly_fast(int(timed.group("ms")),
+                                                            inf.get("acc_all", "")):
+            errors.advise(
+                f"{inf['path'].name}: {tid} records exit {timed.group('exit')} in "
+                f"{timed.group('ms')}ms, which is too short to have run this task's "
+                f"Acceptance fence at all. A duration is the one field in an entry the "
+                f"task file cannot produce; this one could not have been produced by "
+                f"the command it sits beside. Re-run `adr-verify <task.md>`")
+        # DURATION_REQUIRED_FROM is wired here. It was defined, named "required from a date" in its comment, and
+        # read by nothing but the tests, until an orphan sweep that no longer counts comments found it (2026-10-23).
+        # adr-verify writes `ms:` into every row it records, so a run row dated on or after the cutover without one
+        # was not written by it. Advice, as the floor above is; a lock snapshot records ms:0 and is no exception.
+        if timed and not timed.group("ms") and row[2:12] >= DURATION_REQUIRED_FROM:
+            errors.advise(
+                f"{inf['path'].name}: {tid} has an acceptance entry dated {row[2:12]}, on or after "
+                f"{DURATION_REQUIRED_FROM}, that carries no `ms:` duration. adr-verify records one in every "
+                f"entry it writes, so this one was not written by it. Re-run `adr-verify <task.md>`")
+        if timed and not timed.group("digest") \
+                and known is not None and row not in known:
+            errors.append(
+                f"{inf['path'].name}: {tid} has an acceptance entry carrying no "
+                f"acceptance-sha256 that is not in the committed file — a row with no "
+                f"digest is legacy evidence, and legacy means already recorded. Re-run "
+                f"`adr-verify <task.md>`, which writes the entry and its digest itself")
+    passing = [b for b in entries if "· exit 0 ·" in b and not vlog_row_is_lock_snapshot(b)]
+    # TRAJECTORY, not just outcome. Everything else here asks whether the
+    # check PASSED; this asks whether the sequence that produced the pass was
+    # the one the task claimed. Ordered Steps step 1 is required to say
+    # "establish the failing test", and that requirement has always been
+    # about the PROSE — a task could say TDD and show a log that only ever
+    # passed, which proves the fence runs and not that it can fail here.
+    #
+    # ADVICE, never blocking, for two reasons. Six records in this
+    # repository's own corpus were written after the code shipped and say so
+    # in their opening; failing them retroactively is the day-one gate people
+    # switch off. And the shape is legitimate for a task whose work was
+    # already done — what is wrong is leaving it unsaid, not the ordering.
+    # A KILLED MUTANT already shows the fence can fail — by breaking the
+    # mechanism rather than by running before the work. That is the same
+    # property from the other direction, and advising on top of it would be
+    # noise on a task that has already proved the thing. Measured on this
+    # corpus 2026-08-28: without this clause the check fires on nine tasks,
+    # six of which had killed a mutant.
+    killed = any("mutant killed" in b for b in inf.get("mlog", []))
+    if passing and entries and "· exit 0 ·" in entries[0] and not inf["human"] and not killed:
+        errors.advise(f"{tid}: every Verification Log entry passed, so nothing here shows the "
+                      f"fence could fail — the first entry should be the TDD red run. If the "
+                      f"work predated the record, say so in the task rather than leaving the "
+                      f"log to imply a red-green cycle that did not happen")
+    if not passing:
+        errors.append(f"{where}: {tid} marked done but its Verification Log has no "
+                      f"exit-0 entry — run adr-verify, don't hand-declare")
+        return
+    if inf["acc_all"]:
+        want_digest = acceptance_digest(inf["acc_all"])
+        digest_matches = [m for b in passing
+                          if (m := VLOG_DIGEST_RE.match(b))
+                          and m.group("digest") == want_digest]
+        legacy_matches = []
+        if "\n" not in inf["acc_all"]:
+            want = inf["acc_first"].replace("`", "'")
+            legacy_matches = [m for b in passing
+                              if (m := VLOG_LEGACY_RE.match(b))
+                              and not m.group("command").rstrip().endswith(" …")
+                              and m.group("command").strip() == want]
+        if not digest_matches and not legacy_matches:
+            legacy_note = (" Legacy no-digest evidence cannot prove a multi-line fence."
+                           if "\n" in inf["acc_all"] else "")
+            # "Acceptance changed after verification" is an observation only a
+            # digest row supports: it names the fence it ran against, and the
+            # mismatch IS the change. With no digest row nothing was recorded
+            # against anything — a legacy-only log was told both sentences at
+            # once (reported 2026-09-23 from a Windows desktop). Say what was seen.
+            changed_note = (" Acceptance changed after verification;" if any(VLOG_DIGEST_RE.match(b) for b in passing)
+                            else " No exit-0 entry names this fence's digest;")
+            # The digest is NOT named. It is derivable from the fence by anyone
+            # holding the file, so this is a convenience withdrawn rather than a
+            # secret kept — but the message that rejected a forged digest used to
+            # print the one that would have worked, and pasting it back produced
+            # [PASS] (GitHub issue #4). Saying how to recompute it is just as
+            # actionable and hands nothing over.
+            errors.append(f"{where}: {tid} marked done but no exit-0 entry carries the "
+                          f"current Acceptance digest."
+                          f"{legacy_note}{changed_note} re-run "
+                          f"`adr-verify <task.md>` to record an entry against the fence as "
+                          f"it now stands. ⚠ That run is appended whatever it exits: if the "
+                          f"fence no longer passes here — usually an environment it does not "
+                          f"set up for itself — fix the fence FIRST, or the log gains a failed "
+                          f"run on a task that was done")
 
 def record_is_frozen(record, root, tracked):
     """Whether the record sits under a directory whose tracked `README.md` carries the
@@ -3080,37 +3089,42 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
     frozen = record is not None and record_is_frozen(record, root, tracked)
     moves = {}
     for tid in done:
-        inf = infos.get(tid)
-        if inf is None or inf.get("human"):
-            continue
-        label = f"{inf['path'].name}: {tid}"
-        blocks, advice = lock_findings(
-            inf.get("vlog") or [],
-            root=root,
-            tests=inf.get("tests") or [],
-            label=label,
-        )
-        for msg in advice:
-            # The same words for several tasks are one line naming them (BACKLOG §392, ADR-120 T5): a §390 move is
-            # keyed by its (from, to) pair through its body, and any other lock advice by its words after the label.
-            pair = getattr(msg, "body", None)
-            if pair is None and msg.startswith(f"{label}: "):
-                pair = msg[len(label) + 2:]
-            if pair is None:
-                errors.advise(msg)
-            else:
-                moves.setdefault(pair, []).append((label, msg))
-        for msg in blocks:
-            if frozen:
-                errors.advise(f"archived record: {msg} — history, not a refusal")
-            else:
-                errors.append(msg, evidence=True)
+        _test_lock_task(tid, infos.get(tid), root, frozen, errors, moves)
     # One change to a declared check, relocked across many tasks, is one line naming them (BACKLOG §392).
     for pair, tasks in moves.items():
         if len(tasks) == 1:
             errors.advise(tasks[0][1])
         else:
             errors.advise(f"{', '.join(label for label, _msg in tasks)}: {pair}")
+
+
+def _test_lock_task(tid, inf, root, frozen, errors, moves):
+    """One task of check_test_lock: blocks and plain advice go to `errors`, a §390 move into `moves`, which
+    the caller groups across tasks (`LintPool` runs it apart and hands its `moves` back)."""
+    if inf is None or inf.get("human"):
+        return
+    label = f"{inf['path'].name}: {tid}"
+    blocks, advice = lock_findings(
+        inf.get("vlog") or [],
+        root=root,
+        tests=inf.get("tests") or [],
+        label=label,
+    )
+    for msg in advice:
+        # The same words for several tasks are one line naming them (BACKLOG §392, ADR-120 T5): a §390 move is
+        # keyed by its (from, to) pair through its body, and any other lock advice by its words after the label.
+        pair = getattr(msg, "body", None)
+        if pair is None and msg.startswith(f"{label}: "):
+            pair = msg[len(label) + 2:]
+        if pair is None:
+            errors.advise(msg)
+        else:
+            moves.setdefault(pair, []).append((label, msg))
+    for msg in blocks:
+        if frozen:
+            errors.advise(f"archived record: {msg} — history, not a refusal")
+        else:
+            errors.append(msg, evidence=True)
 
 
 
@@ -5189,146 +5203,153 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
     frozen = record is not None and record_is_frozen(record, root, tracked)
     done = set(claimed_done_ids(readme_text, infos))
     for tid in evidenced_task_ids(infos, readme_text):
-        inf = infos.get(tid)
-        if inf is None or inf.get("human"):
-            continue
-        for name, rel in inf.get("tests", []):
-            spaced = spaced_js_title(name, rel)
-            if not spaced and not IDENTIFIER_TEST_NAME.match(name):
-                continue  # placeholder like "—" or a prose description
-            f = resolve_test_file(root, rel, tracked)
-            if f is not None:
-                refuse_special(f)
-            if spaced:
-                # Advice only, and only for the one observation it can make: the
-                # title is not in the file. A missing file stays unreported for a
-                # spaced name, as before, rather than gaining a block by the back door.
-                if f is None or f.is_dir():
-                    continue
-                source = read_test_source(f)
-                if source is None:
-                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen, undecodable=True)
-                    continue
-                status = js_title_exists(source, name, f.suffix)
-                if status == "unproven":
-                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
-                elif status == "missing":
-                    errors.advise(
-                        f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
-                        f"Tests table names the test title `{name}` in `{rel}`, but no `it`/`test`/"
-                        f"`describe` call in that file carries that exact title — so the row describes "
-                        f"a test the acceptance run cannot have exercised. Either it was never written, or "
-                        f"the table is stale after a rename; a sibling in that file fencing the same "
-                        f"behaviour is what separates the two")
+        _tests_exist_task(tid, infos.get(tid), root, tracked, done, frozen, errors, reported_outside)
+
+
+def _tests_exist_task(tid, inf, root, tracked, done, frozen, errors, reported_outside):
+    """One task of check_tests_exist, its findings in the order the loop gave them (`LintPool` runs it apart).
+
+    `reported_outside` is shared across tasks: a path outside the tree is said once per check. The advice must
+    come right after its `add`, because the pool replays a repeated `add` by skipping the one event after it."""
+    if inf is None or inf.get("human"):
+        return
+    for name, rel in inf.get("tests", []):
+        spaced = spaced_js_title(name, rel)
+        if not spaced and not IDENTIFIER_TEST_NAME.match(name):
+            continue  # placeholder like "—" or a prose description
+        f = resolve_test_file(root, rel, tracked)
+        if f is not None:
+            refuse_special(f)
+        if spaced:
+            # Advice only, and only for the one observation it can make: the
+            # title is not in the file. A missing file stays unreported for a
+            # spaced name, as before, rather than gaining a block by the back door.
+            if f is None or f.is_dir():
                 continue
-            # A Tests-table cell naming a DIRECTORY (a suite path like `tests/Feature/`) resolved to
-            # a real path and then crashed read_text with "Is a directory" — the linter died instead
-            # of reporting, which exits non-zero and so reads as a finding while having checked
-            # nothing after it (measured 2026-08-21, same failure mode as the missing-Spec crash).
-            if f is not None and f.is_dir():
-                errors.append(f"{inf['path'].name}: {tid} names `{rel}` for `{name}`, but that is a "
-                              f"DIRECTORY — a Tests row must name the file the test lives in")
-                continue
-            if f is None:
-                # A path that LEAVES this repository is a "could not look", not an
-                # absence. Reported 2026-08-30 by laravel-monolith-22: the gate
-                # looked in ONE repository, for a `../` path built to point outside
-                # it, and reported "the row describes a test nothing can run" — while
-                # the test was present in the repo the path names, on an unmerged
-                # branch, added by the very commit the task records.
-                #
-                # Two things were wrong and only one was the wording. It BLOCKED, so
-                # a task whose code genuinely lives elsewhere made the owning repo's
-                # lint permanently red with no reachable state that satisfies it —
-                # and the first thing a team does with a permanently-red gate is stop
-                # running it. And it fired once per Tests ROW, so eight rows naming
-                # one file read as eight problems.
-                #
-                # The tool already owns the right idiom; check_verification says
-                # "could not ask git … so that check did NOT run". CLAUDE.md §3.
-                if leaves_the_tree(rel):
-                    if rel not in reported_outside:
-                        reported_outside.add(rel)
-                        errors.advise(
-                            f"{inf['path'].name}: {tid}'s Tests table names `{rel}`, which points "
-                            f"OUTSIDE this repository, so this check did NOT run for it — whether "
-                            f"those tests exist is unproven here, not disproven. If the code lives "
-                            f"in another repository, say which one in the task, and verify it there.")
-                    continue
-                # ⚠ SAYS WHAT IT OBSERVED, AND STOPS. This used to end "the row
-                # describes a test nothing can run", which is a claim about the
-                # BEHAVIOUR drawn from an observation about a PATH. Reported
-                # 2026-09-08 by a corpus that acted on it: a row named
-                # `tests/unit/test_audit.py`, a file its author planned and never
-                # created, while the behaviour was fenced all along in
-                # `test_audit_warning.py` — a different file. The reporter wrote two
-                # replacement tests before finding that out and deleted both,
-                # because no mutant died that was not already dying (BACKLOG §181).
-                # The row is still wrong and still blocks; what it may not do is
-                # call the behaviour unfenced.
-                errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
-                              f"Tests table names `{rel}` for `{name}`, and that path names no file "
-                              f"in the repo — so the row points nowhere. Whether the behaviour is "
-                              f"fenced ELSEWHERE is unproven here: a file that was planned and never "
-                              f"created is not the same finding as a test that was deleted, so search "
-                              f"for the behaviour before treating this as a coverage gap")
-                continue
-            # Reported 2026-09-08 (BACKLOG §174): `test_cost_runaway_gate` in the name
-            # cell beside `tests/unit/test_cost_runaway_gate.py` in the file cell is a
-            # row naming a FILE, and the file exists. Read as a function that must be
-            # defined inside itself, it reported a test that was right there. Under
-            # pytest and go test a filter on the module's name selects its tests, so
-            # the claim the row makes is that the file's tests ran — which holds when
-            # the file holds at least one. A same-named file with no test in it is
-            # still the identity finding below.
-            # RAW source: `test_body` strips per branch, because a BDD test's name
-            # is a string literal and stripping strings here deleted the thing
-            # being searched for (docs/BACKLOG.md §57).
             source = read_test_source(f)
             if source is None:
                 unproven_test(errors, inf, tid, name, rel, tid in done, frozen, undecodable=True)
                 continue
-            if names_its_own_file(f, name, source):
-                continue
-            if f.name == "package.json" and name in npm_scripts(source):
-                continue
-            # ADR-079: a JavaScript-family file is read as the lock reads it, with no
-            # declaration or last-resort fallback; `test_body` keeps its contract.
-            if f.suffix.lower() in JS_FAMILY_SUFFIXES:
-                status = js_test_body(source, name, f.suffix)[0]
-            else:
-                status = "missing" if test_body(source, name, python=f.suffix == ".py",
-                                                php=f.suffix == ".php", swift=f.suffix == ".swift",
-                                                rust=f.suffix == ".rs") is None else "found"
+            status = js_title_exists(source, name, f.suffix)
             if status == "unproven":
                 unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+            elif status == "missing":
+                errors.advise(
+                    f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
+                    f"Tests table names the test title `{name}` in `{rel}`, but no `it`/`test`/"
+                    f"`describe` call in that file carries that exact title — so the row describes "
+                    f"a test the acceptance run cannot have exercised. Either it was never written, or "
+                    f"the table is stale after a rename; a sibling in that file fencing the same "
+                    f"behaviour is what separates the two")
+            continue
+        # A Tests-table cell naming a DIRECTORY (a suite path like `tests/Feature/`) resolved to
+        # a real path and then crashed read_text with "Is a directory" — the linter died instead
+        # of reporting, which exits non-zero and so reads as a finding while having checked
+        # nothing after it (measured 2026-08-21, same failure mode as the missing-Spec crash).
+        if f is not None and f.is_dir():
+            errors.append(f"{inf['path'].name}: {tid} names `{rel}` for `{name}`, but that is a "
+                          f"DIRECTORY — a Tests row must name the file the test lives in")
+            continue
+        if f is None:
+            # A path that LEAVES this repository is a "could not look", not an
+            # absence. Reported 2026-08-30 by laravel-monolith-22: the gate
+            # looked in ONE repository, for a `../` path built to point outside
+            # it, and reported "the row describes a test nothing can run" — while
+            # the test was present in the repo the path names, on an unmerged
+            # branch, added by the very commit the task records.
+            #
+            # Two things were wrong and only one was the wording. It BLOCKED, so
+            # a task whose code genuinely lives elsewhere made the owning repo's
+            # lint permanently red with no reachable state that satisfies it —
+            # and the first thing a team does with a permanently-red gate is stop
+            # running it. And it fired once per Tests ROW, so eight rows naming
+            # one file read as eight problems.
+            #
+            # The tool already owns the right idiom; check_verification says
+            # "could not ask git … so that check did NOT run". CLAUDE.md §3.
+            if leaves_the_tree(rel):
+                if rel not in reported_outside:
+                    reported_outside.add(rel)
+                    errors.advise(
+                        f"{inf['path'].name}: {tid}'s Tests table names `{rel}`, which points "
+                        f"OUTSIDE this repository, so this check did NOT run for it — whether "
+                        f"those tests exist is unproven here, not disproven. If the code lives "
+                        f"in another repository, say which one in the task, and verify it there.")
                 continue
-            if status == "missing":
-                # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
-                # filter passed without it", which is an inference the check never
-                # makes: measured 2026-08-29 on a 77-record corpus where four of
-                # the reported tasks run WHOLE-FILE acceptance commands with no
-                # `-k` at all, so nothing was filtered (docs/BACKLOG.md §61). The
-                # existence finding is solid and the mechanism was fabricated —
-                # a gate reporting an observation it did not make (ADR-005), in
-                # the sentence of a check that is otherwise 17-for-18 correct.
-                #
-                # AND NO LIKELIEST CAUSE. The replacement briefly said a rename is
-                # the commonest cause; the same session then FIXED its residue and
-                # measured 3 confirmed renames out of 17, with ~11 having no
-                # plausible equivalent anywhere. Naming the wrong likeliest cause
-                # is worse than naming none, because the nearest-looking neighbour
-                # is always right there: the cheap resolution becomes writing it
-                # into the table, which closes the finding by asserting coverage
-                # nobody verified. A gate must not prompt a fabrication.
-                errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
-                              f"Tests table names `{name}` in `{rel}`, but that file contains no "
-                              f"executable definition with that name — so the row describes a test "
-                              f"the acceptance run cannot have exercised. Either the test was never "
-                              f"written, or the table is stale after a rename. The question that "
-                              f"separates the two is whether a sibling IN THAT SAME FILE fences the "
-                              f"same behaviour: if one does, name it; if none does, this is a "
-                              f"coverage gap, not a rename")
+            # ⚠ SAYS WHAT IT OBSERVED, AND STOPS. This used to end "the row
+            # describes a test nothing can run", which is a claim about the
+            # BEHAVIOUR drawn from an observation about a PATH. Reported
+            # 2026-09-08 by a corpus that acted on it: a row named
+            # `tests/unit/test_audit.py`, a file its author planned and never
+            # created, while the behaviour was fenced all along in
+            # `test_audit_warning.py` — a different file. The reporter wrote two
+            # replacement tests before finding that out and deleted both,
+            # because no mutant died that was not already dying (BACKLOG §181).
+            # The row is still wrong and still blocks; what it may not do is
+            # call the behaviour unfenced.
+            errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
+                          f"Tests table names `{rel}` for `{name}`, and that path names no file "
+                          f"in the repo — so the row points nowhere. Whether the behaviour is "
+                          f"fenced ELSEWHERE is unproven here: a file that was planned and never "
+                          f"created is not the same finding as a test that was deleted, so search "
+                          f"for the behaviour before treating this as a coverage gap")
+            continue
+        # Reported 2026-09-08 (BACKLOG §174): `test_cost_runaway_gate` in the name
+        # cell beside `tests/unit/test_cost_runaway_gate.py` in the file cell is a
+        # row naming a FILE, and the file exists. Read as a function that must be
+        # defined inside itself, it reported a test that was right there. Under
+        # pytest and go test a filter on the module's name selects its tests, so
+        # the claim the row makes is that the file's tests ran — which holds when
+        # the file holds at least one. A same-named file with no test in it is
+        # still the identity finding below.
+        # RAW source: `test_body` strips per branch, because a BDD test's name
+        # is a string literal and stripping strings here deleted the thing
+        # being searched for (docs/BACKLOG.md §57).
+        source = read_test_source(f)
+        if source is None:
+            unproven_test(errors, inf, tid, name, rel, tid in done, frozen, undecodable=True)
+            continue
+        if names_its_own_file(f, name, source):
+            continue
+        if f.name == "package.json" and name in npm_scripts(source):
+            continue
+        # ADR-079: a JavaScript-family file is read as the lock reads it, with no
+        # declaration or last-resort fallback; `test_body` keeps its contract.
+        if f.suffix.lower() in JS_FAMILY_SUFFIXES:
+            status = js_test_body(source, name, f.suffix)[0]
+        else:
+            status = "missing" if test_body(source, name, python=f.suffix == ".py",
+                                            php=f.suffix == ".php", swift=f.suffix == ".swift",
+                                            rust=f.suffix == ".rs") is None else "found"
+        if status == "unproven":
+            unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+            continue
+        if status == "missing":
+            # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
+            # filter passed without it", which is an inference the check never
+            # makes: measured 2026-08-29 on a 77-record corpus where four of
+            # the reported tasks run WHOLE-FILE acceptance commands with no
+            # `-k` at all, so nothing was filtered (docs/BACKLOG.md §61). The
+            # existence finding is solid and the mechanism was fabricated —
+            # a gate reporting an observation it did not make (ADR-005), in
+            # the sentence of a check that is otherwise 17-for-18 correct.
+            #
+            # AND NO LIKELIEST CAUSE. The replacement briefly said a rename is
+            # the commonest cause; the same session then FIXED its residue and
+            # measured 3 confirmed renames out of 17, with ~11 having no
+            # plausible equivalent anywhere. Naming the wrong likeliest cause
+            # is worse than naming none, because the nearest-looking neighbour
+            # is always right there: the cheap resolution becomes writing it
+            # into the table, which closes the finding by asserting coverage
+            # nobody verified. A gate must not prompt a fabrication.
+            errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
+                          f"Tests table names `{name}` in `{rel}`, but that file contains no "
+                          f"executable definition with that name — so the row describes a test "
+                          f"the acceptance run cannot have exercised. Either the test was never "
+                          f"written, or the table is stale after a rename. The question that "
+                          f"separates the two is whether a sibling IN THAT SAME FILE fences the "
+                          f"same behaviour: if one does, name it; if none does, this is a "
+                          f"coverage gap, not a rename")
 
 
 # Test bodies that cannot fail, and tests the Acceptance never runs.
@@ -5982,89 +6003,93 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
     frozen = record is not None and record_is_frozen(record, root, tracked)
     done = set(claimed_done_ids(readme_text, infos))
     for tid in evidenced_task_ids(infos, readme_text):
-        inf = infos.get(tid)
-        if inf is None or inf.get("human"):
+        _tests_can_fail_task(tid, infos.get(tid), root, tracked, done, frozen, errors)
+
+
+def _tests_can_fail_task(tid, inf, root, tracked, done, frozen, errors):
+    """One task of check_tests_can_fail, its findings in the order the loop gave them (`LintPool` runs it apart)."""
+    if inf is None or inf.get("human"):
+        return
+    for name, rel in inf.get("tests", []):
+        spaced = spaced_js_title(name, rel)
+        if not spaced and not IDENTIFIER_TEST_NAME.match(name):
             continue
-        for name, rel in inf.get("tests", []):
-            spaced = spaced_js_title(name, rel)
-            if not spaced and not IDENTIFIER_TEST_NAME.match(name):
+        f = resolve_test_file(root, rel, tracked)
+        if f is None or f.is_dir():
+            continue  # check_tests_exist already reported both cases
+        # RAW for the languages that name a test with a STRING, stripped for
+        # Python. Pre-stripping deletes a BDD test's name, so this check
+        # silently skipped every JS/TS test it was asked about — `continue`
+        # on a None body reports nothing, so the skip was invisible
+        # (docs/BACKLOG.md §57). Python is the exception in both directions:
+        # its tests are named by `def`, which survives stripping, and its
+        # bodies carry DOCSTRINGS that must be removed before an `assert` in
+        # one can be mistaken for an assertion the test makes.
+        raw = read_test_source(f)
+        if raw is None:
+            continue  # not UTF-8 text: check_tests_exist already said UNPROVEN, naming the encoding
+        swift = f.suffix == ".swift"
+        text = code_only(raw, python=True) if f.suffix == ".py" else raw
+        if f.suffix.lower() in JS_FAMILY_SUFFIXES:
+            # ADR-079: judged on the whole file's code view, the body and its same-file
+            # helpers both. A name not found or not read to is check_tests_exist's to
+            # report. A spaced title it accepted on its call alone (`it('x', helper)`),
+            # whose body cannot be bounded, is said here, or it would be silence.
+            status, can = js_body_can_fail(raw, name, f.suffix)
+            # A row the existence check did not read the body of: a spaced title, found on
+            # its call alone, or one naming its own file (Codex round on efd7cdf).
+            if status == "unproven" and (spaced or names_its_own_file(f, name, raw)) \
+                    and js_title_exists(raw, name, f.suffix) == "found":
+                unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+            if status != "found" or can:
                 continue
-            f = resolve_test_file(root, rel, tracked)
-            if f is None or f.is_dir():
-                continue  # check_tests_exist already reported both cases
-            # RAW for the languages that name a test with a STRING, stripped for
-            # Python. Pre-stripping deletes a BDD test's name, so this check
-            # silently skipped every JS/TS test it was asked about — `continue`
-            # on a None body reports nothing, so the skip was invisible
-            # (docs/BACKLOG.md §57). Python is the exception in both directions:
-            # its tests are named by `def`, which survives stripping, and its
-            # bodies carry DOCSTRINGS that must be removed before an `assert` in
-            # one can be mistaken for an assertion the test makes.
-            raw = read_test_source(f)
-            if raw is None:
-                continue  # not UTF-8 text: check_tests_exist already said UNPROVEN, naming the encoding
-            swift = f.suffix == ".swift"
-            text = code_only(raw, python=True) if f.suffix == ".py" else raw
-            if f.suffix.lower() in JS_FAMILY_SUFFIXES:
-                # ADR-079: judged on the whole file's code view, the body and its same-file
-                # helpers both. A name not found or not read to is check_tests_exist's to
-                # report. A spaced title it accepted on its call alone (`it('x', helper)`),
-                # whose body cannot be bounded, is said here, or it would be silence.
-                status, can = js_body_can_fail(raw, name, f.suffix)
-                # A row the existence check did not read the body of: a spaced title, found on
-                # its call alone, or one naming its own file (Codex round on efd7cdf).
-                if status == "unproven" and (spaced or names_its_own_file(f, name, raw)) \
-                        and js_title_exists(raw, name, f.suffix) == "found":
-                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
-                if status != "found" or can:
-                    continue
-                body = js_code_body(raw, name, f.suffix)[1]
-            else:
-                body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php", swift=swift,
-                                 rust=f.suffix == ".rs")
-                if body is None:
-                    continue
-                # A no-op on the text above, which was already stripped; kept because
-                # test_body slices out of it and a future extractor might not.
-                body = code_only(body, python=f.suffix == ".py", swift=swift, rust=f.suffix == ".rs")
-                # A test that delegates its assertions to a helper still fails when the
-                # helper does. Follow one level: any same-file function the body calls
-                # that takes the testing handle counts as part of it.
-                if not FAIL_CALLS.search(body):
-                    for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
-                        h = test_body(text, callee, python=f.suffix == ".py",
-                                      php=f.suffix == ".php", swift=swift, rust=f.suffix == ".rs")
-                        if h and FAIL_CALLS.search(h):
-                            body += h
-                            break
+            body = js_code_body(raw, name, f.suffix)[1]
+        else:
+            body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php", swift=swift,
+                             rust=f.suffix == ".rs")
+            if body is None:
+                continue
+            # A no-op on the text above, which was already stripped; kept because
+            # test_body slices out of it and a future extractor might not.
+            body = code_only(body, python=f.suffix == ".py", swift=swift, rust=f.suffix == ".rs")
+            # A test that delegates its assertions to a helper still fails when the
+            # helper does. Follow one level: any same-file function the body calls
+            # that takes the testing handle counts as part of it.
             if not FAIL_CALLS.search(body):
-                # ⚠ "NOTHING IN IT CAN GO RED" IS A UNIVERSAL NEGATIVE OVER
-                # ARBITRARY CODE, and this gate cannot establish one — the same
-                # error as declaring a shell fence vacuous (CLAUDE.md §16,
-                # ADR-016). A test whose body only CALLS something still fails
-                # when that call raises, which is an ordinary smoke-test shape:
-                # `for body in bodies: Model(**body)` fences a schema and asserts
-                # nothing. Reported 2026-09-08 from a 77-record corpus where this
-                # check was 21 for 21 false (BACKLOG §186).
-                #
-                # So the BLOCK is kept only where the claim holds — a body that
-                # calls nothing at all, which is the dead test this check was
-                # written for. A body that calls something gets ADVICE naming
-                # what was and was not observed.
-                calls = [c for c in re.findall(r"\b([A-Za-z_]\w*)\s*\(", body)
-                         if c not in ("if", "while", "for", "return", "print", "len", "range", "str", "int")]
-                if calls:
-                    errors.advise(
-                        f"{inf['path'].name}: {tid} names `{name}`, and no failure call was "
-                        f"recognised in its body or in a same-file helper it hands the test handle "
-                        f"to. It calls `{calls[0]}`, and a call that raises fails a test just as an "
-                        f"assertion does — so whether this test can go red is UNPROVEN here, not "
-                        f"disproven. If it genuinely asserts nothing, give it one")
-                else:
-                    (errors.advise if spaced else errors.append)(
-                        f"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body "
-                        f"calls nothing and asserts nothing — there is no path by which it can go "
-                        f"red, so a green run of it proves nothing")
+                for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
+                    h = test_body(text, callee, python=f.suffix == ".py",
+                                  php=f.suffix == ".php", swift=swift, rust=f.suffix == ".rs")
+                    if h and FAIL_CALLS.search(h):
+                        body += h
+                        break
+        if not FAIL_CALLS.search(body):
+            # ⚠ "NOTHING IN IT CAN GO RED" IS A UNIVERSAL NEGATIVE OVER
+            # ARBITRARY CODE, and this gate cannot establish one — the same
+            # error as declaring a shell fence vacuous (CLAUDE.md §16,
+            # ADR-016). A test whose body only CALLS something still fails
+            # when that call raises, which is an ordinary smoke-test shape:
+            # `for body in bodies: Model(**body)` fences a schema and asserts
+            # nothing. Reported 2026-09-08 from a 77-record corpus where this
+            # check was 21 for 21 false (BACKLOG §186).
+            #
+            # So the BLOCK is kept only where the claim holds — a body that
+            # calls nothing at all, which is the dead test this check was
+            # written for. A body that calls something gets ADVICE naming
+            # what was and was not observed.
+            calls = [c for c in re.findall(r"\b([A-Za-z_]\w*)\s*\(", body)
+                     if c not in ("if", "while", "for", "return", "print", "len", "range", "str", "int")]
+            if calls:
+                errors.advise(
+                    f"{inf['path'].name}: {tid} names `{name}`, and no failure call was "
+                    f"recognised in its body or in a same-file helper it hands the test handle "
+                    f"to. It calls `{calls[0]}`, and a call that raises fails a test just as an "
+                    f"assertion does — so whether this test can go red is UNPROVEN here, not "
+                    f"disproven. If it genuinely asserts nothing, give it one")
+            else:
+                (errors.advise if spaced else errors.append)(
+                    f"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body "
+                    f"calls nothing and asserts nothing — there is no path by which it can go "
+                    f"red, so a green run of it proves nothing")
 
 
 # Where a flag token may start: not inside a word or a path (`tests/core-run-tree.test.mjs` holds `-run`), but directly after a

@@ -368,14 +368,21 @@ export async function runShellHook(scriptName, raw, options = {}) {
   }
   const payloadForEnv = parsedHookPayload(raw, process.platform)
   const sessionId = typeof payloadForEnv?.session_id === 'string' ? payloadForEnv.session_id : ''
+  const reportDeferral = verdict && scriptName === 'facts-gate-dispatch.sh' && payloadForEnv?.hook_event_name === 'PostToolUse'
+  const env = { ...process.env }
+  if (sessionId) env.QUALITY_HARNESS_SESSION_ID = sessionId
+  if (reportDeferral) env.QH_REPORT_LOCK_DEFERRAL = '1'
   const run = await runWithTimeout(executable, [scriptPath, ...args], {
     input: normalizeHookPayload(raw),
     timeoutMs,
     maxOutputBytes,
-    env: sessionId
-      ? { ...process.env, QUALITY_HARNESS_SESSION_ID: sessionId }
-      : process.env,
+    env,
   })
+  if (reportDeferral && run.status === 75 && !run.error && !run.timedOut && !run.outputLimitExceeded
+      && run.cleanupConfirmed !== false && !run.stdout && !run.stderr) {
+    finish('deferred', run)
+    return 0
+  }
   finish(run.cleanupConfirmed === false ? 'cleanup-unconfirmed'
     : run.outputLimitExceeded ? 'output-limit' : run.timedOut ? 'timeout'
     : run.error || run.status !== 0 || shellRuntimeCrashed(run.stderr) ? 'failed' : 'completed', run)

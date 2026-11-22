@@ -2,6 +2,7 @@
 """adr-lint — executable gate for ADRs + task files (quality-harness templates).
 
 Usage: adr-lint ADR.md [TASKS_DIR]
+       adr-lint --lock-drift ADR.md TASKS_DIR REPO_RELATIVE_TEST
 
 TASKS_DIR defaults to a `tasks/` directory next to the ADR (or `<adr-stem>/tasks/`).
 Without a tasks dir, only ADR-level checks run (inline-task ADRs).
@@ -1723,6 +1724,22 @@ def check_task_path_length(path, root, errors):
             f"keeps the ceiling where it is.")
 
 
+def task_lock_inputs(path, text, secs):
+    vlog = [ln.strip() for ln in unfenced_lines(secs.get("Verification Log", []))
+            if ln.strip().startswith("- ")]
+    tests = []
+    for _line, cells, _fenced in task_tests_rows(secs):
+        if len(cells) < 2 or cells[0].lower().startswith("test name"):
+            continue
+        nm = re.search(r"`([^`]+)`", cells[0])
+        fl = re.search(r"`([^`]+)`", cells[1])
+        if nm and fl:
+            tests.append((nm.group(1).strip(), fl.group(1).strip()))
+    return {"path": path, "tests": tests, "vlog": vlog,
+            "human": "Acceptance is human-observed:" in "\n".join(secs.get("Acceptance", [])),
+            "text": text}
+
+
 def check_task(path, all_stems, errors, root, tracked):
     text = path.read_text(errors="replace", encoding="utf-8")
     if "\x00" in text:
@@ -1737,7 +1754,7 @@ def check_task(path, all_stems, errors, root, tracked):
         # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).
         return set(), None
     secs = sections_of(text)
-    test_rows = task_tests_rows(secs)
+    lock_inputs = task_lock_inputs(path, text, secs)
     check_step_proof_map(path, text, secs, errors)
     check_task_path_length(path, root, errors)
     for s in TASK_SECTIONS:
@@ -1992,8 +2009,7 @@ def check_task(path, all_stems, errors, root, tracked):
     # Entries are the section's top-level rows. A fenced block inside it is the
     # quoted output of a red run, and a fence that prints `  - x` is not three
     # off-grammar entries (record.unfenced_lines; reported 2026-09-23).
-    vlog = [ln.strip() for ln in unfenced_lines(secs.get("Verification Log", []))
-            if ln.strip().startswith("- ")]
+    vlog = lock_inputs["vlog"]
     # ADR-088 T1: the object format bounds what git can print. Asked once, of this task's repository;
     # could-not-look is None, and every width then fits.
     sha_format = object_format(git_root(path.parent)) if vlog else None
@@ -2159,33 +2175,16 @@ def check_task(path, all_stems, errors, root, tracked):
     # acc_first is display/legacy compatibility only. acc_all is the WHOLE
     # normalized fence and is the sole input to current evidence digests: a
     # filter or second command often sits below line one.
-    # Tests table rows: (test name, file it should live in). The names are what
-    # the acceptance command filters on, so a name that exists only here is a
-    # test nothing runs.
-    tests = []
-    for _line, cells, _fenced in test_rows:
-        if len(cells) < 2 or cells[0].lower().startswith("test name"):
-            continue
-        nm = re.search(r"`([^`]+)`", cells[0])
-        fl = re.search(r"`([^`]+)`", cells[1])
-        if nm and fl:
-            tests.append((nm.group(1).strip(), fl.group(1).strip()))
-
     covers = header_val(text, "Covers") or ""
-    info = {"dep": header_val(text, "Depends-on") or "", "tests": tests, "path": path,
+    info = {**lock_inputs, "dep": header_val(text, "Depends-on") or "",
             "produces": header_val(text, "Produces") or "",
             "consumes": header_val(text, "Consumes") or "",
-            "vlog": vlog, "mlog": mlog, "has_mlog": has_mlog_section,
+            "mlog": mlog, "has_mlog": has_mlog_section,
             "acc_first": acc_first, "acc_all": acc_all,
-            "human": "Acceptance is human-observed:" in acc, "adds": adds,
+            "adds": adds,
             # ADR-022 T3. Carried rather than re-read: the declaration was
             # already parsed above to report a malformed one.
-            "rests_on": declared,
-            # The task's own text. `check_produced_symbols` read it and nothing put
-            # it here, so the §61 advisory never fired outside its hand-built test;
-            # and a Tests-row finding needs it to name the row's line (BACKLOG §280
-            # item 2).
-            "text": text}
+            "rests_on": declared}
     return set(re.findall(r"(F-\d+|UC\d+-S\d+)", covers)), info
 
 
@@ -3055,7 +3054,7 @@ def record_is_frozen(record, root, tracked):
     return False
 
 
-def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None):
+def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None, only_file=None):
     """Refuse done when a first-red test-body lock no longer holds (ADR-050).
 
     A FROZEN record's lock findings are advice: tests are deleted after a record
@@ -3075,7 +3074,7 @@ def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None)
             inf.get("vlog") or [],
             root=root,
             tests=inf.get("tests") or [],
-            label=label,
+            label=label, only_file=only_file,
         )
         for msg in advice:
             # The same words for several tasks are one line naming them (BACKLOG §392, ADR-120 T5): a §390 move is
@@ -6905,7 +6904,45 @@ def report_version():
     print(gate_identity())
 
 
+def task_index_path(tasks_dir):
+    readme = tasks_dir / "README.md"
+    if readme.exists():
+        return readme
+    return next((p for p in sorted(tasks_dir.glob("*")) if p.name.lower() == "readme.md"), readme)
+
+
+def report_lock_drift(adr, tasks_dir, changed, root, tracked):
+    """Read the owner's done claims and group lock findings exactly as the full check does."""
+    if not tasks_dir.is_dir():
+        print(f"[adr-lint] could not run: missing tasks directory {one_line(tasks_dir)}", file=sys.stderr)
+        return 2
+    index = task_index_path(tasks_dir)
+    readme = read_named(index) if index.exists() else None
+    infos = {}
+    for path in task_order(p for p in tasks_dir.glob("*.md") if p.name.lower() != "readme.md"):
+        text = read_named(path)
+        key = stem_task_id(path) or task_id(path, text)
+        if key and key not in infos and "\x00" not in text:
+            infos[key] = task_lock_inputs(path, text, sections_of(text))
+    errors = Findings()
+    check_test_lock(infos, readme, errors, root, adr, tracked, only_file=changed)
+    failed = False
+    for prefix, messages in (("", errors), ("advice: ", errors.advice)):
+        for line in grouped_task_findings(m for m in messages if "locked test `" in m):
+            print(visible(prefix + line, keep=""))
+            if not prefix:
+                failed = True
+    return 1 if failed else 0
+
+
 def main():
+    changed = None
+    if sys.argv[1:2] == ["--lock-drift"]:
+        if len(sys.argv) != 5 or any(arg.startswith("--") for arg in sys.argv[2:4]) or not sys.argv[4]:
+            print("usage: adr-lint --lock-drift ADR.md TASKS_DIR REPO_RELATIVE_TEST", file=sys.stderr)
+            sys.exit(2)
+        changed = sys.argv.pop()
+        del sys.argv[1]
     if "--version" in sys.argv[1:]:
         report_version()
         sys.exit(0)
@@ -7029,6 +7066,8 @@ def main():
     # Listed ONCE for the whole record. Three checks resolve pointers against the
     # corpus and every one of them used to glob the disk instead (CLAUDE.md §8).
     tracked = tracked_or_unignored_paths(root)
+    if changed is not None:
+        sys.exit(report_lock_drift(adr, Path(sys.argv[2]), changed, root, tracked))
     # Before any check runs, so every finding this record produces is judged the
     # same way. A record at or above the cutoff, or a corpus that declares none,
     # is checked exactly as it was before this existed.
@@ -7205,11 +7244,7 @@ def main():
                     said.add((own, files[0].name, later.name))
                     errors.append(f"could not tell which file is {own}: {files[0].name} and {later.name} both "
                                   f"declare it; give one of them its own id", evidence=True)
-        readme = tasks_dir / "README.md"
-        if not readme.exists():
-            # On a case-sensitive file system `readme.md` is not `README.md`, and was read as no
-            # index at all; any spelling is the index (BACKLOG §350 C8).
-            readme = next((p for p in sorted(tasks_dir.glob("*")) if p.name.lower() == "readme.md"), readme)
+        readme = task_index_path(tasks_dir)
         readme_text = None
         if readme.exists():
             refuse_special(readme)

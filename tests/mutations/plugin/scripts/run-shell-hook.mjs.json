@@ -175,8 +175,8 @@
         "tests/staged-product.test.mjs"
       ],
       "only": "session_id from the payload reaches the facts-gate dispatcher",
-      "from": "    env: sessionId\n      ? { ...process.env, QUALITY_HARNESS_SESSION_ID: sessionId }\n      : process.env,",
-      "to": "    env: process.env,"
+      "from": "  if (sessionId) env.QUALITY_HARNESS_SESSION_ID = sessionId",
+      "to": "  // Session identity withheld."
     },
     {
       "label": "archive: the bulk lookup takes the first base with a CATALOG, as the dispatcher does",

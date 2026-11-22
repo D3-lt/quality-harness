@@ -3,14 +3,15 @@
 // gates a task: the lock failed later, on `done`, with nobody told which edit moved it (`scripts/test-locks.py` was manual).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runArtifactGates } from './helpers/node-hooks/artifact-pass.mjs'
+import { answeredBlobs, passCandidates, runArtifactGates } from './helpers/node-hooks/artifact-pass.mjs'
+import { readEvents } from '../plugin/scripts/event-log.mjs'
 import { remove } from './helpers/remove.mjs'
-import { resolveBashExecutable } from '../plugin/scripts/run-shell-hook.mjs'
+import { resolveBashExecutable, runEditGate } from '../plugin/scripts/run-shell-hook.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dispatcher = join(repoRoot, 'plugin', 'scripts', 'facts-gate-dispatch.sh')
@@ -28,7 +29,7 @@ const taskText = (vlog, rows = [ROW], id = 'ADR-001') => [`# Task ${id}-T1: lock
 
 // A repository with one ADR whose T1 is done and locks `locked dirty` (and, with `second`, `locked second` in a second
 // file; with `twin`, a second ADR whose own tasks/T1-lock.md locks the same test), plus a test file no task names.
-function fixture({ status = 'done', second = false, twin = false } = {}) {
+function fixture({ status = 'done', second = false, twin = false, subject = 'tests/lock-subject.test.mjs' } = {}) {
   const dir = realpathSync.native(mkdtempSync(join(os.tmpdir(), 'qh-lockdrift-')))
   const init = spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 10_000, windowsHide: true })
   assert.equal(init.status, 0, init.stderr)
@@ -36,7 +37,8 @@ function fixture({ status = 'done', second = false, twin = false } = {}) {
   writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'), HEAD + LOCKED_BODY)
   writeFileSync(join(dir, 'tests', 'unlocked.test.mjs'), HEAD + "test('free', () => {\n  assert.equal(1, 1)\n})\n")
   if (second) writeFileSync(join(dir, 'tests', 'lock-second.test.mjs'), HEAD + SECOND_BODY)
-  const rows = second ? [ROW, SECOND_ROW] : [ROW]
+  const rows = [ROW.replace('tests/lock-subject.test.mjs', subject)]
+  if (second) rows.push(SECOND_ROW)
   for (const id of twin ? ['ADR-001', 'ADR-002'] : ['ADR-001']) {
     const tasks = join(dir, 'docs', 'adr', `${id}-probe`, 'tasks')
     mkdirSync(tasks, { recursive: true })
@@ -190,4 +192,89 @@ test('a lock line whose record the scan could not learn is said, and keeps nothi
     const said = runArtifactGates([locked, free], dir, 100_000, { ledgerDirectory })
     assert.equal(driftLines(said).length, 2, `an unknown record suppresses nothing:\n${said}`)
   } finally { remove(dir); remove(ledgerDirectory) }
+})
+
+test('a changed test checks its lock without recording a full ADR lint', () => {
+  const dir = fixture({ second: true })
+  const savedState = process.env.QUALITY_HARNESS_STATE_DIR
+  delete process.env.QUALITY_HARNESS_STATE_DIR
+  try {
+    const locked = join(dir, 'tests', 'lock-subject.test.mjs')
+    writeFileSync(locked, HEAD + LOCKED_BODY.replace('2, 2', '1, 2'))
+    const note = join(dir, '.git', 'qh-advice-survival.json')
+    assert.equal(driftLines(runArtifactGates([locked], dir)).length, 1)
+    assert.equal(existsSync(note), false, 'a file-scoped check must not advance full-record advice history')
+    const task = join(dir, 'docs', 'adr', 'ADR-001-probe', 'tasks', 'T1-lock.md')
+    assert.equal(driftLines(runArtifactGates([task], dir)).length, 1)
+    assert.ok(existsSync(note), 'a task edit still runs the full ADR check')
+  } finally {
+    if (savedState !== undefined) process.env.QUALITY_HARNESS_STATE_DIR = savedState
+    remove(dir)
+  }
+})
+
+test('deleting a tracked locked test reports its vanished body', () => {
+  const dir = fixture()
+  try {
+    const locked = join(dir, 'tests', 'lock-subject.test.mjs')
+    for (const args of [['add', '.'], ['-c', 'user.name=Test', '-c', 'user.email=test@example.org', 'commit', '-qm', 'fixture']]) {
+      assert.equal(spawnSync('git', args, { cwd: dir, timeout: 10_000 }).status, 0)
+    }
+    rmSync(locked)
+    assert.match(String(runArtifactGates([locked], dir)), /lock drift: .*locked dirty vanished/)
+  } finally { remove(dir) }
+})
+
+test('file-scoped lint opens only the changed test source of a multi-file lock', () => {
+  const dir = fixture({ second: true })
+  try {
+    const changed = 'tests/lock-subject.test.mjs'
+    writeFileSync(join(dir, changed), HEAD + LOCKED_BODY.replace('2, 2', '1, 2'))
+    const adr = join(dir, 'docs', 'adr', 'ADR-001-probe.md')
+    const tasks = join(dir, 'docs', 'adr', 'ADR-001-probe', 'tasks')
+    const probe = `
+import runpy, sys, record
+read = record._read_file
+def read_changed(path):
+    assert path.name != 'lock-second.test.mjs', 'opened a sibling test'
+    return read(path)
+record._read_file = read_changed
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name='__main__')
+`
+    const result = spawnSync('python3', ['-c', probe, join(repoRoot, 'plugin', 'bin', 'adr-lint'),
+      '--lock-drift', adr, tasks, changed], { env: pyEnv, encoding: 'utf8', timeout: 30_000 })
+    assert.equal(result.stderr, '')
+    assert.equal(result.status, 1)
+    assert.match(result.stdout, /locked dirty hash moved/)
+  } finally { remove(dir) }
+})
+
+test('a lock deferred at edit remains pending until the boundary checks its bytes', async () => {
+  const dir = fixture()
+  try {
+    const file = join(dir, 'tests', 'lock-subject.test.mjs')
+    writeFileSync(file, HEAD + LOCKED_BODY.replace('2, 2', '1, 2'))
+    const session = 'deferred-lock'
+    assert.equal(await runEditGate(JSON.stringify({ cwd: dir, session_id: session, hook_event_name: 'PostToolUse',
+      tool_name: 'Edit', tool_input: { file_path: file } })), 0)
+    const log = readEvents(dir, session)
+    const edit = log.find(e => e.event === 'artifact.gated')
+    assert.equal(edit.complete, false)
+    const pending = passCandidates([edit.path], dir, answeredBlobs(log), new Map([[edit.path, edit.blob]]))
+    assert.deepEqual(pending, [edit.path])
+    assert.equal(driftLines(runArtifactGates(pending, dir)).length, 1)
+  } finally { remove(dir) }
+})
+
+test('a changed path finds its locked body across dots and separator spellings', () => {
+  for (const subject of ['tests/./lock-subject.test.mjs', 'tests/../tests/lock-subject.test.mjs', 'tests\\lock-subject.test.mjs']) {
+    const dir = fixture({ subject })
+    try {
+      const file = join(dir, 'tests', 'lock-subject.test.mjs')
+      assert.equal(runArtifactGates([file], dir), null)
+      writeFileSync(file, HEAD + LOCKED_BODY.replace('2, 2', '1, 2'))
+      assert.equal(driftLines(runArtifactGates([file], dir)).length, 1, subject)
+    } finally { remove(dir) }
+  }
 })

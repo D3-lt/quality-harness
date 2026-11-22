@@ -317,9 +317,16 @@ func shkRunShellHook(scriptName string, readRaw func() string, stdout, stderr io
 	if session, ok := get(payload, "session_id").(string); ok && session != "" {
 		extra["QUALITY_HARNESS_SESSION_ID"] = session
 	}
+	reportDeferral := verdict != nil && scriptName == shkFactsGate && strOr(get(payload, "hook_event_name")) == "PostToolUse"
+	if reportDeferral {
+		extra["QH_REPORT_LOCK_DEFERRAL"] = "1"
+	}
 	timeoutMs := shkShellHookTimeoutMs(os.LookupEnv)
 	run := shkRun(executable, append([]string{scriptPath}, args...), shkNormalizeHookPayload(raw, platform),
 		time.Duration(timeoutMs)*time.Millisecond, environ(extra))
+	if reportDeferral && run.status == 75 && run.err == nil && !run.timedOut && !run.cleanupUnconfirmed && run.stdout == "" && run.stderr == "" {
+		return 0 // The boundary still owes this file its lock check.
+	}
 	// A deferral notice or a syntax finding printed on exit-0 stdout reaches nobody at PostToolUse unless it is handed to the
 	// agent as additionalContext (run-shell-hook.mjs:382-402, ADR-102).
 	report := jsTrim(run.stdout)

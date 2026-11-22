@@ -423,3 +423,21 @@ test('the native shell hook reports a bash directory or an empty PATH as Node do
       { status: ran.node.status, stdout: ran.node.stdout, stderr: ran.node.stderr }, name)
   }
 })
+
+test('both edit runners keep deferred locks pending in the session ledger', t => {
+  const f = fixture(t)
+  writeFileSync(path.join(f.scripts, 'facts-gate-dispatch.sh'), readFileSync(path.join(SCRIPTS, 'facts-gate-dispatch.sh')))
+  assert.equal(spawnSync('git', ['init', '-q', f.project], { timeout: 10_000 }).status, 0)
+  const file = path.join(f.project, 'changed.test.js')
+  writeFileSync(file, 'test("changed", () => {})\n')
+  const state = path.join(f.project, '.git', 'quality-harness')
+  const { node } = both(f, 'deferred lock', 'facts-gate-dispatch.sh', {
+    hook_event_name: 'PostToolUse', tool_name: 'Edit', session_id: 'deferred', cwd: f.project, tool_input: { file_path: file },
+  }, {
+    node: true, // The real dispatcher needs Git and the shell utilities on the inherited PATH.
+    reset: () => remove(state),
+    observe: () => JSON.parse(readFileSync(path.join(state, 'sessions', 'deferred.jsonl'), 'utf8')).complete,
+  })
+  assert.equal(node.status, 0)
+  assert.deepEqual([node.text.stdout, node.text.stderr, node.observed], ['', '', false])
+})

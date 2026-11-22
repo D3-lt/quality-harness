@@ -4076,6 +4076,26 @@ print(json.dumps({"hits": info.hits, "misses": info.misses}))
   }
 })
 
+test('modern JS locks read registrations once and retain the first callback for duplicate names', () => {
+  const probe = python(`
+import record
+from unittest.mock import patch
+source = "test('dup', helper); test('dup', () => { changed() }); it('next', () => { check() })"
+for hasher, ts, jsx in [(2, False, False), (3, True, True)]:
+    reading = dict(hasher=hasher, ts=ts, jsx=jsx)
+    expected = []
+    for name in record.extract_test_names(source, **reading):
+        body = record.extract_test_body(source, name, **reading)
+        expected.append((name, None if body is None else record.body_digest(body, **reading)))
+    assert expected[0] == ('dup', None) and expected[1][1]
+    with patch.object(record, '_iter_bdd_calls', wraps=record._iter_bdd_calls) as walk:
+        actual = record._file_lock_digests(source, False, False, False, False, False, False, hasher, ts, jsx)
+        assert actual == tuple(expected)
+        assert walk.call_count == 1, walk.call_count
+`)
+  assert.equal(probe.status, 0, probe.stderr)
+})
+
 // ADR-083 (docs/specs/2026-10-02-the-lexer-reads-jsx.md, BACKLOG §337): the lexer reads JSX,
 // and a lock over a file whose reading JSX changes is taken by hasher 3. Bound red as
 // node:test `todo`; each task removed `todo` from its own tests.

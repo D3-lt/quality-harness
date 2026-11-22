@@ -43,12 +43,25 @@ run_adr_lint() {
   if [ -n "$ledger" ] && grep -Fqx -- "$key" "$ledger" 2>/dev/null; then
     return 0
   fi
-  # A lock-drift scan (lock_drift) reads the pass's ledger without writing it: a record this pass already linted has said
-  # every lock line, so the scan says none again (the review of 8676b9ac). It leaves the record it linted in <ledger>.key,
-  # because adr-lint names a lock by task file name alone: two records' T1-lock.md say one line (the review of 6a3fa2e9).
+  # A full check already reported the owner's lock findings. Hand off that owner's
+  # key so identically named task files from different records stay distinct.
   if [ -n "${QH_LOCK_DRIFT_PASS-}" ]; then
     grep -Fqx -- "$key" "$QH_LOCK_DRIFT_PASS" 2>/dev/null && return 0
     { printf '%s\n' "$key" > "$QH_LOCK_DRIFT_PASS.key"; } 2>/dev/null || :
+  fi
+  if [ "$boundary" = LockDrift ]; then
+    # A full owner check covers every file. A narrow check covers only this pair.
+    local scoped_key
+    printf -v scoped_key '%q ' "$BIN/adr-lint" --lock-drift "$@" "$QH_LOCK_DRIFT_FILE"
+    ledger=${QH_LOCK_DRIFT_PASS-}
+    if [ -n "$ledger" ] && grep -Fqx -- "$scoped_key" "$ledger" 2>/dev/null; then
+      return 0
+    fi
+    "$BIN/adr-lint" --lock-drift "$@" "$QH_LOCK_DRIFT_FILE"; status=$?
+    if [ -n "$ledger" ] && [ "$status" -le 1 ]; then
+      { printf '%s\n' "$scoped_key" >> "$ledger"; } 2>/dev/null || :
+    fi
+    return "$status"
   fi
   if [ -n "$ledger" ] && [ -s "$ledger.drift" ]; then
     # And a lock line this pass already said as lock drift FOR THIS RECORD is not said again by its own lint.
@@ -62,8 +75,8 @@ run_adr_lint() {
   else
     "$BIN/adr-lint" "$@"; status=$?
   fi
-  # A timed-out or interrupted command has not completed a check.
-  if [ -n "$ledger" ] && [ "$status" -lt 128 ]; then
+  # A could-not-run or undecided owner verdict cannot cover a later file scan.
+  if [ -n "$ledger" ] && [ "$status" -le 1 ]; then
     { printf '%s\n' "$key" >> "$ledger"; } 2>/dev/null || :
   fi
   return "$status"
@@ -341,28 +354,41 @@ tests_naming() {
   while IFS= read -r -d '' task; do
     [ -r "$root/$task" ] || { printf '%s\0' "$task"; continue; }
     QH_LOCK_PATH="$2" awk '
+      BEGIN { path = tolower(ENVIRON["QH_LOCK_PATH"]); n = split(path, parts, "/"); leaf = parts[n] }
       NR == FNR { shown[FNR] = tolower($0); next }
       shown[FNR] ~ /^##[ \t]+(verification log|mutation log)/ { tests = 0; next }
       shown[FNR] ~ /^##[ \t]+tests/ { tests = 1; next }
-      tests && index($0, ENVIRON["QH_LOCK_PATH"]) { found = 1; exit }
+      tests {
+        line = tolower($0); gsub(/\\/, "/", line)
+        if (index(line, path) || (line ~ /\/\.\.?\// && index(line, leaf))) { found = 1; exit }
+      }
       END { exit found ? 0 : 1 }
     ' <(unfenced "$root/$task" fences) "$root/$task" && printf '%s\0' "$task"
   done
 }
 
-lock_drift() {
-  local in_repo in_repo_rel task said line record cleared pass=${QUALITY_HARNESS_ADR_LEDGER-}
-  [ "$boundary" = "PostToolUse" ] && return 0
+lock_drift() (
+  local in_repo in_repo_rel task said line record cleared private pass=${QUALITY_HARNESS_ADR_LEDGER-}
+  if [ "$boundary" = PostToolUse ]; then
+    # Only ledger-aware callers request the private deferred status. The host still sees exit 0.
+    [ "${QH_REPORT_LOCK_DEFERRAL-}" = 1 ] && return 75
+    return 0
+  fi
   repo_path_of "$1" || return 0
   while IFS= read -r -d '' task; do
-    # The nested gate keeps no adr-lint ledger: its output is filtered to THIS file, so a lint it cached would be silence for
-    # the next changed file the same task locks (the Codex review of 0b129010..bca51180). It reads the pass's ledger, and
-    # each line said is kept beside it with the record it was said for, so a lock line is said once per record in a pass
-    # (the reviews of 8676b9ac and 6a3fa2e9). A record is read only from a handoff cleared just before the call, and a line
-    # whose record is unknown keeps nothing and is compared with nothing: said, never lost (the review of 276484fb).
+    if [ -z "$pass" ] && private=$(mktemp -d); then
+      pass="$private/adr"
+      trap 'rm -rf -- "$private"' EXIT
+    fi
+    # The nested scan leaves its full owner key for line deduplication. A failed
+    # handoff must never let a different owner's identical line suppress this one.
     record="" cleared=0
     if [ -n "$pass" ] && { : > "$pass.key"; } 2>/dev/null; then cleared=1; fi
-    said=$(QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS="$pass" "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" 2>&1) || :
+    said=$(QH_LOCK_DRIFT_FILE="$in_repo_rel" QUALITY_HARNESS_ADR_LEDGER= QH_LOCK_DRIFT_PASS="$pass" "$BASH" "${BASH_SOURCE[0]}" "$in_repo/$task" LockDrift 2>&1)
+    if [ "$?" -gt 1 ]; then
+      say_unproven "UNPROVEN: could not check locks for $in_repo_rel in $task: $said"
+      continue
+    fi
     if [ "$cleared" = 1 ]; then IFS= read -r record < "$pass.key" 2>/dev/null || record=""; fi
     while IFS= read -r line; do
       line=${line%$'\r'}; line=${line#"${line%%[![:space:]]*}"}
@@ -371,10 +397,11 @@ lock_drift() {
         { printf '%s\t%s\n' "$record" "$line" >> "$pass.drift"; } 2>/dev/null || :
       fi
       printf 'lock drift: %s\n' "$line" >&2
-    done < <(printf '%s\n' "$said" | grep -F -- "locked test \`$in_repo_rel\`")
-  done < <(git -C "$in_repo" grep --untracked -l -z -F --threads=1 --no-textconv -e "$in_repo_rel" -- 'tasks/*.md' '*/tasks/*.md' 2>/dev/null \
+    done < <(printf '%s\n' "$said" | grep -F -- 'locked test `')
+  done < <(git -C "$in_repo" grep --untracked -l -z -F -i --threads=1 --no-textconv -e "${in_repo_rel##*/}" -- 'tasks/*.md' '*/tasks/*.md' 2>/dev/null \
     | tests_naming "$in_repo" "$in_repo_rel")
-}
+  return 0
+)
 
 # ADR-120 T15: a spec the gate skips: one git marks `linguist-generated`, or one the project lists under `ignore`. Only a
 # positive answer skips, so a missing node, a refused declaration or a repository git cannot read leaves the spec gated; a
@@ -401,21 +428,20 @@ if [ -z "$archive_readme" ]; then
   # existing files still fall through: -f is true, ADR-*.md can match by name,
   # and the UNPROVEN arm below names a file that exists but cannot be read.
   if [ ! -f "$f" ]; then
-    # Only Markdown can be a record, and an existing file of another kind exits 0
-    # below, so a deleted `x.mjs` that history shows was a tracked file had nothing
-    # to classify (BACKLOG §378). A Markdown name, a directory (dotted or not) and a
-    # path git never held keep their could-not-look: their former kind is unknown.
+    # A known deleted non-Markdown file still has a lock to check if a task names
+    # it. A Markdown name, a directory and a path Git never held keep their
+    # could-not-look because their former role cannot be established here.
     # Batch argument 4 is the same answer, read in the batch's one history query; absent, ask git here.
     case "$base_lc" in
       *.md) ;;
-      *.*) if [ "${4+x}" = x ]; then [ "$4" = file ] && exit 0; else git_was_file "$f" && exit 0; fi ;;
+      *.*) if [ "${4+x}" = x ]; then [ "$4" = file ]; else git_was_file "$f"; fi && { lock_drift "$f"; exit $?; } ;;
     esac
     say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0
   fi
   case "$f" in
     *.md) ;;
-    *) lock_drift "$f"; exit 0 ;;
+    *) lock_drift "$f"; exit $? ;;
   esac
 fi
 # A tasks index (`tasks/README.md`) is derived from its task files (§10), and its
@@ -524,6 +550,10 @@ elif { [ "$tasks_dir_lc" = tasks ] && [[ "$base_lc" == *.md ]]; } || grep -qE '^
   fi
   gate="adr-lint"
   out=$(run_adr_lint "${candidates[0]}" "$tdir" 2>&1); rc=$?
+  if [ "$boundary" = LockDrift ]; then
+    [ -z "$out" ] || printf '%s\n' "$out"
+    exit "$rc"
+  fi
 elif [[ "$f" == */docs/specs/*.md ]] \
   || { grep -q '^## Facts' "$f" 2>/dev/null && grep -q '^## Grill Log' "$f" 2>/dev/null; }; then
   # facts-first spec (structure-only draft gate while authoring; --spec stays a deliberate step)

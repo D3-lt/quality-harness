@@ -353,8 +353,8 @@
       "tests": [
         "tests/js-reading.test.mjs"
       ],
-      "from": "    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=suffix in JSX_SUFFIXES)",
-      "to": "    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=False)",
+      "from": "    masked, kinds, stop, _ = _js_lex(text, suffix in _JS_TS_SUFFIXES, suffix in JSX_SUFFIXES)",
+      "to": "    masked, kinds, stop, _ = _js_lex(text, suffix in _JS_TS_SUFFIXES, False)",
       "only": "^a test past a JSX tag is found by both gates, and a never-written one is missing$"
     },
     {

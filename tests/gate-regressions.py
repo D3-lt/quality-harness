@@ -5461,7 +5461,7 @@ def test_a_frozen_records_lock_drift_is_history(lint):
 
         infos = {"T1": {"path": Path("T1.md"), "human": False, "vlog": [], "tests": []}}
         original = lint.lock_findings
-        lint.lock_findings = lambda vlog, root, tests, label="": (
+        lint.lock_findings = lambda vlog, root, tests, label="", only_file=None: (
             [f"{label}: locked test `t.py`::test_x vanished — done is refused"], [])
         try:
             out = lint.Findings()

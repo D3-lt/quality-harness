@@ -2669,7 +2669,7 @@ def js_reading(text, suffix):
     it did not find may lie past the stop, so such a name is UNPROVEN, never missing.
     """
     suffix = suffix.lower()
-    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=suffix in JSX_SUFFIXES)
+    masked, kinds, stop, _ = _js_lex(text, suffix in _JS_TS_SUFFIXES, suffix in JSX_SUFFIXES)
     return masked, kinds, stop is None
 
 
@@ -3590,6 +3590,15 @@ LOCK_HASHERS = (1, 2, 3)
 @lru_cache(maxsize=32)
 def _file_lock_digests(source, python, go, php, rust, shell, swift, hasher, ts, jsx=False):
     reading = {"hasher": hasher, "ts": ts, "jsx": jsx}
+    if hasher >= 2 and not any((python, go, php, rust, shell, swift)):
+        # Retain the first registration, even when its callback cannot be bounded.
+        masked = _js_lex(source, ts, jsx)[0]
+        digests = {}
+        for name, after in _iter_bdd_calls(source, in_code=_h2_in_code(source, ts, jsx)):
+            if name not in digests:
+                body = bdd_callback_body(source, after, masked=masked)
+                digests[name] = None if body is None else body_digest(body, **reading)
+        return tuple(digests.items())
     out = []
     for name in extract_test_names(
             source, python=python, go=go, php=php, rust=rust, shell=shell,
@@ -3608,7 +3617,7 @@ def _jsx_changes_reading(path, source):
     if path is None or source is None or path.suffix.lower() not in JSX_SUFFIXES:
         return False
     ts = path.suffix.lower() in _H2_TS_SUFFIXES
-    return _js_lex(source, ts)[1:3] != _js_lex(source, ts, True)[1:3]
+    return _js_lex(source, ts, False)[1:3] != _js_lex(source, ts, True)[1:3]
 
 
 def snapshot_lock(root, tests_rows, hasher=None):
@@ -4277,7 +4286,7 @@ class LockMove(str):
         move.pair, move.body = pair, body
         return move
 
-def lock_findings(vlog, *, root, tests, label="", advise=True):
+def lock_findings(vlog, *, root, tests, label="", advise=True, only_file=None):
     """blocks and advice for a done claim against first-red hashes.
 
     `advise=False` is for a caller that discards the advice: it skips the second,
@@ -4328,6 +4337,31 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
                 "does not know — UNPROVEN; no body is compared under another hasher"], []
     # Compared under the reading that took it, so no recorded lock changes meaning
     # because the reader changed (ADR-078 F-1).
+    tests = [(name, rel.replace("\\", "/")) for name, rel in tests]
+    if only_file is not None:
+        # Group by the recorded spelling for display, but select by file identity.
+        # Resolve a missing file's parent too, so a deletion still finds a dotted path.
+        changed = only_file.replace("\\", "/")
+        def matches(rel):
+            rel = rel.replace("\\", "/")
+            if rel == changed or _same_file(root, rel, changed):
+                return True
+            if root is None:
+                return False
+            try:
+                return (Path(root) / rel).resolve() == (Path(root) / changed).resolve()
+            except (OSError, RuntimeError):
+                return False
+        recorded_bodies = recorded["map"]["bodies"]
+        paths = {rel for rel, _ in recorded_bodies}
+        paths.update(rel for _, rel in tests)
+        matching = {rel for rel in paths if matches(rel)}
+        bodies = {key: digest for key, digest in recorded_bodies.items() if key[0] in matching}
+        if not bodies:
+            return [], []
+        tests = [(name, rel) for name, rel in tests if rel in matching]
+        snapshot = snapshot_lock(root, tests, hasher=hasher)
+        return _locked_body_findings(root, prefix, hasher, bodies, snapshot), []
     current = snapshot_lock(root, tests, hasher=hasher)
     recorded_map = recorded["map"]
     blocks = []
@@ -4394,6 +4428,12 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
             blocks.append(
                 f"{prefix}Tests-table `{rel}`::{name} could not be hashed — "
                 "UNPROVEN, done is refused; frozen at the first red")
+    blocks.extend(_locked_body_findings(root, prefix, hasher, recorded_bodies, current))
+    return blocks, advice
+
+
+def _locked_body_findings(root, prefix, hasher, recorded_bodies, current):
+    blocks = []
     for (rel, name), digest in recorded_bodies.items():
         now = current["bodies"].get((rel, name))
         if now is None:
@@ -4439,7 +4479,7 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
                 blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused; "
                               "once the change to the test is reviewed, "
                               "`adr-verify --relock --replace-hashes` re-locks it")
-    return blocks, advice
+    return blocks
 
 
 def lock_blocks_done(text, root):

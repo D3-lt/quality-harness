@@ -6,7 +6,10 @@
 // own lease and confirms it is ready: this test process runs `runCheck` itself, and its own lease
 // must never be mistaken for a neighbour's (Codex's cold review of ADR-077).
 import assert from 'node:assert/strict'
-import { spawn, spawnSync } from 'node:child_process'
+import childProcess, { spawn, spawnSync } from 'node:child_process'
+import { EventEmitter } from 'node:events'
+import { syncBuiltinESMExports } from 'node:module'
+import { PassThrough } from 'node:stream'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -375,4 +378,41 @@ test('a wait bound too large to be a number of milliseconds is the default', asy
   const { waitMaxMs } = await leaseModule()
   assert.equal(waitMaxMs({ QUALITY_HARNESS_WAIT_MAX_S: '1e308' }), 1_800_000)
   assert.equal(waitMaxMs({ QUALITY_HARNESS_WAIT_MAX_S: '2' }), 2_000)
+})
+
+test('a check whose Windows tree could not be stopped keeps a visible lease and an interrupted record', async t => {
+  const { dir, leases } = project()
+  const child = Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(), stderr: new PassThrough(), pid: 2147483647,
+    exitCode: 0, signalCode: null, kill: () => false, unref() {},
+  })
+  const originalSpawnSync = spawnSync
+  t.mock.method(childProcess, 'spawnSync', (file, ...args) =>
+    file === 'taskkill' ? { status: 1 } : originalSpawnSync(file, ...args))
+  t.mock.method(childProcess, 'spawn', () => {
+    setImmediate(() => child.stdout.write('ready'))
+    return child
+  })
+  syncBuiltinESMExports()
+  try {
+    const err = sink()
+    const code = await runCheck({ cwd: dir, platform: 'win32',
+      env: env(leases, { CLAUDE_CODE_GIT_BASH_PATH: process.execPath }),
+      stdout: { write() { process.emit('SIGTERM', 'SIGTERM') } }, stderr: err })
+    assert.notEqual(code, 0)
+    assert.equal(lastRecord(dir).verdict, 'interrupted')
+    assert.equal(lastRecord(dir).cleanupConfirmed, false)
+    assert.match(err.text(), /cleanup could not be confirmed/)
+    const file = path.join(leases, leaseFiles(leases)[0])
+    const held = JSON.parse(readFileSync(file, 'utf8'))
+    assert.equal(held.state, 'cleanup-unconfirmed')
+    assert.equal(held.child, child.pid)
+    // After the wrapper and root both exit, Windows still cannot probe their descendants.
+    writeFileSync(file, JSON.stringify({ ...held, pid: child.pid }))
+    const { observe } = await leaseModule()
+    assert.equal(observe(leases, null, { platform: 'win32' }).unknown.length, 1)
+  } finally {
+    t.mock.restoreAll()
+    syncBuiltinESMExports()
+  }
 })

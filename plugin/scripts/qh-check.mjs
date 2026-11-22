@@ -148,7 +148,13 @@ async function runReleasing({ launch, run, held, leaseStep, lease, look }) {
       : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
     besideAtEnd = look ? look() : null
   } finally {
-    if (held) leaseStep('release', () => lease.release(held))
+    if (ran?.ended.cleanupConfirmed === false) {
+      run.stderr.write('qh-check: process cleanup could not be confirmed. The check or its descendants may still be running.\n')
+      const child = ran.ended.childPid
+      if (held) leaseStep('mark', () => lease.mark(held, { state: 'cleanup-unconfirmed', child, ...(run.platform === 'win32' ? {} : { group: child }) }))
+    } else {
+      if (held) leaseStep('release', () => lease.release(held))
+    }
   }
   return { ...ran, besideAtEnd }
 }
@@ -210,6 +216,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const contended = contention(before.load, after.load, loadAtStart.cores)
   const record = runRecord({ id: randomUUID(), git, command, origin, before, after, run: { exit, signal, verdict }, cores: loadAtStart.cores,
     contended, beside, besideAtEnd, waitedMs, prose })
+  if (ended.cleanupConfirmed === false) record.cleanupConfirmed = false
   recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr, output: tail.output() })
   // A test file the last pass of this command ran with, gone and not moved, is named once, at the first pass without it. It is
   // advice: nothing it meets may change the check's exit (CLAUDE.md §3).
@@ -239,7 +246,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     stderr.write(`qh-check: the check could not start (${ended.error.code ?? ended.error.message}).\n`)
     return 127
   }
-  return exit ?? 1
+  return ended.cleanupConfirmed === false && exit === 0 ? 1 : exit ?? 1
 }
 
 // ADR-111 T3: the project's check on the tree the session began with, kept in baseline.jsonl and read by the turn end alone
@@ -280,6 +287,7 @@ export async function runBaseline({ tree, cwd = process.cwd(), env = process.env
       contended: contention(before.load, after.load, loadAtStart.cores), beside: null, besideAtEnd: null, waitedMs, prose: { specs: [] } }),
     baseline: { tree, bound },
   }
+  if (ran.ended.cleanupConfirmed === false) record.cleanupConfirmed = false
   recordBaseline({ record, root, stderr })
   return 0
 }

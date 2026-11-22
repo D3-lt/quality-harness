@@ -127,6 +127,8 @@ export function release(held) {
 function liveness(lease, platform) {
   const answers = [lease.pid, lease.child].filter(pid => pid !== undefined).map(alive)
   if (lease.group !== undefined) answers.push(groupAlive(lease.group, platform))
+  // With no group probe, dead Windows root PIDs cannot settle a failed tree kill.
+  if (platform === 'win32' && lease.state === 'cleanup-unconfirmed') answers.push('unknown')
   if (!answers.length) return 'unknown'
   if (answers.includes('alive')) return 'alive'
   return answers.includes('unknown') ? 'unknown' : 'dead'

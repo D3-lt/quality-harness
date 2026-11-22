@@ -3,6 +3,7 @@
 // only part of `qh-check` that starts the check. What it was told to run, and what is recorded of it, are the caller's.
 import { spawn, spawnSync } from 'node:child_process'
 import { CLEANUP_GRACE_MS, terminateProcessTree } from './run-shell-hook.mjs'
+import { groupAlive } from './lease.mjs'
 
 // A check that never returns would hold the session's Bash call for ever; past
 // this bound its process group gets SIGTERM and the record says so.
@@ -40,23 +41,27 @@ export async function runLaunched({ file, args, shell }, { root, env, platform, 
     let received = null
     let escalation
     let drain
+    let treeSignalled = false
     const forward = signal => {
       if (received) return
       received = signal
       if (child.pid) {
         try {
           if (group) process.kill(-child.pid, signal)
-          else if (!killTree(child.pid)) child.kill(signal)
+          else {
+            treeSignalled = killTree(child.pid)
+            if (!treeSignalled) child.kill(signal)
+          }
         } catch { /* the process may already have exited */ }
       }
       escalation = setTimeout(() => {
-        terminateProcessTree(child, platform)
+        treeSignalled = terminateProcessTree(child, platform) || treeSignalled
         // A surviving pipe holder must not keep the caller waiting for close.
         drain = setTimeout(() => {
           child.stdout.destroy()
           child.stderr.destroy()
           child.unref()
-          finish({ code: child.exitCode, signal: child.signalCode, error: null })
+          finish({ code: child.exitCode, signal: child.signalCode, error: null }, true)
         }, CLEANUP_GRACE_MS)
       }, CLEANUP_GRACE_MS)
     }
@@ -68,7 +73,11 @@ export async function runLaunched({ file, args, shell }, { root, env, platform, 
     child.stderr.on('data', chunk => { stderr.write(chunk); keep(chunk) })
     child.once('error', error => finish({ code: null, signal: null, error }))
     child.once('close', (code, signal) => finish({ code, signal, error: null }))
-    function finish(ended) {
+    function finish(ended, detached = false) {
+      if (received && child.pid && (detached || (group ? groupAlive(child.pid, platform) !== 'dead' : !treeSignalled))) {
+        ended.cleanupConfirmed = false
+        ended.childPid = child.pid
+      }
       process.off('SIGINT', forward)
       process.off('SIGTERM', forward)
       clearTimeout(timer)

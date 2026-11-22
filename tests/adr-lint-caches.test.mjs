@@ -32,6 +32,6 @@ test('code_only gives the same text for the same arguments, and scans it once', 
   assert.equal(run.status, 0, run.stderr)
   const [same, kept, hits, misses, flagless, noBytecode] = JSON.parse(run.stdout)
   assert.deepEqual([same, kept, hits, misses], [true, false, 1, 2], 'one scan per distinct arguments, the second ask answered from the first')
-  assert.equal(flagless, false, 'the language flags are part of what is kept: a Python comment is code to the default reading')
+  assert.equal(flagless, false, 'the language flags are part of what is kept: this text reads differently with and without python')
   assert.equal(noBytecode, true, 'the probe writes no bytecode beside the gate')
 })

@@ -126,6 +126,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501,F401
 from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E402
 from record import git_read_env  # noqa: E402
+from record import cache_listings  # noqa: E402
 from record import grouped_task_findings  # noqa: E402
 from record import signoff_binding, signoff_digest, receipt_digest, receipt_digests  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
@@ -6917,6 +6918,7 @@ def report_version():
 def main():
     global _TOPLEVELS
     _TOPLEVELS = {}  # a lint run writes nothing, so a directory's top level holds for the run
+    cache_listings()  # and so does each git ls-files listing (record.cache_listings)
     if "--version" in sys.argv[1:]:
         report_version()
         sys.exit(0)

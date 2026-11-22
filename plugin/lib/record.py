@@ -4118,6 +4118,28 @@ def vlog_row_is_lock_snapshot(line):
     return bool(sha and sha.group(2))
 
 
+# The whole `git ls-files -z <flags>` listing per (root, flags), for ONE run of a reader that
+# writes nothing: one child instead of one per lock file (476 -> 1 on a 258-task corpus,
+# 2026-11-22). None, the default, asks git per path, so adr-verify — which writes lock files —
+# and any in-process caller never read a listing older than the file. adr-lint turns it on.
+_LISTINGS = None
+
+
+def cache_listings():
+    """Hold each `git ls-files` listing for the rest of this process: a caller that writes nothing."""
+    global _LISTINGS
+    _LISTINGS = {}
+
+
+def _listing(root, flags):
+    """The set of paths `git ls-files -z <flags>` prints under `root`, or None when git refused."""
+    key = (root, flags)
+    if key not in _LISTINGS:
+        run = subprocess.run(["git", "-C", root, "ls-files", "-z", *flags], capture_output=True,
+                             timeout=30, env=git_read_env(), **NO_WINDOW)
+        _LISTINGS[key] = frozenset(run.stdout.split(b"\0")) if run.returncode == 0 else None
+    return _LISTINGS[key]
+
 
 def _lock_from_row(line, digest, root):
     """The lock map a row carries, why it could not be read, and whether its file is untracked: (map, problem, untracked).
@@ -4151,7 +4173,12 @@ def _lock_from_row(line, digest, root):
         return None, f"its lock file `{rel}` cannot be resolved without the repository", False
 
     def listed(*flags):
+        # With cache_listings on, the whole listing once: a file path is in it exactly when
+        # `ls-files -- rel` prints it, since git prints `rel` itself in both or in neither.
         try:
+            if _LISTINGS is not None:
+                listing = _listing(str(root), flags)
+                return rel.encode("utf-8") in listing if listing is not None else None
             run = subprocess.run(["git", "-C", str(root), "ls-files", "-z", *flags, "--", rel], capture_output=True,
                                  timeout=30, env=git_read_env(), **NO_WINDOW)
         except (OSError, subprocess.SubprocessError):

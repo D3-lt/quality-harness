@@ -7031,11 +7031,12 @@ def _pool_child(calls, unlisted):
 def _pool_batch(batch):
     """In a pool child: run each listed call of `batch` against a recorder; return per call what it said, returned,
     added to UNLISTED_DIRECTORIES, printed and raised. A SystemExit (refuse_irregular) is a result too: the parent
-    raises it in its turn, so a run stops where the serial run stops."""
+    raises it in its turn, so a run stops where the serial run stops. The batch stops at its first raise: the calls
+    after it are never replayed, and one of them may wait forever (the FIFO the refusal was about)."""
     calls, unlisted = _CHILD
     results = []
     for i in batch:
-        fn, args, kwargs, _key = calls[i]
+        fn, args, kwargs = calls[i]
         # Each call starts from the list as the parent had it, so what it adds is exactly what it would have added.
         del UNLISTED_DIRECTORIES[unlisted:]
         recorder = _Recorder(getattr(kwargs.get("errors"), "demotion", None))
@@ -7055,6 +7056,8 @@ def _pool_batch(batch):
             value = mine["moves"]
         results.append((i, recorder.events, value, list(UNLISTED_DIRECTORIES[unlisted:]), out.getvalue(),
                         err.getvalue(), raised))
+        if raised is not None:
+            break
     return results
 
 
@@ -7064,9 +7067,18 @@ class LintPool:
     `plan` is a list of callables, each taking `run` and calling checks with `each=run`. They are called once here
     with a hook that only LISTS the calls, in the serial order; the children run those calls against recorders; then
     the caller calls the same checks again with `each=pool.replay`, which takes the next listed call's result and
-    replays its findings, prints and exception on the real Findings. Dispatched task by task (one child reads one
-    task's test files for all its checks, so code_only's cache still pays), in contiguous batches, about four per
-    process."""
+    replays its findings, prints and exception on the real Findings.
+
+    ⚠ BATCHES ARE CONTIGUOUS RUNS OF THE SERIAL ORDER, SUBMITTED IN THAT ORDER, and a child stops a batch at its
+    first raise. So every call the serial run reaches (those before its first raise) sits in a batch that finishes,
+    and every batch holding one is taken by a child before any batch the run never reaches. A call past the raise
+    may wait forever — check_tests_can_fail opening the FIFO check_tests_exist refused — and nothing waits for it:
+    the raise kills the children (stop). Grouping a task's calls into one batch, for code_only's cache, broke this:
+    the refusal's batch went on into that wait, and the parent waited on the batch."""
+
+    # The pools whose children may still be running, so the program's last line can kill them (stop_all). A class
+    # attribute because fork leaves nothing else that outlives main(): a child that never runs main never reads it.
+    _open = set()
 
     def __init__(self, jobs, plan):
         self._calls = []
@@ -7075,7 +7087,7 @@ class LintPool:
         self._next = 0
         self._results = {}
         self._futures = {}
-        order = sorted(range(len(self._calls)), key=lambda i: (self._calls[i][3], i))
+        order = list(range(len(self._calls)))
         workers = min(jobs, len(order) // 4)
         self._pool = None
         if workers < 2:
@@ -7089,6 +7101,7 @@ class LintPool:
         sys.stderr.flush()
         self._pool = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("fork"),
                                          initializer=_pool_child, initargs=(self._calls, len(UNLISTED_DIRECTORIES)))
+        LintPool._open.add(self)
         for start in range(0, len(order), size):
             batch = order[start:start + size]
             future = self._pool.submit(_pool_batch, batch)
@@ -7096,7 +7109,7 @@ class LintPool:
                 self._futures[i] = future
 
     def _list(self, fn, *args, **kwargs):
-        self._calls.append((fn, args, kwargs, str(args[0]) if args else ""))
+        self._calls.append((fn, args, kwargs))
 
     def replay(self, fn, *args, errors, **shared):
         i = self._next
@@ -7111,11 +7124,11 @@ class LintPool:
             for found in self._futures.pop(i).result():
                 self._results[found[0]] = found[1:]
         events, value, unlisted, out, err, raised = self._results.pop(i)
-        UNLISTED_DIRECTORIES.extend(d for d in unlisted if d not in UNLISTED_DIRECTORIES)
+        UNLISTED_DIRECTORIES.extend(found for found in unlisted if found not in UNLISTED_DIRECTORIES)
         sys.stdout.write(out)
         sys.stderr.write(err)
         if raised is not None:
-            self.close(check=False)
+            self.stop()
             raise raised
         said = shared.get("reported_outside")
         skip = False
@@ -7143,13 +7156,34 @@ class LintPool:
             return None
         return value
 
-    def close(self, check=True):
-        """Stop the children; with `check`, every listed call must have been replayed."""
+    def close(self):
+        """Stop the children once every listed call has been replayed, which the caller asserts by closing."""
+        LintPool._open.discard(self)
         if self._pool is not None:
             self._pool.shutdown(wait=True, cancel_futures=True)
             self._pool = None
-        if check and self._next != len(self._calls):
+        if self._next != len(self._calls):
             raise RuntimeError(f"LintPool: {len(self._calls) - self._next} listed call(s) never replayed")
+
+    def stop(self):
+        """Kill the children, never wait for them. After a refusal or a crash the serial run is over, but a child may
+        be in a call the serial run never reaches — reading the very FIFO the refusal was about — and a wait is a hang."""
+        LintPool._open.discard(self)
+        pool, self._pool = self._pool, None
+        if pool is None:
+            return
+        terminate = getattr(pool, "terminate_workers", None)  # Python 3.14
+        if terminate is not None:
+            terminate()
+            return
+        for process in list((getattr(pool, "_processes", None) or {}).values()):
+            process.terminate()
+        pool.shutdown(wait=True, cancel_futures=True)
+
+    @classmethod
+    def stop_all(cls):
+        for pool in list(cls._open):
+            pool.stop()
 
 
 def report_version():
@@ -7641,3 +7675,7 @@ if __name__ == "__main__":
             pass
         print(f"[adr-lint] could not run: {one_line(home_shown(shown))} — {one_line(os_reason(exc))}", file=sys.stderr)
         sys.exit(2)
+    finally:
+        # A pool still open here is one a refusal, an error or an exit left behind: its children are killed, not
+        # waited on (LintPool.stop).
+        LintPool.stop_all()

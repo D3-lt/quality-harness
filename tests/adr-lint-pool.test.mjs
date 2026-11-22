@@ -52,13 +52,17 @@ def moved(tid, errors, moves):
     move = LockMove(f"L{tid}: ", f"moved {tid % 2}", ("from", f"to {tid % 2}"))
     moves.setdefault(move.body, []).append((f"L{tid}", move))
 
+def unpicklable(tid, errors):
+    errors.append(f"{tid}: said before its result")
+    return (lambda: tid) if tid == 5 else tid  # a lambda cannot cross back from a child: the pool has failed
+
 def stop(tid, errors):
     if tid == 7:
         print(f"refused {tid}", file=sys.stderr)
         sys.exit(2)
     errors.append(f"{tid}: before the refusal")
 
-def once(jobs, tasks=12, stopping=False, demotion=None):
+def once(jobs, tasks=12, stopping=False, demotion=None, broken=False):
     errors = m.Findings()
     errors.demotion = demotion
     shared = {"seen": set(), "moves": {}}
@@ -70,6 +74,8 @@ def once(jobs, tasks=12, stopping=False, demotion=None):
             run(moved, t, errors=errors, moves=shared["moves"])
         for t in range(tasks if stopping else 0):
             run(stop, t, errors=errors)
+        for t in range(tasks if broken else 0):
+            run(unpicklable, t, errors=errors)
         return values
     pool = m.LintPool(jobs, [plan]) if jobs > 1 else None
     out, err, code, values = io.StringIO(), io.StringIO(), None, None
@@ -89,7 +95,8 @@ def once(jobs, tasks=12, stopping=False, demotion=None):
 print(json.dumps({"me": os.getpid(), "serial": once(1), "pooled": once(4),
                   "serial_small": once(1, tasks=1), "pooled_small": once(4, tasks=1),
                   "serial_demoted": once(1, demotion="old"), "pooled_demoted": once(4, demotion="old"),
-                  "serial_stop": once(1, stopping=True), "pooled_stop": once(4, stopping=True)}))
+                  "serial_stop": once(1, stopping=True), "pooled_stop": once(4, stopping=True),
+                  "serial_broken": once(1, broken=True), "pooled_broken": once(4, broken=True)}))
 `
 
 test('LintPool says what the serial run says, in its order, from other processes', { skip: forks }, () => {
@@ -100,6 +107,7 @@ test('LintPool says what the serial run says, in its order, from other processes
   assert.deepEqual(got.pooled_demoted.said, got.serial_demoted.said, 'strictFrom demotion as the serial run, read in the body too')
   assert.deepEqual(got.pooled_stop.said, got.serial_stop.said, 'a refusal stops the pooled run where it stops the serial one')
   assert.deepEqual(got.pooled_small.said, got.serial_small.said)
+  assert.deepEqual(got.pooled_broken.said, got.serial_broken.said, 'a pool that fails mid-run hands the rest to the serial path')
   assert.deepEqual(got.pooled_small.pids, [got.me], 'too little work for two processes runs here')
   assert.deepEqual(got.serial.pids, [got.me], 'the serial path runs here')
   assert.ok(!got.pooled.pids.includes(got.me), `the pooled bodies ran in children: ${got.pooled.pids}`)

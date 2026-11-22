@@ -7118,12 +7118,18 @@ class LintPool:
         if listed is None or listed[0] is not fn or listed[1][:1] != args[:1]:
             raise RuntimeError(f"LintPool: call {i} is {fn.__name__}{args[:1]}, listed as "
                                f"{listed[0].__name__ + str(listed[1][:1]) if listed else 'nothing'}")
-        if self._pool is None:
+        if self._pool is not None and i not in self._results:
+            try:
+                for found in self._futures.pop(i).result():
+                    self._results[found[0]] = found[1:]
+            except Exception:
+                # The pool itself failed (a child killed, a result that would not pickle): the serial path is the
+                # truth, so this call and every one after it run here, on the parent's own state.
+                self.stop()
+        found = self._results.pop(i, None) if self._pool is not None else None
+        if found is None:
             return fn(*args, errors=errors, **shared)
-        if i not in self._results:
-            for found in self._futures.pop(i).result():
-                self._results[found[0]] = found[1:]
-        events, value, unlisted, out, err, raised = self._results.pop(i)
+        events, value, unlisted, out, err, raised = found
         UNLISTED_DIRECTORIES.extend(found for found in unlisted if found not in UNLISTED_DIRECTORIES)
         sys.stdout.write(out)
         sys.stderr.write(err)
@@ -7157,13 +7163,15 @@ class LintPool:
         return value
 
     def close(self):
-        """Stop the children once every listed call has been replayed, which the caller asserts by closing."""
+        """Stop the children once every listed call has been replayed, which the caller asserts by closing. Checked
+        before the wait: a call never replayed may be one that waits forever."""
+        if self._next != len(self._calls):
+            self.stop()
+            raise RuntimeError(f"LintPool: {len(self._calls) - self._next} listed call(s) never replayed")
         LintPool._open.discard(self)
         if self._pool is not None:
             self._pool.shutdown(wait=True, cancel_futures=True)
             self._pool = None
-        if self._next != len(self._calls):
-            raise RuntimeError(f"LintPool: {len(self._calls) - self._next} listed call(s) never replayed")
 
     def stop(self):
         """Kill the children, never wait for them. After a refusal or a crash the serial run is over, but a child may
@@ -7176,9 +7184,12 @@ class LintPool:
         if terminate is not None:
             terminate()
             return
-        for process in list((getattr(pool, "_processes", None) or {}).values()):
-            process.terminate()
-        pool.shutdown(wait=True, cancel_futures=True)
+        # Before 3.14, what terminate_workers does: no wait first (a wait on a blocked child is the hang), then signal.
+        processes = list((getattr(pool, "_processes", None) or {}).values())
+        pool.shutdown(wait=False, cancel_futures=True)
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
 
     @classmethod
     def stop_all(cls):

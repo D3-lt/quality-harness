@@ -88,8 +88,8 @@
       "label": "ADR-129 T2: adr-verify writes a run's lock inline",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/lock-sidecar-write.test.mjs"],
-      "from": "        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))",
-      "to": "        entry += lock_suffix_for_run(text, lock_repository(task), code)",
+      "from": "        entry += lock_suffix_for_run(text, root, code, corpus=corpus)",
+      "to": "        entry += lock_suffix_for_run(text, root, code)",
       "only": "^adr-verify writes a first red's lock to a sidecar, and adr-lint reads it$"
     },
     {
@@ -164,8 +164,8 @@
       "label": "Codex review of cdcfcf84..290669db: the lock root is found along the task's path as listed",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],
-      "from": "    return git_root(task.parent) or task.parent",
-      "to": "    return fence_cwd(task)",
+      "from": "    root = git_root(task.parent)\n    if root is None:",
+      "to": "    root = fence_cwd(task)\n    if root is None:",
       "only": "^(?:a task directory linked into the repository is locked from the repository it is listed in)$"
     },
     {
@@ -180,16 +180,16 @@
       "label": "BACKLOG §388: a relock keys its lock from the record's repository, whatever --cwd is",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],
-      "from": "    lock_root = lock_repository(task)",
-      "to": "    lock_root = cwd",
+      "from": "    lock_root, corpus = lock_locations(task)",
+      "to": "    _, corpus = lock_locations(task)\n    lock_root = cwd",
       "only": "^(?:a relock with --cwd elsewhere keys the lock from the record, so the readers can read it back)$"
     },
     {
       "label": "BACKLOG §388: a first red keys its lock from the record's repository, whatever --cwd is",
       "file": "plugin/bin/adr-verify",
       "tests": ["tests/test-lock.test.mjs"],
-      "from": "        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))",
-      "to": "        entry += lock_suffix_for_run(text, cwd, code, corpus=lock_corpus(task))",
+      "from": "        entry += lock_suffix_for_run(text, root, code, corpus=corpus)",
+      "to": "        entry += lock_suffix_for_run(text, cwd, code, corpus=corpus)",
       "only": "^(?:a red run with --cwd elsewhere keys its first-red lock from the record)$"
     },
     {
@@ -198,7 +198,7 @@
       "tests": [
         "tests/log-receipts.test.mjs"
       ],
-      "from": "    problem = write_receipts(task, block, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec=\"seconds\"))",
+      "from": "    problem = write_receipts(task, block, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec=\"seconds\"), timing)",
       "to": "    problem = None",
       "only": "^(?:a hand-typed uncommitted log row is refused, and every row adr-verify writes carries a receipt)$"
     },
@@ -1224,7 +1224,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))",
+      "from": "        entry += lock_suffix_for_run(text, root, code, corpus=corpus)",
       "to": "        entry += \"\"",
       "only": "first TDD-red row carries a tool-written hash for each named test"
     },

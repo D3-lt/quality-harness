@@ -111,7 +111,7 @@ def receipt_digest(row):
     return hashlib.sha256(row.strip().encode("utf-8")).hexdigest()
 
 
-def write_receipts(task, block, now):
+def write_receipts(task, block, now, timing=None):
     """Append a receipt for each log row in `block` to the state directory of `task`'s repository.
 
     Returns what went wrong, as text, or None. Outside a repository nothing is written: there is no committed file
@@ -124,8 +124,11 @@ def write_receipts(task, block, now):
     try:
         os.makedirs(directory, exist_ok=True)
         with open(os.path.join(directory, RECEIPTS_NAME), "a", encoding="utf-8", newline="\n") as out:
-            for row in rows:
-                out.write(json.dumps({"task": place[1], "sha256": receipt_digest(row), "at": now}, separators=(",", ":")) + "\n")
+            for index, row in enumerate(rows):
+                receipt = {"task": place[1], "sha256": receipt_digest(row), "at": now}
+                if index == 0 and timing is not None:
+                    receipt["timing"] = timing
+                out.write(json.dumps(receipt, separators=(",", ":")) + "\n")
     except OSError as error:
         return f"{os.path.join(directory, RECEIPTS_NAME)}: {error.strerror or error}"
     return None
@@ -387,6 +390,7 @@ def split_lines(text):
         yield text[pos:], pos, len(text)
 
 
+@lru_cache(maxsize=16)
 def _scan(text):
     """The one walk: `(sections, open_fence)`.
 
@@ -422,7 +426,7 @@ def _scan(text):
     if cur is not None:
         cur[4] = len(text)
         out.append(tuple(cur))
-    return out, fence
+    return tuple((name, tuple(lines), start, body, end) for name, lines, start, body, end in out), fence
 
 
 def unterminated_fence(text):
@@ -599,7 +603,7 @@ def sections_of(text):
     fixed every gate at least reads the same body. See `_sections` for the walk
     and what it does to line separators.
     """
-    return {heading: lines for heading, lines, _s, _b, _e in _sections(text)}
+    return {heading: list(lines) for heading, lines, _s, _b, _e in _sections(text)}
 
 
 def header_lines(text):
@@ -1826,22 +1830,33 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
     return "".join(out)
 
 
+@lru_cache(maxsize=8)
+def _python_functions(text):
+    """Index names and first body spans in AST walk order. Only the source determines the result."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return (), {}
+    offsets = [0]
+    for line in text.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    names, bodies = [], {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name.startswith("test"):
+                names.append(node.name)
+            if node.name not in bodies and node.body:
+                start = node.body[0].lineno - 1
+                end = max(getattr(stmt, "end_lineno", stmt.lineno) for stmt in node.body)
+                bodies[node.name] = (offsets[start], offsets[end])
+    return tuple(names), bodies
+
+
 def extract_test_names(text, python=False, go=False, php=False, rust=False,
                        shell=False, swift=False, hasher=1, ts=False, jsx=False):
     """Names this hasher can see in `text`."""
     if python:
-        try:
-            tree = ast.parse(text)
-        except (SyntaxError, ValueError):
-            tree = None
-        if tree is not None:
-            names = []
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
-                        and node.name.startswith("test"):
-                    names.append(node.name)
-            return names
-        return []
+        return list(_python_functions(text)[0])
     if go:
         names, seen = [], set()
         for name, _after in _iter_go_func_tests(text):
@@ -3380,17 +3395,8 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     decides anything else.
     """
     if python:
-        try:
-            tree = ast.parse(text)
-        except (SyntaxError, ValueError):
-            return None
-        for node in ast.walk(tree):
-            if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and node.name == name and node.body):
-                start = node.body[0].lineno - 1
-                end = max(getattr(stmt, "end_lineno", stmt.lineno) for stmt in node.body)
-                return "".join(text.splitlines(keepends=True)[start:end])
-        return None
+        span = _python_functions(text)[1].get(name)
+        return text[span[0]:span[1]] if span is not None else None
     if go:
         masked = _mask_lock_noncode(text, go=True)
         for found, after_paren in _iter_go_func_tests(text):
@@ -3907,7 +3913,7 @@ def walk(root, pattern="*", is_link=_is_link, unlisted=None, list_dir=None, insp
         stack.extend(reversed(below))
 
 
-def encode_lock(snap):
+def _lock_payload(snap):
     """Canonical payload + sha256 of it.
 
     A hasher-1 map encodes byte for byte as every lock before hasher 2 did. Any
@@ -3930,7 +3936,11 @@ def encode_lock(snap):
     for rel, name in sorted(snap["unproven"]):
         lines.append(f"unproven\t{rel}\t{name}")
     payload = "\n".join(lines).encode("utf-8")
-    digest = hashlib.sha256(payload).hexdigest()
+    return hashlib.sha256(payload).hexdigest(), payload
+
+
+def encode_lock(snap):
+    digest, payload = _lock_payload(snap)
     token = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
     return digest, token
 
@@ -3989,8 +3999,7 @@ def write_lock_sidecar(root, corpus, digest, payload):
 
 def lock_sidecar_suffix(snap, root, corpus):
     """The row's lock field for a sidecar lock: the sha and the file it names, the file written first."""
-    digest, token = encode_lock(snap)
-    payload = base64.urlsafe_b64decode(token + "=" * ((4 - len(token) % 4) % 4))
+    digest, payload = _lock_payload(snap)
     # Percent-encoded, so a corpus whose path holds a space or a `·` still fits the row's field (the review of c0c7eaeb).
     rel = urllib.parse.quote(write_lock_sidecar(root, corpus, digest, payload), safe="/")
     return f" · test-lock-sha256:{digest} · test-lock-file:{rel}"

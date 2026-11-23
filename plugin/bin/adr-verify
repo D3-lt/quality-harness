@@ -807,7 +807,7 @@ def redact_home(block, home=None, platform=None):
     return re.sub(f"(?:{pattern})(?![A-Za-z0-9._-])", "~", block, flags=flags)
 
 
-def append_entry(task, text, block, section="Verification Log"):
+def append_entry(task, text, block, section="Verification Log", timing=None):
     """Append `block` at the end of `## <section>`, found the way every reader finds it.
 
     Through the shared `section_span` (ADR-045 T6). This was a regex ending at
@@ -855,7 +855,7 @@ def append_entry(task, text, block, section="Verification Log"):
     write_source(task, text[:start] + new + ("\n" + tail if tail else ""), file_newline(task))
     # ADR-117 T2: the receipt adr-lint asks of an uncommitted row. A receipt that could not be written is said, because
     # the row it was for will be refused until it is committed.
-    problem = write_receipts(task, block, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"))
+    problem = write_receipts(task, block, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"), timing)
     if problem:
         print(f"[adr-verify] the row is written, and its receipt is not ({problem}): adr-lint refuses it until it "
               f"is committed (ADR-117)", file=sys.stderr)
@@ -2980,27 +2980,19 @@ def fence_cwd(task):
     return Path(root) if root else task.parent
 
 
-def lock_repository(task):
-    """The repository a task's lock is keyed from: the one adr-lint and adr-next read it in.
+def lock_locations(task):
+    """Find the lock's repository and sidecar corpus from the same observation of the task's listed path.
 
-    `git_root` along the path AS LISTED, as those readers find it (record.py). Not `fence_cwd`, which
-    asks git from inside the task directory and so follows a link to where it points: a task directory
-    linked into the repository was locked from outside it, hashed nothing, and done read that as
-    advice (the Codex review of cdcfcf84..290669db). Whatever --cwd is (BACKLOG §388).
+    Looking up the fence cwd instead follows a linked task directory into its target repository
+    (BACKLOG §388). Outside git the row keeps its inline payload. Inside git the corpus holding
+    the record is capped at the repository root so the sidecar can travel with it (ADR-129).
     """
-    return git_root(task.parent) or task.parent
-
-
-def lock_corpus(task):
-    """The corpus a task's lock file goes into: the directory holding its record (`<corpus>/<record>/tasks/<task>.md`),
-    or the repository root when that directory is above it (a record whose tasks sit at `<root>/tasks/`): a lock outside
-    the repository is one no clone carries, and no reader can list. None in a directory git does not hold: there the row
-    keeps its inline payload, since a file there can be neither listed nor carried (ADR-129)."""
-    if git_root(task.parent) is None:
-        return None
-    root = Path(lock_repository(task)).resolve()
+    root = git_root(task.parent)
+    if root is None:
+        return task.parent, None
+    root = Path(root).resolve()
     corpus = task.parent.parent.parent.resolve()
-    return corpus if corpus == root or root in corpus.parents else root
+    return root, corpus if corpus == root or root in corpus.parents else root
 
 def claims_in(task):
     """The distinct digests this task file records an exit-0 entry for.
@@ -3332,16 +3324,19 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
     # adr-lint and adr-next read the lock back from there, and a lock --cwd keyed elsewhere met neither (BACKLOG §388).
     # ADR-129 T2: the lock's payload is a file in the record's corpus, written before the row; a corpus that cannot take
     # it is a run this tool refuses to record, so no row names a file that was not written.
+    lock_started = time.monotonic()
+    root, corpus = lock_locations(task)
     try:
-        entry += lock_suffix_for_run(text, lock_repository(task), code, corpus=lock_corpus(task))
+        entry += lock_suffix_for_run(text, root, code, corpus=corpus)
     except OSError as exc:
-        fail(f"the lock file could not be written into {lock_corpus(task) / 'locks'} ({os_reason(exc)}); no row was recorded")
+        fail(f"the lock for {task.name} could not be written ({os_reason(exc)}); no row was recorded")
+    lock_ms = round((time.monotonic() - lock_started) * 1000)
     refuse_unreadable(entry, sha)
 
     block = entry
     if code != 0:
         block += "\n" + excerpt_fence(failure_tail(stdout_text, stderr_text))
-    append_entry(task, text, block)
+    append_entry(task, text, block, timing={"fenceMs": elapsed_ms, "lockMs": lock_ms})
     # Say that the file was WRITTEN. Recording the run is the point of this tool —
     # evidence is tool-written or it is not evidence — but nothing said so, and a
     # session that ran it on a hint from the session hook watched `git status` go
@@ -3519,7 +3514,8 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
     """Append a current lock snapshot. Does not run the Acceptance fence (ADR-052)."""
     # The record's repository, whatever --cwd is: the readers resolve the Tests table from there (BACKLOG §388, the owner
     # 2026-10-20). A relock with --cwd <code repo> keyed the lock from the code repository, so the readers found none of it.
-    lock_root = lock_repository(task)
+    started = time.monotonic()
+    lock_root, corpus = lock_locations(task)
     # ADR-088: a row whose sha does not fit this repository is not one adr-verify wrote, so its lock
     # is no lock to relock, as `lock_findings` and `first_red_lock_suffix` read it. The record's width, not --cwd's.
     if not vlog_has_test_lock(text, object_format(lock_root)):
@@ -3557,17 +3553,16 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
     first = ("adr-verify --relock --replace-hashes" if replace_hashes
              else "adr-verify --relock")
     digest = acceptance_digest(cmd)
-    started = time.monotonic()
     try:
-        suffix = lock_snapshot_suffix(snap, kind, root=lock_root, corpus=lock_corpus(task))
+        suffix = lock_snapshot_suffix(snap, kind, root=lock_root, corpus=corpus)
     except OSError as exc:
-        fail(f"the lock file could not be written into {lock_corpus(task) / 'locks'} ({os_reason(exc)}); no row was recorded")
+        fail(f"the lock for {task.name} could not be written ({os_reason(exc)}); no row was recorded")
     elapsed_ms = max(0, int((time.monotonic() - started) * 1000))
     sha = git_sha(cwd)
     entry = (f"- {today} · {sha} · exit 0 · `{first}` · "
              f"acceptance-sha256:{digest} · ms:{elapsed_ms}{suffix}")
     refuse_unreadable(entry, sha)
-    append_entry(task, text, entry)
+    append_entry(task, text, entry, timing={"lockMs": elapsed_ms})
     print(f"[adr-verify] WROTE this entry into {task}'s ## Verification Log — "
           f"recording the run IS this tool's job, so the file is now modified; "
           f"commit it with the work it evidences.")
@@ -4181,10 +4176,10 @@ def main():
 
     if r.returncode == 0 and settled.get("left"):
         r = subprocess.CompletedProcess(r.args, 1, r.stdout, (r.stderr or "") + "\n" + LEFT_RUNNING)
+    elapsed_ms = round((time.monotonic() - started) * 1000)
     sha = git_sha(cwd)
 
-    code = record_run(task, text, cmd, today, r,
-                      round((time.monotonic() - started) * 1000), sha, steps, cwd=cwd)
+    code = record_run(task, text, cmd, today, r, elapsed_ms, sha, steps, cwd=cwd)
 
     sys.exit(code)
 

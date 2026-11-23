@@ -188,3 +188,18 @@ test('a row from a task no receipt names says its writer may predate receipts', 
   assert.match(named, NO_RECEIPT, 'the typed row is still refused')
   assert.doesNotMatch(named, PREDATES)
 })
+
+test('the receipt times the fence and lock separately, including a relock with no fence', () => {
+  const { dir, task } = corpus()
+  const adr = path.join(dir, 'ADR-001-selftest.md')
+  writeFileSync(adr, readFileSync(adr, 'utf8').replace('## Decision', '## Decisiun'))
+  const red = gate('adr-verify', dir, [task])
+  assert.equal(red.status, 1, said(red))
+  const relock = gate('adr-verify', dir, [task, '--relock', '--replace-hashes'])
+  assert.equal(relock.status, 0, said(relock))
+  const [run, lock] = receipts(hookState(dir))
+  const [redRow, lockRow] = rows(task, 'Verification Log').slice(-2)
+  assert.equal(run.timing.fenceMs, Number(/ · ms:(\d+)/.exec(redRow)[1]))
+  assert.ok(Number.isInteger(run.timing.lockMs) && run.timing.lockMs >= 0)
+  assert.deepEqual(lock.timing, { lockMs: Number(/ · ms:(\d+)/.exec(lockRow)[1]) })
+})

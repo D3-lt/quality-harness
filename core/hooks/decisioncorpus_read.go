@@ -941,8 +941,14 @@ func (c *dcCorpus) context(file, root string) string {
 	return strings.Join(lines, "\n")
 }
 
-// dcDecisionContext is decisionContext([file], root): the corpus read from git's listing (taken once by the hook, which gates on
-// it), then the text for the file. It has no gate of its own: the hook's (no corpus, a file outside the root) stay with its caller.
-func dcDecisionContext(file, root string, tracked []string) string {
-	return dcAdrCorpus(root, tracked, dcScreenBudget, dcPlatform()).context(file, root)
+// dcDecisionContext returns a reader for one hook event. The first path builds the corpus inside
+// the reader's time budget, and subsequent paths resolve against the same snapshot.
+func dcDecisionContext(root string, tracked []string) func(string) string {
+	var corpus *dcCorpus
+	return func(file string) string {
+		if corpus == nil {
+			corpus = dcAdrCorpus(root, tracked, dcScreenBudget, dcPlatform())
+		}
+		return corpus.context(file, root)
+	}
 }

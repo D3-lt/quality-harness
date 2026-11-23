@@ -114,6 +114,7 @@ type decisionRepo struct {
 	looked, listed bool
 	root, failed   string
 	listing        []string
+	readContext    func(string) string
 }
 
 func (r *decisionRepo) rootOf() (root, failed string) {
@@ -145,7 +146,7 @@ func (r *decisionRepo) tracked() []string {
 	return r.listing
 }
 
-// decisionTargetCap and decisionTargetsBudget bound the reads one call makes: each path is a corpus read under its own budget.
+// These bounds cover all target lookups in one call, including the initial corpus read.
 const decisionTargetCap = 10
 
 var decisionTargetsBudget = 15 * time.Second // a var so a test can spend it
@@ -188,7 +189,7 @@ func decisionContextForPath(input *Obj, repo *decisionRepo, t string) string {
 	if root == "" {
 		return ""
 	}
-	context := decisionContext(resolved, root, repo.tracked)
+	context := repo.decisionContext(resolved)
 	if context == "" {
 		return ""
 	}

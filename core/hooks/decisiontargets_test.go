@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -44,4 +46,41 @@ func TestDecisionTargetsListTheRepositoryOnce(t *testing.T) {
 	if listings != 1 {
 		t.Fatalf("a write of three paths listed the repository %d times, want once", listings)
 	}
+}
+
+func TestDecisionTargetsReuseCorpusOnlyWithinTheEvent(t *testing.T) {
+	root := canonical(t.TempDir())
+	record := "docs/adr/ADR-001-scope.md"
+	file := filepath.Join(root, record)
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(title string) {
+		t.Helper()
+		text := "# ADR-001: " + title + "\n\n**Status:** Accepted\n**Governs:** `a.go`, `b.go`\n\n## Decision\n\nx\n"
+		if err := os.WriteFile(file, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	event := func() *decisionRepo {
+		return &decisionRepo{cwd: root, root: root, looked: true, listed: true, listing: []string{record, "a.go", "b.go"}}
+	}
+	assertTitle := func(repo *decisionRepo, target, title string) {
+		t.Helper()
+		if got := decisionContextForPath(O(), repo, target); !strings.Contains(got, title) {
+			t.Fatalf("context for %s = %q, want %q", target, got, title)
+		}
+	}
+	write("First decision")
+	first := event()
+	assertTitle(first, "a.go", "First decision")
+	write("Later decision")
+	assertTitle(first, "b.go", "First decision")
+	assertTitle(event(), "b.go", "Later decision")
+
+	first.readContext = func(string) string { panic("reader failed") }
+	if got := decisionContextForPath(O(), first, "a.go"); got != decisionReaderFailed {
+		t.Fatalf("failed lookup = %q, want could-not-look", got)
+	}
+	assertTitle(first, "b.go", "Later decision")
 }

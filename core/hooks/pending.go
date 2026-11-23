@@ -10,18 +10,24 @@ const decisionReaderBudget = 10 * time.Second
 
 const decisionReaderFailed = "could-not-look: the decision reader could not run, so which decisions govern this edit is unknown."
 
-// decisionContext is what the Node hook printed for `file` in the repository at `root`. Both arrive canonical
-// (decisionContextFor): the Node hook was handed the same file and spawned in that root, so its process.cwd() was the same
-// real path. `listing` gives git's listing of the root, taken once for every path of a call (decisionRepo).
-func decisionContext(file, root string, listing func() []string) string {
-	if outsideRoot(root, file) {
+func (r *decisionRepo) decisionContext(file string) string {
+	if outsideRoot(r.root, file) {
 		return ""
 	}
-	listed := listing()
-	if hasDecisionCorpus(listed, dcPlatform()) == "false" {
-		return ""
+	if r.readContext == nil {
+		listed := r.tracked()
+		if hasDecisionCorpus(listed, dcPlatform()) == "false" {
+			return ""
+		}
+		r.readContext = dcDecisionContext(r.root, listed)
 	}
-	return decisionReaderWithin(decisionReaderBudget, func() string { return dcDecisionContext(file, root, listed) })
+	read := r.readContext
+	answer := decisionReaderWithin(decisionReaderBudget, func() string { return read(file) })
+	if answer == decisionReaderFailed {
+		// A timed-out goroutine can still be using its corpus. Give the next path a fresh reader.
+		r.readContext = nil
+	}
+	return answer
 }
 
 // decisionReaderWithin is read's answer, or the could-not-look line when it panics or outlasts the budget. A read past the

@@ -6,9 +6,25 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "func() string { return dcDecisionContext(file, root, listed) })",
-      "to": "func() string { return \"\" })",
+      "from": "func() string { return read(file) })",
+      "to": "func() string { _ = read(file); return \"\" })",
       "only": "^the decision context is delivered once per path per session, and never as a finding$"
+    },
+    {
+      "label": "Decision context: each path needlessly opens its own decision corpus",
+      "file": "core/hooks/pending.go",
+      "tests": ["tests/mrw-decision-context.test.mjs"],
+      "from": "if r.readContext == nil {",
+      "to": "if true {",
+      "only": "^one write's paths share one deadline and one listing, and the rest are named as not looked at$"
+    },
+    {
+      "label": "Decision context: the next path keeps using a failed reader",
+      "file": "core/hooks/pending.go",
+      "tests": ["tests/mrw-decision-context.test.mjs"],
+      "from": "r.readContext = nil",
+      "to": "// Keep the failed reader.",
+      "only": "^one write's paths share one deadline and one listing, and the rest are named as not looked at$"
     },
     {
       "label": "ADR-137 T3: a reader that panics is said as could-not-look",

@@ -36,7 +36,10 @@ func TestDecisionTargetsListTheRepositoryOnce(t *testing.T) {
 	}
 	saved := decisionListing
 	listings := 0
-	decisionListing = func(root string) []string { listings++; return nil }
+	decisionListing = func(root string) []string {
+		listings++
+		return saved(root)
+	}
 	defer func() { decisionListing = saved }()
 	input, err := parseJSON(`{"tool_name":"mcp__mrw__mrw_write","cwd":` + strconv.Quote(dir) + `,"session_id":"once","tool_input":{"plan":"@@ a.go 0 create\nx\n@@ b.go 0 create\ny\n@@ c.go 0 create\nz\n"}}`)
 	if err != nil {

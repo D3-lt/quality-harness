@@ -1,0 +1,11 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/adr-next-batch.test.mjs	a batch answers each directory as its own process does	6d7801dcf183f42027c47217ce16e3897fde0bea83ec0e90e0e7ef2202d3f137
+body	tests/adr-next-batch.test.mjs	a batch takes no other argument and only a list of strings	b665cc20fc0c9095118a039d96645162cd06f706bca1bafc221037b1a088631b
+body	tests/adr-next-batch.test.mjs	a cached parse does not hide a later query's warnings	edcf11642e3b3260fb5ee972f47594ce4d4b864798ed2c14bc2035f828143d45
+body	tests/adr-next-batch.test.mjs	a directory name survives the transport or is refused	f8e462d412442aebe93f8635c489bfec79ce6d241e295f6bf4bee81193479b6b
+body	tests/adr-next-batch.test.mjs	a failed object-format lookup stays inside its query	1200c62e7cb3e1645932bc85380b43a1d2217718db0c799dfc9a63b27d0dd018
+body	tests/adr-next-batch.test.mjs	a frame is written when its query ends	d54ca38e52cfff27c97939a258cbcecc2092f09f26e7de59e5738a2f4e8a0f39
+body	tests/adr-next-batch.test.mjs	a status that is not an answer still gets its frame	473fa00903e37207522e1e786c0fb630d9aa2349b048ad03e129e12f4429424b
+body	tests/adr-next-batch.test.mjs	an abnormal end inside a query ends the batch	c9a0f5c69c28e774edca3f095ab5e8ad469d46fbda007996e7ce000f9ece44d3
+body	tests/adr-next-batch.test.mjs	no child of a query reads the batch's input	13b16963c985868961df8d74bd4409b28628062f8222d2e5f1c03879d2526456
+body	tests/adr-next-batch.test.mjs	nothing but the reviewed caches is shared between queries	b2a99baba5899f32180a53a43733b3915d8ad727e7898f76477fc16f30683e6d

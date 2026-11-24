@@ -2,6 +2,7 @@
 """adr-next — say which task is ready to execute, and what proves it done.
 
 Usage: adr-next <ADR.md | tasks-dir> [--all] [--json]
+       adr-next --batch        (a JSON array of directory strings on standard input)
 
 Answers one question the corpus can already answer but nothing surfaces: given
 the task files as written, which task may be started RIGHT NOW, and what is its
@@ -18,6 +19,12 @@ task it depends on is DONE.
 
   --all   list every task with its state (done / ready / blocked-by / stopped)
   --json  machine-readable, for a hook or a skill rather than a person
+  --batch answer many directories in one process, each as `adr-next <dir> --json` answers it
+          in a process of its own (ADR-145). For a caller that would otherwise start one
+          process per directory. One line of JSON per query, in the order asked:
+          {"i", "dir", "status", "warned", "stdout", "stderr"}. Exit 0 when every query got
+          its line, 1 when one could not be answered (no line for it or any after it) or the
+          input was not such an array.
 
 A task is STOPPED when its human sign-off states a stop, when its own `**Status:**`
 names a terminal state (`withdrawn`, `superseded`, `abandoned`, `cancelled`), or when
@@ -1888,5 +1895,84 @@ def main():
     return 0
 
 
+def record_caches():
+    """Every cached function of the record grammar: what one query could leave behind for the next."""
+    return [value for value in vars(sys.modules["record"]).values() if callable(getattr(value, "cache_clear", None))]
+
+
+def answer_batch():
+    """`adr-next --batch`: the directories on standard input, each answered as its own process answers it (ADR-145).
+
+    A faster way to ask, never another reader: every query goes through `main()` with the single call's arguments, and
+    starts as a new process would.
+
+    - Every cache of record.py is emptied BETWEEN queries and never inside one. `_object_format` keeps what git said, a
+      failed lookup included, and one decision reads it twice: inside a query it must stay as it is, and across queries a
+      process per directory would have asked again. The caches over text are emptied too, because a cached answer skips
+      what computing it prints: a parse that warns would warn in its own process and stay silent here.
+    - Python shows a warning once per place in a process, so a later query would print less than its own process. Each
+      query runs with warnings recorded, and says in `warned` that it raised one; the caller asks such a directory singly.
+    - Standard input is read to its end, as bytes, before the first query: no child a query starts can read a later one,
+      and the environment's encoding cannot change a directory's name.
+
+    A query that ends in any way a caller could not have read as an exit status ends the batch with no line for it.
+    """
+    import io
+    import warnings
+    try:
+        asked = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+    except (OSError, ValueError):
+        asked = None
+    if not isinstance(asked, list) or not all(isinstance(directory, str) for directory in asked):
+        print("adr-next: --batch reads a JSON array of directory strings, as UTF-8, on standard input.", file=sys.stderr)
+        return 1
+    caches = record_caches()
+    held = sys.stdout, sys.stderr, sys.argv
+    real = sys.stdout.buffer
+    for index, directory in enumerate(asked):
+        for cache in caches:
+            cache.cache_clear()
+        out, err = io.BytesIO(), io.BytesIO()
+        try:
+            # The encoding this gate gives its own streams at the top of the file; "\n" stays "\n" in a frame.
+            sys.stdout = io.TextIOWrapper(out, encoding="utf-8", errors="replace", newline="\n", write_through=True)
+            sys.stderr = io.TextIOWrapper(err, encoding="utf-8", errors="replace", newline="\n", write_through=True)
+            sys.argv = [held[2][0], directory, "--json"]
+            with warnings.catch_warnings(record=True) as raised:
+                warnings.simplefilter("always")
+                try:
+                    status = main()
+                except SystemExit as exc:
+                    status = exc.code
+            # Read before the streams are put back: a wrapper that is collected closes what it wraps.
+            said = out.getvalue().decode("utf-8"), err.getvalue().decode("utf-8")
+        except BaseException:
+            return 1
+        finally:
+            sys.stdout, sys.stderr, sys.argv = held
+        # What `sys.exit(main())` makes of the value: None is 0 and an integer is itself. Anything else is printed and
+        # exits 1 there, which no frame can carry.
+        if status is None:
+            status = 0
+        elif not isinstance(status, int) or isinstance(status, bool):
+            return 1
+        frame = {"i": index, "dir": directory, "status": status, "warned": bool(raised), "stdout": said[0], "stderr": said[1]}
+        real.write((json.dumps(frame) + "\n").encode("ascii"))
+        real.flush()
+    return 0
+
+
+def entry():
+    """What the file exits through: `--batch`, or the single call. `--version` wins beside anything, as it always has."""
+    arguments = sys.argv[1:]
+    if "--batch" in arguments and "--version" not in arguments:
+        if arguments != ["--batch"]:
+            print("adr-next: --batch takes no other argument; the directories are a JSON array on standard input.",
+                  file=sys.stderr)
+            return 1
+        return answer_batch()
+    return main()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(entry())

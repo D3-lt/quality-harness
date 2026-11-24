@@ -9,7 +9,7 @@ answer only well inside the single call's limits.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | `adr-next --batch` answers each directory as its own process would | pending | none — no spec | `node --test tests/adr-next-batch.test.mjs` |
+| T1 | `adr-next --batch` answers each directory as its own process would | done | none — no spec | `node --test tests/adr-next-batch.test.mjs` |
 | T2 | `work-next` asks once, and takes an answer only inside the margins | pending | none — no spec | `node --test tests/work-next-batch.test.mjs` |
 | T3 | The gain is measured on this design before it ships | pending | none — no spec | human-observed |
 

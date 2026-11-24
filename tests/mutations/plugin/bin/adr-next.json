@@ -1915,6 +1915,65 @@
       "from": "            \"foreign\": foreign_stop(text, owner) is not None,",
       "to": "            \"foreign\": False,",
       "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "ADR-145 T1: every cache of record.py is emptied between the queries of a batch",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "            cache.cache_clear()",
+      "to": "            pass",
+      "only": "^(?:a failed object-format lookup stays inside its query)$"
+    },
+    {
+      "label": "ADR-145 T1: the caches over text are emptied too, not only git's object format",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "    return [value for value in vars(sys.modules[\"record\"]).values() if callable(getattr(value, \"cache_clear\", None))]",
+      "to": "    return [sys.modules[\"record\"]._object_format]",
+      "only": "^(?:a cached parse does not hide a later query's warnings)$"
+    },
+    {
+      "label": "ADR-145 T1: a frame leaves the process when its query ends",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "        real.flush()",
+      "to": "        pass",
+      "only": "^(?:a frame is written when its query ends)$"
+    },
+    {
+      "label": "ADR-145 T1: an exit that is no status ends the batch with no frame",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "        elif not isinstance(status, int) or isinstance(status, bool):",
+      "to": "        elif False:",
+      "only": "^(?:an abnormal end inside a query ends the batch)$"
+    },
+    {
+      "label": "ADR-145 T1: a query that raised a warning says so in its frame",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "\"warned\": bool(raised)",
+      "to": "\"warned\": False",
+      "only": "^(?:a cached parse does not hide a later query's warnings)$"
+    },
+    {
+      "label": "ADR-145 T1: the single call is not taken for a batch",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if \"--batch\" in arguments and \"--version\" not in arguments:",
+      "to": "    if \"--version\" not in arguments:"
     }
   ]
 }

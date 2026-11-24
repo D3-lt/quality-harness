@@ -1927,9 +1927,16 @@ def answer_batch():
         print("adr-next: --batch reads a JSON array of directory strings, as UTF-8, on standard input.", file=sys.stderr)
         return 1
     caches = record_caches()
+    # A process of its own gets its directory as bytes, decoded by the filesystem encoding; a frame's query arrives as
+    # text. Under UTF-8, which is what Windows always has, the two name the same path. Under any other encoding a name
+    # outside ASCII may not, so the batch ends there and that directory is asked the way it always was.
+    import codecs
+    narrow = codecs.lookup(sys.getfilesystemencoding()).name != "utf-8"
     held = sys.stdout, sys.stderr, sys.argv
     real = sys.stdout.buffer
     for index, directory in enumerate(asked):
+        if narrow and not directory.isascii():
+            return 1
         for cache in caches:
             cache.cache_clear()
         out, err = io.BytesIO(), io.BytesIO()

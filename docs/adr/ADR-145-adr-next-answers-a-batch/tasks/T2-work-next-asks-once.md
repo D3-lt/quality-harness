@@ -128,3 +128,4 @@ first attempt was, and not patched a third time.
 - 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:20751
 - 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:20358
 - 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:23604
+- 2026-11-24 · 324a4cc16* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:15 · test-lock-sha256:4685fb7498eb755d7fcc58612277cb37bdd75b070fb700ca5a87695379c49b22 · test-lock-file:docs/adr/locks/4685fb7498eb755d7fcc58612277cb37bdd75b070fb700ca5a87695379c49b22.lock · test-lock-kind:replace

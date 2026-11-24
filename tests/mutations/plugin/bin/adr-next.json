@@ -1974,6 +1974,22 @@
       ],
       "from": "    if \"--batch\" in arguments and \"--version\" not in arguments:",
       "to": "    if \"--version\" not in arguments:"
+    },
+    {
+      "label": "ADR-145 T1: a name outside ASCII ends the batch where the filesystem encoding is not UTF-8",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-batch.test.mjs"],
+      "from": "        if narrow and not directory.isascii():",
+      "to": "        if False:",
+      "only": "^(?:a directory name survives the transport or is refused)$"
+    },
+    {
+      "label": "ADR-145 T1: the streams and the arguments are the process's own again when a batch ends",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/adr-next-batch.test.mjs"],
+      "from": "            sys.stdout, sys.stderr, sys.argv = held",
+      "to": "            pass",
+      "only": "^(?:a status that is not an answer still gets its frame)$"
     }
   ]
 }

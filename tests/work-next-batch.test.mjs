@@ -67,7 +67,14 @@ test('work-next says the same with and without the batch', () => {
     const perDirectory = (...args) => { singly += 1; return spawnGate(...args) }
     assert.deepEqual(observe(root), observe(root, { spawn: perDirectory }), corpus)
     const said = { batched: [], singly: [] }
-    const capture = into => { const write = process.stdout.write; process.stdout.write = chunk => { into.push(String(chunk)); return true }; return () => { process.stdout.write = write } }
+    // Both streams, in the order written: what work-next prints is its stdout and its stderr.
+    const capture = into => {
+      const { write: out } = process.stdout
+      const { write: err } = process.stderr
+      process.stdout.write = chunk => { into.push(`out ${chunk}`); return true }
+      process.stderr.write = chunk => { into.push(`err ${chunk}`); return true }
+      return () => { process.stdout.write = out; process.stderr.write = err }
+    }
     let restore = capture(said.batched)
     let batchedExit
     try { batchedExit = main([root]) } finally { restore() }
@@ -191,15 +198,24 @@ test('the batch is asked as the single call is asked', () => {
   try {
     process.env.QUALITY_HARNESS_BATCH_MS = '4321'
     batchedAnswers(['a', 'b'], 'root', { run })
-    process.env.QUALITY_HARNESS_BATCH_MS = 'soon'
+    for (const none of ['soon', '0', '-5', '1.5', '2147483648', '1000000000000000000000']) {
+      process.env.QUALITY_HARNESS_BATCH_MS = none
+      batchedAnswers(['a', 'b'], 'root', { run })
+    }
+    process.env.QUALITY_HARNESS_BATCH_MS = '2147483647'
     batchedAnswers(['a', 'b'], 'root', { run })
   } finally {
     if (held === undefined) delete process.env.QUALITY_HARNESS_BATCH_MS
     else process.env.QUALITY_HARNESS_BATCH_MS = held
   }
-  assert.deepEqual([asked[2].given.timeout, asked[3].given.timeout], [4321, 30_000], 'the environment names the budget, and a value that is no count of milliseconds is not one')
+  assert.deepEqual(asked.slice(2).map(call => call.given.timeout), [4321, 30_000, 30_000, 30_000, 30_000, 30_000, 30_000, 2_147_483_647],
+    'the environment names the budget; a value that is no count of milliseconds, or more than a timeout can be, is not one')
+  const padded = []
+  batchedAnswers(['short', 'é'.repeat(40)], 'root', { run: (tool, args, given) => { padded.push(given.env); return { stdout: '' } } })
+  assert.ok(padded[0].QUALITY_HARNESS_BATCH_PAD.length >= 80 + '--json'.length + 16, 'the batch\'s start is at least as large as the largest single call\'s, in bytes')
+  assert.equal(padded[0].PATH, process.env.PATH, 'and the rest of the environment is the single call\'s')
   for (const few of [[], ['a'], ['a', lone]]) batchedAnswers(few, 'root', { run })
-  assert.equal(asked.length, 4, 'fewer than two directories to send: a batch saves nothing, and none is started')
+  assert.equal(asked.length, 10, 'fewer than two directories to send: a batch saves nothing, and none is started')
 })
 
 // A plugin copied where the test may change its gate. work-next finds adr-next beside itself, so the copy's work-next

@@ -126,6 +126,26 @@ accepted and are not equalities:
 The direction of the first is an answer the gate did compute in place of a could-not-look; the other two leave the verdict
 with the single call.
 
+Amended at execution, 2026-11-24, after the Codex review of T1 and T2 (commits 1a8449230 and 324a4cc16, REQUEST CHANGES, each
+finding reproduced or checked against source):
+
+- **A third assumption: nothing but the gate writes to the gate's output.** The reviewer installed interpreter hooks (an audit
+  hook, a wrapped import loader) that print to standard output during a query. In a process of its own that makes the answer
+  unparseable; in a batch the hook's text falls outside the frame, or the module it hooks is already loaded for the second
+  query, and the frame parses. Such an interpreter already makes single calls unparseable today, and the batch does not
+  defend against it: lazily imported modules stay loaded across queries, and that is visible only to such a hook.
+- **The batch starts only where every single call would.** A single call carries its directory as an argument and the batch
+  does not, so at the system's limit on arguments and environment the batch started where the single calls could not
+  (reproduced on macOS). `batchedAnswers` now pads the batch's environment (`QUALITY_HARNESS_BATCH_PAD`) to at least the
+  largest single call's size.
+- **A name outside ASCII is answered in a batch only under a UTF-8 filesystem encoding**, which Windows always has. Elsewhere
+  a process of its own decodes its argument's bytes into another name than the text a frame's query carries, so the gate ends
+  the batch at such a name and it is asked singly. This narrows Decision 1.
+- **A budget the environment names is taken only up to what a timeout can be** (2 147 483 647 ms); a larger one made
+  `spawnSync` throw before any directory was asked.
+- Two exits stay conservative and are not equalities: `sys.exit(True)` ends the batch, and a status above 255 is carried
+  as it is; neither is 0 or 3, so the single call decides both.
+
 What would make it fail, and whether that can be produced: yes, by fault injection, which is what found every defect of the
 first attempt while the healthy-corpus comparison stayed identical. T1 and T2 inject a git whose first object-format answer
 fails, a locked test file whose parse warns, an answer at the byte bound, a hang, a missing executable bit, an empty `PATH`, a

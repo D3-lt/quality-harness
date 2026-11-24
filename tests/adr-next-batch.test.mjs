@@ -162,17 +162,20 @@ const standIn = [
   '        if how == "true": sys.exit(True)',
   '        if how == "boom": raise RuntimeError("boom")',
   '    return 3',
+  'if how == "latin":',
+  '    sys.getfilesystemencoding = lambda: "latin-1"',
   'module.main = main',
   'sys.argv = [gate, "--batch"]',
   'code = module.entry()',
-  'sys.__stderr__.write(f"\\nparsed: {len(parsed)}\\n")',
+  'sys.stderr.write(f"\\nparsed: {len(parsed)} argv: {sys.argv[1:]}\\n")',
   'sys.exit(code)',
 ].join('\n')
 
 function stoodIn(how, dirs = ['a', 'b', 'c']) {
   const run = spawnSync(python, [...prefix, '-B', '-c', standIn, gate], { ...options, input: JSON.stringify(dirs), env: { ...process.env, QH_TEST_HOW: how } })
-  const parsed = (run.stderr ?? '').match(/\nparsed: (\d+)\n$/)
-  assert.ok(parsed, run.stderr)
+  // Written through `sys.stderr` and reading `sys.argv` after the batch returned: both are the process's own again.
+  const parsed = (run.stderr ?? '').match(/\nparsed: (\d+) argv: \['--batch'\]\n$/)
+  assert.ok(parsed, `the streams and the arguments are put back when the batch ends: ${run.stderr}`)
   return { status: run.status, parsed: Number(parsed[1]), frames: frames(run) }
 }
 
@@ -248,6 +251,12 @@ test('a directory name survives the transport or is refused', () => {
   const broken = spawnGate(gate, ['--batch'], { ...options, encoding: 'buffer', input: Buffer.from([0x5b, 0x22, 0xff, 0x22, 0x5d]) })
   assert.equal(broken.status, 1)
   assert.equal(broken.stdout.length, 0, 'input that is not UTF-8 is refused before any query')
+  // A process of its own decodes its argument by the filesystem encoding. Where that is not UTF-8 a name outside ASCII
+  // may be another path there, so the batch does not answer it: it ends, and that directory is asked singly.
+  const narrow = stoodIn('latin', ['a', 'é', 'c'])
+  assert.deepEqual([narrow.status, narrow.frames.map(frame => frame.dir)], [1, ['a']], 'the batch ends at the name it cannot vouch for')
+  assert.deepEqual(stoodIn('latin', ['a', 'b', 'c']).frames.length, 3, 'names within ASCII are the same path under any encoding')
+  assert.deepEqual(stoodIn('exit1', ['a', 'é', 'c']).frames.length, 3, 'and under UTF-8 every name is')
 })
 
 test('a batch takes no other argument and only a list of strings', () => {

@@ -1187,7 +1187,7 @@
       "label": "ADR-145 T2: a name JSON and an argument carry differently is not sent in a batch",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/work-next-batch.test.mjs"],
-      "from": "  const sent = dirs.filter(dir => dir.isWellFormed())",
+      "from": "  const sent = dirs.filter(wellFormed)",
       "to": "  const sent = dirs",
       "only": "^(?:the batch is asked as the single call is asked)$"
     },

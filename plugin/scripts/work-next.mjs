@@ -36,6 +36,9 @@ const FRAME_BYTES = 512 * 1024
 // UTF-8 bytes with every newline counted twice: a process of its own on Windows writes "\r\n" where a frame holds "\n".
 const frameCost = text => Buffer.byteLength(text) + text.split('\n').length - 1
 // The batch's budget. The environment names another so that a test sets the budget it depends on (CLAUDE.md §7).
+// A string with no surrogate that lacks its pair. Spelled out: `String.prototype.isWellFormed` is newer than the Node
+// this plugin may run on, and a missing method here would throw before any directory was asked.
+const wellFormed = text => !/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(text)
 function batchMs(env = process.env) {
   const named = Number(env.QUALITY_HARNESS_BATCH_MS)
   // Within what spawnSync takes as a timeout: a larger number throws there, before any directory could be asked singly.
@@ -57,7 +60,7 @@ function batchMs(env = process.env) {
 export function batchedAnswers(dirs, root, { run = spawnGate, ms = batchMs() } = {}) {
   const answers = new Map()
   // JSON and an argument vector carry a lone surrogate differently, so such a name is asked the way it always was.
-  const sent = dirs.filter(dir => dir.isWellFormed())
+  const sent = dirs.filter(wellFormed)
   if (sent.length < 2) return answers
   const batch = run(path.join(BIN, 'adr-next'), ['--batch'],
     { cwd: root, encoding: 'utf8', input: JSON.stringify(sent), timeout: ms, maxBuffer: BATCH_BYTES, windowsHide: true })

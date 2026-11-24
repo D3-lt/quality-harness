@@ -184,11 +184,12 @@ test('the batch is asked as the single call is asked', () => {
   const asked = []
   const run = (tool, args, given) => { asked.push({ tool, args, given }); return { status: 0, stdout: '' } }
   const lone = 'bad\ud800name'
-  batchedAnswers(['a', lone, 'b'], 'root', { run })
+  batchedAnswers(['a', lone, 'low\udc00end', 'pair😀ed', 'b'], 'root', { run })
   assert.equal(asked.length, 1)
   assert.equal(asked[0].tool, gate, 'the gate itself, as the single call names it')
   assert.deepEqual(asked[0].args, ['--batch'])
-  assert.deepEqual(JSON.parse(asked[0].given.input), ['a', 'b'], 'a name that JSON and an argument would carry differently is not sent')
+  assert.deepEqual(JSON.parse(asked[0].given.input), ['a', 'pair😀ed', 'b'], 'a name that JSON and an argument would carry differently is not sent, whichever half is alone; a whole pair is')
+  assert.equal(String.prototype.isWellFormed === undefined || ['a', lone, 'low\udc00end', 'pair😀ed'].every(name => name.isWellFormed() === JSON.parse(asked[0].given.input).includes(name)), true, 'and where this Node has the built-in, it agrees')
   const { cwd, encoding, timeout, windowsHide, maxBuffer } = asked[0].given
   assert.deepEqual({ cwd, encoding, timeout, windowsHide }, { cwd: 'root', encoding: 'utf8', timeout: 30_000, windowsHide: true })
   assert.ok(maxBuffer > 64 * BOUND, 'the pipe holds every frame of a large corpus')

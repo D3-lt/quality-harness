@@ -28,6 +28,58 @@ import { pathInCode, terminalText, visiblePath } from './corpus-text.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
+// A batch's pipe holds every frame of a large corpus; past this the batch ends where it is and the rest are asked singly.
+const BATCH_BYTES = 256 * 1024 * 1024
+// Half of what the single call has: 60 s (the `timeout` in `readinessFrom`) and Node's 1 MiB over stdout and stderr together.
+const BATCH_MS = 30_000
+const FRAME_BYTES = 512 * 1024
+// UTF-8 bytes with every newline counted twice: a process of its own on Windows writes "\r\n" where a frame holds "\n".
+const frameCost = text => Buffer.byteLength(text) + text.split('\n').length - 1
+// The batch's budget. The environment names another so that a test sets the budget it depends on (CLAUDE.md §7).
+function batchMs(env = process.env) {
+  const named = Number(env.QUALITY_HARNESS_BATCH_MS)
+  return Number.isInteger(named) && named > 0 ? named : BATCH_MS
+}
+
+/**
+ * adr-next's answers for many task directories from ONE `adr-next --batch` process, keyed by directory (ADR-145). A
+ * process start per directory was nearly all of this reader's time: 13.0 s for 125 directories on this repository
+ * (2026-11-24). It is a faster way to ask and never another answer: the gate is started exactly as the single call
+ * starts it, and a frame is taken only well inside the single call's limits. A directory that is not in the map is
+ * asked by the single call, which decides everything it decides today: a could-not-run, a hang, an answer near the
+ * output limit, one that raised a Python warning, a gate that does not know the flag, a batch that never started.
+ *
+ * Lines are read in order and only while each is the next query's frame; a line that is not, and whatever follows the
+ * last newline, ends the reading. A frame that is well formed and not taken leaves its directory out and the reading
+ * goes on.
+ */
+export function batchedAnswers(dirs, root, { run = spawnGate, ms = batchMs() } = {}) {
+  const answers = new Map()
+  // JSON and an argument vector carry a lone surrogate differently, so such a name is asked the way it always was.
+  const sent = dirs.filter(dir => dir.isWellFormed())
+  if (sent.length < 2) return answers
+  const batch = run(path.join(BIN, 'adr-next'), ['--batch'],
+    { cwd: root, encoding: 'utf8', input: JSON.stringify(sent), timeout: ms, maxBuffer: BATCH_BYTES, windowsHide: true })
+  // What the process wrote outside its frames (Python's own start and exit) belongs to no query and counts against each.
+  const outside = typeof batch?.stderr === 'string' ? frameCost(batch.stderr) : 0
+  const lines = String(batch?.stdout ?? '').split('\n')
+  lines.pop() // what follows the last newline is no whole line, even when it parses
+  for (const [index, line] of lines.entries()) {
+    let frame = null
+    try { frame = JSON.parse(line) } catch { break }
+    if (frame === null || typeof frame !== 'object' || index >= sent.length) break
+    if (frame.i !== index) break
+    if (frame.dir !== sent[index]) break
+    if (!Number.isInteger(frame.status) || typeof frame.warned !== 'boolean') break
+    if (typeof frame.stdout !== 'string' || typeof frame.stderr !== 'string') break
+    if (frame.status !== 0 && frame.status !== 3) continue
+    if (frame.warned) continue
+    if (frameCost(frame.stdout) + frameCost(frame.stderr) + outside >= FRAME_BYTES) continue
+    answers.set(sent[index], { status: frame.status, stdout: frame.stdout, stderr: frame.stderr })
+  }
+  return answers
+}
+
 /**
  * Which tasks are ready, as adr-next answers it — one readiness rule, not two.
  *
@@ -42,7 +94,9 @@ const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
  * never ready work.
  *
  * A directory adr-next could not answer for is UNPROVEN, named in the state, and
- * never read as "nothing ready" (ADR-005). `spawn` is the seam.
+ * never read as "nothing ready" (ADR-005). `spawn` is the seam. The default spawner asks
+ * them all in one batch first (`batchedAnswers`); an injected `spawn` is asked per
+ * directory, as before, and so is every directory the batch did not answer.
  */
 export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = null) {
   // Resolved once. `directory` may be the relative argument `work-next tests/x`
@@ -79,8 +133,10 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
   const notes = new Map()
   // Tasks adr-next listed and could not read.
   const unreadable = new Set()
-  for (const dir of [...dirs].sort()) {
-    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const order = [...dirs].sort()
+  const batched = spawn === spawnGate ? batchedAnswers(order, root) : new Map()
+  for (const dir of order) {
+    const run = batched.get(dir) ?? spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true })
     // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
     // only 0 as an answer put every finished directory in `unproven` (Codex review of
     // bdeba73, P2); anything else is the gate not running, and that IS unproven.

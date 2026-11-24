@@ -63,7 +63,7 @@ node --test tests/work-next-batch.test.mjs 2>&1 | tee "$out" && grep -q '✔ wor
 | `reading stops at a line that is not a frame` | `tests/work-next-batch.test.mjs` | A wrong `i`, a wrong `dir`, a null status, a non-string stream, a missing `warned`, a line that is not JSON, a single call's own pretty-printed answer, and a whole valid frame lacking only its newline: nothing from that line on is taken, and the frames before it are | — | S2 |
 | `a batch that did not finish keeps what it finished` | `tests/work-next-batch.test.mjs` | `run` results with `ETIMEDOUT`, `ENOBUFS`, `ENOENT` with no `stdout` at all, and exit 1 with usage on stderr: the map holds the complete frames before the end and nothing else | — | S2 |
 | `the batch is asked as the single call is asked` | `tests/work-next-batch.test.mjs` | The `run` seam receives the gate's own path, `['--batch']`, the root as `cwd`, the directories as JSON `input`, 30 000 by default and the environment's budget when set; a directory with a lone surrogate is not in the input | — | S2 |
-| `what the batch does not answer the single call decides` | `tests/work-next-batch.test.mjs` | `work-next` run as a process from a copied plugin, under the spawn counter, with its gate replaced in turn by: one without the flag; one whose batch answers the first directory and hangs (budget set by the test through the environment); one lacking its executable bit; and the real gate under an empty `PATH`. The spawn sequence is the batch and then exactly the unanswered directories, and stdout, stderr and exit equal the run with batching off (the last two skipped on Windows, which has no permission bits and resolves its own interpreter) | — | S2, S3 |
+| `what the batch does not answer the single call decides` | `tests/work-next-batch.test.mjs` | `work-next` run as a process from a copied plugin, under the spawn counter, with its gate replaced in turn by: one without the flag; one whose batch answers the first directory and hangs (budget set by the test through the environment); one lacking its executable bit; and one whose first line names an interpreter that does not exist (amended at execution, 2026-11-24, from an empty `PATH`, under which work-next's own git cannot start and readiness is never asked). The adr-next starts are the batch and then exactly the unanswered directories. For the first two, stdout, stderr and exit equal the run the batch answers whole; for the last two, every directory is readiness UNPROVEN (those two skipped on Windows, which has no permission bits and resolves its own interpreter) | — | S2, S3 |
 | `an injected spawn is never batched` | `tests/work-next-batch.test.mjs` | A stand-in `spawn` sees one `[dir, '--json']` call per directory and no `--batch` | — | S3 |
 
 ## Reachability
@@ -76,6 +76,11 @@ node --test tests/work-next-batch.test.mjs 2>&1 | tee "$out" && grep -q '✔ wor
 | 4 — it is used | every `work-next` run over two or more task directories; T3 measures it |
 
 ## Mutation Log
+- 2026-11-24 · 1a8449230* · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · a frame whose exit is no answer is taken as one · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · covers:the status check
+- 2026-11-24 · 1a8449230* · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · each stream is held to the bound alone, as the refused first attempt did · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · covers:the combined byte bound
+- 2026-11-24 · 1a8449230* · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · a frame out of its place is read and so is everything after it · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · covers:the frame order check
+- 2026-11-24 · 1a8449230* · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · a directory the batch did not answer is left unproven and never asked singly · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · covers:the fallback to the single call
+- 2026-11-24 · 1a8449230* · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · an injected spawn is bypassed by a batch through the real gate · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · covers:the injected spawn left unbatched
 
 ## Invariants
 
@@ -104,3 +109,22 @@ first attempt was, and not patched a third time.
 - `corpus-probe.mjs` and `backlog-record-sweep.mjs`, which keep one process per directory (ADR-145 Out of Scope).
 
 ## Verification Log
+- 2026-11-24 · 1a8449230* · exit 1 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:167 · test-lock-sha256:250787bdc7509bf69bfed0bebed16f41954c7cf3a31345cccd5226cc83c9c24c · test-lock-file:docs/adr/locks/250787bdc7509bf69bfed0bebed16f41954c7cf3a31345cccd5226cc83c9c24c.lock
+  ```
+  --- last 10 line(s) of stdout (of 25 after folding 25 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 84.432125
+
+  ✖ failing tests:
+
+  test at tests/work-next-batch.test.mjs:1:1
+  ✖ tests/work-next-batch.test.mjs (81.615208ms)
+    'test failed'
+  ```
+- 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:18525
+- 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:18666
+- 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:20751
+- 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:20358
+- 2026-11-24 · 1a8449230* · exit 0 · `set -o pipefail …` · acceptance-sha256:8cfadebb9aa6686271edf669b2b2e973650932eca8ff67ab573fbfc14c1834a9 · ms:23604

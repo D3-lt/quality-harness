@@ -1086,6 +1086,118 @@
       "from": "    if (unreadTasks.length || (answer.stopped ?? []).some(task => task.duplicate)) unproven.push(dir)",
       "to": "    if (unreadTasks.length) unproven.push(dir)",
       "only": "^corpus duplicate-ids: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "ADR-145 T2: a batch frame is an answer only at exit 0 or 3",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "    if (frame.status !== 0 && frame.status !== 3) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:a frame outside the margins is asked singly)$"
+    },
+    {
+      "label": "ADR-145 T2: a frame that raised a warning is not taken",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "    if (frame.warned) continue",
+      "to": "    if (frame.warned === null) continue",
+      "only": "^(?:a frame outside the margins is asked singly)$"
+    },
+    {
+      "label": "ADR-145 T2: a frame's two streams are held to the bound together",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "frameCost(frame.stdout) + frameCost(frame.stderr) + outside >= FRAME_BYTES",
+      "to": "Math.max(frameCost(frame.stdout), frameCost(frame.stderr)) + outside >= FRAME_BYTES",
+      "only": "^(?:a frame outside the margins is asked singly)$"
+    },
+    {
+      "label": "ADR-145 T2: a frame is counted in bytes, not characters",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "const frameCost = text => Buffer.byteLength(text) + text.split('\\n').length - 1",
+      "to": "const frameCost = text => text.length + text.split('\\n').length - 1",
+      "only": "^(?:a frame outside the margins is asked singly)$"
+    },
+    {
+      "label": "ADR-145 T2: a newline in a frame is counted as the two bytes its own process may write",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "const frameCost = text => Buffer.byteLength(text) + text.split('\\n').length - 1",
+      "to": "const frameCost = text => Buffer.byteLength(text)",
+      "only": "^(?:a frame outside the margins is asked singly)$"
+    },
+    {
+      "label": "ADR-145 T2: what the batch process wrote outside its frames counts against each",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "frameCost(frame.stderr) + outside >= FRAME_BYTES",
+      "to": "frameCost(frame.stderr) >= FRAME_BYTES",
+      "only": "^(?:a frame outside the margins is asked singly)$"
+    },
+    {
+      "label": "ADR-145 T2: what follows a batch's last newline is no frame",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "  lines.pop() // what follows the last newline is no whole line, even when it parses",
+      "to": "  if (lines.at(-1) === '') lines.pop()",
+      "only": "^(?:reading stops at a line that is not a frame)$"
+    },
+    {
+      "label": "ADR-145 T2: a batch frame is read only in its own place",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "    if (frame.i !== index) break",
+      "to": "    if (false) break",
+      "only": "^(?:reading stops at a line that is not a frame)$"
+    },
+    {
+      "label": "ADR-145 T2: a batch frame names the directory it answers",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "    if (frame.dir !== sent[index]) break",
+      "to": "    if (false) break",
+      "only": "^(?:reading stops at a line that is not a frame)$"
+    },
+    {
+      "label": "ADR-145 T2: a batch frame with a status or a stream of the wrong kind ends the reading",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "    if (typeof frame.stdout !== 'string' || typeof frame.stderr !== 'string') break",
+      "to": "    if (typeof frame.stdout !== 'string') break",
+      "only": "^(?:reading stops at a line that is not a frame)$"
+    },
+    {
+      "label": "ADR-145 T2: a directory the batch did not answer is asked by the single call",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "batched.get(dir) ?? spawn(",
+      "to": "batched.get(dir) ?? (spawn === spawnGate ? () => ({ status: null }) : spawn)(",
+      "only": "^(?:what the batch does not answer the single call decides)$"
+    },
+    {
+      "label": "ADR-145 T2: an injected spawn is never batched",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "spawn === spawnGate ? batchedAnswers(order, root) : new Map()",
+      "to": "batchedAnswers(order, root)",
+      "only": "^(?:an injected spawn is never batched)$"
+    },
+    {
+      "label": "ADR-145 T2: a name JSON and an argument carry differently is not sent in a batch",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "  const sent = dirs.filter(dir => dir.isWellFormed())",
+      "to": "  const sent = dirs",
+      "only": "^(?:the batch is asked as the single call is asked)$"
+    },
+    {
+      "label": "ADR-145 T2: the batch has half the single call's time, or the budget the environment names",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-batch.test.mjs"],
+      "from": "  return Number.isInteger(named) && named > 0 ? named : BATCH_MS",
+      "to": "  return BATCH_MS",
+      "only": "^(?:the batch is asked as the single call is asked)$"
     }
   ]
 }

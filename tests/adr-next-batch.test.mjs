@@ -167,14 +167,14 @@ const standIn = [
   'module.main = main',
   'sys.argv = [gate, "--batch"]',
   'code = module.entry()',
-  'sys.stderr.write(f"\\nparsed: {len(parsed)} argv: {sys.argv[1:]}\\n")',
+  'sys.stderr.write(f"\\nparsed: {len(parsed)} argv: {sys.argv[1:]} stdout: {sys.stdout is sys.__stdout__}\\n")',
   'sys.exit(code)',
 ].join('\n')
 
 function stoodIn(how, dirs = ['a', 'b', 'c']) {
   const run = spawnSync(python, [...prefix, '-B', '-c', standIn, gate], { ...options, input: JSON.stringify(dirs), env: { ...process.env, QH_TEST_HOW: how } })
   // Written through `sys.stderr` and reading `sys.argv` after the batch returned: both are the process's own again.
-  const parsed = (run.stderr ?? '').match(/\nparsed: (\d+) argv: \['--batch'\]\n$/)
+  const parsed = (run.stderr ?? '').match(/\nparsed: (\d+) argv: \['--batch'\] stdout: True\n$/)
   assert.ok(parsed, `the streams and the arguments are put back when the batch ends: ${run.stderr}`)
   return { status: run.status, parsed: Number(parsed[1]), frames: frames(run) }
 }

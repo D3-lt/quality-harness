@@ -1206,14 +1206,6 @@
       "from": "named > 0 && named <= 2_147_483_647 ? named : BATCH_MS",
       "to": "named > 0 ? named : BATCH_MS",
       "only": "^(?:the batch is asked as the single call is asked)$"
-    },
-    {
-      "label": "ADR-145 T2: the batch's start is at least as large as the largest single call's",
-      "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/work-next-batch.test.mjs"],
-      "from": "  const pad = 'x'.repeat(Math.max(...sent.map(dir => Buffer.byteLength(dir))) + 32)",
-      "to": "  const pad = ''",
-      "only": "^(?:the batch is asked as the single call is asked)$"
     }
   ]
 }

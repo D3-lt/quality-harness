@@ -1,0 +1,13 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/work-next-batch.test.mjs	a batch that answers one directory and hangs	2129bf99c6c872751a5eafd2662712c4a612fc6472e3d36a7804c094f523fb01
+body	tests/work-next-batch.test.mjs	a batch that did not finish keeps what it finished	d2a9649ef41336b56f91dce12062e939cf66f11a3780298a6bfe28e43c139561
+body	tests/work-next-batch.test.mjs	a frame outside the margins is asked singly	646b3b28820cd6f118cb5d62039ca1931b38f714560e6b07a35dbdc62fb4650e
+body	tests/work-next-batch.test.mjs	a gate that does not know the flag	90cdf6bbfe60eb1ea70eb351be7885d3d400250401ea829a5e453be9e16565ac
+body	tests/work-next-batch.test.mjs	a gate this process may not execute	b389e7b212cd6ce5decbed5ff5a1cf849177b6da002884257b6c2a6dba687761
+body	tests/work-next-batch.test.mjs	a gate whose first line names no interpreter	a1d307603c1c095839d958f48956616bdecadcb8cfbdb2050e1c29f2441fe8fa
+body	tests/work-next-batch.test.mjs	an injected spawn is never batched	01f99877454f6963b063e1d688e3649a06c6657ceb2c24949452967145b8aae7
+body	tests/work-next-batch.test.mjs	one adr-next process answers the task directories of each reading	cb17b8e18541cfb7c7fbe1a981c2aeedfa44cb089c9809ddebaee24c254b35b6
+body	tests/work-next-batch.test.mjs	reading stops at a line that is not a frame	3cc701398458b16583ec13f63b4f13cbfeec57e3ad1f35b0939761b100a9b03f
+body	tests/work-next-batch.test.mjs	the batch is asked as the single call is asked	3d7d11cb90c1aa942154120aa4695c9e89c56497626f2b57404ee5432a249d93
+body	tests/work-next-batch.test.mjs	what the batch does not answer the single call decides	745f3b9e22b6635f3f829cb61a11597f4c960aebeb1d7d99cc5d3e57e42a0fa6
+body	tests/work-next-batch.test.mjs	work-next says the same with and without the batch	908a2b719b5bb5c4e6274e113543e54fa66dd1c934a368400d89526033c827cb

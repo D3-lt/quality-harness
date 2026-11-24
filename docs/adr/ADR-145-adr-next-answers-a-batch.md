@@ -134,10 +134,16 @@ finding reproduced or checked against source):
   unparseable; in a batch the hook's text falls outside the frame, or the module it hooks is already loaded for the second
   query, and the frame parses. Such an interpreter already makes single calls unparseable today, and the batch does not
   defend against it: lazily imported modules stay loaded across queries, and that is visible only to such a hook.
-- **The batch starts only where every single call would.** A single call carries its directory as an argument and the batch
-  does not, so at the system's limit on arguments and environment the batch started where the single calls could not
-  (reproduced on macOS). `batchedAnswers` now pads the batch's environment (`QUALITY_HARNESS_BATCH_PAD`) to at least the
-  largest single call's size.
+- **A fourth assumption, accepted by the owner 2026-11-24: the environment is not at the system's size limit.** A single
+  call carries its directory as an argument and the batch does not, so with an environment within one directory name of the
+  limit on arguments and environment (about 1 MiB on macOS) the batch starts where the single calls cannot, and work-next
+  then says ready where a process per directory says could-not-run (reproduced on macOS by the reviewer). A first fix
+  padded the batch's environment; the scoped verification (commit 9076a9a90, REQUEST CHANGES) showed it was worse, since
+  the gate's own git children inherit the padding and can fail where a single call's do not, and it was removed. Under
+  this record's stop rule nothing further was patched: the limit is stated, not defended against. That verification
+  closed the encoding and budget findings, and confirmed that the hook findings have no reproduction without an
+  interpreter hook. Left as it is, a cost and not a wrong answer: under `PYTHONLEGACYWINDOWSFSENCODING` the encoding
+  guard below sends names outside ASCII to the single call although Windows would carry them alike.
 - **A name outside ASCII is answered in a batch only under a UTF-8 filesystem encoding**, which Windows always has. Elsewhere
   a process of its own decodes its argument's bytes into another name than the text a frame's query carries, so the gate ends
   the batch at such a name and it is asked singly. This narrows Decision 1.

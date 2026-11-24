@@ -210,10 +210,7 @@ test('the batch is asked as the single call is asked', () => {
   }
   assert.deepEqual(asked.slice(2).map(call => call.given.timeout), [4321, 30_000, 30_000, 30_000, 30_000, 30_000, 30_000, 2_147_483_647],
     'the environment names the budget; a value that is no count of milliseconds, or more than a timeout can be, is not one')
-  const padded = []
-  batchedAnswers(['short', 'é'.repeat(40)], 'root', { run: (tool, args, given) => { padded.push(given.env); return { stdout: '' } } })
-  assert.ok(padded[0].QUALITY_HARNESS_BATCH_PAD.length >= 80 + '--json'.length + 16, 'the batch\'s start is at least as large as the largest single call\'s, in bytes')
-  assert.equal(padded[0].PATH, process.env.PATH, 'and the rest of the environment is the single call\'s')
+  assert.equal(asked[0].given.env, undefined, 'the batch inherits the environment exactly as the single call does')
   for (const few of [[], ['a'], ['a', lone]]) batchedAnswers(few, 'root', { run })
   assert.equal(asked.length, 10, 'fewer than two directories to send: a batch saves nothing, and none is started')
 })

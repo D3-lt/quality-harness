@@ -59,12 +59,8 @@ export function batchedAnswers(dirs, root, { run = spawnGate, ms = batchMs() } =
   // JSON and an argument vector carry a lone surrogate differently, so such a name is asked the way it always was.
   const sent = dirs.filter(dir => dir.isWellFormed())
   if (sent.length < 2) return answers
-  // The single call carries its directory as an argument and the batch does not, so close to the system's limit on
-  // arguments and environment the batch could start where a single call cannot. The padding makes the batch's start at
-  // least as large as the largest single call's, so it starts only where every one of them would.
-  const pad = 'x'.repeat(Math.max(...sent.map(dir => Buffer.byteLength(dir))) + 32)
   const batch = run(path.join(BIN, 'adr-next'), ['--batch'],
-    { cwd: root, encoding: 'utf8', input: JSON.stringify(sent), timeout: ms, maxBuffer: BATCH_BYTES, windowsHide: true, env: { ...process.env, QUALITY_HARNESS_BATCH_PAD: pad } })
+    { cwd: root, encoding: 'utf8', input: JSON.stringify(sent), timeout: ms, maxBuffer: BATCH_BYTES, windowsHide: true })
   // What the process wrote outside its frames (Python's own start and exit) belongs to no query and counts against each.
   const outside = typeof batch?.stderr === 'string' ? frameCost(batch.stderr) : 0
   const lines = String(batch?.stdout ?? '').split('\n')

@@ -81,3 +81,4 @@ included. The criterion can fail on this data: with the batch answering nothing,
 - The outside run before a release (ADR-145 Follow-ups).
 
 ## Verification Log
+- 2026-11-24 · human-observed · approved: observed 2026-11-24 on macOS, 10 cores, load 3.0 before and 3.3 after. Corpus and working directory for every run: a clean worktree of 1a8449230 (the parent of T2), 131 task directories. Build without the batch 1a8449230, build with it cb202a505, both trees clean. One untimed run of the batch build under the spawn counter started one adr-next --batch and no single call. Ten kept runs of work-next --json, alternating builds, all ten ending 0: without the batch 12.47 12.49 12.51 12.47 12.42 s, median 12.47; with the batch 7.13 7.21 7.29 7.14 7.21 s, median 7.21. Ratio 0.58, within the 0.70 the record requires. All ten stdouts byte-equal. Signed off by the session that ran it, for Zy. · acceptance-sha256:1cd9cd1d311b1cf8b5d073540a3aa9d18b3921183e0bd678b4dc3e948eba7b44

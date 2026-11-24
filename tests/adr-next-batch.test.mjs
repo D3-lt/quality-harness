@@ -115,7 +115,7 @@ const watching = [
 function watched(args, { fail = '', hang = '', input, timeout = 120_000 } = {}) {
   const run = spawnSync(python, [...prefix, '-B', '-c', watching, gate, ...args],
     { ...options, timeout, input, env: { ...process.env, QH_TEST_FAIL_FORMAT: fail, QH_TEST_HANG: hang } })
-  const counts = (run.stderr ?? '').match(/\nformat asked: (\d+) unread: (-?\d+)\n$/)
+  const counts = text(run.stderr).match(/\nformat asked: (\d+) unread: (-?\d+)\n$/)
   return { run, status: run.status, stdout: text(run.stdout), asked: counts && Number(counts[1]), unread: counts && Number(counts[2]) }
 }
 
@@ -174,7 +174,7 @@ const standIn = [
 function stoodIn(how, dirs = ['a', 'b', 'c']) {
   const run = spawnSync(python, [...prefix, '-B', '-c', standIn, gate], { ...options, input: JSON.stringify(dirs), env: { ...process.env, QH_TEST_HOW: how } })
   // Written through `sys.stderr` and reading `sys.argv` after the batch returned: both are the process's own again.
-  const parsed = (run.stderr ?? '').match(/\nparsed: (\d+) argv: \['--batch'\] stdout: True\n$/)
+  const parsed = text(run.stderr).match(/\nparsed: (\d+) argv: \['--batch'\] stdout: True\n$/)
   assert.ok(parsed, `the streams and the arguments are put back when the batch ends: ${run.stderr}`)
   return { status: run.status, parsed: Number(parsed[1]), frames: frames(run) }
 }

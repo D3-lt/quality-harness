@@ -31,7 +31,9 @@ answered SUCCESS for (ADR-147 Decision 6).
    no `--verify-tag` and pushes no tag.
 2. [S2] After `release-evidence` answered SUCCESS and the assets are verified, and before `gh release create`: run
    `git push origin <sha>^{commit}:refs/tags/<tag>` with no force (the source peeled, so a local ref named like the sha is not pushed in its place: the code review). A push that exits non-zero stops the release with exit 1 and
-   a line naming the tag and the sha; nothing is published.
+   a line naming the tag and the sha; nothing is published. After a push that exited 0 the command asks the forge where
+   the tag is and creates the release only when it shows the tag at that sha: the bound on how git resolves the push's
+   source, after two review rounds each found one more way (a ref named like the sha, a replace ref).
 3. [S3] Create the release with `gh release create <tag> --target <sha> --latest --verify-tag` and the notes and assets
    as today. The target stays: the forge ignores it for a tag that exists and uses it for one deleted in between, and
    the locked test `release tags only a sha release-evidence clears, with its full sha and --latest` reads it.
@@ -116,3 +118,5 @@ owner's word. (One asserts `--target <sha> --latest` at the start of the creatio
 - 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:517
 - 2026-11-25 · abe4286cb* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:13 · test-lock-sha256:11dca12f305efef5e67060e59c9ad24262c4163afc85b80235afb5ec5d9d3921 · test-lock-file:docs/adr/locks/11dca12f305efef5e67060e59c9ad24262c4163afc85b80235afb5ec5d9d3921.lock · test-lock-kind:replace
 - 2026-11-25 · abe4286cb* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:343
+- 2026-11-25 · f853611dc* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:12 · test-lock-sha256:5742a2fcb76354f54e0228a2172446675c5a67ecb8e7ebf962eb9e91479c99a9 · test-lock-file:docs/adr/locks/5742a2fcb76354f54e0228a2172446675c5a67ecb8e7ebf962eb9e91479c99a9.lock · test-lock-kind:replace
+- 2026-11-25 · f853611dc* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:398

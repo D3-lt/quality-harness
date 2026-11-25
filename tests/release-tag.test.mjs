@@ -32,13 +32,23 @@ test('the tag is pushed at the cleared sha before the release is created', () =>
   const words = w.calls[create].split(' ')
   assert.ok(words.includes('--verify-tag'), 'the release is created from a tag the forge has, or not at all')
   assert.equal(words[words.indexOf('--target') + 1], SHA, 'the cleared sha is forwarded as the target')
+  const looked = w.calls.indexOf(`git ls-remote origin refs/tags/${TAG}`)
+  assert.ok(looked > w.calls.indexOf(TAG_PUSH) && looked < create, 'between the two, the forge is asked where the tag is')
 
   // The forge has the tag elsewhere, or refused it: nothing is published.
   const refused = world({ tagPush: 1 })
   assert.equal(refused.run(), 1, refused.said.join('\n'))
   assert.deepEqual(tagPushes(refused.calls), [TAG_PUSH])
   assert.ok(!tagged(refused.calls), 'no release without its tag')
-  assert.ok(refused.said.some(line => line.includes(TAG) && line.includes(SHA) && /nothing was published/.test(line)), refused.said.join('\n'))
+  assert.ok(refused.said.some(line => line.includes(TAG) && line.includes(SHA) && /git push of[\s\S]*nothing was published/.test(line)), refused.said.join('\n'))
+  assert.ok(!refused.calls.includes(`git ls-remote origin refs/tags/${TAG}`), 'a refused push stops the release there: the forge is not asked what it shows')
+  // The push exited 0 and the forge shows the tag elsewhere, or nowhere, or cut short: whatever was pushed, nothing is published.
+  for (const [what, after] of [['at another sha', `${'b'.repeat(40)}\trefs/tags/${TAG}\n`], ['nowhere', ''], ['cut short', `${SHA}\trefs/tags/${TAG}`]]) {
+    const moved = world({ tagLinesAfter: after })
+    assert.equal(moved.run(), 1, `${what}: ${moved.said.join('\n')}`)
+    assert.ok(!tagged(moved.calls), `${what}: no release`)
+    assert.match(moved.said.join('\n'), /nothing was published/, what)
+  }
 
   // Nothing is pushed for a sha the evidence did not clear, or whose assets did not verify.
   for (const over of [{ evidence: [1] }, { evidence: [2] }, { assetFailure: 1 }]) {
@@ -147,13 +157,25 @@ test('a draft left by an unfinished run is not a release', () => {
   assert.equal(garbled.run(), 1, garbled.said.join('\n'))
   assert.match(garbled.said.join('\n'), /could not be read/)
   assert.ok(!catalogued(garbled.calls))
+  // An answer that does not say it is about this tag, or whether it is a draft, has not said the tag is released.
+  for (const [what, viewAnswer] of [
+    ['a list holding a draft', `[{"tagName":"${TAG}","isDraft":true}]`],
+    ['an empty object', '{}'],
+    ['a draft flag that is text', `{"tagName":"${TAG}","isDraft":"false"}`],
+    ["another tag's release", '{"tagName":"v9.9.9","isDraft":false}'],
+    ['null', 'null'],
+  ]) {
+    const odd = world({ tags, released: true, viewAnswer })
+    assert.equal(odd.run(), 1, `${what}: ${odd.said.join('\n')}`)
+    assert.ok(!catalogued(odd.calls), what)
+  }
 })
 
 test('the instructions say the command makes the tag', () => {
   const text = readFileSync(path.join(repoRoot, 'CLAUDE.md'), 'utf8').replaceAll('\r\n', '\n')
   const step = text.slice(text.indexOf('\n7. It '), text.indexOf('\nWhy: `.claude/rules/13-releasing.md`'))
   assert.ok(step.length > 0, 'CLAUDE.md §13 step 7 was found')
-  assert.match(step, /git push origin <full sha>:refs\/tags\/vX\.Y\.Z/)
+  assert.match(step, /git push origin <full sha>\^\{commit\}:refs\/tags\/vX\.Y\.Z/)
   assert.match(step, /gh release create vX\.Y\.Z --target <full sha> --latest --verify-tag/)
   assert.match(step, /ADR-147/)
 })

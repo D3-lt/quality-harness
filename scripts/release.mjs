@@ -140,14 +140,26 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const listed = text('git', ['tag', '--list', 'v*'])
   if (listed === null) { log(`release: git tag --list failed ${at}; the tags could not be read`); return 1 }
   const tags = listed.split('\n').filter(Boolean)
+  // Where the forge shows this version's tag (ADR-147 Decision 6): 'here' when exactly one line names the ref and it is at
+  // this sha, each line compared whole and untrimmed; 'elsewhere' for any other whole answer, no line included; null when
+  // the forge could not be asked or its answer was cut short. An answer is whole lines, or nothing when no ref matched.
+  const forgeTag = () => {
+    const lookup = ran('git', ['ls-remote', 'origin', `refs/tags/${tag}`])
+    const answer = lookup.status === 0 ? String(lookup.stdout ?? '') : null
+    if (answer === null || (answer !== '' && !answer.endsWith('\n'))) return null
+    const named = answer.split('\n').filter(line => line.split('\t')[1] === `refs/tags/${tag}`)
+    return named.length === 1 && named[0] === `${sha}\trefs/tags/${tag}` ? 'here' : 'elsewhere'
+  }
   if (tags.includes(tag)) {
     const view = ran('gh', ['release', 'view', tag, '--json', 'tagName,isDraft'])
     if (view.status === 0) {
       // A draft is what `gh release create` leaves when it stopped between its upload and its publication, beside the tag
       // this command pushed: it is not a release, and the catalogue is not asked about it (the same review).
+      // The answer must be about this tag and say whether it is a draft, or nobody has said it is released (the
+      // verification of that review: an answer of another shape was read as a release).
       const seen = parsed(String(view.stdout ?? ''))
-      if (seen === null || typeof seen !== 'object') { log(`release: gh release view ${tag} answered nothing readable; whether it is released could not be read`); return 1 }
-      if (seen.isDraft === true) { log(`release: ${tag} has a draft release an unfinished run left, and is not released; delete the draft (\`gh release delete ${tag} --yes\` keeps the tag), then run again`); return 2 }
+      if (seen?.tagName !== tag || typeof seen.isDraft !== 'boolean') { log(`release: gh release view ${tag} answered nothing readable about it; whether it is released could not be read`); return 1 }
+      if (seen.isDraft) { log(`release: ${tag} has a draft release an unfinished run left, and is not released; delete the draft (\`gh release delete ${tag} --yes\` keeps the tag), then run again`); return 2 }
       log(`release: ${tag} is already released`)
       return catalogue()
     }
@@ -157,16 +169,11 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
       return 1
     }
     // ADR-147 Decision 6: a tag this command pushed whose release was then not created resumes, and only when the forge
-    // shows that tag at this sha, as the lightweight tag `tagPush` makes. At any other commit it is somebody else's tag,
-    // and the evidence below would be for another commit than the one it names. A forge that could not be asked has
-    // shown no commit at all.
-    const lookup = ran('git', ['ls-remote', 'origin', `refs/tags/${tag}`])
-    const answer = lookup.status === 0 ? String(lookup.stdout ?? '') : null
-    // An answer is whole lines, or nothing at all when no ref matched; one that failed or was cut short is no answer.
-    if (answer === null || (answer !== '' && !answer.endsWith('\n'))) { log(`release: git ls-remote failed ${at}; where ${tag} points on the forge could not be read`); return 1 }
-    // Every line that names this ref, each compared whole and untrimmed: exactly one, and at this sha.
-    const named = answer.split('\n').filter(line => line.split('\t')[1] === `refs/tags/${tag}`)
-    if (named.length !== 1 || named[0] !== `${sha}\trefs/tags/${tag}`) {
+    // shows that tag at this sha, as the lightweight tag `tagPush` makes. At any other commit the evidence below would
+    // be for another commit than the one the tag names. A forge that could not be asked has shown no commit at all.
+    const shown = forgeTag()
+    if (shown === null) { log(`release: git ls-remote failed ${at}; where ${tag} points on the forge could not be read`); return 1 }
+    if (shown !== 'here') {
       log(`release: ${tag} is already a tag and has no release, and the forge does not show it at ${sha}; bump ${MANIFEST} past it, or run this command at the commit the tag names, where release-evidence must answer SUCCESS`)
       return 2
     }
@@ -305,6 +312,10 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   // stays for one case: a tag deleted after gh's own lookup is made by the forge at this sha, not at main's tip.
   const tagPushed = ran('git', tagPush(sha, tag)).status
   if (tagPushed !== 0) { log(`release: git push of ${tag} at ${sha} exited ${tagPushed}: the forge has that tag at another commit, or refused it; nothing was published`); return 1 }
+  // Whatever the push took its source to be, the release is created only once the forge shows the tag at this sha. This
+  // is the bound on that question: two review rounds each found one more way git resolves a source (a ref named like
+  // the sha, a replace ref), and what the forge then shows is the one answer that does not depend on how.
+  if (forgeTag() !== 'here') { log(`release: after its push the forge does not show ${tag} at ${sha}, or could not be asked; nothing was published`); return 1 }
   const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', '--verify-tag', ...notes, ...assets], true).status
   if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}; the tag was pushed at that sha, and running again resumes or names what is in the way`); return 1 }
   log(`release: ${tag} released at ${sha}`)

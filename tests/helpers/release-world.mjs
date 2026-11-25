@@ -32,8 +32,8 @@ export function world(overrides = {}) {
     if (line === 'git status --porcelain') return ok(state.porcelain)
     if (line === 'git show HEAD:plugin/.claude-plugin/plugin.json') return ok(JSON.stringify({ version: state.version }))
     if (line.startsWith('git tag --list')) return state.tagListFails ? { status: 128, stdout: '', stderr: 'fatal' } : ok(state.tags.join('\n'))
-    // `viewAnswer` is what gh prints of a release it found: a published one unless a test says it is a draft.
-    if (line.startsWith('gh release view')) return state.released ? ok(state.viewAnswer ?? '{}') : { status: 1, stdout: '', stderr: state.viewError ?? 'release not found' }
+    // `viewAnswer` is what gh prints of a release it found: this tag's, published, unless a test says otherwise.
+    if (line.startsWith('gh release view')) return state.released ? ok(state.viewAnswer ?? JSON.stringify({ tagName: `v${state.version}`, isDraft: false })) : { status: 1, stdout: '', stderr: state.viewError ?? 'release not found' }
     if (line.startsWith('node plugin/scripts/qh-check.mjs')) {
       state.checks = (state.checks ?? 0) + 1
       return { status: state.check, stdout: '', stderr: '' }
@@ -56,10 +56,17 @@ export function world(overrides = {}) {
     if (line === 'git ls-remote --heads origin refs/heads/land/*') return ok()
     if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return ok(state.workflow)
     if (line === LANDING || line === `git push origin --delete land/${SHA}`) return ok()
-    // ADR-147 T2: the tag's own push, and what the forge shows of a tag that has no release. `tagPush` is the push's exit,
-    // `tagLines` what the lookup prints (nothing unless a test says otherwise) and `tagLookup` its exit.
-    if (line === `git push origin ${SHA}^{commit}:refs/tags/v${state.version}`) return { status: state.tagPush ?? 0, stdout: '', stderr: '' }
-    if (line === `git ls-remote origin refs/tags/v${state.version}`) return { status: state.tagLookup ?? 0, stdout: state.tagLines ?? '', stderr: '' }
+    // ADR-147 T2: the tag's own push, and what the forge shows of the tag. `tagPush` is the push's exit, `tagLines` what
+    // the lookup prints before the push (nothing unless a test says otherwise), `tagLinesAfter` what it prints after a
+    // push that exited 0 (the tag at this sha unless a test says otherwise) and `tagLookup` its exit.
+    if (line === `git push origin ${SHA}^{commit}:refs/tags/v${state.version}`) {
+      if ((state.tagPush ?? 0) === 0) state.tagWasPushed = true
+      return { status: state.tagPush ?? 0, stdout: '', stderr: '' }
+    }
+    if (line === `git ls-remote origin refs/tags/v${state.version}`) {
+      const after = state.tagLinesAfter ?? `${SHA}\trefs/tags/v${state.version}\n`
+      return { status: state.tagLookup ?? 0, stdout: state.tagWasPushed ? after : state.tagLines ?? '', stderr: '' }
+    }
     // `checkRunsSeq`, when given, is a list of answers to the check-runs read, the last one repeated (ADR-126 T5's waits).
     if (line.startsWith(`gh api repos/{owner}/{repo}/commits/${SHA}/check-runs`)) {
       if (!state.checkRunsSeq) return ok(JSON.stringify(state.checkRuns))

@@ -201,7 +201,7 @@ baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`)
 4. It waits for every job of that run, bounded.
 5. It runs `release-evidence` and acts only on its success.
 6. It never dispatches while another dispatched run on the ref is in flight.
-7. `git push origin <full sha>:refs/tags/vX.Y.Z`, unforced, then `gh release create vX.Y.Z --target <full sha> --latest --verify-tag` (ADR-147).
+7. `git push origin <full sha>^{commit}:refs/tags/vX.Y.Z`, unforced, read back from the forge, then `gh release create vX.Y.Z --target <full sha> --latest --verify-tag` (ADR-147).
 
 Exit codes for `release.mjs` and `land.mjs` are in each file's header.
 

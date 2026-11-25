@@ -74,7 +74,8 @@ unit is runner-minutes.
      it reads `version`, `source.url` and `source.sha256` of the catalogue's one `quality-harness` entry on both sides
      (strings of printable ASCII with no quote or backslash, from strict UTF-8 JSON), takes the file before, puts each
      value that differs in at the one place its `"key": "old value"` stands, and requires the result to equal the file
-     after byte for byte. At least one value differs, and an old value that stands in two places is not a pin.
+     after byte for byte. At least one value differs. An old value that stands in two places anywhere in the file, an
+     untouched entry or member that merely repeats it included, is not read as a pin: the campaign then runs.
    A command that failed or timed out, output that ended early, and any state not named here are "run". *This fails if*
    any input not described here yields "skip".
 2. **The claim is about one commit's own change to the tree it sits on**, not about what main measured before it. The
@@ -89,7 +90,8 @@ unit is runner-minutes.
    `mutation cache` needs both jobs and runs unless that output is `1`. Every required job runs on every landing as it
    does today. *This fails if* a shard is skipped on a run whose seed job succeeded and did not write `skip=1`.
 4. **Release evidence is not changed.** A skipped shard concludes `skipped` or is absent from the run's jobs, and
-   `release-evidence` refuses both. T2 adds the test of both shapes through the command line. No verdict is renamed and
+   `release-evidence` refuses both. T2 adds the test of both shapes through its exported `main`, with the run a stand-in
+   and the workflow's own declared jobs. No verdict is renamed and
    no remedy is added.
 5. **The saving and the forge's behaviour are read from a live pin landing** before the record is closed: T3, at the
    pin that follows the next release.

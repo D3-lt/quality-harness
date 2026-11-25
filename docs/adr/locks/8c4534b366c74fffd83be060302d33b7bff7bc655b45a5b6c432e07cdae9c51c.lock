@@ -1,0 +1,5 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/landing-released.test.mjs	a landing of a version already tagged skips the campaign	7f46866b807c10017f322e84b1b6481c956645bfaad9ef256f778bc44c3cd958
+body	tests/landing-released.test.mjs	the command reads a real tag	91cee750bd2fde81f2ab3c5d854e8861499ca24f15dc9271ae42f68291dcd50b
+body	tests/landing-released.test.mjs	the instructions say which landing is the full campaign	ff2c7ab5a0bcdc0722f84b80282eb165e853364ccecb681f794157d2b5485914
+body	tests/landing-released.test.mjs	the version and its tag are read from git and the forge	3ee591fbfe029a18d46b732d2db19138e6e7f586925c82a64fcfc0a0d3b1d716

@@ -30,7 +30,7 @@ answered SUCCESS for (ADR-147 Decision 6).
 1. [S1] Write the tests of the table below and confirm they are red (TDD red): the command creates the release with
    no `--verify-tag` and pushes no tag.
 2. [S2] After `release-evidence` answered SUCCESS and the assets are verified, and before `gh release create`: run
-   `git push origin <sha>:refs/tags/<tag>` with no force. A push that exits non-zero stops the release with exit 1 and
+   `git push origin <sha>^{commit}:refs/tags/<tag>` with no force (the source peeled, so a local ref named like the sha is not pushed in its place: the code review). A push that exits non-zero stops the release with exit 1 and
    a line naming the tag and the sha; nothing is published.
 3. [S3] Create the release with `gh release create <tag> --target <sha> --latest --verify-tag` and the notes and assets
    as today. The target stays: the forge ignores it for a tag that exists and uses it for one deleted in between, and
@@ -39,7 +39,9 @@ answered SUCCESS for (ADR-147 Decision 6).
    prints that tag at HEAD's sha, the command goes on, so a run whose push succeeded and whose creation failed
    resumes and makes the same push again; at any other sha it exits 2 and says the forge does not show the tag at this
    commit and that releasing the commit it names needs `release-evidence` to answer SUCCESS there; when the forge could
-   not be asked it exits 1 and says the tag could not be read.
+   not be asked, or its answer was cut short, it exits 1 and says the tag could not be read. Exactly one line may name
+   the tag. A draft release found for the tag is not a release: the command exits 2 and says to delete the draft (the
+   code review of d94eb8047..abe4286cb found all three).
 5. [S5] Reword CLAUDE.md §13 step 7 and its rules file. [proof: acceptance]
 6. [S6] Add the catalogue mutants (the push dropped; the push forced; `--verify-tag` dropped; a failed push ignored; a
    tag at another sha resumed; an unread forge resumed) and record one killed per `Rests-on` name. [proof: mutation]
@@ -58,6 +60,7 @@ node --test tests/release-tag.test.mjs tests/release.test.mjs
 | `a push cannot move a tag that exists` | `tests/release-tag.test.mjs` | In a repository the test made, with a bare remote holding the tag at another commit: the same push the command makes exits non-zero and the remote's tag is unchanged; at the same commit it exits 0 | — | S1, S2 |
 | `a tag without a release resumes only at its own sha` | `tests/release-tag.test.mjs` | Through the injected runner: the tag on the forge at HEAD's sha goes on to the evidence and the push; at another sha, with no line, with a longer version's tag, a branch that ends alike or a short id, the exit is 2 and the message names `release-evidence` and does not say "by hand"; with the lookup failing beside the right line the exit is 1 and the message says the tag could not be read; in each nothing is checked, pushed or published | — | S1, S4 |
 | `the instructions say the command makes the tag` | `tests/release-tag.test.mjs` | CLAUDE.md §13 step 7 names the tag's push, `--verify-tag` and ADR-147 | — | S1, S5 |
+| `a draft left by an unfinished run is not a release` | `tests/release-tag.test.mjs` | Through the injected runner: a draft found for the tag exits 2, is not said as released and the catalogue is not asked; a published one is said as released; an answer that is not JSON exits 1 | — | S4 |
 
 ## Reachability
 
@@ -111,3 +114,5 @@ owner's word. (One asserts `--target <sha> --latest` at the start of the creatio
 - 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:591
 - 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:594
 - 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:517
+- 2026-11-25 · abe4286cb* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:13 · test-lock-sha256:11dca12f305efef5e67060e59c9ad24262c4163afc85b80235afb5ec5d9d3921 · test-lock-file:docs/adr/locks/11dca12f305efef5e67060e59c9ad24262c4163afc85b80235afb5ec5d9d3921.lock · test-lock-kind:replace
+- 2026-11-25 · abe4286cb* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:343

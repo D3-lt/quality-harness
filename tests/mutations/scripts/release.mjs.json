@@ -296,8 +296,8 @@
       "label": "ADR-147 T2: the tag's push is not forced",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-tag.test.mjs"],
-      "from": "['push', 'origin', `${sha}:refs/tags/${tag}`]",
-      "to": "['push', 'origin', `+${sha}:refs/tags/${tag}`]",
+      "from": "['push', 'origin', `${sha}^{commit}:refs/tags/${tag}`]",
+      "to": "['push', 'origin', `+${sha}^{commit}:refs/tags/${tag}`]",
       "only": "^a push cannot move a tag that exists$"
     },
     {
@@ -312,7 +312,7 @@
       "label": "ADR-147 T2: a tag without a release resumes only at this sha",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-tag.test.mjs"],
-      "from": "    if (!shown.split('\\n').includes(`${sha}\\trefs/tags/${tag}`)) {",
+      "from": "    if (named.length !== 1 || named[0] !== `${sha}\\trefs/tags/${tag}`) {",
       "to": "    if (false) {",
       "only": "^a tag without a release resumes only at its own sha$"
     },
@@ -320,9 +320,41 @@
       "label": "ADR-147 T2: a forge that could not be asked about the tag has shown no commit",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-tag.test.mjs"],
-      "from": "    if (shown === null) { log(",
-      "to": "    if (false) { log(",
+      "from": "const answer = lookup.status === 0 ? String(lookup.stdout ?? '') : null",
+      "to": "const answer = String(lookup.stdout ?? '')",
       "only": "^a tag without a release resumes only at its own sha$"
+    },
+    {
+      "label": "ADR-147 T2: the push names the commit, not a ref of that name",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "`${sha}^{commit}:refs/tags/${tag}`",
+      "to": "`${sha}:refs/tags/${tag}`",
+      "only": "^a push cannot move a tag that exists$"
+    },
+    {
+      "label": "ADR-147 T2: one line names the tag, not the first of several",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "    if (named.length !== 1 || named[0] !== ",
+      "to": "    if (named[0] !== ",
+      "only": "^a tag without a release resumes only at its own sha$"
+    },
+    {
+      "label": "ADR-147 T2: an answer about the tag that was cut short is no answer",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "(answer !== '' && !answer.endsWith('\\n'))",
+      "to": "false",
+      "only": "^a tag without a release resumes only at its own sha$"
+    },
+    {
+      "label": "ADR-147 T2: a draft is not a release",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "      if (seen.isDraft === true) { log(",
+      "to": "      if (false) { log(",
+      "only": "^a draft left by an unfinished run is not a release$"
     }
   ]
 }

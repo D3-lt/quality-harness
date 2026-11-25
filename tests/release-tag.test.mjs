@@ -15,9 +15,11 @@ import { SHA, tagged, world } from './helpers/release-world.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TAG = 'v1.0.1'
-const TAG_PUSH = `git push origin ${SHA}:refs/tags/${TAG}`
+const TAG_PUSH = `git push origin ${SHA}^{commit}:refs/tags/${TAG}`
 const EVIDENCE = `node scripts/release-evidence.mjs ${SHA}`
 const tagPushes = calls => calls.filter(line => line.startsWith('git push') && line.includes('refs/tags/'))
+// Git as the fixtures run it: nothing inherited may point it at another repository than the one a test made.
+const CLEAN = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.toUpperCase().startsWith('GIT_')))
 
 test('the tag is pushed at the cleared sha before the release is created', () => {
   const w = world()
@@ -29,7 +31,7 @@ test('the tag is pushed at the cleared sha before the release is created', () =>
   assert.ok(w.calls.indexOf(TAG_PUSH) > w.calls.indexOf(EVIDENCE), 'and after the evidence')
   const words = w.calls[create].split(' ')
   assert.ok(words.includes('--verify-tag'), 'the release is created from a tag the forge has, or not at all')
-  assert.equal(words[words.indexOf('--target') + 1], SHA, 'a tag deleted in between is made at this sha, not at main')
+  assert.equal(words[words.indexOf('--target') + 1], SHA, 'the cleared sha is forwarded as the target')
 
   // The forge has the tag elsewhere, or refused it: nothing is published.
   const refused = world({ tagPush: 1 })
@@ -53,7 +55,7 @@ test('a push cannot move a tag that exists', t => {
   const remote = path.join(dir, 'origin.git')
   const made = path.join(dir, 'work')
   mkdirSync(made)
-  const spawned = (cwd, args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args], { cwd, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const spawned = (cwd, args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args], { cwd, env: CLEAN, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   const git = (cwd, ...args) => {
     const run = spawned(cwd, args)
     assert.equal(run.status, 0, `git ${args.join(' ')}: ${run.stderr}`)
@@ -81,6 +83,10 @@ test('a push cannot move a tag that exists', t => {
   // At the same commit it is nothing to do, which is how a release whose creation failed resumes.
   assert.equal(spawned(made, tagPush(first, TAG)).status, 0)
   assert.equal(shown(TAG), `${first}\trefs/tags/${TAG}`)
+  // A local branch named like the sha and pointing elsewhere: the push names the commit, not that branch.
+  git(made, 'branch', second, first)
+  assert.equal(spawned(made, tagPush(second, 'v1.0.2')).status, 0)
+  assert.equal(shown('v1.0.2'), `${second}\trefs/tags/v1.0.2`)
 })
 
 test('a tag without a release resumes only at its own sha', () => {
@@ -91,6 +97,8 @@ test('a tag without a release resumes only at its own sha', () => {
   assert.deepEqual(tagPushes(here.calls), [TAG_PUSH], 'the same push, which the forge answers as nothing to do')
   assert.ok(tagged(here.calls))
   assert.match(here.said.join('\n'), /resumes/)
+  const beside = world({ tags, tagLines: `${SHA}\trefs/heads/x/refs/tags/${TAG}\n${SHA}\trefs/tags/${TAG}\n` })
+  assert.equal(beside.run(), 0, `beside a branch whose name ends in the tag: ${beside.said.join('\n')}`)
 
   const other = 'b'.repeat(40)
   for (const [what, over] of [
@@ -99,6 +107,9 @@ test('a tag without a release resumes only at its own sha', () => {
     ['a longer version at this sha', { tagLines: `${SHA}\trefs/tags/${TAG}0\n` }],
     ['only a branch whose name ends in the tag', { tagLines: `${SHA}\trefs/heads/x/refs/tags/${TAG}\n` }],
     ['a short id', { tagLines: `${SHA.slice(0, 7)}\trefs/tags/${TAG}\n` }],
+    ['two lines naming the tag, the first at this sha', { tagLines: `${SHA}\trefs/tags/${TAG}\n${other}\trefs/tags/${TAG}\n` }],
+    ['a leading space', { tagLines: ` ${SHA}\trefs/tags/${TAG}\n` }],
+    ['a trailing space', { tagLines: `${SHA}\trefs/tags/${TAG} \n` }],
   ]) {
     const w = world({ tags, ...over })
     assert.equal(w.run(), 2, `${what}: ${w.said.join('\n')}`)
@@ -106,12 +117,36 @@ test('a tag without a release resumes only at its own sha', () => {
     assert.doesNotMatch(w.said.join('\n'), /by hand/, what)
     assert.ok(!w.calls.includes(EVIDENCE) && !tagPushes(w.calls).length && !tagged(w.calls), `${what}: nothing was checked, pushed or published`)
   }
-  // A forge that could not be asked shows no other commit: it is said as unread, whatever it printed before it failed.
-  const unread = world({ tags, tagLookup: 128, tagLines: `${SHA}\trefs/tags/${TAG}\n` })
-  assert.equal(unread.run(), 1, unread.said.join('\n'))
-  assert.match(unread.said.join('\n'), /could not be read/)
-  assert.doesNotMatch(unread.said.join('\n'), /bump|by hand/)
-  assert.ok(!unread.calls.includes(EVIDENCE) && !tagPushes(unread.calls).length && !tagged(unread.calls), 'nothing was checked, pushed or published')
+  // A forge that could not be asked, or whose answer was cut short, shows no commit: it is said as unread.
+  for (const [what, over] of [
+    ['the lookup failing beside the right line', { tagLookup: 128, tagLines: `${SHA}\trefs/tags/${TAG}\n` }],
+    ['the right line without its newline', { tagLines: `${SHA}\trefs/tags/${TAG}` }],
+  ]) {
+    const unread = world({ tags, ...over })
+    assert.equal(unread.run(), 1, `${what}: ${unread.said.join('\n')}`)
+    assert.match(unread.said.join('\n'), /could not be read/, what)
+    assert.doesNotMatch(unread.said.join('\n'), /bump|by hand/, what)
+    assert.ok(!unread.calls.includes(EVIDENCE) && !tagPushes(unread.calls).length && !tagged(unread.calls), `${what}: nothing was checked, pushed or published`)
+  }
+})
+
+test('a draft left by an unfinished run is not a release', () => {
+  const tags = ['v1.0.0', TAG]
+  const catalogued = calls => calls.some(line => line.startsWith('node scripts/marketplace-source.mjs '))
+  const draft = world({ tags, released: true, viewAnswer: `{"tagName":"${TAG}","isDraft":true}` })
+  assert.equal(draft.run(), 2, draft.said.join('\n'))
+  assert.match(draft.said.join('\n'), /draft/)
+  assert.doesNotMatch(draft.said.join('\n'), /already released/)
+  assert.ok(!catalogued(draft.calls) && !tagPushes(draft.calls).length && !tagged(draft.calls), 'the catalogue is not asked about a draft, and nothing is published')
+  // CLEAN twin: a published release is said as released and goes on to the catalogue.
+  const published = world({ tags, released: true, viewAnswer: `{"tagName":"${TAG}","isDraft":false}` })
+  assert.equal(published.run(), 0, published.said.join('\n'))
+  assert.match(published.said.join('\n'), /already released/)
+  assert.ok(catalogued(published.calls))
+  const garbled = world({ tags, released: true, viewAnswer: 'not json' })
+  assert.equal(garbled.run(), 1, garbled.said.join('\n'))
+  assert.match(garbled.said.join('\n'), /could not be read/)
+  assert.ok(!catalogued(garbled.calls))
 })
 
 test('the instructions say the command makes the tag', () => {

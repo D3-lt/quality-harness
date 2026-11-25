@@ -196,8 +196,9 @@ baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`)
    newest check-run from the required app, it fast-forwards `main` to that same sha, reads the forge's `main` back and
    deletes `land/<sha>`. `.github/rulesets/main.json` (no bypass actors) refuses a push to `main` whose sha lacks the
    required checks; it does not require `land.mjs` itself, which is this repository's policy for getting them first.
-3. It waits for the push run on `main` to exist, then dispatches the full campaign at that sha (BACKLOG §159).
-4. It waits for every job of the dispatched run, bounded.
+3. The landing's own run on `land/<sha>` is the release run (ADR-126); only a forge that requires no check, and so leaves
+   no landing run, gets the campaign dispatched on `main`.
+4. It waits for every job of that run, bounded.
 5. It runs `release-evidence` and acts only on its success.
 6. It never dispatches while another dispatched run on the ref is in flight.
 7. `git push origin <full sha>:refs/tags/vX.Y.Z`, unforced, then `gh release create vX.Y.Z --target <full sha> --latest --verify-tag` (ADR-147).

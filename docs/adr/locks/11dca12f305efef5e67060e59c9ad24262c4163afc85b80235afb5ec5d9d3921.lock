@@ -1,0 +1,6 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/release-tag.test.mjs	a draft left by an unfinished run is not a release	3ce314a0c47610acb50a087190378ebedcfcb7c084d65b9aeb6d26e025b18654
+body	tests/release-tag.test.mjs	a push cannot move a tag that exists	b3e726cb27428b185676026a28987a1f8cf84455f616f98222c3b5e501c3e406
+body	tests/release-tag.test.mjs	a tag without a release resumes only at its own sha	4743cb473a7f9a0c1b0c804eb4a8ae1ba8707f12afb01f6801326138f43594ba
+body	tests/release-tag.test.mjs	the instructions say the command makes the tag	5fc6f702c0c8302749757a419def4208a9833850bd7b4546059d5dd4fed7a354
+body	tests/release-tag.test.mjs	the tag is pushed at the cleared sha before the release is created	1968328a9253c5ee36d224ecaa492ae5585d7a834e8c4029e771c44f7640f7e2

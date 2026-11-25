@@ -252,7 +252,7 @@ wait reached its deadline. The steps stay numbered because records and source co
    (§12), which the command also asks before anything lands (`--review`), and whether anybody outside has run the readers
    that changed since the last tag (§18). That run is asked for now, once the landing's run is green: the command prints
    the request, the attestation is filed with `attest-import`, and the command runs again. On a landed sha an uncommitted
-   attestation is the release's evidence, not an unclean tree; nothing is pushed after the landing.
+   attestation is the release's evidence, not an unclean tree; nothing is pushed after the landing but the release's tag (step 7).
 6. It never dispatches while another dispatched run on the ref is in flight: the workflow's concurrency group keys on
    the event (`.github/workflows/selftest.yml:20-22`), so a second dispatch cancels the first, while a push does not.
 7. It makes the tag itself at that sha, `git push origin <full sha>:refs/tags/vX.Y.Z`, unforced, so a tag the forge has at

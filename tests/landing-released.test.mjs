@@ -23,6 +23,8 @@ const VERSION = '3.8.81'
 const REF = `refs/tags/v${VERSION}`
 const LINE = `${ID}\t${REF}`
 const bytes = text => Buffer.from(text, 'utf8')
+// Git as the fixture runs it: nothing inherited may point it at another repository than the one the test made.
+const CLEAN = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.toUpperCase().startsWith('GIT_')))
 
 // The catalogue file as a release leaves it, and as the pin after it leaves it.
 const catalogue = (version, digest) => [
@@ -123,6 +125,7 @@ test('the version and its tag are read from git and the forge', () => {
   for (const command of Object.keys(answers)) {
     assert.equal(skips(command, stdout => ({ status: 1, stdout })), false, `${command} exited 1 with its whole answer`)
     assert.equal(skips(command, stdout => ({ status: null, stdout, error: new Error('ETIMEDOUT') })), false, `${command} timed out`)
+    assert.equal(skips(command, stdout => ({ status: 0, stdout, error: new Error('ENOBUFS') })), false, `${command} came back with an error beside its whole answer`)
     assert.equal(skips(command, stdout => ({ status: 0, stdout: stdout.toString('utf8') })), false, `${command} answered text, not bytes`)
   }
   assert.equal(skips('ls-remote', stdout => ({ status: 0, stdout: stdout.subarray(0, stdout.length - 1) })), false, "the forge's answer cut one byte short")
@@ -151,7 +154,7 @@ test('the command reads a real tag', t => {
   mkdirSync(made)
   const git = (cwd, ...args) => {
     const run = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'core.autocrlf=false', ...args],
-      { cwd, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+      { cwd, env: CLEAN, encoding: 'utf8', timeout: 60_000, windowsHide: true })
     assert.equal(run.status, 0, `git ${args.join(' ')}: ${run.stderr}`)
     return run.stdout.trim()
   }
@@ -172,7 +175,7 @@ test('the command reads a real tag', t => {
     const sha = git(made, 'rev-parse', 'HEAD')
     const output = path.join(dir, `output-${Math.random().toString(16).slice(2)}`)
     writeFileSync(output, '')
-    const env = { ...process.env, GITHUB_EVENT_NAME: 'push', GITHUB_REF: `refs/heads/land/${sha}`, GITHUB_SHA: sha, GITHUB_OUTPUT: output, ...over }
+    const env = { ...CLEAN, GITHUB_EVENT_NAME: 'push', GITHUB_REF: `refs/heads/land/${sha}`, GITHUB_SHA: sha, GITHUB_OUTPUT: output, ...over }
     const run = spawnSync(process.execPath, [SCRIPT], { cwd: made, env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
     return { status: run.status, wrote: readFileSync(output, 'utf8'), said: run.stdout + run.stderr }
   }

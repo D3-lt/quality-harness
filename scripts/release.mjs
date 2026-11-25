@@ -13,8 +13,8 @@
 //   0  released and its verified bundle is advertised by the public marketplace
 //   1  a step failed: a red check, a dead-code finding, a push or a gh call that failed, release-evidence exit 1
 //   2  a step needs an action this command does not take: an unclean tree, a version to bump, release-evidence's
-//      UNPROVEN (an outside run or a review to get), a tag without a release that the forge does not show at this sha, or
-//      a catalogue pin still to promote
+//      UNPROVEN (an outside run or a review to get), a tag without a release that the forge does not show at this sha, a
+//      draft release an unfinished run left, or a catalogue pin still to promote
 //   3  a wait reached its deadline; it names what it waited for, and running again resumes
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
@@ -61,9 +61,11 @@ export function checkedPasses(cwd = process.cwd()) {
 
 /**
  * The one push that makes a release's tag (ADR-147 Decision 6): unforced, so the forge creates the ref at `sha`, answers
- * that it is already there, or refuses. It never moves a tag that exists.
+ * that it is already there, or refuses. It never moves a tag that exists. The source is peeled to its commit: git tries
+ * a bare sha as a ref name first, and a local branch named like it would be pushed in its place (the Codex review of
+ * d94eb8047..abe4286cb).
  */
-export const tagPush = (sha, tag) => ['push', 'origin', `${sha}:refs/tags/${tag}`]
+export const tagPush = (sha, tag) => ['push', 'origin', `${sha}^{commit}:refs/tags/${tag}`]
 
 /**
  * The chain, with its world as seams: `exec(cmd, args, { stream })` answers `{ status, stdout }`, `now` and `sleep` are the
@@ -139,8 +141,16 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   if (listed === null) { log(`release: git tag --list failed ${at}; the tags could not be read`); return 1 }
   const tags = listed.split('\n').filter(Boolean)
   if (tags.includes(tag)) {
-    const view = ran('gh', ['release', 'view', tag, '--json', 'tagName'])
-    if (view.status === 0) { log(`release: ${tag} is already released`); return catalogue() }
+    const view = ran('gh', ['release', 'view', tag, '--json', 'tagName,isDraft'])
+    if (view.status === 0) {
+      // A draft is what `gh release create` leaves when it stopped between its upload and its publication, beside the tag
+      // this command pushed: it is not a release, and the catalogue is not asked about it (the same review).
+      const seen = parsed(String(view.stdout ?? ''))
+      if (seen === null || typeof seen !== 'object') { log(`release: gh release view ${tag} answered nothing readable; whether it is released could not be read`); return 1 }
+      if (seen.isDraft === true) { log(`release: ${tag} has a draft release an unfinished run left, and is not released; delete the draft (\`gh release delete ${tag} --yes\` keeps the tag), then run again`); return 2 }
+      log(`release: ${tag} is already released`)
+      return catalogue()
+    }
     // Only gh's own "release not found" is absence; an auth or network failure is a question nobody answered.
     if (!/release not found/i.test(String(view.stderr ?? ''))) {
       log(`release: gh release view ${tag} failed (${String(view.stderr ?? '').trim().split('\n')[0] || `exit ${view.status}`}); whether it is released could not be read`)
@@ -150,9 +160,13 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     // shows that tag at this sha, as the lightweight tag `tagPush` makes. At any other commit it is somebody else's tag,
     // and the evidence below would be for another commit than the one it names. A forge that could not be asked has
     // shown no commit at all.
-    const shown = text('git', ['ls-remote', 'origin', `refs/tags/${tag}`])
-    if (shown === null) { log(`release: git ls-remote failed ${at}; where ${tag} points on the forge could not be read`); return 1 }
-    if (!shown.split('\n').includes(`${sha}\trefs/tags/${tag}`)) {
+    const lookup = ran('git', ['ls-remote', 'origin', `refs/tags/${tag}`])
+    const answer = lookup.status === 0 ? String(lookup.stdout ?? '') : null
+    // An answer is whole lines, or nothing at all when no ref matched; one that failed or was cut short is no answer.
+    if (answer === null || (answer !== '' && !answer.endsWith('\n'))) { log(`release: git ls-remote failed ${at}; where ${tag} points on the forge could not be read`); return 1 }
+    // Every line that names this ref, each compared whole and untrimmed: exactly one, and at this sha.
+    const named = answer.split('\n').filter(line => line.split('\t')[1] === `refs/tags/${tag}`)
+    if (named.length !== 1 || named[0] !== `${sha}\trefs/tags/${tag}`) {
       log(`release: ${tag} is already a tag and has no release, and the forge does not show it at ${sha}; bump ${MANIFEST} past it, or run this command at the commit the tag names, where release-evidence must answer SUCCESS`)
       return 2
     }
@@ -287,12 +301,12 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   }
   const notes = notesFile ? ['--notes-file', notesFile] : ['--generate-notes']
   // ADR-147 Decision 6: the tag is made here, at the sha the evidence just cleared, by a push that cannot move a ref that
-  // exists, and the release is created only from a tag the forge has. The forge ignores `--target` for such a tag; it
-  // stays for a tag deleted between the two calls, which the forge then makes at this sha and not at main's tip.
+  // exists, and the release is created only from a tag the forge has. The forge ignores `--target` for such a tag. It
+  // stays for one case: a tag deleted after gh's own lookup is made by the forge at this sha, not at main's tip.
   const tagPushed = ran('git', tagPush(sha, tag)).status
   if (tagPushed !== 0) { log(`release: git push of ${tag} at ${sha} exited ${tagPushed}: the forge has that tag at another commit, or refused it; nothing was published`); return 1 }
   const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', '--verify-tag', ...notes, ...assets], true).status
-  if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}; the tag is on the forge at that sha, and running again resumes`); return 1 }
+  if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}; the tag was pushed at that sha, and running again resumes or names what is in the way`); return 1 }
   log(`release: ${tag} released at ${sha}`)
   return catalogue()
 }

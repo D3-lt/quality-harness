@@ -12,8 +12,9 @@
 
 ## Goal
 
-The seed job computes the answer, `mutations` and `mutation cache` skip only on `skip=1` from a seed job that succeeded,
-and `release-evidence` refuses a run whose shards were skipped or are absent, unchanged (ADR-146 Decisions 3 and 4).
+The seed job computes the answer; when it succeeds, `mutations` and `mutation cache` skip only on its `skip=1` (a seed
+job that failed skips the shards as it did before this task); and `release-evidence` refuses a run whose shards were
+skipped or are absent, unchanged (ADR-146 Decisions 3 and 4).
 
 ## Affected Files
 

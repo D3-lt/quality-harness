@@ -1,0 +1,6 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/landing-class.test.mjs	a command that failed leaves its fact absent	ff66c614e77296a7d1e678f497d98094ce9ce0b582c9779911cfaac307ad1ffc
+body	tests/landing-class.test.mjs	a pin landing is one commit on main that changes one regular file	f7da9e85ba46f65bd4adfed2b229ac92dbc2b2bfc390810ffb4d8b55a034de4b
+body	tests/landing-class.test.mjs	a tree is read as it is stored, whole or not at all	c34ec9d2fedbc15d7d102a4fcbdb3533da576ebad24195520c029399bea07ce2
+body	tests/landing-class.test.mjs	only the three pinned values may differ	96335ab3cbf76f5f391e38db1b426242dbeb45f01813590de5ad7bf56d4f0670
+body	tests/landing-class.test.mjs	the command reads a real commit	8aea95aa7056a8cdae9906091cf260a4e3aa1a8d86b4f543f171f8830ed3e574

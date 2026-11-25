@@ -72,6 +72,7 @@ test('only the three pinned values may differ', () => {
   assert.equal(pinOnly(bytes(topped(BEFORE, '1')), bytes(topped(AFTER, '1'))), true, 'a pin beside an untouched top-level version')
   assert.equal(pinOnly(bytes(topped(BEFORE, '1')), bytes(topped(BEFORE, '2'))), false, 'a top-level version changed and no pin')
   assert.equal(pinOnly(bytes(topped(BEFORE, '1')), bytes(topped(AFTER, '2'))), false, 'a pin and a top-level version changed')
+  assert.equal(pinOnly(bytes(topped(BEFORE, '3.8.80')), bytes(topped(AFTER, '3.8.81'))), false, 'a top-level version that follows the pin: the old value stood in two places')
   const linked = (text, url) => text.replace('      "category": "development"', `      "category": "development",\n      "homepage": {\n        "url": "${url}"\n      }`)
   assert.equal(pinOnly(bytes(linked(BEFORE, 'a')), bytes(linked(AFTER, 'b'))), false, "a url that is not the source's")
   const flat = text => text.replace(/      "source": \{[^}]*\},\n/, '      "source": ".",\n')
@@ -79,6 +80,23 @@ test('only the three pinned values may differ', () => {
   // A key written twice parses as its last value, so only the lines can see the first one change.
   const doubled = value => AFTER.replace('      "category": "development"', `      "category": "${value}",\n      "category": "development"`)
   assert.equal(pinOnly(bytes(doubled('a')), bytes(doubled('b'))), false, 'a shadowed duplicate of another key changed')
+  // The same for a pinned key written twice outside the entry: the copy JSON ignores is the one that changed.
+  const twice = value => AFTER.replace('  "name": "quality-harness",\n', `  "name": "quality-harness",\n  "version": "${value}",\n  "version": "keep",\n`)
+  assert.equal(pinOnly(bytes(twice('a')), bytes(twice('b'))), false, 'a shadowed top-level version changed and no pin')
+  assert.equal(pinOnly(bytes(twice('a').replace('3.8.81', '3.8.80')), bytes(twice('b'))), false, 'a shadowed top-level version changed beside a pin')
+  assert.equal(pinOnly(bytes(twice('3.8.80').replace('"version": "3.8.81"', '"version": "3.8.80"')), bytes(twice('3.8.80'))), false, "the old value stands in two places")
+  // And inside the entry: the first of two is not the entry's version, so changing it is not a pin either.
+  const shadowed = value => AFTER.replace('      "version": "3.8.81",\n', `      "version": "${value}",\n      "version": "3.8.81",\n`)
+  assert.equal(pinOnly(bytes(shadowed('a')), bytes(shadowed('b'))), false, "a shadowed copy of the entry's own version changed")
+  // Another plugin entry beside it, with a local source, is left as it is and does not stop a pin.
+  const beside = text => text.replace('  "plugins": [\n', '  "plugins": [\n    { "name": "local", "version": "1", "source": "./plugin" },\n')
+  assert.equal(pinOnly(bytes(beside(BEFORE)), bytes(beside(AFTER))), true, 'a pin beside an entry with a local source')
+  assert.equal(pinOnly(bytes(beside(AFTER)), bytes(beside(AFTER).replace('"version": "1"', '"version": "2"'))), false, "another entry's version changed")
+  const named = name => text => text.replace('      "name": "quality-harness",', `      "name": "${name}",`)
+  assert.equal(pinOnly(bytes(named('other')(BEFORE)), bytes(named('other')(AFTER))), false, 'no entry for this plugin')
+  const two = text => text.replace('    }\n  ]\n', '    },\n    { "name": "quality-harness", "version": "0", "source": { "url": "u", "sha256": "s" } }\n  ]\n')
+  assert.equal(pinOnly(bytes(two(BEFORE)), bytes(two(AFTER))), false, 'two entries for this plugin')
+  assert.equal(pinOnly(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes(BEFORE)]), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes(AFTER)])), false, 'a byte-order mark is not JSON')
 })
 
 // Raw tree objects as git stores them: `<mode> <name>\0<id bytes>` per entry.

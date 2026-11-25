@@ -14,49 +14,52 @@ import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const PIN_DIR = '.claude-plugin'
 const PIN_FILE = 'marketplace.json'
-// The one line shape a pin may change: a pinned key and a string value of printable ASCII with no quote or backslash, the
-// indentation and comma kept. A control byte in a value is not a string value (the Codex review of 5aaf5d1bd..5be9e6fa7).
-const PINNED_LINE = /^([ \t]*)"(version|url|sha256)": "[ !#-[\]-~]*"(,?)$/
+const PLUGIN = 'quality-harness'
+// A pinned value as it stands in the file: printable ASCII with no quote or backslash, so the text between the quotes is
+// the value itself and nothing in it needs an escape.
+const PLAIN = /^[ !#-[\]-~]*$/
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/
 const CHILD_TIMEOUT_MS = 60_000
 
-/** The catalogue as parsed, without the three values a pin sets in each plugin entry; null when it is not that JSON. */
-function unpinned(bytes) {
+/** The three values `scripts/marketplace-source.mjs` pins, read from the catalogue's one entry for this plugin; null when it has no such entry. */
+function pinned(text) {
   try {
-    const catalogue = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
-    if (!Array.isArray(catalogue?.plugins)) return null
-    for (const plugin of catalogue.plugins) {
-      if (plugin === null || typeof plugin !== 'object' || plugin.source === null || typeof plugin.source !== 'object') return null
-      delete plugin.version
-      delete plugin.source.url
-      delete plugin.source.sha256
-    }
-    return JSON.stringify(catalogue)
+    const entries = JSON.parse(text).plugins.filter(plugin => plugin?.name === PLUGIN)
+    const [entry] = entries
+    const values = { version: entry.version, url: entry.source.url, sha256: entry.source.sha256 }
+    return entries.length === 1 && Object.values(values).every(value => typeof value === 'string' && PLAIN.test(value)) ? values : null
   } catch {
     return null
   }
 }
 
 /**
- * Whether two versions of the catalogue file differ only in a pin. Two readings, and both must hold: as bytes, line for
- * line, only lines of the pinned shape differ; as JSON, the two are equal once each plugin entry's `version`,
- * `source.url` and `source.sha256` are set aside. The second is what tells a pin's `version` from a field of the same
- * name anywhere else in the file (the Codex verification of 5aaf5d1bd..4f8ee9d88).
+ * Whether the catalogue file after is the file before with nothing but a new pin. It is not judged by what changed:
+ * the file before is taken, each pinned value that differs is put in at the one place its `"key": "old value"` stands,
+ * and the result must be the file after, byte for byte. So the only thing a pin can vary is the three values, and an
+ * edit anywhere else, a key written twice included, is another file (three review rounds each found one more input a
+ * rule over the changed lines read as a pin; the Codex verification of 5aaf5d1bd..4b45a20f5 was the last).
  */
 export function pinOnly(before, after) {
   if (!Buffer.isBuffer(before) || !Buffer.isBuffer(after)) return false
-  const [was, is] = [before, after].map(side => side.toString('latin1').split('\n'))
-  if (was.length !== is.length) return false
+  let was, is
+  try {
+    [was, is] = [before, after].map(side => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(side))
+  } catch {
+    return false
+  }
+  const [old, now] = [pinned(was), pinned(is)]
+  if (!old || !now) return false
+  let expected = was
   let changed = 0
-  for (let index = 0; index < was.length; index++) {
-    if (was[index] === is[index]) continue
-    const [old, now] = [PINNED_LINE.exec(was[index]), PINNED_LINE.exec(is[index])]
-    if (!old || !now || old[1] !== now[1] || old[2] !== now[2] || old[3] !== now[3]) return false
+  for (const key of Object.keys(old)) {
+    if (old[key] === now[key]) continue
+    const parts = expected.split(`"${key}": "${old[key]}"`)
+    if (parts.length !== 2) return false
+    expected = parts.join(`"${key}": "${now[key]}"`)
     changed++
   }
-  if (changed === 0) return false
-  const [rest, kept] = [unpinned(before), unpinned(after)]
-  return rest !== null && rest === kept
+  return changed > 0 && expected === is
 }
 
 /** The entries of a raw tree object, `<mode> <name>\0<id bytes>` each, or null when the bytes are not that, whole. */

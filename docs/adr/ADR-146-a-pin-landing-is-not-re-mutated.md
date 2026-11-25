@@ -70,11 +70,11 @@ unit is runner-minutes.
    - those two trees, read the same way, hold the same entries byte for byte but one: `marketplace.json`, stored as a
      regular file (mode `100644`, the tree's own bytes) on both sides, with another object id. No listing is
      interpreted: a tree that differs anywhere else, in a mode, a name or an entry added or removed, is not this;
-   - the two versions of that file have the same number of lines, at least one line differs, and every line that
-     differs is, on both sides, the same indentation, the same key among `version`, `url` and `sha256`, a string
-     value of printable ASCII with no quote or backslash in it, and the same trailing comma or none;
-   - both versions are strict UTF-8 JSON, and they are equal once each plugin entry's `version`, `source.url` and
-     `source.sha256` are set aside, so a field of the same name anywhere else in the file is not a pin.
+   - the file after is the file before with a new pin put in, and nothing else. The check does not judge what changed:
+     it reads `version`, `source.url` and `source.sha256` of the catalogue's one `quality-harness` entry on both sides
+     (strings of printable ASCII with no quote or backslash, from strict UTF-8 JSON), takes the file before, puts each
+     value that differs in at the one place its `"key": "old value"` stands, and requires the result to equal the file
+     after byte for byte. At least one value differs, and an old value that stands in two places is not a pin.
    A command that failed or timed out, output that ended early, and any state not named here are "run". *This fails if*
    any input not described here yields "skip".
 2. **The claim is about one commit's own change to the tree it sits on**, not about what main measured before it. The
@@ -123,6 +123,11 @@ every mutant before a tag.
   rewrites a stored mode of `100664` to `100644` before comparing. Two rounds on one classifier, so it was restructured
   and not patched again: the trees are compared raw, entry by entry, and the file is also compared as parsed JSON with
   the three pinned values set aside. The diff listing and its parser are gone.
+- **That restructure, verified by Codex** (range 5aaf5d1bd..4b45a20f5): the mode finding closed, and a third input read as
+  a pin, a pinned key written twice with the ignored copy edited. It also found a regression: an entry with a local
+  source beside the pinned one stopped a pin. Asked on 2026-11-25 whether to rebuild, to land with the limit stated, or
+  to drop the change, the owner chose to rebuild as an exact match. So the file check no longer has a rule over changed
+  lines at all: it builds the file a pin would produce from the file before and compares (Decision 1).
 - **Reuse ADR-023's verdicts across landings.** Full runs would write them, and a later landing would fetch the previous
   run's as an artifact and re-measure only the entries whose key changed. It is the literal form of the owner's rule and
   it covers records and code alike, and it costs more: `mutate.mjs` must write verdicts on a `--no-cache` run, the merge

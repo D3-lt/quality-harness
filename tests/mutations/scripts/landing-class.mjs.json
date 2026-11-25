@@ -1,33 +1,33 @@
 {
   "mutations": [
     {
-      "label": "ADR-146 T1: only version, url and sha256 are pinned keys",
+      "label": "ADR-146 T1: the old value stands in exactly one place",
       "file": "scripts/landing-class.mjs",
       "tests": [
         "tests/landing-class.test.mjs"
       ],
-      "from": "\"(version|url|sha256)\": \"",
-      "to": "\"(version|url|sha256|category)\": \"",
+      "from": "    if (parts.length !== 2) return false",
+      "to": "    if (parts.length < 2) return false",
       "only": "^only the three pinned values may differ$"
     },
     {
-      "label": "ADR-146 T1: a pin keeps the file's line count",
+      "label": "ADR-146 T1: the file after is the file before with the pin put in, byte for byte",
       "file": "scripts/landing-class.mjs",
       "tests": [
         "tests/landing-class.test.mjs"
       ],
-      "from": "  if (was.length !== is.length) return false",
-      "to": "  if (was.length > is.length) return false",
+      "from": "  return changed > 0 && expected === is",
+      "to": "  return changed > 0",
       "only": "^only the three pinned values may differ$"
     },
     {
-      "label": "ADR-146 T1: a pin changes at least one line",
+      "label": "ADR-146 T1: a pin changes at least one value",
       "file": "scripts/landing-class.mjs",
       "tests": [
         "tests/landing-class.test.mjs"
       ],
-      "from": "  if (changed === 0) return false",
-      "to": "  if (changed < 0) return false",
+      "from": "  return changed > 0 && expected === is",
+      "to": "  return expected === is",
       "only": "^only the three pinned values may differ$"
     },
     {
@@ -36,18 +36,28 @@
       "tests": [
         "tests/landing-class.test.mjs"
       ],
-      "from": "\"[ !#-[\\]-~]*\"",
-      "to": "\"[^\"\\\\]*\"",
+      "from": "typeof value === 'string' && PLAIN.test(value)",
+      "to": "typeof value === 'string'",
       "only": "^only the three pinned values may differ$"
     },
     {
-      "label": "ADR-146 T1: the catalogue is the same JSON once the pinned values are set aside",
+      "label": "ADR-146 T1: the catalogue has one entry for this plugin",
       "file": "scripts/landing-class.mjs",
       "tests": [
         "tests/landing-class.test.mjs"
       ],
-      "from": "  return rest !== null && rest === kept",
-      "to": "  return rest !== null",
+      "from": "    return entries.length === 1 && Object.values(values)",
+      "to": "    return Object.values(values)",
+      "only": "^only the three pinned values may differ$"
+    },
+    {
+      "label": "ADR-146 T1: the entry read is this plugin's",
+      "file": "scripts/landing-class.mjs",
+      "tests": [
+        "tests/landing-class.test.mjs"
+      ],
+      "from": "plugin?.name === PLUGIN",
+      "to": "plugin?.name !== undefined",
       "only": "^only the three pinned values may differ$"
     },
     {

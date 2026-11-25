@@ -72,7 +72,7 @@ node --test tests/landing-class-workflow.test.mjs
 
 ## Invariants
 
-- A shard is skipped only when a seed job that succeeded wrote `skip=1`.
+- A shard is skipped only when the seed job failed or was skipped, as before this task, or succeeded and wrote `skip=1`.
 - No required check of main gains a condition.
 - tests/one-run-release.test.mjs and tests/package.test.mjs pass unchanged.
 

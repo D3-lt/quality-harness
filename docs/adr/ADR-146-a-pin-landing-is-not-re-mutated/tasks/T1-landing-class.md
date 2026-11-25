@@ -28,17 +28,20 @@ else, including everything it could not read (ADR-146 Decisions 1 and 2).
 
 1. [S1] Write the tests of the table below and confirm they are red (TDD red): the script does not exist.
 2. [S2] Add `pinOnly(before, after)` over two buffers, read as bytes: true only when both split on `\n` into the same
-   number of lines, at least one line differs, and each differing pair matches
-   `^(\s*)"(version|url|sha256)": "[^"\\]*"(,?)$` on both sides with equal indentation, key and comma.
-3. [S3] Add `landingClass({ event, ref, sha, head, parents, main, entries, before, after })`, pure, returning
+   number of lines, at least one line differs, each differing pair matches the pinned line shape (a key among
+   `version`, `url` and `sha256`, a value of printable ASCII without quote or backslash) on both sides with equal
+   indentation, key and comma, and both parse as strict UTF-8 JSON that is equal once each plugin entry's `version`,
+   `source.url` and `source.sha256` are set aside.
+3. [S3] Add `treeEntries(tree, width)` and `onlyChange(before, after, name, mode, width)` over raw tree objects, and
+   `landingClass({ event, ref, sha, head, parents, main, root, dir, before, after })`, pure, returning
    `{ skip, reason }`. `skip` is true only when `event` is `push`, `ref` is `refs/heads/land/` followed by `sha`, `sha`
-   is 40 or 64 lowercase hex digits and equals `head`, `parents` is an array of exactly one sha equal to `main`,
-   `entries` is an array of exactly two entries, the tree `.claude-plugin` (status `M`, both modes `040000`) and then
-   the path bytes `.claude-plugin/marketplace.json` (status `M`, both modes `100644`), and `pinOnly(before, after)`
-   holds. (Two entries with trees listed, not one: amended after the code review, ADR-146 Alternatives.)
+   is 40 or 64 lowercase hex digits and equals `head`, `parents` is an array of exactly one sha equal to `main`, the two
+   raw trees of `root` differ only in the entry `.claude-plugin` stored with mode `40000`, the two of `dir` only in
+   `marketplace.json` stored with mode `100644`, and `pinOnly(before, after)` holds. (Raw trees, not a diff listing:
+   amended after the code review and its verification, ADR-146 Alternatives.)
 4. [S4] Add the CLI: it reads `GITHUB_EVENT_NAME`, `GITHUB_REF` and `GITHUB_SHA`; runs `git rev-parse HEAD`,
    `git rev-list --parents -n 1 HEAD`, `git ls-remote origin refs/heads/main`,
-   `git diff-tree -r -t --raw -z --no-renames --ignore-submodules=none <parent> <sha>` and two `git cat-file blob`, each
+   `git cat-file tree` for the commit, its parent and the two catalogue directories, and two `git cat-file blob`, each
    with a timeout, `windowsHide: true` and its output taken as a buffer; a command that exited non-zero, timed out or
    printed what cannot be parsed whole leaves its fact absent. It prints the answer and the reason on one line, appends
    `skip=1` or `skip=0` to the file `GITHUB_OUTPUT` names, and exits 0.
@@ -120,3 +123,5 @@ are not each a pin by `pinOnly`: the rule of ADR-146 Decision 1 then does not de
 - 2026-11-25 · 5aaf5d1bd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:11 · test-lock-sha256:209d68fd57111a6be6d034ab1da92617c47ecf4a9e24dac22b172b4fc4285f22 · test-lock-file:docs/adr/locks/209d68fd57111a6be6d034ab1da92617c47ecf4a9e24dac22b172b4fc4285f22.lock · test-lock-kind:replace
 - 2026-11-25 · 5be9e6fa7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:13 · test-lock-sha256:08fe839612acb61a127bb17be930b32df7652a8b6cfa35cde9d186c244c3255d · test-lock-file:docs/adr/locks/08fe839612acb61a127bb17be930b32df7652a8b6cfa35cde9d186c244c3255d.lock · test-lock-kind:replace
 - 2026-11-25 · 5be9e6fa7* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:2406
+- 2026-11-25 · 4f8ee9d88* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:14 · test-lock-sha256:241408ca98264724bc3e02e338213cb19d482112c0c2dde8b0ba8c8150dab95e · test-lock-file:docs/adr/locks/241408ca98264724bc3e02e338213cb19d482112c0c2dde8b0ba8c8150dab95e.lock · test-lock-kind:replace
+- 2026-11-25 · 4f8ee9d88* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:2381

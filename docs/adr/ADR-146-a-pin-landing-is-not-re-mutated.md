@@ -65,13 +65,16 @@ unit is runner-minutes.
    `node scripts/landing-class.mjs`. It answers "skip" only when all of these hold, and "run" otherwise:
    - the event is a push, the ref is `refs/heads/land/<sha>`, and the commit checked out is that sha;
    - the commit has exactly one parent, and that parent is what `git ls-remote origin refs/heads/main` names as main's tip;
-   - `git diff-tree -r -t --raw -z --no-renames --ignore-submodules=none <parent> <sha>` exited 0 and listed exactly two
-     entries, with full object ids and an unscored `M`: the tree `.claude-plugin` and, compared as bytes, the regular
-     file `.claude-plugin/marketplace.json`, mode 100644 on both sides. Trees are listed so that a tree added or removed
-     beside the pin, an empty one included, is a third entry;
+   - the commit's tree and its parent's, read raw with `git cat-file tree`, hold the same entries byte for byte but one:
+     `.claude-plugin`, stored as a tree (mode `40000`) on both sides, with another object id;
+   - those two trees, read the same way, hold the same entries byte for byte but one: `marketplace.json`, stored as a
+     regular file (mode `100644`, the tree's own bytes) on both sides, with another object id. No listing is
+     interpreted: a tree that differs anywhere else, in a mode, a name or an entry added or removed, is not this;
    - the two versions of that file have the same number of lines, at least one line differs, and every line that
      differs is, on both sides, the same indentation, the same key among `version`, `url` and `sha256`, a string
-     value with no quote or backslash in it, and the same trailing comma or none.
+     value of printable ASCII with no quote or backslash in it, and the same trailing comma or none;
+   - both versions are strict UTF-8 JSON, and they are equal once each plugin entry's `version`, `source.url` and
+     `source.sha256` are set aside, so a field of the same name anywhere else in the file is not a pin.
    A command that failed or timed out, output that ended early, and any state not named here are "run". *This fails if*
    any input not described here yields "skip".
 2. **The claim is about one commit's own change to the tree it sits on**, not about what main measured before it. The
@@ -115,6 +118,11 @@ every mutant before a tag.
   short object ids and a scored status were each read as whole; they are refused. The seed job's checkout shared the
   workspace root with the cache file it restores; it has a directory of its own. Decision 3 said a shard skipped without
   `skip=1` breaks the design while keeping the seed-failure skip; it now says a seed job that succeeded.
+- **That fix round, verified by Codex** (the same reviewer, range 5aaf5d1bd..4f8ee9d88): every finding closed, and two
+  more inputs read as a pin. A changed `version` outside any plugin entry matched the line rule, and git's listing
+  rewrites a stored mode of `100664` to `100644` before comparing. Two rounds on one classifier, so it was restructured
+  and not patched again: the trees are compared raw, entry by entry, and the file is also compared as parsed JSON with
+  the three pinned values set aside. The diff listing and its parser are gone.
 - **Reuse ADR-023's verdicts across landings.** Full runs would write them, and a later landing would fetch the previous
   run's as an artifact and re-measure only the entries whose key changed. It is the literal form of the owner's rule and
   it covers records and code alike, and it costs more: `mutate.mjs` must write verdicts on a `--no-cache` run, the merge

@@ -12,15 +12,37 @@ import { spawnSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
-const PIN = Buffer.from('.claude-plugin/marketplace.json')
-const PIN_DIR = Buffer.from('.claude-plugin')
+const PIN_DIR = '.claude-plugin'
+const PIN_FILE = 'marketplace.json'
 // The one line shape a pin may change: a pinned key and a string value of printable ASCII with no quote or backslash, the
 // indentation and comma kept. A control byte in a value is not a string value (the Codex review of 5aaf5d1bd..5be9e6fa7).
 const PINNED_LINE = /^([ \t]*)"(version|url|sha256)": "[ !#-[\]-~]*"(,?)$/
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/
 const CHILD_TIMEOUT_MS = 60_000
 
-/** Whether two versions of the catalogue file differ only in the values of the pinned keys, line for line, as bytes. */
+/** The catalogue as parsed, without the three values a pin sets in each plugin entry; null when it is not that JSON. */
+function unpinned(bytes) {
+  try {
+    const catalogue = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+    if (!Array.isArray(catalogue?.plugins)) return null
+    for (const plugin of catalogue.plugins) {
+      if (plugin === null || typeof plugin !== 'object' || plugin.source === null || typeof plugin.source !== 'object') return null
+      delete plugin.version
+      delete plugin.source.url
+      delete plugin.source.sha256
+    }
+    return JSON.stringify(catalogue)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Whether two versions of the catalogue file differ only in a pin. Two readings, and both must hold: as bytes, line for
+ * line, only lines of the pinned shape differ; as JSON, the two are equal once each plugin entry's `version`,
+ * `source.url` and `source.sha256` are set aside. The second is what tells a pin's `version` from a field of the same
+ * name anywhere else in the file (the Codex verification of 5aaf5d1bd..4f8ee9d88).
+ */
 export function pinOnly(before, after) {
   if (!Buffer.isBuffer(before) || !Buffer.isBuffer(after)) return false
   const [was, is] = [before, after].map(side => side.toString('latin1').split('\n'))
@@ -33,9 +55,41 @@ export function pinOnly(before, after) {
     changed++
   }
   if (changed === 0) return false
-  // The file after the pin is still the JSON it was: strict UTF-8, and it parses.
-  try { JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(after)) } catch { return false }
-  return true
+  const [rest, kept] = [unpinned(before), unpinned(after)]
+  return rest !== null && rest === kept
+}
+
+/** The entries of a raw tree object, `<mode> <name>\0<id bytes>` each, or null when the bytes are not that, whole. */
+export function treeEntries(tree, width) {
+  if (!Buffer.isBuffer(tree) || (width !== 20 && width !== 32)) return null
+  const entries = []
+  for (let at = 0; at < tree.length;) {
+    const [space, nul] = [tree.indexOf(0x20, at), tree.indexOf(0, at)]
+    if (space === -1 || nul === -1 || space > nul || nul + 1 + width > tree.length) return null
+    const mode = tree.toString('latin1', at, space)
+    if (!/^[0-7]+$/.test(mode) || nul === space + 1) return null
+    entries.push({ mode, name: tree.subarray(space + 1, nul), id: tree.toString('hex', nul + 1, nul + 1 + width) })
+    at = nul + 1 + width
+  }
+  return entries
+}
+
+/**
+ * `{ was, is }`, the two object ids of the one entry in which two raw trees differ, when that entry is `name` with the
+ * mode `mode` as stored on both sides and every other entry is byte for byte the same; null otherwise. The modes are
+ * the tree's own bytes, which a diff listing rewrites before it compares them.
+ */
+export function onlyChange(before, after, name, mode, width) {
+  const [was, is] = [treeEntries(before, width), treeEntries(after, width)]
+  if (!was || !is || was.length !== is.length) return null
+  let found = null
+  for (let index = 0; index < was.length; index++) {
+    const [old, now] = [was[index], is[index]]
+    if (old.mode === now.mode && old.id === now.id && old.name.equals(now.name)) continue
+    if (found || old.mode !== mode || now.mode !== mode || !old.name.equals(Buffer.from(name)) || !now.name.equals(old.name)) return null
+    found = { was: old.id, is: now.id }
+  }
+  return found
 }
 
 /**
@@ -43,7 +97,7 @@ export function pinOnly(before, after) {
  * reason to run the campaign, never to skip it.
  */
 export function landingClass(facts) {
-  const { event, ref, sha, head, parents, main, entries, before, after } = facts ?? {}
+  const { event, ref, sha, head, parents, main, root, dir, before, after } = facts ?? {}
   const run = reason => ({ skip: false, reason })
   if (event !== 'push') return run(`the event is ${event ?? 'unknown'}, not a push`)
   if (typeof sha !== 'string' || !SHA.test(sha)) return run('the pushed sha is not a full sha')
@@ -52,36 +106,14 @@ export function landingClass(facts) {
   if (!Array.isArray(parents) || parents.length !== 1) return run('the commit does not have exactly one parent, or its parents could not be read')
   if (typeof main !== 'string' || !SHA.test(main)) return run("main's tip could not be read from the forge")
   if (parents[0] !== main) return run("the commit's parent is not main's tip")
-  if (!Array.isArray(entries)) return run('what the commit changed could not be read')
-  // With trees listed (`-t`) a pin is exactly two entries: the catalogue's directory and the file in it. A tree added or
-  // removed beside them, an empty one included, is a third entry, where `-r` alone lists nothing for it.
-  if (entries.length !== 2) return run(`the commit changes ${entries.length} tree entries, not the catalogue file and its directory alone`)
-  const [dir, entry] = entries
-  if (!Buffer.isBuffer(dir?.path) || !dir.path.equals(PIN_DIR) || dir.status !== 'M' || dir.before !== '040000' || dir.after !== '040000') return run("the first changed entry is not the catalogue's directory, modified")
-  if (!Buffer.isBuffer(entry?.path) || !entry.path.equals(PIN)) return run('the commit changes another path than the catalogue file')
-  if (entry.status !== 'M' || entry.before !== '100644' || entry.after !== '100644') return run('the catalogue file was not modified as a regular file with its mode kept')
-  if (!pinOnly(before, after)) return run('the catalogue file changed in more than the values of version, url and sha256, or could not be read')
-  return { skip: true, reason: 'one commit on main changes only the values of version, url and sha256 in the catalogue file' }
+  const width = sha.length / 2
+  if (!onlyChange(root?.[0], root?.[1], PIN_DIR, '40000', width)) return run("the commit's tree differs from its parent's in more than the catalogue's directory, or could not be read")
+  if (!onlyChange(dir?.[0], dir?.[1], PIN_FILE, '100644', width)) return run("the catalogue's directory differs in more than the catalogue file, a regular file on both sides, or could not be read")
+  if (!pinOnly(before, after)) return run("the catalogue file changed in more than each plugin's version, url and sha256, or could not be read")
+  return { skip: true, reason: 'one commit on main changes only the pinned version, url and sha256 in the catalogue file' }
 }
 
-/** The entries of `git diff-tree -r -t --raw -z`, or null when the output is not that, whole. A status keeps its score. */
-export function rawEntries(output) {
-  if (!Buffer.isBuffer(output)) return null
-  if (output.length === 0) return []
-  if (output[output.length - 1] !== 0) return null
-  const fields = []
-  for (let start = 0, end; (end = output.indexOf(0, start)) !== -1; start = end + 1) fields.push(output.subarray(start, end))
-  if (fields.length % 2) return null
-  const entries = []
-  for (let index = 0; index < fields.length; index += 2) {
-    const meta = /^:(\d{6}) (\d{6}) (?:[0-9a-f]{40} [0-9a-f]{40}|[0-9a-f]{64} [0-9a-f]{64}) ([A-Z]\d*)$/.exec(fields[index].toString('latin1'))
-    if (!meta || fields[index + 1].length === 0) return null
-    entries.push({ before: meta[1], after: meta[2], status: meta[3], path: fields[index + 1] })
-  }
-  return entries
-}
-
-/** What git says here, each answer absent when its command failed. */
+/** What git says here, each answer absent when its command failed. The trees are read raw, as stored. */
 export function readFacts(env, cwd, spawn = spawnSync) {
   const git = args => {
     const child = spawn('git', args, { cwd, timeout: CHILD_TIMEOUT_MS, windowsHide: true, maxBuffer: 64 * 1024 * 1024 })
@@ -95,11 +127,14 @@ export function readFacts(env, cwd, spawn = spawnSync) {
   const remote = text(['ls-remote', 'origin', 'refs/heads/main'])?.split('\n') ?? []
   const named = remote.length === 1 ? /^([0-9a-f]+)\trefs\/heads\/main$/.exec(remote[0]) : null
   const one = parents?.length === 1 && head && SHA.test(head) && SHA.test(parents[0])
+  const tree = id => git(['cat-file', 'tree', id])
+  const root = one ? [tree(parents[0]), tree(head)] : null
+  const top = root && onlyChange(root[0], root[1], PIN_DIR, '40000', head.length / 2)
+  const dir = top ? [tree(top.was), tree(top.is)] : null
+  const file = dir && onlyChange(dir[0], dir[1], PIN_FILE, '100644', head.length / 2)
   return {
     event: env.GITHUB_EVENT_NAME, ref: env.GITHUB_REF, sha: env.GITHUB_SHA, head, parents, main: named ? named[1] : null,
-    entries: one ? rawEntries(git(['diff-tree', '-r', '-t', '--raw', '-z', '--no-renames', '--ignore-submodules=none', parents[0], head])) : null,
-    before: one ? git(['cat-file', 'blob', `${parents[0]}:${PIN}`]) : null,
-    after: one ? git(['cat-file', 'blob', `${head}:${PIN}`]) : null,
+    root, dir, before: file ? git(['cat-file', 'blob', file.was]) : null, after: file ? git(['cat-file', 'blob', file.is]) : null,
   }
 }
 

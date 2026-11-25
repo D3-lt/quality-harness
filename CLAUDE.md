@@ -240,7 +240,8 @@ wait reached its deadline. The steps stay numbered because records and source co
    that sha once main's required checks passed there. The forge refuses a push to main whose sha lacks those checks.
    When the landing changes a test or a reader, send a Windows peer the check `land.mjs` prints once `land/<sha>` is pushed
    (ADR-126 T6): it runs while CI does.
-3. The landing's own push run on `land/<sha>` is the release run: the workflow runs every land push as the full campaign,
+3. The landing's own push run on `land/<sha>` is the release run: the workflow runs a land push as the full campaign,
+   unless its one commit only re-pins the catalogue (ADR-146), which no release rests on,
    and main has no run of its own (ADR-126). Only a forge that requires no check, and so leaves no landing run, gets the
    campaign dispatched on main.
 4. It waits for **every** job of that run, the mutation shards included, which the landing does not; each wait has its own
@@ -374,7 +375,7 @@ already thought of; it cannot read the whole output over a shape it has never se
   every catalogue mutant on the file you refactored, not only the new ones; a GREEN there is the
   class, not an instance. A new line elsewhere in the same function does it too, and `--changed`
   cannot see that, since it selects only entries whose own line was added. So no outside run is asked for until the
-  mutation jobs of the landing's run at that sha are green: every `land/<sha>` push is the full campaign (ADR-126), and the
+  mutation jobs of the landing's run at that sha are green: a `land/<sha>` push that changes more than the catalogue pin is the full campaign (ADR-126, ADR-146), and the
   bump rides in the candidate it lands. The shards are not among main's required checks, so a landing does not wait for
   them; the release waits for every job of that run (§13, step 4).
 - **A gate run under contention is unattributable, including a pass.** Wait for load below the core

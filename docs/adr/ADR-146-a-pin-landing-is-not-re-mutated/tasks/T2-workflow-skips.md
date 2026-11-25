@@ -22,6 +22,7 @@ and `release-evidence` refuses a run whose shards were skipped or are absent, un
 | `.github/workflows/selftest.yml` | edit | The seed job's checkout, class step and output; the condition on `mutations`; `needs` and the condition on `mutation-cache`; the comments at :335-338 and :365-372 |
 | `tests/landing-class-workflow.test.mjs` | add | The tests below |
 | `tests/mutations/.github/workflows/selftest.yml.json` | edit | The condition dropped or inverted on each job; the output wired to another step |
+| `tests/mutations/scripts/release-evidence.mjs.json` | edit | A skipped shard tolerated; the declared-job check dropped |
 | `scripts/release-evidence.mjs` | edit | Comment at :92-97 only: a land push is full unless it is a pin landing |
 | `scripts/release.mjs` | edit | Comment at :216 only, the same sentence |
 | `CLAUDE.md` | edit | §13 step 3 and §18 |
@@ -65,6 +66,8 @@ node --test tests/landing-class-workflow.test.mjs
 | 4 — it is used | T3's landing |
 
 ## Mutation Log
+- 2026-11-25 · 2b4086fd4* · mutant killed · exit 1 · `.github/workflows/selftest.yml` · the shards run only on a pin and skip on everything else · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · covers:the positive skip condition
+- 2026-11-25 · 2b4086fd4* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · a skipped job is tolerated in a release run · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · covers:a skipped campaign is not a release run
 
 ## Invariants
 
@@ -86,3 +89,21 @@ Stop if a locked test must change to pass, or if `release-evidence` accepts eith
 - A condition on any required job (deferred: docs/BACKLOG.md §475)
 
 ## Verification Log
+- 2026-11-25 · 2b4086fd4* · exit 1 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:169 · test-lock-sha256:68aad1d43d1692940b0a127cdf20002d3499e2202b79514aa1a1dbd52f2c8271 · test-lock-file:docs/adr/locks/68aad1d43d1692940b0a127cdf20002d3499e2202b79514aa1a1dbd52f2c8271.lock
+  ```
+  --- last 10 line(s) of stdout (of 40 after folding 40 raw)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.start (node:internal/test_runner/test:1262:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: [ 'the seed job does not check out the commit with its parent', 'the seed job does not run the class script as the step `landing`', 'the seed job does not expose `skip` from the class step', 'the shards do not carry exactly the skip condition', 'the merge does not need the shards and the seed job', 'the merge does not carry exactly its condition' ],
+      expected: [],
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-11-25 · 2b4086fd4* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:8 · test-lock-sha256:5a7c9bdc5644187d37a5dd84663f6465e15b3c26a622e1447170fa65a13d907c · test-lock-file:docs/adr/locks/5a7c9bdc5644187d37a5dd84663f6465e15b3c26a622e1447170fa65a13d907c.lock · test-lock-kind:replace
+- 2026-11-25 · 2b4086fd4* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:167
+- 2026-11-25 · 2b4086fd4* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:263
+- 2026-11-25 · 2b4086fd4* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:243

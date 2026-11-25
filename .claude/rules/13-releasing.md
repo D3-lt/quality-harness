@@ -121,3 +121,10 @@ longer runs on a push to main, every land push runs the whole mutation catalogue
 arrive after the landing; `release.mjs` takes it as evidence on a sha already on main. Each wait has its own deadline,
 since one bound over the landing (about 30 min once the coverage floor is two jobs) and the campaign together ran out on
 3.8.52 with nothing wrong.
+
+Measured 2026-11-25 (ADR-146): a landing is about 489 runner-minutes, 374 of them the mutation shards (runs 45469221252
+and 45475508810), and five of the nine landings from 2026-11-22 to 2026-11-24 changed one file, the catalogue pin. Nobody
+reads the shards on such a landing: main does not require them, and `release-evidence` reads them only at a release sha.
+So the seed job asks `scripts/landing-class.mjs` whether the landing is one commit on main's tip that changes only the
+values of `version`, `url` and `sha256` in the pin, and only then are the shards skipped. Every required check still
+runs, and a run with a skipped or absent shard is never a release run.

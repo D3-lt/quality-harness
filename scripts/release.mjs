@@ -214,6 +214,7 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   if (landed !== 0) { log(`release: land exited ${landed} ${at}; nothing was dispatched`); return landed }
 
   // ADR-126 T5: the landing's own push to land/<sha> is the release's run, and the workflow runs it as the full campaign
+  // (a release lands more than a catalogue pin, the one landing ADR-146 runs without a campaign)
   // (T1), so nothing is dispatched for it; its every job is waited for, the mutation shards included, which land does not
   // wait for. A forge that requires no check takes main straight (ADR-118) and leaves no landing run: only then is the
   // campaign dispatched, on main, unless one already was.

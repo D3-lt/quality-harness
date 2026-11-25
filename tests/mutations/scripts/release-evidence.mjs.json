@@ -526,6 +526,10 @@
     { "label": "ADR-138 second review: readers carry a proven fingerprint", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
       "from": "report.readers?.dirty !== false || !isHex(report.readers?.sha256)) wrong.push(", "to": "report.readers?.dirty !== false) wrong.push(", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
     { "label": "ADR-138 second review: a digest is a string", "file": "scripts/release-evidence.mjs", "tests": ["tests/release-evidence-ci-outside.test.mjs"],
-      "from": "  const isHex = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)", "to": "  const isHex = value => /^[0-9a-f]{64}$/.test(value)", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" }
+      "from": "  const isHex = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)", "to": "  const isHex = value => /^[0-9a-f]{64}$/.test(value)", "only": "^an artifact clears only complete reports of the pinned inputs, by the readers and cores of the commits it names$" },
+    { "label": "ADR-146 T2: a run with a skipped shard is not a release run", "file": "scripts/release-evidence.mjs", "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "  const bad = jobs.filter(j => j.conclusion !== 'success')", "to": "  const bad = jobs.filter(j => j.conclusion !== 'success' && j.conclusion !== 'skipped')", "only": "^a run whose shards were skipped or are absent is not a release run$" },
+    { "label": "ADR-146 T2: a run that lists no shard is not a release run", "file": "scripts/release-evidence.mjs", "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "} else if (missing.length) {", "to": "} else if (false) {", "only": "^a run whose shards were skipped or are absent is not a release run$" }
   ]
 }

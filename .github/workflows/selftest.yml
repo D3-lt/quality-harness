@@ -194,12 +194,19 @@ jobs:
   mutation-cache-seed:
     name: mutation cache seed
     runs-on: ubuntu-latest
+    # ADR-146: the last step asks whether this landing only re-pins the catalogue. `skip` is `1` only on that positive
+    # answer; the shards and the merge below read it, and nothing else does.
+    outputs:
+      skip: ${{ steps.landing.outputs.skip }}
     # BACKLOG §148. One prefix restore for the whole run, so all twelve shards
     # compute their slice from the SAME timings — see the note in `mutations`.
     # It always publishes a file, empty when nothing was restored, so a shard's
     # download has no zero-artifact arm to get wrong and a first-ever run behaves
     # exactly like a run whose cache expired.
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: actions/cache/restore@v6
         with:
           path: .mutation-cache.json
@@ -222,11 +229,17 @@ jobs:
           # reports, the merge refuses every run, and nothing anywhere says why.
           include-hidden-files: true
           retention-days: 1
+      - name: Is this landing a catalogue pin alone
+        id: landing
+        run: node scripts/landing-class.mjs
 
   mutations:
     name: mutations ${{ matrix.shard }}/48
     runs-on: ubuntu-latest
     needs: mutation-cache-seed
+    # ADR-146: no status function here, so the forge's implied success check stays. A seed job that failed skips the
+    # shards as it always did, and a release refuses that run; a seed job that succeeded skips them only on `skip=1`.
+    if: needs.mutation-cache-seed.outputs.skip != '1'
     # Sharded, and timed out on purpose. The campaign went from 145 entries to
     # 268 in two days and its job was killed at thirty minutes on 2026-08-28
     # with exit 143 — which reads as infrastructure noise rather than as "this
@@ -333,9 +346,10 @@ jobs:
           name: mutation-cache-seed
       - name: Break each mechanism and check the tests notice
         # ADR-023 T3, corrected 2026-09-05 (BACKLOG §142): what must be full is the run a RELEASE is cut from. Since
-        # ADR-126 T1 that is the landing's own push to land/<sha>, so every land push runs the whole catalogue, and a
-        # dispatch still does; a pull request reuses the cache. `release-evidence.mjs` refuses any other run as cached,
-        # so the cheap path cannot become a quiet evidence hole.
+        # ADR-126 T1 that is the landing's own push to land/<sha>, so a land push runs the whole catalogue, and a
+        # dispatch still does; a pull request reuses the cache. The one land push that runs none is a catalogue pin
+        # (ADR-146): this job is then skipped. `release-evidence.mjs` refuses any other run as cached and a run with a
+        # skipped or absent shard as failed, so the cheap path cannot become a quiet evidence hole.
         env:
           QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}
         run: |
@@ -361,8 +375,8 @@ jobs:
   mutation-cache:
     name: mutation cache
     runs-on: ubuntu-latest
-    needs: mutations
-    # ⚠ THE JOB ALWAYS RUNS; ITS STEPS ARE WHAT SKIP. A job that skips is not a
+    needs: [mutations, mutation-cache-seed]
+    # ⚠ THE JOB ALWAYS RUNS, BUT FOR A CATALOGUE PIN (ADR-146); ITS STEPS ARE WHAT SKIP. A job that skips is not a
     # job that succeeded, and `release-evidence.mjs` asks whether EVERY job
     # concluded `success` — it filters on `j.conclusion !== 'success'`, so
     # `skipped` is exit 1 there just like `failed`. Putting
@@ -374,7 +388,7 @@ jobs:
     # ⚠ THIS JOB IS NOT A GATE. It publishes an optimisation, so it must never be
     # the thing that reddens a run: a refusal costs the next push a full campaign
     # and nothing else. It reports loudly and exits 0 (CLAUDE.md §3).
-    if: always()
+    if: ${{ always() && needs.mutation-cache-seed.outputs.skip != '1' }}
     steps:
       - uses: actions/checkout@v7
         if: github.event_name != 'workflow_dispatch'

@@ -63,6 +63,54 @@
       "from": "          name: outside-run\n          path: outside-run.json\n          if-no-files-found: error",
       "to": "          name: outside-run\n          path: outside-run.json\n          if-no-files-found: warn",
       "only": "^the outside run job is selected on every release run and uploads its artifact$"
+    },
+    {
+      "label": "ADR-146 T2: the shards skip only on the seed job's positive answer",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "    if: needs.mutation-cache-seed.outputs.skip != '1'",
+      "to": "    if: needs.mutation-cache-seed.outputs.skip == '1'",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 T2: the shards carry the skip condition",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "    if: needs.mutation-cache-seed.outputs.skip != '1'",
+      "to": "    if: true",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 T2: the skip output is the class step's",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "      skip: ${{ steps.landing.outputs.skip }}",
+      "to": "      skip: ${{ steps.publish.outputs.skip }}",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 T2: the class step runs the class script",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "        run: node scripts/landing-class.mjs",
+      "to": "        run: echo skip=1 >> \"$GITHUB_OUTPUT\"",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 T2: the merge does not run on a skipped campaign",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "    if: ${{ always() && needs.mutation-cache-seed.outputs.skip != '1' }}",
+      "to": "    if: always()",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 T2: no required job reads the skip output",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "    name: windows\n",
+      "to": "    name: windows\n    if: needs.mutation-cache-seed.outputs.skip != '1'\n",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
     }
   ]
 }

@@ -92,7 +92,8 @@ export function evaluateRun(run, { landingIsFull = false } = {}) {
   // ⚠ A GREEN RUN IS NOT AUTOMATICALLY A RELEASE-GRADE ONE (BACKLOG §142). Only a full
   // campaign may carry a tag (ADR-023 rule 1): a `workflow_dispatch` run, or since
   // ADR-126 T1 the landing's own push to `land/<its sha>`, which the workflow runs
-  // full. Any other push or a pull request may reuse a cached RED verdict, which is
+  // full (a catalogue pin's landing runs none, ADR-146: its shards are skipped, and the
+  // strict check above has already refused it). Any other push or a pull request may reuse a cached RED verdict, which is
   // right for iteration and not what a tag may rest on. The event and the branch are
   // what distinguish them from outside, so they are asked here rather than assumed.
   if (run.event === undefined || run.event === null) {

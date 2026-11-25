@@ -4929,3 +4929,27 @@ Filed with the evidence that found each; none is fixed by ADR-146.
 4. **A landing of records alone still runs the whole campaign.** The campaign reads the live backlog through the two
    `backlog-record-sweep` mutants (tests/mutations/scripts/backlog-record-sweep.mjs.json:33), and which catalogue tests read
    `docs/adr/` is not measured. Until it is, records ride with the next code landing.
+
+## 476. Measured 2026-11-25 for ADR-147 — ADR-023's verdict key misses an input, and what a landing of a released version gives up
+
+Found while sizing verdict reuse across landings, which ADR-147 then did not build.
+
+1. **The key misses an input.** ADR-023 keys a verdict on the edit, the mutated file and its test files
+   (scripts/mutate.mjs:819-834), and its pre-registered criterion removes the record if a full campaign ever contradicts a
+   reused RED. Method: the shards that failed on a `land/<sha>` run from 2026-10-22 to 2026-11-25 were listed
+   (`gh run list --workflow selftest.yml --event push --limit 300`, then each run's jobs), each log read
+   (`gh run view --job <id> --log`) for its GREEN, UNPROVEN, STALE and HUNG lines, and each such entry's key recomputed at
+   the landing and at main's tip then, from `git ls-tree -r` blob ids. Result: ninety-two non-RED verdicts over eight
+   landings (580787047, 91afb9268, c0c7eaeb2, 333e657a1, 539b4076a, bb2476929, 69374807a, 5c22b9bb8; 2ca24f018's shard
+   failed removing a scratch directory, with no verdict). Seventy-nine were at bb2476929, and eleven of those had the key
+   they had at main's tip 2a0d6c10e, whose campaign was green: two GREEN (`ADR-117 T1: an output redirection keeps its
+   target`, `ADR-117 verification: a command of redirections alone is kept for what it writes`) and nine UNPROVEN. The
+   cause is not traced for any of them. The first mutates plugin/scripts/shell-words.mjs and tests/ledger-writes.test.mjs
+   kills it; neither file changed in 2a0d6c10e..bb2476929, a range that includes b504ac077, "run lifecycle hooks through
+   the verified Go core". The other eighty-one had a new key, or main's tip had already reported them.
+   Today the cache serves pull-request and local runs only, which no release rests on. Open: whether it stays, and
+   whether its summary line may still say a reused verdict's subject and tests are all a verdict depends on.
+2. **A landing of a released version no longer measures the entries it changed** (ADR-147). Over the forty-nine successful
+   landings from 179c0d561 to 340710727, the fourteen that were neither a bump nor a pin changed between 0 and 139 keys.
+   One job that measures only those entries would give the early notice back; ADR-147's first follow-up says when to
+   build it.

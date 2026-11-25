@@ -36,7 +36,7 @@ else, including everything it could not read (ADR-146 Decisions 1 and 2).
    `entries` is an array of exactly one entry with path bytes `.claude-plugin/marketplace.json`, status `M` and both
    modes `100644`, and `pinOnly(before, after)` holds.
 4. [S4] Add the CLI: it reads `GITHUB_EVENT_NAME`, `GITHUB_REF` and `GITHUB_SHA`; runs `git rev-parse HEAD`,
-   `git rev-list --parents -n 1 HEAD`, `git fetch --depth=1 origin main` with `git rev-parse FETCH_HEAD`,
+   `git rev-list --parents -n 1 HEAD`, `git ls-remote origin refs/heads/main`,
    `git diff-tree -r --raw -z --no-renames --ignore-submodules=none <parent> <sha>` and two `git cat-file blob`, each
    with a timeout, `windowsHide: true` and its output taken as a buffer; a command that exited non-zero, timed out or
    printed what cannot be parsed whole leaves its fact absent. It prints the answer and the reason on one line, appends
@@ -59,6 +59,7 @@ node --test tests/landing-class.test.mjs
 | `only the three pinned values may differ` | `tests/landing-class.test.mjs` | The pin of c65834167, as two stand-in texts, is a pin; beside it each row that is not: identical texts; a fourth key's value; a line added; a line removed; two lines swapped; the `plugins` line itself; indentation changed; a comma added; a key renamed on one side; a value holding an escaped quote; CRLF on one side | — | S1, S2 |
 | `a pin landing is one commit on main that changes one regular file` | `tests/landing-class.test.mjs` | The whole fact set of a pin skips; beside it each fact that does not: a pull request, a dispatch, a push to another branch, `land/<another sha>`, a head that is not the sha, a short sha, two parents, a parent that is not main, no main, a second entry, another path, the path with a trailing byte, status `A`, a mode of 100755 or 120000, and absent blobs | — | S1, S3 |
 | `the command reads a real commit` | `tests/landing-class.test.mjs` | In a repository the test made, with a bare remote: a pin commit on main's tip writes `skip=1`; a pin behind a second unlanded commit, a pin that also touches another file, a pin made a merge, a mode change, a remote without main, and a run with `git` absent from `PATH` each write `skip=0`; the exit is 0 every time | — | S1, S4 |
+| `a command that failed leaves its fact absent` | `tests/landing-class.test.mjs` | Through the command's spawn seam: with every git command answering, a pin skips; with each command in turn exiting 1 beside its whole answer, timing out, or answering text, it does not; nor with a diff that ended early, two refs answered, or another commit's parents; `rawEntries` reads a whole listing and nothing less | — | S1, S4 |
 
 ## Reachability
 
@@ -70,6 +71,11 @@ node --test tests/landing-class.test.mjs
 | 4 — it is used | T3's landing |
 
 ## Mutation Log
+- 2026-11-25 · 5aaf5d1bd* · mutant killed · exit 1 · `scripts/landing-class.mjs` · a fourth key is accepted as a pinned value · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · covers:the three pinned keys
+- 2026-11-25 · 5aaf5d1bd* · mutant killed · exit 1 · `scripts/landing-class.mjs` · a second changed path is tolerated · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · covers:the one changed path
+- 2026-11-25 · 5aaf5d1bd* · mutant killed · exit 1 · `scripts/landing-class.mjs` · the parent is not compared with main's tip · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · covers:the parent is main's tip
+- 2026-11-25 · 5aaf5d1bd* · mutant killed · exit 1 · `scripts/landing-class.mjs` · the ref is compared by prefix only · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · covers:the event and ref check
+- 2026-11-25 · 5aaf5d1bd* · mutant killed · exit 1 · `scripts/landing-class.mjs` · the output of a git command that exited non-zero is read · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · covers:a failed command runs the campaign
 
 ## Invariants
 
@@ -90,3 +96,24 @@ are not each a pin by `pinOnly`: the rule of ADR-146 Decision 1 then does not de
 - Any change to the workflow (deferred: docs/adr/ADR-146-a-pin-landing-is-not-re-mutated/tasks/T2-workflow-skips.md)
 
 ## Verification Log
+- 2026-11-25 · 5aaf5d1bd* · exit 1 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:296 · test-lock-sha256:62b5bd2d9778fef789956c37a939eff4c402a2a93d52b6b3a559665941dacf54 · test-lock-file:docs/adr/locks/62b5bd2d9778fef789956c37a939eff4c402a2a93d52b6b3a559665941dacf54.lock
+  ```
+  --- last 10 line(s) of stdout (of 35 after folding 35 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 179.368083
+
+  ✖ failing tests:
+
+  test at tests/landing-class.test.mjs:1:1
+  ✖ tests/landing-class.test.mjs (173.345291ms)
+    'test failed'
+  ```
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:3458
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:2474
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:3005
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:3272
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:2742
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `node --test tests/landing-class.test.mjs` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:2255
+- 2026-11-25 · 5aaf5d1bd* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7bfc4b6aa6da31260650d8a2ea3681799a9076eb72e3bdd5f1a2eff8006a8479 · ms:11 · test-lock-sha256:209d68fd57111a6be6d034ab1da92617c47ecf4a9e24dac22b172b4fc4285f22 · test-lock-file:docs/adr/locks/209d68fd57111a6be6d034ab1da92617c47ecf4a9e24dac22b172b4fc4285f22.lock · test-lock-kind:replace

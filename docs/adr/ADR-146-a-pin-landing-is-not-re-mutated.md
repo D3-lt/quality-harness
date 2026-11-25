@@ -61,10 +61,10 @@ unit is runner-minutes.
 ## Decision
 
 1. **A landing is a pin landing only when one commit, sitting directly on main, re-pins the catalogue.** The
-   `mutation cache seed` job checks the commit out with its parent, fetches the forge's main and runs
+   `mutation cache seed` job checks the commit out with its parent and runs
    `node scripts/landing-class.mjs`. It answers "skip" only when all of these hold, and "run" otherwise:
    - the event is a push, the ref is `refs/heads/land/<sha>`, and the commit checked out is that sha;
-   - the commit has exactly one parent, and that parent is the tip of the main just fetched;
+   - the commit has exactly one parent, and that parent is what `git ls-remote origin refs/heads/main` names as main's tip;
    - `git diff-tree -r --raw -z --no-renames --ignore-submodules=none <parent> <sha>` exited 0 and listed exactly one
      entry: `.claude-plugin/marketplace.json`, compared as bytes, modified, a regular file of mode 100644 on both sides;
    - the two versions of that file have the same number of lines, at least one line differs, and every line that

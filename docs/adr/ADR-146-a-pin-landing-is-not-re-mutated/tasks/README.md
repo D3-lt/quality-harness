@@ -8,7 +8,7 @@ Implementation tasks for ADR-146: a landing that only re-pins the catalogue does
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A pin landing is recognised from git, and anything else runs the campaign | pending | none — no spec | `node --test tests/landing-class.test.mjs` |
+| T1 | A pin landing is recognised from git, and anything else runs the campaign | done | none — no spec | `node --test tests/landing-class.test.mjs` |
 | T2 | A pin landing skips the campaign, and a release still refuses such a run | pending | none — no spec | `node --test tests/landing-class-workflow.test.mjs` |
 | T3 | The saving is read from a live pin landing | pending | none — no spec | human-observed |
 

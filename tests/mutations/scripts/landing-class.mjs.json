@@ -1,0 +1,108 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-146 T1: only version, url and sha256 are pinned keys",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "\"(version|url|sha256)\": \"",
+      "to": "\"(version|url|sha256|category)\": \"",
+      "only": "^only the three pinned values may differ$"
+    },
+    {
+      "label": "ADR-146 T1: a pin keeps the file's line count",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (was.length !== is.length) return false",
+      "to": "  if (was.length > is.length) return false",
+      "only": "^only the three pinned values may differ$"
+    },
+    {
+      "label": "ADR-146 T1: a pin changes at least one line",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  return changed > 0",
+      "to": "  return changed >= 0",
+      "only": "^only the three pinned values may differ$"
+    },
+    {
+      "label": "ADR-146 T1: a pin landing changes exactly one path",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (entries.length !== 1) return run(",
+      "to": "  if (entries.length < 1) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: the changed path is the catalogue file, byte for byte",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "!entry.path.equals(PIN)) return run(",
+      "to": "!entry.path.subarray(0, PIN.length).equals(PIN)) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: the catalogue file keeps its regular mode",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (entry.status !== 'M' || entry.before !== '100644' || entry.after !== '100644') return run(",
+      "to": "  if (entry.status !== 'M') return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: the commit's parent is main's tip",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (parents[0] !== main) return run(",
+      "to": "  if (false) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: a merge is not a pin landing",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (!Array.isArray(parents) || parents.length !== 1) return run(",
+      "to": "  if (!Array.isArray(parents) || parents.length < 1) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: only a push is a landing",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (event !== 'push') return run(",
+      "to": "  if (false) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: the ref is land/<the pushed sha>, whole",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (ref !== `refs/heads/land/${sha}`) return run(",
+      "to": "  if (!String(ref).startsWith(`refs/heads/land/${sha}`)) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 T1: a git command that exited non-zero answered nothing",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "    return !child.error && child.status === 0 && Buffer.isBuffer(child.stdout) ? child.stdout : null",
+      "to": "    return !child.error && Buffer.isBuffer(child.stdout) ? child.stdout : null",
+      "only": "^a command that failed leaves its fact absent$"
+    },
+    {
+      "label": "ADR-146 T1: a diff listing that ended early is not read",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "  if (output[output.length - 1] !== 0) return null",
+      "to": "  if (false) return null",
+      "only": "^a command that failed leaves its fact absent$"
+    },
+    {
+      "label": "ADR-146 T1: the command writes skip=1 only on the positive answer",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "`skip=${answer.skip ? 1 : 0}\\n`",
+      "to": "`skip=${answer.skip ? 1 : 1}\\n`",
+      "only": "^the command reads a real commit$"
+    }
+  ]
+}

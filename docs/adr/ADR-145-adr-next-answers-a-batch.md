@@ -253,4 +253,4 @@ by reverting T1 as well. No file, ledger or schema is written by either task, so
 
 ## Follow-ups
 
-- [ ] Ask for the outside run (CLAUDE.md §18) before the release that carries T2.
+- [x] Ask for the outside run (CLAUDE.md §18) before the release that carries T2. Answered 2026-11-24 by the outside-run job of the release run (run 45469221252, v3.8.81 at 552fc14c1): 17 corpora, each report equal to the last tag's.

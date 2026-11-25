@@ -73,6 +73,10 @@ node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/l
 | 4 — it is used | T3's landing |
 
 ## Mutation Log
+- 2026-11-25 · eecdce9f3* · mutant killed · exit 1 · `scripts/landing-class.mjs` · the tag's name is compared by how it ends · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · covers:the tag is that version's own
+- 2026-11-25 · eecdce9f3* · mutant killed · exit 1 · `scripts/landing-class.mjs` · the version's shape is not checked · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · covers:the version is three runs of digits
+- 2026-11-25 · eecdce9f3* · mutant killed · exit 1 · `scripts/landing-class.mjs` · a tagged version answers before the event is checked · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · covers:the event, ref and head come first
+- 2026-11-25 · eecdce9f3* · mutant killed · exit 1 · `scripts/landing-class.mjs` · the output of a command that exited non-zero is read · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · covers:a failed command is no tag
 
 ## Invariants
 
@@ -95,3 +99,22 @@ on 2026-11-25.)
 - Reading the first skipped landing (deferred: docs/adr/ADR-147-a-landing-no-release-can-rest-on-is-not-mutated/tasks/T3-measured.md)
 
 ## Verification Log
+- 2026-11-25 · eecdce9f3* · exit 1 · `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · ms:3131 · test-lock-sha256:8d83bc896ad0df41cb3070a79beb38a66f75d8978522a99271e426faa421bbc8 · test-lock-file:docs/adr/locks/8d83bc896ad0df41cb3070a79beb38a66f75d8978522a99271e426faa421bbc8.lock
+  ```
+  --- last 10 line(s) of stdout (of 32 after folding 32 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 3047.589166
+
+  ✖ failing tests:
+
+  test at tests/landing-released.test.mjs:1:1
+  ✖ tests/landing-released.test.mjs (72.990708ms)
+    'test failed'
+  ```
+- 2026-11-25 · eecdce9f3* · exit 0 · `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · ms:3490
+- 2026-11-25 · eecdce9f3* · exit 0 · `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · ms:3353
+- 2026-11-25 · eecdce9f3* · exit 0 · `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · ms:2780
+- 2026-11-25 · eecdce9f3* · exit 0 · `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · ms:3089
+- 2026-11-25 · eecdce9f3* · exit 0 · `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` · acceptance-sha256:356c79201c7668fa17c5122cbfb3927193eb836407de013e93a5077fd58ff803 · ms:2787

@@ -199,6 +199,102 @@
       "from": "`skip=${answer.skip ? 1 : 0}\\n`",
       "to": "`skip=${answer.skip ? 1 : 1}\\n`",
       "only": "^the command reads a real commit$"
+    },
+    {
+      "label": "ADR-147 T1: the tag's name is compared whole, not by how it ends",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "name === `refs/tags/v${version}`",
+      "to": "String(name).endsWith(`refs/tags/v${version}`)",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: an answer with no line holds no tag",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "  return tags.some(line => {",
+      "to": "  return tags.every(line => {",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: the tag's line carries a full object id",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "more.length === 0 && SHA.test(id) && name",
+      "to": "more.length === 0 && /^[0-9a-f]+$/.test(id) && name",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: the version is three runs of digits",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "typeof version !== 'string' || !VERSION.test(version) || !Array.isArray(tags)",
+      "to": "typeof version !== 'string' || !Array.isArray(tags)",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: the event is checked before the tag",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "  if (event !== 'push') return run(",
+      "to": "  if (event !== 'push' && !tagged(version, tags)) return run(",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: the ref is checked before the tag",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "  if (ref !== `refs/heads/land/${sha}`) return run(",
+      "to": "  if (ref !== `refs/heads/land/${sha}` && !tagged(version, tags)) return run(",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: the commit checked out is checked before the tag",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "  if (head !== sha) return run(",
+      "to": "  if (head !== sha && !tagged(version, tags)) return run(",
+      "only": "^a landing of a version already tagged skips the campaign$"
+    },
+    {
+      "label": "ADR-147 T1: the output of a command that exited non-zero is no answer about the release",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "return child.error || child.status !== 0 || !Buffer.isBuffer(child.stdout) ? null : child.stdout",
+      "to": "return child.error || !Buffer.isBuffer(child.stdout) ? null : child.stdout",
+      "only": "^the version and its tag are read from git and the forge$"
+    },
+    {
+      "label": "ADR-147 T1: a line the forge's answer was cut short in is no answer",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "listed?.endsWith('\\n') ? listed.slice(0, -1).split('\\n') : null",
+      "to": "listed ? listed.replace(/\\n$/, '').split('\\n') : null",
+      "only": "^the version and its tag are read from git and the forge$"
+    },
+    {
+      "label": "ADR-147 T1: the forge is asked only for a version of the released shape",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "  if (typeof version !== 'string' || !VERSION.test(version)) return none",
+      "to": "  if (typeof version !== 'string') return none",
+      "only": "^the version and its tag are read from git and the forge$"
+    },
+    {
+      "label": "ADR-147 T1: the manifest is read as strict UTF-8",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(manifest)",
+      "to": "manifest.toString('latin1')",
+      "only": "^the version and its tag are read from git and the forge$"
+    },
+    {
+      "label": "ADR-147 T1: the command passes what it read of the release to the answer",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-released.test.mjs"],
+      "from": "landingClass({ ...readFacts(process.env, process.cwd()), ...readRelease(process.cwd()) })",
+      "to": "landingClass(readFacts(process.env, process.cwd()))",
+      "only": "^the command reads a real tag$"
     }
   ]
 }

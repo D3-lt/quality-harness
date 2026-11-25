@@ -1,10 +1,14 @@
 #!/usr/bin/env node
-// landing-class.mjs — ADR-146: whether this landing only re-pins the catalogue, so its mutation campaign may be skipped.
+// landing-class.mjs — whether this landing's mutation campaign may be skipped: its plugin version is already tagged on
+// the forge, so no release is cut from it (ADR-147), or it only re-pins the catalogue (ADR-146).
 //
 // The seed job of .github/workflows/selftest.yml runs it at the commit checked out with its parent. It answers "skip" only
-// for a push to land/<sha> whose one commit sits on main's tip and changes nothing but the values of `version`, `url` and
-// `sha256` in .claude-plugin/marketplace.json. Everything else is "run", and so is everything it could not read: a
-// command that failed or timed out, output that ended early, a state nobody listed (CLAUDE.md §16).
+// for a push to land/<sha> that is one of two things. Either the version in plugin/.claude-plugin/plugin.json has its tag
+// `refs/tags/v<version>` on the forge: `scripts/release.mjs` refuses to release such a version, and `release-evidence`
+// refuses a run whose shards were skipped whatever skipped them. Or its one commit sits on main's tip and changes
+// nothing but the values of `version`, `url` and `sha256` in .claude-plugin/marketplace.json. Everything else is "run",
+// and so is everything it could not read: a command that failed or timed out, output that ended early, a state nobody
+// listed (CLAUDE.md §16).
 //
 // It prints one line, appends `skip=1` or `skip=0` to the file GITHUB_OUTPUT names, and exits 0 whatever it found: the
 // answer is the output, and a campaign that runs needlessly costs minutes while a job that fails here would skip it.
@@ -20,6 +24,9 @@ const PLUGIN = 'quality-harness'
 const PLAIN = /^[ !#-[\]-~]*$/
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/
 const CHILD_TIMEOUT_MS = 60_000
+const MANIFEST = 'plugin/.claude-plugin/plugin.json'
+// A version as `scripts/release.mjs` reads one before it tags: three runs of digits and nothing else.
+const VERSION = /^\d+\.\d+\.\d+$/
 
 /** The three values `scripts/marketplace-source.mjs` pins, read from the catalogue's one entry for this plugin; null when it has no such entry. */
 function pinned(text) {
@@ -96,16 +103,33 @@ export function onlyChange(before, after, name, mode, width) {
 }
 
 /**
- * `{ skip, reason }` for what the command read (ADR-146 Decision 1). A fact that is absent or of another shape is a
+ * Whether the forge's answer holds this version's own tag (ADR-147 Decision 1): one line that is a full object id, a tab
+ * and exactly `refs/tags/v<version>`. `git ls-remote` also prints a ref that only ends in that text, so other lines are
+ * ignored and never counted. A version of another shape, or an answer that is not a list of lines, holds no tag.
+ */
+function tagged(version, tags) {
+  if (typeof version !== 'string' || !VERSION.test(version) || !Array.isArray(tags)) return false
+  return tags.some(line => {
+    if (typeof line !== 'string') return false
+    const [id, name, ...more] = line.split('\t')
+    return more.length === 0 && SHA.test(id) && name === `refs/tags/v${version}`
+  })
+}
+
+/**
+ * `{ skip, reason }` for what the command read (ADR-146 Decision 1, ADR-147 Decision 1). A fact that is absent or of another shape is a
  * reason to run the campaign, never to skip it.
  */
 export function landingClass(facts) {
-  const { event, ref, sha, head, parents, main, root, dir, before, after } = facts ?? {}
+  const { event, ref, sha, head, parents, main, root, dir, before, after, version, tags } = facts ?? {}
   const run = reason => ({ skip: false, reason })
   if (event !== 'push') return run(`the event is ${event ?? 'unknown'}, not a push`)
   if (typeof sha !== 'string' || !SHA.test(sha)) return run('the pushed sha is not a full sha')
   if (ref !== `refs/heads/land/${sha}`) return run('the ref is not land/<the pushed sha>')
   if (head !== sha) return run('the commit checked out is not the pushed sha, or could not be read')
+  // ADR-147: after the event, the ref and the commit checked out, and before anything about the commit's parents. No
+  // release is cut from a version that has its tag, whatever this landing changes.
+  if (tagged(version, tags)) return { skip: true, reason: `plugin version ${version} already has its tag on the forge, so no release is cut from this landing (ADR-147)` }
   if (!Array.isArray(parents) || parents.length !== 1) return run('the commit does not have exactly one parent, or its parents could not be read')
   if (typeof main !== 'string' || !SHA.test(main)) return run("main's tip could not be read from the forge")
   if (parents[0] !== main) return run("the commit's parent is not main's tip")
@@ -141,8 +165,32 @@ export function readFacts(env, cwd, spawn = spawnSync) {
   }
 }
 
+/**
+ * The plugin version at the commit checked out and what the forge lists for its tag (ADR-147 Decision 1), each absent
+ * when its command failed, timed out or was cut short. The manifest is the blob's bytes, strict UTF-8 JSON with or
+ * without a final newline; the forge is asked only for a version of the released shape, and its answer is whole lines.
+ */
+export function readRelease(cwd, spawn = spawnSync) {
+  const answered = args => {
+    const child = spawn('git', args, { cwd, timeout: CHILD_TIMEOUT_MS, windowsHide: true, maxBuffer: 64 * 1024 * 1024 })
+    return child.error || child.status !== 0 || !Buffer.isBuffer(child.stdout) ? null : child.stdout
+  }
+  const none = { version: null, tags: null }
+  const manifest = answered(['cat-file', 'blob', `HEAD:${MANIFEST}`])
+  if (!manifest) return none
+  let version
+  try {
+    version = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(manifest)).version
+  } catch {
+    return none
+  }
+  if (typeof version !== 'string' || !VERSION.test(version)) return none
+  const listed = answered(['ls-remote', 'origin', `refs/tags/v${version}`])?.toString('latin1')
+  return { version, tags: listed?.endsWith('\n') ? listed.slice(0, -1).split('\n') : null }
+}
+
 if (isMainModule(import.meta.url)) {
-  const answer = landingClass(readFacts(process.env, process.cwd()))
+  const answer = landingClass({ ...readFacts(process.env, process.cwd()), ...readRelease(process.cwd()) })
   console.log(`landing-class: ${answer.skip ? 'skip' : 'run'} the mutation campaign: ${answer.reason}`)
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `skip=${answer.skip ? 1 : 0}\n`)
 }

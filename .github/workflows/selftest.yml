@@ -194,8 +194,9 @@ jobs:
   mutation-cache-seed:
     name: mutation cache seed
     runs-on: ubuntu-latest
-    # ADR-146: the last step asks whether this landing only re-pins the catalogue. `skip` is `1` only on that positive
-    # answer; the shards and the merge below read it, and nothing else does.
+    # ADR-146, ADR-147: the last step asks whether this landing only re-pins the catalogue, or is of a plugin version
+    # already tagged on the forge, which no release is cut from. `skip` is `1` only on one of those positive answers; the
+    # shards and the merge below read it, and nothing else does.
     outputs:
       skip: ${{ steps.landing.outputs.skip }}
     # BACKLOG §148. One prefix restore for the whole run, so all twelve shards
@@ -241,7 +242,7 @@ jobs:
     name: mutations ${{ matrix.shard }}/48
     runs-on: ubuntu-latest
     needs: mutation-cache-seed
-    # ADR-146: no status function here, so the forge's implied success check stays. A seed job that failed skips the
+    # ADR-146, ADR-147: no status function here, so the forge's implied success check stays. A seed job that failed skips the
     # shards as it always did, and a release refuses that run; a seed job that succeeded skips them only on `skip=1`.
     if: needs.mutation-cache-seed.outputs.skip != '1'
     # Sharded, and timed out on purpose. The campaign went from 145 entries to
@@ -351,8 +352,9 @@ jobs:
       - name: Break each mechanism and check the tests notice
         # ADR-023 T3, corrected 2026-09-05 (BACKLOG §142): what must be full is the run a RELEASE is cut from. Since
         # ADR-126 T1 that is the landing's own push to land/<sha>, so a land push runs the whole catalogue, and a
-        # dispatch still does; a pull request reuses the cache. The one land push that runs none is a catalogue pin
-        # (ADR-146): this job is then skipped. `release-evidence.mjs` refuses any other run as cached and a run with a
+        # dispatch still does; a pull request reuses the cache. The land pushes that run none are a catalogue pin
+        # (ADR-146) and a landing of a plugin version already tagged (ADR-147): this job is then skipped.
+        # `release-evidence.mjs` refuses any other run as cached and a run with a
         # skipped or absent shard as failed, so the cheap path cannot become a quiet evidence hole.
         env:
           QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/land/')) }}
@@ -380,7 +382,7 @@ jobs:
     name: mutation cache
     runs-on: ubuntu-latest
     needs: [mutations, mutation-cache-seed]
-    # ⚠ THE JOB ALWAYS RUNS, BUT FOR A CATALOGUE PIN (ADR-146); ITS STEPS ARE WHAT SKIP. A job that skips is not a
+    # ⚠ THE JOB ALWAYS RUNS, BUT FOR A LANDING NO RELEASE IS CUT FROM (ADR-146, ADR-147); ITS STEPS ARE WHAT SKIP. A job that skips is not a
     # job that succeeded, and `release-evidence.mjs` asks whether EVERY job
     # concluded `success` — it filters on `j.conclusion !== 'success'`, so
     # `skipped` is exit 1 there just like `failed`. Putting

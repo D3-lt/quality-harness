@@ -133,3 +133,11 @@ reads the shards on such a landing: main does not require them, and `release-evi
 So the seed job asks `scripts/landing-class.mjs` whether the landing is one commit on main's tip that changes only the
 values of `version`, `url` and `sha256` in the pin, and only then are the shards skipped. Every required check still
 runs, and a run with a skipped or absent shard is never a release run.
+
+Measured 2026-11-25 (ADR-147): of the hundred landings from 2026-10-22 to 2026-11-25, forty-eight were of a plugin version
+already released, taking each release's publication time as the time its tag appeared. Pins aside, their shards ran
+14,200 runner-minutes that main did not require and no release was cut from: `release.mjs` refuses a version whose tag
+exists. So the seed job's command also answers "skip" for a land push whose plugin version already has its tag on the
+forge. Verdict reuse was measured first and not built: ADR-023's key missed an input at bb2476929 (docs/BACKLOG.md §476).
+What is given up is early notice: a mutant that stops being noticed between releases shows at the next candidate's
+landing. The saving depends on bumping late, since every landing from the bump to the tag runs every shard.

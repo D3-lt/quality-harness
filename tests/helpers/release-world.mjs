@@ -55,6 +55,10 @@ export function world(overrides = {}) {
     if (line === 'git ls-remote --heads origin refs/heads/land/*') return ok()
     if (line === `git show ${SHA}:.github/workflows/selftest.yml`) return ok(state.workflow)
     if (line === LANDING || line === `git push origin --delete land/${SHA}`) return ok()
+    // ADR-147 T2: the tag's own push, and what the forge shows of a tag that has no release. `tagPush` is the push's exit,
+    // `tagLines` what the lookup prints (nothing unless a test says otherwise) and `tagLookup` its exit.
+    if (line === `git push origin ${SHA}:refs/tags/v${state.version}`) return { status: state.tagPush ?? 0, stdout: '', stderr: '' }
+    if (line === `git ls-remote origin refs/tags/v${state.version}`) return { status: state.tagLookup ?? 0, stdout: state.tagLines ?? '', stderr: '' }
     // `checkRunsSeq`, when given, is a list of answers to the check-runs read, the last one repeated (ADR-126 T5's waits).
     if (line.startsWith(`gh api repos/{owner}/{repo}/commits/${SHA}/check-runs`)) {
       if (!state.checkRunsSeq) return ok(JSON.stringify(state.checkRuns))

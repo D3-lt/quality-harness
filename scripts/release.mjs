@@ -13,7 +13,8 @@
 //   0  released and its verified bundle is advertised by the public marketplace
 //   1  a step failed: a red check, a dead-code finding, a push or a gh call that failed, release-evidence exit 1
 //   2  a step needs an action this command does not take: an unclean tree, a version to bump, release-evidence's
-//      UNPROVEN (an outside run or a review to get), a tag without a release, or a catalogue pin still to promote
+//      UNPROVEN (an outside run or a review to get), a tag without a release that the forge does not show at this sha, or
+//      a catalogue pin still to promote
 //   3  a wait reached its deadline; it names what it waited for, and running again resumes
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
@@ -57,6 +58,12 @@ export function checkedPasses(cwd = process.cwd()) {
     },
   }
 }
+
+/**
+ * The one push that makes a release's tag (ADR-147 Decision 6): unforced, so the forge creates the ref at `sha`, answers
+ * that it is already there, or refuses. It never moves a tag that exists.
+ */
+export const tagPush = (sha, tag) => ['push', 'origin', `${sha}:refs/tags/${tag}`]
 
 /**
  * The chain, with its world as seams: `exec(cmd, args, { stream })` answers `{ status, stdout }`, `now` and `sleep` are the
@@ -139,8 +146,17 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
       log(`release: gh release view ${tag} failed (${String(view.stderr ?? '').trim().split('\n')[0] || `exit ${view.status}`}); whether it is released could not be read`)
       return 1
     }
-    log(`release: ${tag} is already a tag and has no release; bump ${MANIFEST} past it, or release that tag by hand`)
-    return 2
+    // ADR-147 Decision 6: a tag this command pushed whose release was then not created resumes, and only when the forge
+    // shows that tag at this sha, as the lightweight tag `tagPush` makes. At any other commit it is somebody else's tag,
+    // and the evidence below would be for another commit than the one it names. A forge that could not be asked has
+    // shown no commit at all.
+    const shown = text('git', ['ls-remote', 'origin', `refs/tags/${tag}`])
+    if (shown === null) { log(`release: git ls-remote failed ${at}; where ${tag} points on the forge could not be read`); return 1 }
+    if (!shown.split('\n').includes(`${sha}\trefs/tags/${tag}`)) {
+      log(`release: ${tag} is already a tag and has no release, and the forge does not show it at ${sha}; bump ${MANIFEST} past it, or run this command at the commit the tag names, where release-evidence must answer SUCCESS`)
+      return 2
+    }
+    log(`release: ${tag} is already a tag at ${sha} and has no release; the release resumes`)
   }
 
 
@@ -269,8 +285,13 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     return 1
   }
   const notes = notesFile ? ['--notes-file', notesFile] : ['--generate-notes']
-  const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', ...notes, ...assets], true).status
-  if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}`); return 1 }
+  // ADR-147 Decision 6: the tag is made here, at the sha the evidence just cleared, by a push that cannot move a ref that
+  // exists, and the release is created only from a tag the forge has. The forge ignores `--target` for such a tag; it
+  // stays for a tag deleted between the two calls, which the forge then makes at this sha and not at main's tip.
+  const tagPushed = ran('git', tagPush(sha, tag)).status
+  if (tagPushed !== 0) { log(`release: git push of ${tag} at ${sha} exited ${tagPushed}: the forge has that tag at another commit, or refused it; nothing was published`); return 1 }
+  const created = ran('gh', ['release', 'create', tag, '--target', sha, '--latest', '--verify-tag', ...notes, ...assets], true).status
+  if (created !== 0) { log(`release: gh release create exited ${created} for ${tag} at ${sha}; the tag is on the forge at that sha, and running again resumes`); return 1 }
   log(`release: ${tag} released at ${sha}`)
   return catalogue()
 }

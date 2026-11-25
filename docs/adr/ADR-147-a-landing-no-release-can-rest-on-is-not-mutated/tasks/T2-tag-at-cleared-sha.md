@@ -69,6 +69,9 @@ node --test tests/release-tag.test.mjs tests/release.test.mjs
 | 4 — it is used | T3's release |
 
 ## Mutation Log
+- 2026-11-25 · d94eb8047* · mutant killed · exit 1 · `scripts/release.mjs` · the tag is not pushed before the release is created · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · covers:the tag is pushed before the release is created
+- 2026-11-25 · d94eb8047* · mutant killed · exit 1 · `scripts/release.mjs` · the release is created without verifying that the forge has the tag · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · covers:the release verifies the tag and keeps its target
+- 2026-11-25 · d94eb8047* · mutant killed · exit 1 · `scripts/release.mjs` · a tag the forge shows at another commit resumes the release · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · covers:a tag elsewhere stops the release
 
 ## Invariants
 
@@ -90,3 +93,21 @@ owner's word. (One asserts `--target <sha> --latest` at the start of the creatio
 - Which run a release takes its assets from (deferred: docs/BACKLOG.md §475)
 
 ## Verification Log
+- 2026-11-25 · d94eb8047* · exit 1 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:180 · test-lock-sha256:876af40b2c2a65bcd8783a23a1db9c90ce80bc66dd2ebf614a89afc97432281b · test-lock-file:docs/adr/locks/876af40b2c2a65bcd8783a23a1db9c90ce80bc66dd2ebf614a89afc97432281b.lock
+  ```
+  --- last 10 line(s) of stdout (of 39 after folding 39 raw)
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 95.178334
+
+  ✖ failing tests:
+
+  test at tests/release-tag.test.mjs:1:1
+  ✖ tests/release-tag.test.mjs (83.132042ms)
+    'test failed'
+  ```
+- 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:582
+- 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:591
+- 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:594
+- 2026-11-25 · d94eb8047* · exit 0 · `node --test tests/release-tag.test.mjs tests/release.test.mjs` · acceptance-sha256:ad0f9e9c0a89eea345eaa590fb716f1e3047b749f793280fb25ffa7e32c6ad11 · ms:517

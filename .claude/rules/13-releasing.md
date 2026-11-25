@@ -83,6 +83,11 @@ and this is not a tie, it is a loss.
 
 `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.
 
+The command makes the tag itself (ADR-147, 2026-11-25). The forge ignores `--target` for a tag that exists, so a tag made
+at another commit while the landing ran would have been published as the release. An unforced push of the tag at the
+cleared sha creates it or is refused, and `--verify-tag` creates the release only from a tag the forge has. The seconds
+between the two calls stay open to a tag moved on the forge; a forge rule on `v*` tags is what would close them.
+
 ## The command (ADR-100, 2026-10-13)
 
 `node scripts/release.mjs` performs the steps above from observations: the tag list for "bump", a full `qh-check --again`

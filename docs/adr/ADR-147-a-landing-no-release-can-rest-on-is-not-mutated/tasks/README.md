@@ -9,7 +9,7 @@ Implementation tasks for ADR-147: a landing no release can rest on does not run 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | A landing of a version already tagged is recognised, and anything else is left to the pin check | pending | none — no spec | `node --test tests/landing-released.test.mjs tests/landing-class.test.mjs tests/landing-class-workflow.test.mjs` |
-| T2 | A release's tag is made at the sha its evidence cleared, or the release stops | pending | none — no spec | `node --test tests/release-tag.test.mjs tests/release.test.mjs` |
+| T2 | A release's tag is made at the sha its evidence cleared, or the release stops | done | none — no spec | `node --test tests/release-tag.test.mjs tests/release.test.mjs` |
 | T3 | The skip and the next release are read from the forge | pending | none — no spec | human-observed |
 
 ## Contract Coupling

@@ -1,0 +1,5 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/release-tag.test.mjs	a push cannot move a tag that exists	e4c059582b6132c5d8a70d40c66bc54377d5802c7a5cd5632b8798e361d917f7
+body	tests/release-tag.test.mjs	a tag without a release resumes only at its own sha	398295513411039544285bd4906bc893ef2816ff2485510f0278f8b604e257a9
+body	tests/release-tag.test.mjs	the instructions say the command makes the tag	5fc6f702c0c8302749757a419def4208a9833850bd7b4546059d5dd4fed7a354
+body	tests/release-tag.test.mjs	the tag is pushed at the cleared sha before the release is created	ab52dc35631ec7e34bc6865c909f2ddf65f5437f2b08fb4e36f544fbad8a5945

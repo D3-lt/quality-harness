@@ -178,8 +178,8 @@
       "label": "ADR-100 T3: the tag names the full sha and --latest",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "['release', 'create', tag, '--target', sha, '--latest', ...notes, ...assets]",
-      "to": "['release', 'create', tag, '--target', sha.slice(0, 7), ...notes, ...assets]"
+      "from": "['release', 'create', tag, '--target', sha, '--latest', '--verify-tag', ...notes, ...assets]",
+      "to": "['release', 'create', tag, '--target', sha.slice(0, 7), '--verify-tag', ...notes, ...assets]"
     },
     {
       "label": "ADR-100 T3: an existing dispatch is not dispatched again",
@@ -275,6 +275,54 @@
       "from": "  if (!landedAlready) passes.add(sha)",
       "to": "  void 0",
       "only": "^a sha is recorded only after its check and scan passed uncontended$"
+    },
+    {
+      "label": "ADR-147 T2: the tag is pushed at the cleared sha before the release is created",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "  const tagPushed = ran('git', tagPush(sha, tag)).status",
+      "to": "  const tagPushed = 0",
+      "only": "^the tag is pushed at the cleared sha before the release is created$"
+    },
+    {
+      "label": "ADR-147 T2: a refused tag push publishes nothing",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "  if (tagPushed !== 0) { log(",
+      "to": "  if (false) { log(",
+      "only": "^the tag is pushed at the cleared sha before the release is created$"
+    },
+    {
+      "label": "ADR-147 T2: the tag's push is not forced",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "['push', 'origin', `${sha}:refs/tags/${tag}`]",
+      "to": "['push', 'origin', `+${sha}:refs/tags/${tag}`]",
+      "only": "^a push cannot move a tag that exists$"
+    },
+    {
+      "label": "ADR-147 T2: the release is created only from a tag the forge has",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "'--latest', '--verify-tag', ...notes",
+      "to": "'--latest', ...notes",
+      "only": "^the tag is pushed at the cleared sha before the release is created$"
+    },
+    {
+      "label": "ADR-147 T2: a tag without a release resumes only at this sha",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "    if (!shown.split('\\n').includes(`${sha}\\trefs/tags/${tag}`)) {",
+      "to": "    if (false) {",
+      "only": "^a tag without a release resumes only at its own sha$"
+    },
+    {
+      "label": "ADR-147 T2: a forge that could not be asked about the tag has shown no commit",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release-tag.test.mjs"],
+      "from": "    if (shown === null) { log(",
+      "to": "    if (false) { log(",
+      "only": "^a tag without a release resumes only at its own sha$"
     }
   ]
 }

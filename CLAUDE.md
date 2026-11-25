@@ -254,7 +254,9 @@ wait reached its deadline. The steps stay numbered because records and source co
    attestation is the release's evidence, not an unclean tree; nothing is pushed after the landing.
 6. It never dispatches while another dispatched run on the ref is in flight: the workflow's concurrency group keys on
    the event (`.github/workflows/selftest.yml:20-22`), so a second dispatch cancels the first, while a push does not.
-7. It runs `gh release create vX.Y.Z --target <full sha> --latest` — `--latest` is not the default.
+7. It makes the tag itself at that sha, `git push origin <full sha>:refs/tags/vX.Y.Z`, unforced, so a tag the forge has at
+   another commit stops the release (ADR-147), then runs `gh release create vX.Y.Z --target <full sha> --latest --verify-tag`
+   — `--latest` is not the default.
    It verifies the public bundle and catalogue pin (ADR-132). A published ZIP awaiting catalogue promotion exits 2. Verify
    a cold install, generate the pin with `node scripts/marketplace-source.mjs <version>`, then check, commit and land that
    metadata through `scripts/land.mjs`; keep the previous available release advertised until then.

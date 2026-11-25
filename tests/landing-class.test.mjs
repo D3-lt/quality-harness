@@ -56,24 +56,34 @@ test('only the three pinned values may differ', () => {
     ['a key renamed on one side', AFTER.replace('"version": "3.8.81"', '"url": "3.8.81"')],
     ['a value holding an escaped quote', AFTER.replace('"version": "3.8.81"', '"version": "3.8.81\\"x"')],
     ['a value holding a second string', AFTER.replace('"version": "3.8.81"', '"version": "3.8.81", "source": "."')],
+    ['a value holding a NUL', AFTER.replace('"version": "3.8.81"', '"version": "3.8\0.81"')],
+    ['a value holding a tab', AFTER.replace('"version": "3.8.81"', '"version": "3.8\t.81"')],
+    ['a value that is not ASCII', AFTER.replace('"version": "3.8.81"', '"version": "3.8.81é"')],
     ['CRLF on one side', AFTER.replaceAll('\n', '\r\n')],
   ]
   for (const [what, text] of not) assert.equal(pinOnly(bytes(BEFORE), bytes(text)), false, what)
   assert.equal(pinOnly(BEFORE, AFTER), false, 'text that is not bytes was not read')
+  // A pin over a file that does not parse is not a pin: the unchanged line is the broken one, on both sides.
+  const broken = text => text.replace('"category": "development"', 'category: development')
+  assert.equal(pinOnly(bytes(broken(BEFORE)), bytes(broken(AFTER))), false, 'the file after the pin is not JSON')
   assert.equal(pinOnly(bytes(BEFORE), null), false, 'an absent side')
 })
 
 // Everything a pin landing is, as the command reads it.
 const pin = (over = {}) => ({
   event: 'push', ref: `refs/heads/land/${SHA}`, sha: SHA, head: SHA, parents: [MAIN], main: MAIN,
-  entries: [{ path: bytes(PIN), status: 'M', before: '100644', after: '100644' }],
+  entries: [
+    { path: bytes('.claude-plugin'), status: 'M', before: '040000', after: '040000' },
+    { path: bytes(PIN), status: 'M', before: '100644', after: '100644' },
+  ],
   before: bytes(BEFORE), after: bytes(AFTER), ...over,
 })
 
 test('a pin landing is one commit on main that changes one regular file', () => {
   const answer = landingClass(pin())
   assert.equal(answer.skip, true, answer.reason)
-  const entry = over => [{ ...pin().entries[0], ...over }]
+  const entry = over => [pin().entries[0], { ...pin().entries[1], ...over }]
+  const dir = over => [{ ...pin().entries[0], ...over }, pin().entries[1]]
   const not = [
     ['a pull request', { event: 'pull_request' }],
     ['a dispatch', { event: 'workflow_dispatch' }],
@@ -91,7 +101,14 @@ test('a pin landing is one commit on main that changes one regular file', () => 
     ['no main', { main: null }],
     ['entries unread', { entries: null }],
     ['no entry', { entries: [] }],
-    ['a second entry', { entries: [...pin().entries, { path: bytes('docs/x.md'), status: 'M', before: '100644', after: '100644' }] }],
+    ['a third entry', { entries: [...pin().entries, { path: bytes('docs/x.md'), status: 'M', before: '100644', after: '100644' }] }],
+    ['an empty tree added beside the pin', { entries: [...pin().entries, { path: bytes('empty'), status: 'A', before: '000000', after: '040000' }] }],
+    ['the file alone, its directory not listed', { entries: [pin().entries[1]] }],
+    ['the two entries in the other order', { entries: [pin().entries[1], pin().entries[0]] }],
+    ['a directory entry that is another directory', { entries: dir({ path: bytes('.claude-plugins') }) }],
+    ['a directory entry that is not a tree', { entries: dir({ before: '100644', after: '100644' }) }],
+    ['a directory added', { entries: dir({ status: 'A', before: '000000' }) }],
+    ['a scored status', { entries: entry({ status: 'M100' }) }],
     ['another path', { entries: entry({ path: bytes('.claude-plugin/plugin.json') }) }],
     ['the path with a trailing byte', { entries: entry({ path: Buffer.concat([bytes(PIN), Buffer.from([0xff])]) }) }],
     ['the path as text', { entries: entry({ path: PIN }) }],
@@ -111,7 +128,9 @@ test('a pin landing is one commit on main that changes one regular file', () => 
 })
 
 test('a command that failed leaves its fact absent', () => {
-  const RAW = Buffer.concat([bytes(`:100644 100644 ${'1'.repeat(40)} ${'2'.repeat(40)} M`), Buffer.from([0]), bytes(PIN), Buffer.from([0])])
+  const [ONE, TWO] = ['1'.repeat(40), '2'.repeat(40)]
+  const row = (mode, status, name, [was, is] = [ONE, TWO]) => Buffer.concat([bytes(`:${mode} ${mode} ${was} ${is} ${status}`), Buffer.from([0]), bytes(name), Buffer.from([0])])
+  const RAW = Buffer.concat([row('040000', 'M', '.claude-plugin'), row('100644', 'M', PIN)])
   const answers = {
     'rev-parse': bytes(`${SHA}\n`), 'rev-list': bytes(`${SHA} ${MAIN}\n`), 'ls-remote': bytes(`${MAIN}\trefs/heads/main\n`),
     'diff-tree': RAW, [`cat-file ${MAIN}`]: bytes(BEFORE), [`cat-file ${SHA}`]: bytes(AFTER),
@@ -134,13 +153,24 @@ test('a command that failed leaves its fact absent', () => {
   assert.equal(asked('diff-tree', stdout => ({ status: 0, stdout: stdout.subarray(0, stdout.length - 1) })).skip, false, 'a diff that ended early')
   assert.equal(asked('ls-remote', () => ({ status: 0, stdout: bytes(`${MAIN}\trefs/heads/main\n${SHA}\trefs/heads/main2\n`) })).skip, false, 'two refs answered')
   assert.equal(asked('rev-list', () => ({ status: 0, stdout: bytes(`${MAIN} ${MAIN}\n`) })).skip, false, "another commit's parents")
+  // A line git printed whole ends in a newline: the same answer without one was cut short.
+  for (const command of ['rev-parse', 'rev-list', 'ls-remote']) {
+    assert.equal(asked(command, stdout => ({ status: 0, stdout: stdout.subarray(0, stdout.length - 1) })).skip, false, `${command} without its newline`)
+  }
+  assert.equal(asked('diff-tree', () => ({ status: 0, stdout: Buffer.concat([row('040000', 'M', '.claude-plugin'), row('100644', 'M100', PIN)]) })).skip, false, 'a scored status')
+  assert.equal(asked('diff-tree', () => ({ status: 0, stdout: row('100644', 'M', PIN) })).skip, false, 'the file listed without its directory')
 
-  assert.deepEqual(rawEntries(RAW), [{ before: '100644', after: '100644', status: 'M', path: bytes(PIN) }])
+  assert.deepEqual(rawEntries(RAW), [
+    { before: '040000', after: '040000', status: 'M', path: bytes('.claude-plugin') },
+    { before: '100644', after: '100644', status: 'M', path: bytes(PIN) },
+  ])
+  assert.deepEqual(rawEntries(row('100644', 'R100', PIN)), [{ before: '100644', after: '100644', status: 'R100', path: bytes(PIN) }], 'a status keeps its score')
   assert.deepEqual(rawEntries(Buffer.alloc(0)), [], 'nothing changed is an empty list, which is not a pin either')
   for (const [what, output] of [
     ['no final NUL', RAW.subarray(0, RAW.length - 1)], ['a path with no entry before it', Buffer.concat([bytes(PIN), Buffer.from([0])])],
     ['an entry with no path', RAW.subarray(0, RAW.indexOf(0) + 1)], ['text', RAW.toString('latin1')], ['nothing read', null],
     ['a whole entry and an unterminated one after it', Buffer.concat([RAW, bytes(':100644 100644')])],
+    ['object ids that are not full', row('100644', 'M', PIN, ['1', '2'])], ['object ids of two widths', row('100644', 'M', PIN, [ONE, '2'.repeat(64)])],
   ]) assert.equal(rawEntries(output), null, what)
 })
 
@@ -190,6 +220,19 @@ test('the command reads a real commit', t => {
   is(asked({ GITHUB_EVENT_NAME: 'pull_request' }), 'skip=0\n', 'the same commit on a pull request')
   is(asked({ PATH: '', Path: '' }), 'skip=0\n', 'git absent')
 
+  // The same pin with an empty tree beside it: `-r` alone lists nothing for the tree, so only `-t` shows the second change.
+  const piped = (input, ...args) => {
+    const run = spawnSync('git', args, { cwd: made, input, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(run.status, 0, `git ${args.join(' ')}: ${run.stderr}`)
+    return run.stdout.trim()
+  }
+  const emptyTree = piped('', 'mktree')
+  const widened = piped(`${git(made, 'ls-tree', 'HEAD')}\n040000 tree ${emptyTree}\tzz-empty\n`, 'mktree')
+  const crafted = piped('', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit-tree', widened, '-p', base, '-m', 'pin and an empty tree')
+  git(made, 'checkout', '-q', '--detach', crafted)
+  is(asked(), 'skip=0\n', 'a pin with an empty tree added beside it')
+  git(made, 'checkout', '-q', 'main')
+
   write('other file.txt', 'two\n')
   git(made, 'commit', '-qam', 'a second unlanded commit')
   is(asked(), 'skip=0\n', 'a commit whose parent is a pin, not main')
@@ -216,9 +259,11 @@ test('the command reads a real commit', t => {
   is(asked(), 'skip=0\n', 'a merge')
 
   git(made, 'reset', '-q', '--hard', 'HEAD^')
+  write(PIN, catalogue({ version: '3.8.82', digest: '3'.repeat(64) }))
+  git(made, 'add', PIN)
   git(made, 'update-index', '--chmod=+x', PIN)
-  git(made, 'commit', '-qm', 'mode')
-  is(asked(), 'skip=0\n', 'a mode change alone')
+  git(made, 'commit', '-qm', 'pin and mode')
+  is(asked(), 'skip=0\n', 'a pin that also makes the file executable')
 
   git(made, 'reset', '-q', '--hard', 'HEAD^')
   write(PIN, catalogue({ version: '3.8.82', digest: '3'.repeat(64) }))

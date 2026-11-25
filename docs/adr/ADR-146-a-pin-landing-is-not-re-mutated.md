@@ -61,12 +61,14 @@ unit is runner-minutes.
 ## Decision
 
 1. **A landing is a pin landing only when one commit, sitting directly on main, re-pins the catalogue.** The
-   `mutation cache seed` job checks the commit out with its parent and runs
+   `mutation cache seed` job checks the commit out with its parent, into a directory of its own, and runs
    `node scripts/landing-class.mjs`. It answers "skip" only when all of these hold, and "run" otherwise:
    - the event is a push, the ref is `refs/heads/land/<sha>`, and the commit checked out is that sha;
    - the commit has exactly one parent, and that parent is what `git ls-remote origin refs/heads/main` names as main's tip;
-   - `git diff-tree -r --raw -z --no-renames --ignore-submodules=none <parent> <sha>` exited 0 and listed exactly one
-     entry: `.claude-plugin/marketplace.json`, compared as bytes, modified, a regular file of mode 100644 on both sides;
+   - `git diff-tree -r -t --raw -z --no-renames --ignore-submodules=none <parent> <sha>` exited 0 and listed exactly two
+     entries, with full object ids and an unscored `M`: the tree `.claude-plugin` and, compared as bytes, the regular
+     file `.claude-plugin/marketplace.json`, mode 100644 on both sides. Trees are listed so that a tree added or removed
+     beside the pin, an empty one included, is a third entry;
    - the two versions of that file have the same number of lines, at least one line differs, and every line that
      differs is, on both sides, the same indentation, the same key among `version`, `url` and `sha256`, a string
      value with no quote or backslash in it, and the same trailing comma or none.
@@ -82,7 +84,7 @@ unit is runner-minutes.
    `if: needs.mutation-cache-seed.outputs.skip != '1'`, with no status function, so the forge's implied success check
    stays: a seed that failed skips the shards, as it does today, and a release refuses that run, as it does today.
    `mutation cache` needs both jobs and runs unless that output is `1`. Every required job runs on every landing as it
-   does today. *This fails if* a shard is skipped on a run whose seed job did not write `skip=1`.
+   does today. *This fails if* a shard is skipped on a run whose seed job succeeded and did not write `skip=1`.
 4. **Release evidence is not changed.** A skipped shard concludes `skipped` or is absent from the run's jobs, and
    `release-evidence` refuses both. T2 adds the test of both shapes through the command line. No verdict is renamed and
    no remedy is added.
@@ -106,6 +108,13 @@ every mutant before a tag.
   success check and reads `1`. It renamed release-evidence's verdict for a skipped campaign and named a dispatch as the
   remedy, a path the review showed is probably broken (docs/BACKLOG.md §475 items 1 and 2); release evidence is now left
   alone. It cited a backlog section that did not exist, which the selftest refuses.
+- **The first build of T1 and T2**, reviewed by Codex (gpt-6.2-sol, high effort, 2026-11-25, range 5aaf5d1bd..5be9e6fa7):
+  REQUEST CHANGES, each finding checked against source and taken in one fix round. `diff-tree -r` lists nothing for a tree
+  added or removed beside the pin, so trees are listed and a pin is exactly two entries. A control byte passed as a string
+  value; a value is printable ASCII and the file after the pin must parse. A line of git's cut short, a raw entry with
+  short object ids and a scored status were each read as whole; they are refused. The seed job's checkout shared the
+  workspace root with the cache file it restores; it has a directory of its own. Decision 3 said a shard skipped without
+  `skip=1` breaks the design while keeping the seed-failure skip; it now says a seed job that succeeded.
 - **Reuse ADR-023's verdicts across landings.** Full runs would write them, and a later landing would fetch the previous
   run's as an artifact and re-measure only the entries whose key changed. It is the literal form of the owner's rule and
   it covers records and code alike, and it costs more: `mutate.mjs` must write verdicts on a `--no-cache` run, the merge

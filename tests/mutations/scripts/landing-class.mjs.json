@@ -20,16 +20,16 @@
       "label": "ADR-146 T1: a pin changes at least one line",
       "file": "scripts/landing-class.mjs",
       "tests": ["tests/landing-class.test.mjs"],
-      "from": "  return changed > 0",
-      "to": "  return changed >= 0",
+      "from": "  if (changed === 0) return false",
+      "to": "  if (changed < 0) return false",
       "only": "^only the three pinned values may differ$"
     },
     {
-      "label": "ADR-146 T1: a pin landing changes exactly one path",
+      "label": "ADR-146 T1: a pin landing changes exactly the catalogue file and its directory",
       "file": "scripts/landing-class.mjs",
       "tests": ["tests/landing-class.test.mjs"],
-      "from": "  if (entries.length !== 1) return run(",
-      "to": "  if (entries.length < 1) return run(",
+      "from": "  if (entries.length !== 2) return run(",
+      "to": "  if (entries.length < 2) return run(",
       "only": "^a pin landing is one commit on main that changes one regular file$"
     },
     {
@@ -102,6 +102,62 @@
       "tests": ["tests/landing-class.test.mjs"],
       "from": "`skip=${answer.skip ? 1 : 0}\\n`",
       "to": "`skip=${answer.skip ? 1 : 1}\\n`",
+      "only": "^the command reads a real commit$"
+    },
+    {
+      "label": "ADR-146 review: a pinned value is printable ASCII",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "\"[ !#-[\\]-~]*\"",
+      "to": "\"[^\"\\\\]*\"",
+      "only": "^only the three pinned values may differ$"
+    },
+    {
+      "label": "ADR-146 review: the file after a pin still parses",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "catch { return false }",
+      "to": "catch { }",
+      "only": "^only the three pinned values may differ$"
+    },
+    {
+      "label": "ADR-146 review: the first changed entry is the catalogue's directory, a tree, modified",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "!dir.path.equals(PIN_DIR) || dir.status !== 'M' || dir.before !== '040000' || dir.after !== '040000') return run(",
+      "to": "!dir.path.equals(PIN_DIR)) return run(",
+      "only": "^a pin landing is one commit on main that changes one regular file$"
+    },
+    {
+      "label": "ADR-146 review: a line git cut short is no answer",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "return out?.endsWith('\\n') ? out.slice(0, -1) : null",
+      "to": "return out ? out.replace(/\\n$/, '') : null",
+      "only": "^a command that failed leaves its fact absent$"
+    },
+    {
+      "label": "ADR-146 review: a raw entry carries full object ids",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "(?:[0-9a-f]{40} [0-9a-f]{40}|[0-9a-f]{64} [0-9a-f]{64})",
+      "to": "[0-9a-f]+ [0-9a-f]+",
+      "only": "^a command that failed leaves its fact absent$"
+    },
+    {
+      "label": "ADR-146 review: a scored status is not a plain modification",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": " ([A-Z]\\d*)$/",
+      "to": " ([A-Z])\\d*$/",
+      "only": "^a command that failed leaves its fact absent$"
+    },
+    {
+      "label": "ADR-146 review: trees are listed, so a second tree change is an entry",
+      "file": "scripts/landing-class.mjs",
+      "tests": ["tests/landing-class.test.mjs"],
+      "from": "'-r', '-t', '--raw'",
+      "to": "'-r', '--raw'",
       "only": "^the command reads a real commit$"
     }
   ]

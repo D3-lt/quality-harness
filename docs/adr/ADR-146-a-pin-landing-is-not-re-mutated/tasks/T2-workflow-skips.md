@@ -31,8 +31,9 @@ and `release-evidence` refuses a run whose shards were skipped or are absent, un
 ## Ordered Steps
 
 1. [S1] Write the tests of the table below and confirm they are red (TDD red): the seed job has no `skip` output.
-2. [S2] In `mutation-cache-seed`: `actions/checkout` with `fetch-depth: 2` as the first step, then the existing restore
-   and publish steps unchanged, then `node scripts/landing-class.mjs` as a step with an id, and the job output `skip`
+2. [S2] In `mutation-cache-seed`: `actions/checkout` with `fetch-depth: 2` and `path: landing` as the first step, then
+   the existing restore and publish steps unchanged, then `node scripts/landing-class.mjs`, run in that directory, as a
+   step with an id, and the job output `skip`
    read from that step.
 3. [S3] Give `mutations` `if: needs.mutation-cache-seed.outputs.skip != '1'` and leave its `needs` line byte-identical.
    Give `mutation-cache` `needs: [mutations, mutation-cache-seed]` and
@@ -107,3 +108,5 @@ Stop if a locked test must change to pass, or if `release-evidence` accepts eith
 - 2026-11-25 · 2b4086fd4* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:167
 - 2026-11-25 · 2b4086fd4* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:263
 - 2026-11-25 · 2b4086fd4* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:243
+- 2026-11-25 · 5be9e6fa7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:9 · test-lock-sha256:82bb53471810c220d78f51de6bc5bd55c20672a70d1cd26c1a35c6bd17b0cc44 · test-lock-file:docs/adr/locks/82bb53471810c220d78f51de6bc5bd55c20672a70d1cd26c1a35c6bd17b0cc44.lock · test-lock-kind:replace
+- 2026-11-25 · 5be9e6fa7* · exit 0 · `node --test tests/landing-class-workflow.test.mjs` · acceptance-sha256:00640d9b400ad0ef40e07f81320568f94fa8809472a1b575dcff323d854be61c · ms:169

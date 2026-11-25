@@ -111,6 +111,22 @@
       "from": "    name: windows\n",
       "to": "    name: windows\n    if: needs.mutation-cache-seed.outputs.skip != '1'\n",
       "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 review: the seed checkout is in a directory of its own",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "          fetch-depth: 2\n          path: landing\n",
+      "to": "          fetch-depth: 2\n",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
+    },
+    {
+      "label": "ADR-146 review: the class step runs in the checkout",
+      "file": ".github/workflows/selftest.yml",
+      "tests": ["tests/landing-class-workflow.test.mjs"],
+      "from": "        working-directory: landing\n",
+      "to": "",
+      "only": "^the campaign is skipped only on the seed job's positive answer$"
     }
   ]
 }

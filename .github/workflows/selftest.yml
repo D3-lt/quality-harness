@@ -204,9 +204,12 @@ jobs:
     # download has no zero-artifact arm to get wrong and a first-ever run behaves
     # exactly like a run whose cache expired.
     steps:
+      # Into a directory of its own: the cache file below is restored into the workspace root, and a checkout there
+      # could supply or break it with a tracked file of the same name (the Codex review of 5aaf5d1bd..5be9e6fa7).
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
+          path: landing
       - uses: actions/cache/restore@v6
         with:
           path: .mutation-cache.json
@@ -231,6 +234,7 @@ jobs:
           retention-days: 1
       - name: Is this landing a catalogue pin alone
         id: landing
+        working-directory: landing
         run: node scripts/landing-class.mjs
 
   mutations:

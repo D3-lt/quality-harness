@@ -1,0 +1,3 @@
+check@2	f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
+body	tests/landing-class-workflow.test.mjs	a run whose shards were skipped or are absent is not a release run	743936404f9b9698b876df2684af2fd28730431d095dc59edcc1e4ccf4c6d271
+body	tests/landing-class-workflow.test.mjs	the campaign is skipped only on the seed job's positive answer	aa976caa787644e0277c11f2bedb760e7376f570f24de24ac0a95abdaebed443

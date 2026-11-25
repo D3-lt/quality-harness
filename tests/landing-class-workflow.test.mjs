@@ -29,8 +29,11 @@ function problems(workflow) {
   const jobs = jobsOf(workflow)
   const [seed, shards, merge] = ['mutation-cache-seed', 'mutations', 'mutation-cache'].map(id => jobs.get(id) ?? '')
   const found = []
-  if (!/^ {6}- uses: actions\/checkout@v\d+\n {8}with:\n {10}fetch-depth: 2$/m.test(seed)) found.push('the seed job does not check out the commit with its parent')
-  if (!/^ {6}- name: [^\n]+\n {8}id: landing\n {8}run: node scripts\/landing-class\.mjs$/m.test(seed)) found.push('the seed job does not run the class script as the step `landing`')
+  if (!/^ {6}- uses: actions\/checkout@v\d+\n {8}with:\n {10}fetch-depth: 2\n {10}path: landing$/m.test(seed)) found.push('the seed job does not check out the commit with its parent, in a directory of its own')
+  if (!/^ {6}- name: [^\n]+\n {8}id: landing\n {8}working-directory: landing\n {8}run: node scripts\/landing-class\.mjs$/m.test(seed)) found.push('the seed job does not run the class script as the step `landing`')
+  // Checkout first, and the class step after the upload: a seed job whose snapshot failed writes no `skip`.
+  const order = ['uses: actions/checkout@', 'uses: actions/cache/restore@', 'uses: actions/upload-artifact@', 'id: landing'].map(step => seed.indexOf(step))
+  if (order.includes(-1) || order.some((at, index) => index > 0 && at < order[index - 1])) found.push('the seed job does not run checkout, restore, upload and the class step in that order')
   if (!/^ {4}outputs:\n {6}skip: \$\{\{ steps\.landing\.outputs\.skip \}\}$/m.test(seed)) found.push('the seed job does not expose `skip` from the class step')
   if (own(shards, 'needs').join() !== '    needs: mutation-cache-seed') found.push('the shards do not need the seed job alone')
   if (own(shards, 'if').join() !== `    if: ${SKIP}`) found.push('the shards do not carry exactly the skip condition')
@@ -53,7 +56,13 @@ test('the campaign is skipped only on the seed job\'s positive answer', () => {
     ['the shards needing more', w => w.replace('    needs: mutation-cache-seed\n', '    needs: [mutation-cache-seed, selftest]\n'), 'the shards do not need the seed job alone'],
     ['the output read from another step', w => w.replace('steps.landing.outputs.skip', 'steps.publish.outputs.skip'), 'the seed job does not expose `skip` from the class step'],
     ['the class step running something else', w => w.replace('run: node scripts/landing-class.mjs', 'run: echo skip=1 >> "$GITHUB_OUTPUT"'), 'the seed job does not run the class script as the step `landing`'],
-    ['a shallow checkout without the parent', w => w.replace('          fetch-depth: 2\n', '          fetch-depth: 1\n'), 'the seed job does not check out the commit with its parent'],
+    ['a shallow checkout without the parent', w => w.replace('          fetch-depth: 2\n', '          fetch-depth: 1\n'), 'the seed job does not check out the commit with its parent, in a directory of its own'],
+    ['a checkout into the workspace root', w => w.replace('          fetch-depth: 2\n          path: landing\n', '          fetch-depth: 2\n'), 'the seed job does not check out the commit with its parent, in a directory of its own'],
+    ['the class step run at the workspace root', w => w.replace('        working-directory: landing\n', ''), 'the seed job does not run the class script as the step `landing`'],
+    ['the class step before the snapshot is published', w => {
+      const step = /^ {6}- name: [^\n]+\n {8}id: landing\n {8}working-directory: landing\n {8}run: [^\n]+\n/m.exec(w)[0]
+      return w.replace(step, '').replace('      - name: Publish the snapshot', `${step}      - name: Publish the snapshot`)
+    }, 'the seed job does not run checkout, restore, upload and the class step in that order'],
     ['the merge running on a skipped campaign', w => w.replace(`    if: \${{ always() && ${SKIP} }}`, '    if: always()'), 'the merge does not carry exactly its condition'],
     ['the condition on a required job', w => w.replace('    name: windows\n', `    name: windows\n    if: ${SKIP}\n`), 'the job windows reads the skip output'],
   ]
@@ -62,11 +71,16 @@ test('the campaign is skipped only on the seed job\'s positive answer', () => {
     assert.notEqual(edited, WORKFLOW, `${what}: the stand-in changed nothing`)
     assert.ok(problems(edited).includes(problem), `${what}: ${problems(edited).join('; ') || 'nothing found'}`)
   }
-  // No required check of main is one of the three campaign jobs.
+  // No required check of main is one of the three campaign jobs, by the names the workflow gives them.
+  const names = ['mutation-cache-seed', 'mutations', 'mutation-cache'].map(id => /^ {4}name: (.+)$/m.exec(jobsOf(WORKFLOW).get(id))[1])
+  const campaign = names.map(name => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\$\\\{\\\{ matrix\\\.shard \\\}\\\}/, '\\d+')}$`))
+  const skippable = contexts => contexts.filter(context => campaign.some(name => name.test(context)))
   const required = JSON.parse(readFileSync(path.join(repoRoot, '.github', 'rulesets', 'main.json'), 'utf8'))
     .rules.find(rule => rule.type === 'required_status_checks').parameters.required_status_checks.map(check => check.context)
   assert.ok(required.length > 0)
-  for (const context of required) assert.doesNotMatch(context, /^mutation/, `${context} would be skipped on a pin landing`)
+  assert.deepEqual(skippable(required), [], 'a required check would be skipped on a pin landing')
+  assert.deepEqual(skippable([...required, 'mutations 3/48', 'mutation cache', 'mutation cache seed', 'mutations']), ['mutations 3/48', 'mutation cache', 'mutation cache seed'],
+    'the same question over a ruleset that requires campaign jobs')
 })
 
 test('a run whose shards were skipped or are absent is not a release run', () => {

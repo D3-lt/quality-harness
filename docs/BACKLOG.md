@@ -4908,3 +4908,24 @@ Class audit (§5), 2026-11-19: `git grep -c 'gpt-6\.1-sol' -- . ':!docs'` finds 
 host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; every other one is a comment citing a past
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two
 catalogue files, `.claude/rules/12-reviews.md` and CLAUDE.md §12; all are changed.
+
+## 475. Found by the Codex review of ADR-146's draft, 2026-11-25 — what a landing still spends, and two defects on the dispatch path
+
+Filed with the evidence that found each; none is fixed by ADR-146.
+
+1. **A dispatched run probably cannot go green.** In the `mutation cache` job the checkout is skipped on a dispatch
+   (.github/workflows/selftest.yml:379-380) and `actions/setup-go` then runs unconditionally with
+   `go-version-file: core/go.mod` (:385-388), a file the job never checked out. Read from the workflow, not observed: the
+   last dispatched runs (39777594469 and before, 2026-10-22) predate that step. A dispatch on main is the remedy
+   `release-evidence` names for a sha whose landing run was not a full campaign, so the remedy may be closed. The fix is the
+   same `if:` its sibling steps carry; the proof is one dispatched run.
+2. **The run a release takes its assets from is not bound to the run that cleared it.** `scripts/release.mjs:220-261` waits
+   for the first exact-branch landing push or main dispatch and uses that run's id for the assets, while
+   `scripts/release-evidence.mjs:148-161` picks the newest selftest run at the sha, a dispatch winning a tie. With two runs at
+   one sha the two can differ, which ADR-126 Decision 1 ("one run per release") does not allow. Nothing reproduces it yet.
+3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
+   45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
+   read the pin, so a sound skip needs the file hidden from a job by construction.
+4. **A landing of records alone still runs the whole campaign.** The campaign reads the live backlog through the two
+   `backlog-record-sweep` mutants (tests/mutations/scripts/backlog-record-sweep.mjs.json:33), and which catalogue tests read
+   `docs/adr/` is not measured. Until it is, records ride with the next code landing.

@@ -223,8 +223,8 @@ Two facts that belong here rather than there:
 
 ## Codex
 
-Codex CLI can call the reading gates over MCP. Register the server, then ask for the next ready task
-in a decision's task directory. [Codex CLI setup](mcp.md#codex-cli)
+Codex CLI can call the reading gates over MCP. Register the server, then ask which task is
+ready within an active, Accepted decision. [Codex CLI setup](mcp.md#codex-cli)
 
 For a different-lineage review from Claude Code, install and authenticate Codex CLI.
 The `/quality-harness:codex-review` and `:codex-advise` skills invoke it directly.

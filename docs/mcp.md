@@ -58,8 +58,11 @@ Register the server with the path to your copy of `qh-mcp`. Quote the path if it
 codex mcp add quality-harness -- python3 "/absolute/path/to/quality-harness/plugin/bin/qh-mcp"
 ```
 
-In a new session, ask Codex to call `qh_adr_next` with the absolute path to a record's
-`tasks` directory. The result names the directory it read and which tasks are ready.
+In a new session, choose an active, Accepted decision and ask Codex to call `qh_adr_next`
+with the absolute path to its `tasks` directory. The result gives readiness within that record.
+To compare records, pass only the absolute path to the active corpus root (for example,
+`docs/adr`). Check the owning record's status before starting a task. Add `all: true` to see
+completed tasks and blockers, or `json: true` for the machine-readable report grouped by record.
 On macOS, the Codex CLI `0.172.0` app server called this tool on the Go fixture and
 returned T2 as ready after T1 was done. [Codex MCP configuration](https://developers.openai.com/codex/mcp/)
 

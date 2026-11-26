@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """adr-next — say which task is ready to execute, and what proves it done.
 
-Usage: adr-next <ADR.md | tasks-dir> [--all] [--json]
+Usage: adr-next <ADR.md | record-dir | tasks-dir | corpus-root> [--all] [--json]
        adr-next --batch        (a JSON array of directory strings on standard input)
 
 Answers one question the corpus can already answer but nothing surfaces: given

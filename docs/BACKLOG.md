@@ -4935,6 +4935,13 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    the assets from exactly that run, publishes nothing for a success that names none or another sha, and reads the run's
    attempt again after the download, stopping if it moved (exit 2 each). `tests/release-run-bound.test.mjs`; three catalogue
    mutants on it, each RED.
+   **Still open, from the scoped verification review of afd51584a (2026-11-26):** the run is bound, its artifacts are not
+   bound to an attempt. `scripts/release-assets.mjs:31` and `:35` download by run id and a fixed artifact name, and `gh run
+   download` takes the first unexpired match of the run (gh v2.105.0 `pkg/cmd/run/download/download.go:145-158`), which can
+   be an earlier attempt's: release.mjs's attempt read after the download cannot see that. The files are of the same sha and
+   pass their checksum and receipt checks, so what is lost is "this attempt's files", not "this sha's files". The fix the
+   review names: attempt-qualified artifact names in the workflow, the judged attempt passed to the downloader, and the same
+   for the `outside-run` artifact `scripts/release-evidence.mjs:568` downloads. Not built: it was a third fix round (CLAUDE.md §12).
 3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
    45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
    read the pin, so a sound skip needs the file hidden from a job by construction.
@@ -4982,3 +4989,23 @@ Found while sizing verdict reuse across landings, which ADR-147 then did not bui
    landings from 179c0d561 to 340710727, the fourteen that were neither a bump nor a pin changed between 0 and 139 keys.
    One job that measures only those entries would give the early notice back; ADR-147's first follow-up says when to
    build it.
+
+## 477. Found 2026-11-26 by a Windows peer's selftest at 8cf04868c — two tests fail under the whole suite's load and pass alone
+
+A fresh short-path clone (`core.longpaths=true`, `core.autocrlf=false`), `bash scripts/selftest.sh` unfiltered: exit 1, 3090
+tests, 2671 pass, 2 fail, 417 skipped, 970 s wall clock. Windows 11 Pro 10.0.26300, git 2.49.0.windows.1, node v24.20.0,
+Python 3.14.7, Git Bash 5.2.37, 16 cores, concurrency default; Defender used about two cores before the run. Each failing
+test was rerun alone three times with `node --test --test-name-pattern`: all six runs passed.
+
+1. **`a stale cache past the budget is served marked stale and nothing outlives the hook`** (tests/branch-state-native.test.mjs:292):
+   `ENOENT … gh.pid` at :314. The fake `gh` is a node script that writes its pid first; the core's refresh budget is 2 s,
+   so under load the fake was killed, or never started, before writing it. The budget is the product's own and the
+   expected line names it ("not refreshed within 2s"), so the test cannot simply raise it; what it can change is how it
+   learns that the refresh reached `gh`.
+2. **`a session whose first look failed takes a late baseline over a clean tree, so a push is not refused`**
+   (tests/chaos-e016066.test.mjs:244): the second `session.started` row (`[true, true]`, the late baseline) was not
+   written. selftest.sh exports `QUALITY_HARNESS_OBSERVE_BUDGET_MS=60000`, so the observe budget is not the cause; which
+   bound under load stops the late baseline is not traced.
+
+Neither is reproduced here, and neither test is locked (`scripts/test-locks.py`). The proof for a fix is a Windows run of
+the whole suite.

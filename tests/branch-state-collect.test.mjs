@@ -16,9 +16,9 @@ const noGo = required('go', goVersion.error || goVersion.status !== 0
   ? `go is not on PATH (${goVersion.error?.code ?? `exit ${goVersion.status}`}), so the Go core cannot be built here` : false)
 
 test('the core collects branch state as the Node collect does', { skip: noGo }, () => {
-  // TestBranchStateCollectEndsTheTree too: a deadline that ends the command's whole process group (ADR-135 Decision 2). It is
-  // built only off Windows, where a process group exists. And the serving half's file readers (T3): a commit's parents from its
-  // loose object, the own-commit walk, and the snapshot's replace-then-fallback write.
+  // TestBranchStateCollectEndsTheTree too: a deadline that ends the command's whole process tree (ADR-135 Decision 2): a process
+  // group off Windows, a job object on it (branchstate_tree_windows_test.go, BACKLOG §477.1). And the serving half's file readers
+  // (T3): a commit's parents from its loose object, the own-commit walk, and the snapshot's replace-then-fallback write.
   const serving = ['TestBranchStateCommitParents', 'TestBranchStateOwnCommitWalk', 'TestBranchStateReplaceFile',
     'TestBranchStateWriterKeepsANewerSnapshot', 'TestBranchStateRefreshPublishable', 'TestBranchStateCachedAnswersWithTheKeptSnapshot']
   const pattern = `^(TestBranchStateCollect(EndsTheTree(AfterAnEarlyExit)?)?|${serving.join('|')})$`
@@ -30,8 +30,8 @@ test('the core collects branch state as the Node collect does', { skip: noGo }, 
   assert.equal(ran.status, 0, `collectBranchState disagrees with the Node collect (or did not build):\n${tail}`)
   // Exit 0 also covers a test that skipped or matched nothing: the PASS line, and no SKIP or FAIL, say it ran whole.
   assert.match(said, /^--- PASS: TestBranchStateCollect \(/m, tail)
-  if (process.platform !== 'win32') assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTree \(/m, tail)
-  if (process.platform !== 'win32') assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTreeAfterAnEarlyExit \(/m, tail)
+  assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTree \(/m, tail)
+  assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTreeAfterAnEarlyExit \(/m, tail)
   for (const name of serving) assert.match(said, new RegExp(`^--- PASS: ${name} \\(`, 'm'), tail)
   assert.doesNotMatch(said, /--- SKIP|--- FAIL|no tests to run/, tail)
 })

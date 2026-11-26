@@ -26,6 +26,16 @@ import { spawnGate } from './ready-lines.mjs'
 import { adrCorpus, aliasReason, corpusEligible, frozenArchiveOf, gfmTableRows, listedPath as posixRel, onceByRealPath, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
 import { pathInCode, terminalText, visiblePath } from './corpus-text.mjs'
 
+/**
+ * One argument as Bash and Git Bash read it back (BACKLOG §478): bare when it holds only characters no shell treats specially,
+ * so an ordinary path prints as it always did; otherwise single-quoted, each `'` written as `'\''`. A space, a backslash, an
+ * apostrophe or a `$` then stays one argument, the name on disk.
+ */
+function shellArg(value) {
+  const text = String(value)
+  return /^[A-Za-z0-9_./@%+=:,-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
+}
+
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
 // A batch's pipe holds every frame of a large corpus; past this the batch ends where it is and the rest are asked singly.
@@ -877,8 +887,9 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
   const state = observe(root, listing === undefined ? { spawn } : { spawn, listing })
   const remedy = stage => stage?.id === 'adr-verify' && state.relock.length
-    // POSIX separators: a command a person copies, and `adr-verify` reads either (CLAUDE.md §7).
-    ? `adr-verify --relock --replace-hashes ${relative(state.relock[0]).replaceAll('\\', '/')} — once the change to the test is reviewed`
+    // `relative` already writes a Windows path with `/` (listedPath, CLAUDE.md §7), so a backslash still in it is part of a POSIX
+    // name and is kept; the argument is quoted for Bash and Git Bash, so a space or an apostrophe stays one argument (BACKLOG §478).
+    ? `adr-verify --relock --replace-hashes ${shellArg(relative(state.relock[0]))} — once the change to the test is reviewed`
     : undefined
   const stage = nextStage(state)
   // POSIX separators in every path printed or emitted: Windows wrote `docs\\adr\\…` in this JSON

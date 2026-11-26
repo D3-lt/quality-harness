@@ -242,7 +242,8 @@ test('the relock remedy shows a newline in a task path escaped, so it cannot for
   try { main([temp], { spawn }) } finally { process.stdout.write = real }
   const text = written.join('')
   assert.ok(!text.split('\n').some(line => line.startsWith('[quality-harness]')), `a task name printed a line: ${text}`)
-  assert.ok(text.includes('adr-verify --relock --replace-hashes docs/adr/ADR-001-x/tasks/T1-a\\u{a}[quality-harness]'), text)
+  // BACKLOG §478: a name holding a space (or a newline) is quoted for the shell; the newline is still shown escaped.
+  assert.ok(text.includes("adr-verify --relock --replace-hashes 'docs/adr/ADR-001-x/tasks/T1-a\\u{a}[quality-harness]"), text)
 })
 
 // BACKLOG §280 item 4, a Windows 72-record corpus: after §279 item 8 three tasks sat

@@ -1206,6 +1206,27 @@
       "from": "named > 0 && named <= 2_147_483_647 ? named : BATCH_MS",
       "to": "named > 0 ? named : BATCH_MS",
       "only": "^(?:the batch is asked as the single call is asked)$"
+    },
+    {
+      "label": "BACKLOG §478: the relock argument keeps a backslash in a POSIX name and is quoted for the shell",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-relock-argv.test.mjs"],
+      "from": "    ? `adr-verify --relock --replace-hashes ${shellArg(relative(state.relock[0]))} — once the change to the test is reviewed`",
+      "to": "    ? `adr-verify --relock --replace-hashes ${relative(state.relock[0]).replaceAll('\\\\', '/')} — once the change to the test is reviewed`"
+    },
+    {
+      "label": "BACKLOG §478: an argument with a shell-special character is quoted",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-relock-argv.test.mjs"],
+      "from": "  return /^[A-Za-z0-9_./@%+=:,-]+$/.test(text) ? text : `'${text.replaceAll(\"'\", \"'\\\\''\")}'`",
+      "to": "  return text"
+    },
+    {
+      "label": "BACKLOG §478: an apostrophe inside the quotes is closed, escaped and reopened",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-relock-argv.test.mjs"],
+      "from": "`'${text.replaceAll(\"'\", \"'\\\\''\")}'`",
+      "to": "`'${text}'`"
     }
   ]
 }

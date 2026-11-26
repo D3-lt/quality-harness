@@ -4950,11 +4950,12 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    jobs leaves the judged attempt without the artifacts of the jobs it kept: the release then stops on
    `run <id> has no artifact <name>-<n>`, with the remedy `gh run rerun <id>`. `tests/attempt-artifacts.test.mjs`; nine
    catalogue mutants RED. A run from before this change has only the unsuffixed names, so it cannot be released from.
-   **Two residuals from the verification review of 80d833d16:** gh also reports “no valid artifacts found to download”
-   when artifacts have expired. `missingArtifact` in scripts/release-assets.mjs attributes every such absence to the attempt
-   never having built the artifact. The rerun remedy still applies. The historical workflow lookup in scripts/native-manifest.mjs
-   matches the literal indentation of the `qh-core` upload name. Reindenting that line would select the old artifact name
-   on a new run and prevent the attestation from being read. The review found both by inspection.
+   The verification review of 80d833d16 found two further issues. The download diagnostic attributed an absent artifact
+   to a job that never built it. GitHub CLI also gives that response when every artifact has expired. The diagnostic
+   now reports that the named artifact is unavailable and gives the full rerun command. The expired-artifacts fixture
+   caught the old diagnosis when it was reintroduced.
+   The historical workflow lookup in scripts/native-manifest.mjs still matches the literal indentation of the
+   `qh-core` upload name. Reindenting that line would select the old artifact name and prevent the attestation from being read.
 3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
    45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
    read the pin, so a sound skip needs the file hidden from a job by construction.
@@ -5051,10 +5052,23 @@ left descendants alive and failed all three cases. Removing the pid read alone f
 still failed 11 of 12 loaded trials at the step requiring a complete refresh in two seconds. Both product and test
 changes remain open pending a candidate and a Windows full-suite run.
 
-## 478. Found 2026-11-26 in the verification review of da7051519 — the relock command changes a literal POSIX backslash
+**Windows follow-up, 2026-11-27.** The test in `6210bf736` checks process creation time as well as PID.
+Five idle runs verified the answer, the return time and the disappearance of each test descendant in all three cases.
+Disabling tree cleanup failed exactly the three descendant checks. A 1 ms budget failed at the startup marker.
+The peer saw Windows reuse a PID from an earlier run.
+
+For the observation failure, two idle comparisons used the same child, grandchild and three-second budget.
+The original runner received all five output bytes but returned `ErrWaitDelay` twice when the grandchild held its pipe open.
+A prototype returned the correct status and bytes both times. Review found that a blocking Windows pipe could still hang
+during cleanup. The production change remains open. The cause of the earlier failures under CPU load also remains open.
+
+## 478. CLOSED 2026-11-27 — the relock command changed a literal POSIX backslash
 
 In a macOS Git fixture with a moved-lock readiness answer, the task on disk was `docs/adr/ADR-001-x/tasks/T1-a\b.md`.
 `work-next --json` preserved that name in `unbackedDoneClaims` but printed `docs/adr/ADR-001-x/tasks/T1-a/b.md` in
-`next.remedy`. That path did not exist. The relock command in `plugin/scripts/work-next.mjs` replaces every backslash
-after the shared path formatter has already handled the host separator. Verify the suggested argument reaches the actual
-task when copied, including a name with a space, and retain the existing Windows separator and single-line display checks.
+`next.remedy`. That path did not exist.
+
+Commit `074d7c6e7` uses the path formatter's result once and quotes the task argument for Bash and Git Bash.
+The macOS command test read the suggested argument back through Bash and matched the filename on disk, including
+a space, an apostrophe and a literal backslash. Restoring the extra separator replacement, omitting the quoting and
+omitting the apostrophe escape each failed the fixture. The human-readable remedy still prints on one line.

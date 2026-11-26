@@ -9,6 +9,30 @@
       "from": "observed.path !== '.github/workflows/selftest.yml'",
       "to": "false",
       "only": "^native CI lookup checks the run revision, all artifact checksums and source header, then removes its scratch$"
+    },
+    {
+      "label": "BACKLOG §475.2: a run of an attempt-naming workflow is read by its attempt's name",
+      "file": "scripts/native-manifest.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "      if (ATTEMPT_NAMED.test(String(workflow.stdout ?? '')))",
+      "to": "      if (false)",
+      "only": "^the outside run and the native manifest are read from the judged attempt too$"
+    },
+    {
+      "label": "BACKLOG §475.2: the native download runs in the root it was given",
+      "file": "scripts/native-manifest.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "downloadArtifact(id, observed.run_attempt, 'qh-core', directory, run, options)",
+      "to": "downloadArtifact(id, observed.run_attempt, 'qh-core', directory, run)",
+      "only": "^the outside run and the native manifest are read from the judged attempt too$"
+    },
+    {
+      "label": "BACKLOG §475.2: a workflow git cannot show names no artifact",
+      "file": "scripts/native-manifest.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "  if (workflow.error || workflow.status !== 0) return",
+      "to": "  if (false) return",
+      "only": "^the outside run and the native manifest are read from the judged attempt too$"
     }
   ]
 }

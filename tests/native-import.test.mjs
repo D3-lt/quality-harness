@@ -71,6 +71,8 @@ test('native CI lookup checks the run revision, all artifact checksums and sourc
     path: '.github/workflows/selftest.yml', event: 'push', head_branch: 'land/' + at, run_attempt: 1 }
   const execute = (_cmd, args) => {
     if (args[0] === 'api') return { status: 0, stdout: JSON.stringify(metadata) }
+    // BACKLOG §475.2: the workflow at the attested commit names its artifact; this one names it by attempt.
+    if (args[0] === 'show') return { status: 0, stdout: '          name: qh-core-${{ github.run_attempt }}\n' }
     scratch = args[args.indexOf('--dir') + 1]
     writeFileSync(path.join(scratch, 'SHA256SUMS.txt'), manifest)
     for (const [os, arch] of CORE_TARGETS) writeFileSync(path.join(scratch, coreAsset(os, arch)), os + '/' + arch)

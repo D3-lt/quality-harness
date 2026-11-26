@@ -30,6 +30,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 import { verifyFile } from './attest-import.mjs'
+import { artifactMissing, missingArtifact } from './release-assets.mjs'
 import { cloneStateDir } from '../plugin/scripts/event-log.mjs'
 import { REVIEW_COVERING, REVIEWS_FILE } from '../plugin/scripts/host-review.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
@@ -583,7 +584,8 @@ export function downloadOutsideRun(id, attempt, exec = execFileSync) {
     exec('gh', ['run', 'download', String(id), '-n', `outside-run-${attempt}`, '-D', dir], { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] })
     return JSON.parse(readFileSync(join(dir, 'outside-run.json'), 'utf8'))
   } catch (error) {
-    return { error: `gh run download ${id} outside-run-${attempt}: ${String(error?.stderr ?? error?.message ?? error).trim().split('\n')[0]}` }
+    const said = String(error?.stderr ?? error?.message ?? error).trim()
+    return { error: artifactMissing(said) ? missingArtifact(id, `outside-run-${attempt}`) : `gh run download ${id} outside-run-${attempt}: ${said.split('\n')[0]}` }
   } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 
@@ -772,7 +774,7 @@ export function tagAdvice(kind) {
       + 'reads the explanation above: get a peer run (`/quality-harness:corpus-chaos`) over a corpus we do not own, file its attestation, '
       + 'and ask again. A regression is never cleared this way (ADR-082).',
     'ci-unverified': 'Do NOT tag this sha yet. The release run\'s outside run could not be checked as this sha\'s complete comparison '
-      + '(ADR-138) — that is could-not-look, not cleared (ADR-005). Rerun its outside run job, or file a peer attestation, and ask again.',
+      + '(ADR-138) — that is could-not-look, not cleared (ADR-005). Re-run every job of the release run (`gh run rerun <id>`): a re-run of the outside run job alone has no core of its own attempt (BACKLOG §475.2). Or file a peer attestation, and ask again.',
     'review-unlisted': 'Do NOT tag this sha. Whether its plugin commits since the last tag were reviewed could not be established '
       + 'from git here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.',
   }

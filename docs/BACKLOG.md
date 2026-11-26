@@ -5017,3 +5017,20 @@ test was rerun alone three times with `node --test --test-name-pattern`: all six
 
 Neither is reproduced here, and neither test is locked (`scripts/test-locks.py`). The proof for a fix is a Windows run of
 the whole suite.
+
+**Measured on Windows the same day (the peer's investigation at 8cf04868c, the core's own process trace, 16 cores):**
+1. Under a whole-suite load (Win32 LoadPercentage 100%) the refresh never reached `gh`: 30 of 30 traces had no `gh` row.
+   The core's 2 s refresh budget covers its git half too, nine git calls here (106-2002 ms each, median 216); the last ended
+   at about 1950-2090 ms, cut by the deadline. stdout and the hang guard held every time; only the pid read throws. Idle,
+   `gh` started about 545 ms (529-585 over 15 runs) after the last git: a fresh copy of node.exe took 592-672 ms on its first
+   start and about 50 ms after, consistent with a scan of a new executable. Starting the copy once in the fixture moved
+   `gh`'s start from a median 1297 ms to 803 ms. That buys margin under moderate load and none under heavy load, where the
+   2 s cannot both hold and reach `gh`. Candidate (test only, not measured under load): one warm-up start of the copied
+   `gh.exe` in the fixture, and an `existsSync` on the pid file that says the refresh never reached `gh`.
+2. 1 failure in 210 runs, during the 100% phase. The observation succeeded (`ok: true`); the trace shows the
+   `git status --porcelain -z -uall` of `observedClean` ending `execution-error` with exit status 0, not timed out (642 ms),
+   so `lateBaselineAllowed` was false and no late row was written; the same status then ran again and succeeded. The likely
+   source is `cmd.Wait` returning `exec.ErrWaitDelay` after the fixed 250 ms Windows pipe wait (core/hooks/bstree_windows.go:22),
+   with a starved output copy at 100% CPU; the error text was not captured (an err-recording core saw no failure in 180
+   runs once the load had dropped). A fix is product code (retry such a status, or widen the pipe wait) and waits for that
+   text.

@@ -554,6 +554,9 @@ jobs:
         with:
           name: qh-core-${{ github.run_attempt }}
           path: qh-core
+      - name: Say what a missing core of this attempt means
+        if: failure()
+        run: echo "::error::qh-core-${{ github.run_attempt }} is missing or this job failed. A re-run of only the failed jobs keeps the core of an earlier attempt, which no later attempt reads (BACKLOG §475.2); re-run every job with gh run rerun ${{ github.run_id }}."
       - name: Probe the last tag and the candidate over corpora this repository does not own
         run: node scripts/outside-run.mjs --candidate-core qh-core/qh-windows-amd64.exe --out outside-run.json
       - uses: actions/upload-artifact@v7

@@ -72,29 +72,46 @@ test('a partial re-run leaves the judged attempt without its artifact, and the r
   const none = forge({ 'qh-core': 'unnamed' })
   assert.throws(() => downloadArtifact('7', 'unknown', 'qh-core', dir, none.run), /attempt/)
   assert.deepEqual(none.asked, [])
+  // gh's other "absent" answer: every artifact of the run is expired or gone.
+  const expired = (bin, args) => ({ status: 1, stdout: '', stderr: 'no valid artifacts found to download\n' })
+  assert.throws(() => downloadArtifact('7', '2', 'qh-core', dir, expired), /run 7 has no artifact qh-core-2[\s\S]*gh run rerun 7/)
 })
 
 test('the outside run and the native manifest are read from the judged attempt too', () => {
   const asked = []
   const exec = (bin, args) => { asked.push(args.join(' ')); throw Object.assign(new Error('gone'), { stderr: 'no artifact matches any of the names or patterns provided' }) }
-  assert.match(downloadOutsideRun(7, 3, exec).error, /outside-run-3/)
+  assert.match(downloadOutsideRun(7, 3, exec).error, /run 7 has no artifact outside-run-3[\s\S]*gh run rerun 7/)
   assert.ok(asked[0].startsWith('run download 7 -n outside-run-3 -D '), asked.join('\n'))
   asked.length = 0
   assert.match(downloadOutsideRun(7, undefined, exec).error, /attempt/)
   assert.deepEqual(asked, [], 'no attempt, no download')
 
   const at = 'c'.repeat(40)
+  const root = mkdtempSync(path.join(os.tmpdir(), 'qh-native-root-'))
   const seen = []
-  const view = attempt => (bin, args) => {
-    seen.push(args.join(' '))
+  const ATTEMPT_YAML = '      - uses: actions/upload-artifact@v7\n        with:\n          name: qh-core-${{ github.run_attempt }}\n'
+  const LEGACY_YAML = '      - uses: actions/upload-artifact@v7\n        with:\n          name: qh-core\n'
+  const view = (attempt, yaml = ATTEMPT_YAML) => (bin, args, options) => {
+    seen.push({ call: `${bin} ${args.join(' ')}`, cwd: options?.cwd })
     if (args[0] === 'api') return { status: 0, stdout: JSON.stringify({ id: 7, head_sha: at, status: 'completed', conclusion: 'success', path: '.github/workflows/selftest.yml', event: 'push', head_branch: `land/${at}`, run_attempt: attempt }) }
+    if (bin === 'git') return yaml === null ? { status: 128, stdout: '', stderr: 'fatal: bad object' } : { status: 0, stdout: yaml }
     return { status: 1, stdout: '', stderr: 'no artifact matches any of the names or patterns provided' }
   }
-  loadNativeManifest('7', at, { run: view(4) })
-  assert.ok(seen.includes('run download 7 --name qh-core-4 --dir ' + seen.at(-1).split(' --dir ')[1]), seen.join('\n'))
+  const downloads = () => seen.filter(({ call }) => call.startsWith('gh run download')).map(({ call }) => call.split(' --dir ')[0])
+  const missing = loadNativeManifest('7', at, { root, run: view(4) })
+  assert.deepEqual(downloads(), ['gh run download 7 --name qh-core-4'], 'a run of an attempt-naming workflow: its latest attempt\'s core')
+  assert.ok(seen.every(({ cwd }) => cwd === root), 'every command runs in the root it was given, so gh names that repository')
+  assert.match(missing.couldNotLook, /no artifact qh-core-4[\s\S]*gh run rerun 7/, 'the downloader\'s diagnosis is kept')
   seen.length = 0
-  assert.ok(loadNativeManifest('7', at, { run: view(undefined) }).couldNotLook, 'a run that does not say its attempt')
-  assert.ok(!seen.some(call => call.startsWith('run download')), seen.join('\n'))
+  loadNativeManifest('7', at, { root, run: view(4, LEGACY_YAML) })
+  assert.deepEqual(downloads(), ['gh run download 7 --name qh-core'], 'a run from before attempt names: the name its workflow gave')
+  seen.length = 0
+  assert.ok(loadNativeManifest('7', at, { root, run: view(undefined) }).couldNotLook, 'a run that does not say its attempt')
+  assert.deepEqual(downloads(), [])
+  seen.length = 0
+  assert.match(loadNativeManifest('7', at, { root, run: view(4, null) }).couldNotLook, /workflow/, 'a workflow git cannot show names nothing')
+  assert.deepEqual(downloads(), [])
+  remove(root)
 })
 
 test('the release hands the judged attempt to the asset download', () => {

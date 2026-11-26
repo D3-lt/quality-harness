@@ -131,10 +131,10 @@ real corpora. `plugin/scripts/decision-corpus.mjs` stays complete for adr-contex
 as the oracle that replay runs live.
 
 `scripts/build-core.mjs` builds source-check binaries and the release targets declared in `core-assets.mjs`.
-CI uploads the native binaries and source manifest as `qh-core`. `build-plugin.mjs` archives the exact commit's plugin tree
+CI uploads the native binaries and source manifest as `qh-core-<attempt>` (`github.run_attempt`, BACKLOG §475.2). `build-plugin.mjs` archives the exact commit's plugin tree
 and adds those verified binaries, checksum sidecars and retained source manifest under `native/`. Python's standard ZIP
 library preserves executable modes; it also verifies downloaded archives entry by entry against the committed files
-and native assets. The complete ZIP and its source/checksum receipt are uploaded as `qh-plugin`.
+and native assets. The complete ZIP and its source/checksum receipt are uploaded as `qh-plugin-<attempt>`; a release reads both of the attempt `release-evidence` judged.
 
 `release-assets.mjs` verifies both artifacts before `release.mjs` publishes them. `marketplace-source.mjs` verifies an
 unauthenticated public download before producing a versioned archive URL and checksum. The catalogue pin lands separately,

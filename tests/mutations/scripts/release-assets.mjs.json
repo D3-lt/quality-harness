@@ -13,8 +13,8 @@
       "label": "BACKLOG §475.2: an artifact is asked for by its attempt's exact name",
       "file": "scripts/release-assets.mjs",
       "tests": ["tests/attempt-artifacts.test.mjs"],
-      "from": "  const exact = `${name}-${attempt}`",
-      "to": "  const exact = name"
+      "from": "  downloadNamed(runId, `${name}-${attempt}`, directory, run, options)",
+      "to": "  downloadNamed(runId, name, directory, run, options)"
     },
     {
       "label": "BACKLOG §475.2: an unknown attempt asks gh for nothing",
@@ -27,8 +27,15 @@
       "label": "BACKLOG §475.2: a partial re-run's missing artifact is said with the remedy",
       "file": "scripts/release-assets.mjs",
       "tests": ["tests/attempt-artifacts.test.mjs"],
-      "from": "  if (said.includes('no artifact matches any of the names or patterns provided')) {",
-      "to": "  if (false) {"
+      "from": "  throw new Error(artifactMissing(said) ? missingArtifact(runId, exact) : ",
+      "to": "  throw new Error(false ? missingArtifact(runId, exact) : "
+    },
+    {
+      "label": "BACKLOG §475.2: gh's answer for a run whose artifacts are all expired is an absence too",
+      "file": "scripts/release-assets.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "/no artifact matches any of the names or patterns provided|no valid artifacts found to download/",
+      "to": "/no artifact matches any of the names or patterns provided/"
     }
   ]
 }

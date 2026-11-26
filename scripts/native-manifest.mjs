@@ -4,7 +4,11 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { parseCoreManifest } from '../plugin/scripts/native-provenance.mjs'
-import { downloadArtifact, releaseAssetFiles } from './release-assets.mjs'
+import { downloadArtifact, downloadNamed, releaseAssetFiles } from './release-assets.mjs'
+
+// BACKLOG §475.2: a workflow from before attempt-qualified names uploaded `qh-core` alone. An attestation of such a run is
+// still verified as ADR-131 made it, by the name its own workflow gave; a run from after, by its latest attempt's name.
+const ATTEMPT_NAMED = /^ {10}name: qh-core-\$\{\{ github\.run_attempt \}\}$/m
 
 export function loadNativeManifest(id, at, { root = process.cwd(), run = spawnSync } = {}) {
   if (!/^[1-9][0-9]*$/.test(id) || !/^[a-f0-9]{40}$/.test(at)) return { refused: ['native landing run or source commit is malformed'] }
@@ -24,11 +28,15 @@ export function loadNativeManifest(id, at, { root = process.cwd(), run = spawnSy
     return { refused: ['native artifact is not from the designated full landing workflow'] }
   }
   if (observed.status !== 'completed' || observed.conclusion !== 'success') return { couldNotLook: 'the native landing run has not concluded success' }
-  // BACKLOG §475.2: the artifact of the run's latest attempt, by its exact name; `downloadArtifact` refuses an attempt it
-  // cannot read, so a run that does not say its attempt is could-not-look.
+  const workflow = run('git', ['show', `${at}:.github/workflows/selftest.yml`], options)
+  if (workflow.error || workflow.status !== 0) return { couldNotLook: 'the workflow at the native landing commit could not be read, so the name of its artifact is not known' }
   const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-native-manifest-'))
   try {
-    try { downloadArtifact(id, observed.run_attempt, 'qh-core', directory, run) } catch { return { couldNotLook: 'the native landing artifact could not be downloaded' } }
+    try {
+      // `downloadArtifact` refuses an attempt it cannot read, so a run that does not say its attempt is could-not-look.
+      if (ATTEMPT_NAMED.test(String(workflow.stdout ?? ''))) downloadArtifact(id, observed.run_attempt, 'qh-core', directory, run, options)
+      else downloadNamed(id, 'qh-core', directory, run, options)
+    } catch (error) { return { couldNotLook: `the native landing artifact could not be downloaded: ${error.message}` } }
     releaseAssetFiles(directory)
     const manifest = parseCoreManifest(readFileSync(path.join(directory, 'SHA256SUMS.txt'), 'utf8'))
     if (manifest.source?.at !== at || manifest.source?.run !== id) return { refused: ['native manifest does not bind the named landing run and source commit'] }

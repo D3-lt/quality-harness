@@ -4952,6 +4952,9 @@ Found while sizing verdict reuse across landings, which ADR-147 then did not bui
    the verified Go core". The other eighty-one had a new key, or main's tip had already reported them.
    Today the cache serves pull-request and local runs only, which no release rests on. Open: whether it stays, and
    whether its summary line may still say a reused verdict's subject and tests are all a verdict depends on.
+   **Decided 2026-11-26 (the owner):** the cache stays for pull-request and local runs, and its summary line now says the
+   key is the mutated file and its test files, that it does not hold everything a verdict depends on, and that no release
+   rests on a reused verdict (scripts/mutate.mjs). The untraced cause of the eleven stays open here.
 2. **A landing of a released version no longer measures the entries it changed** (ADR-147). Over the forty-nine successful
    landings from 179c0d561 to 340710727, the fourteen that were neither a bump nor a pin changed between 0 and 139 keys.
    One job that measures only those entries would give the early notice back; ADR-147's first follow-up says when to

@@ -93,6 +93,7 @@ record whose Decision the module implements today; `node plugin/scripts/adr-stat
 | `tests/` | infra | this repository's suite and the mutation catalogue | ADR-003, ADR-091 |
 | `.github/workflows/selftest.yml` | infra | what CI runs on main, on landings and on dispatch | ADR-023, ADR-118 |
 | `.github/rulesets/main.json` | infra | what the forge requires before main moves | ADR-118 |
+| `.github/rulesets/tags.json` | infra | the forge refuses an update or deletion of a `v*` tag; nothing compares it with the forge | ADR-147 |
 | `.githooks/pre-commit` | infra | refusing a commit mid-mutation or of an unmutated shipped file | none by path in `adr-state`; BACKLOG §127c |
 
 ## Hook events
@@ -179,8 +180,8 @@ baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`)
 4. The suite: `bash scripts/selftest.sh` is the project's declared `check` (`.quality-harness.json`), run through
    `qh-check`, which writes `checks.jsonl`; `fastCheck` is the per-commit subset (ADR-081, ADR-105).
 5. The mutation campaign: `node scripts/mutate.mjs` runs `tests/mutations/<source>.json` (one file per mutated source,
-   ADR-091) in a worktree of the working tree (ADR-075); CI shards it and reuses a verdict only when nothing it rests on
-   changed (ADR-023).
+   ADR-091) in a worktree of the working tree (ADR-075); CI shards it, and a pull-request or local run reuses a RED
+   verdict whose mutated file and test files are unchanged (ADR-023; that key misses an input, docs/BACKLOG.md §476).
 6. `node scripts/release-evidence.mjs <sha>` is the one answer to "may this sha be released": every job of the landing's
    full campaign concluded success (ADR-126), an outside run is filed for changed readers (`attest-import.mjs`, ADR-070), and a
    recorded review covers every plugin commit since the last tag (ADR-100). Its exit codes are in its own header.

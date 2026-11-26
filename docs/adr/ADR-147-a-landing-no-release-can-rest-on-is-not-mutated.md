@@ -222,5 +222,5 @@ sha resumes it, or the owner deletes it.
 ## Follow-ups
 
 - [ ] After the next ten releases, count those whose landing failed on a mutant that a skipped landing since the previous release changed. If more than two, build the changed-entries job (Alternatives).
-- [ ] Decide what ADR-023's cache is for now that its key is measured unsound (docs/BACKLOG.md §476).
-- [ ] Decide whether the forge refuses updates and deletions of `v*` tags, with a ruleset beside main's: it is what closes the window Decision 6 leaves open.
+- [x] Decide what ADR-023's cache is for now that its key is measured unsound (docs/BACKLOG.md §476). Decided 2026-11-26 by the owner: it stays for pull-request and local runs, and its summary line says what the key holds and that no release rests on a reused verdict.
+- [x] Decide whether the forge refuses updates and deletions of `v*` tags, with a ruleset beside main's: it is what closes the window Decision 6 leaves open. Decided 2026-11-26 by the owner: yes. Ruleset 28186453, committed as `.github/rulesets/tags.json`, after the same two rules on a throwaway tag pattern let a tag be created and pushed again at the same commit, and refused a forced move and a deletion. A mistaken release tag is now removed only by disabling that ruleset.

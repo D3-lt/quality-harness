@@ -141,3 +141,8 @@ exists, unless the forge shows that tag at this same sha with no release. So the
 forge. Verdict reuse was measured first and not built: ADR-023's key missed an input at bb2476929 (docs/BACKLOG.md §476).
 What is given up is early notice: a mutant that stops being noticed between releases shows at the next candidate's
 landing. The saving depends on bumping late, since every landing from the bump to the tag runs every shard.
+
+Since 2026-11-26 the forge refuses an update or a deletion of a `v*` tag (`.github/rulesets/tags.json`, ruleset 28186453, no
+bypass actors), which closes the seconds between the command's tag push and its creation of the release. Creating a tag
+and pushing it again at the same commit still succeed, which the resume path needs. A mistaken release tag is removed
+only by disabling that ruleset in the forge settings.

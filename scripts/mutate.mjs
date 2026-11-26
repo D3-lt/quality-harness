@@ -1915,7 +1915,8 @@ export function main(argv) {
   console.log(`\n${counts.noticed}/${counts.total} mutations were noticed.`)
   if (counts.reused) {
     console.log(`${counts.measured} measured this run; ${counts.reused} reused a RED verdict `
-      + 'whose subject and tests are byte-identical to the run that took it (ADR-023). '
+      + 'whose mutated file and test files are byte-identical to the run that took it (ADR-023). '
+      + 'That key does not hold everything a verdict depends on (docs/BACKLOG.md §476), so no release rests on a reused one. '
       + 'Pass --no-cache to measure everything.')
   }
   if (counts.unproven) {

@@ -1502,7 +1502,7 @@ def classify(infos, corpus_dir):
 
 
 def corpus_records(target):
-    """The (name, tasks_dir) pairs a corpus root holds, sorted by name.
+    """The record directories, their resolved task directories and their loaded tasks, sorted by record name.
 
     A corpus root is not a shape this tool was taught; it is the shape a reader
     reaches for FIRST, because it is the one `adr-lint` and `adr-debt` already
@@ -1566,7 +1566,7 @@ def corpus_records(target):
             unreadable.append((child.name, os_reason(exc)))
             continue
         if infos:
-            found.append((child.name, tasks_dir, child))
+            found.append((child, tasks_dir, infos))
     return found, unreadable
 
 
@@ -1581,8 +1581,8 @@ def report_corpus(records, unreadable, flags):
     """
     answers = {}
     any_ready = False
-    for name, tasks_dir, record_dir in records:
-        infos = load(tasks_dir)
+    for record_dir, tasks_dir, infos in records:
+        name = record_dir.name
         corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
         ready, done, blocked, stopped = classify(infos, corpus_dir)
         # The owning record's status travels with the answer. The single-record
@@ -1742,29 +1742,8 @@ def main():
         print(__doc__.strip().split("\n\n")[1], file=sys.stderr)
         return 1
 
-    # ADR-034 / issue #10. A corpus root reaches here looking like a tasks
-    # directory that happens to be empty, because `resolve_tasks_dir` returns a
-    # directory unchanged when it holds no `tasks/` child. Asked BEFORE the
-    # single-record path so the answer is the one the caller wanted.
-    #
-    # THE `== target` IS WHAT KEEPS A RECORD FOLDER OUT, and the first version of
-    # this branch did not have it. `ADR-034-slug/` owns no task files DIRECTLY —
-    # they are in `tasks/` beside them — so `not load(target)` is true of it, and
-    # a record folder was answered as a corpus holding one record literally named
-    # `tasks`. A previously working input, silently reshaped. Found by a Codex
-    # review, not by this suite; the regression test is beside the others.
-    #
-    # `resolve_tasks_dir(target) == target` says exactly "this directory has no
-    # `tasks/` child of its own", which is the difference between a corpus root
-    # and a record folder, asked through the same resolver the rest of the gate
-    # uses rather than by re-deriving the rule here.
     target = Path(args[0])
-    if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):
-        records, unreadable = corpus_records(target)
-        if records or unreadable:
-            return report_corpus(records, unreadable, flags)
-
-    tasks_dir = resolve_tasks_dir(Path(args[0]))
+    tasks_dir = resolve_tasks_dir(target)
     if tasks_dir is None:
         # A record with no tasks directory is an ORDINARY state, not a failure:
         # most records in a real corpus are in it, and a reader asking about one
@@ -1777,7 +1756,6 @@ def main():
         #
         # A path that does not exist is different and still exits 1: that is "I
         # could not answer", not "the answer is none".
-        target = Path(args[0])
         if not target.exists():
             print(f"adr-next: no such file or directory: {home_shown(args[0])}", file=sys.stderr)
             return 1
@@ -1795,6 +1773,14 @@ def main():
         return 0
 
     infos = load(tasks_dir)
+    # ADR-034 / issue #10. The resolver returns a corpus root unchanged. A record
+    # folder resolves to its tasks/ child and must keep the single-record answer.
+    # Parsing the same tasks for both this decision and the answer repeats their
+    # evidence checks, including lock verification. One observation serves both.
+    if not infos and tasks_dir == target:
+        records, unreadable = corpus_records(target)
+        if records or unreadable:
+            return report_corpus(records, unreadable, flags)
     if not infos:
         print(f"adr-next: no task files in {tasks_dir}", file=sys.stderr)
         return 1

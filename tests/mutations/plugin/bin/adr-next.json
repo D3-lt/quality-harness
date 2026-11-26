@@ -540,8 +540,9 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        target = Path(args[0])",
-      "to": "        target = Path('/nonexistent-probe')"
+      "from": "        if not target.exists():",
+      "to": "        if True:",
+      "only": "^--json over a path with no tasks directory answers in JSON$"
     },
     {
       "label": "adr-next: the fence is found with the shared opener, not a private ```bash-only match (ADR-045 T3)",
@@ -659,9 +660,29 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):",
-      "to": "    if target.is_dir() and not load(target):",
+      "from": "    tasks_dir = resolve_tasks_dir(target)\n    if tasks_dir is None:",
+      "to": "    tasks_dir = target if target.is_dir() else resolve_tasks_dir(target)\n    if tasks_dir is None:",
       "only": "^(?:a record folder is still answered as one record, not as a corpus of one)$"
+    },
+    {
+      "label": "next: each query reads its tasks once",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "    infos = load(tasks_dir)\n    # ADR-034 / issue #10.",
+      "to": "    load(tasks_dir)\n    infos = load(tasks_dir)\n    # ADR-034 / issue #10.",
+      "only": "^each batch query reads its task file once, including repeated directories$"
+    },
+    {
+      "label": "next: each query reads its tasks once when reporting a whole corpus",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-batch.test.mjs"
+      ],
+      "from": "    for record_dir, tasks_dir, infos in records:\n        name = record_dir.name",
+      "to": "    for record_dir, tasks_dir, _ in records:\n        infos = load(tasks_dir)\n        name = record_dir.name",
+      "only": "^each batch query reads its task file once, including repeated directories$"
     },
     {
       "label": "next: a corpus names an undecided record before offering its tasks",

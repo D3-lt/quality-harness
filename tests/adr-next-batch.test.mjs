@@ -89,6 +89,31 @@ test('a batch answers each directory as its own process does', () => {
   }
 })
 
+test('each batch query reads its task file once, including repeated directories', () => {
+  const watch = [
+    'import atexit, runpy, sys',
+    'task, gate = sys.argv[1:]',
+    'opens = []',
+    'def count(event, args):',
+    '    if event == "open" and args[0] == task:',
+    '        opens.append(1)',
+    'sys.addaudithook(count)',
+    'atexit.register(lambda: print(len(opens), file=sys.stderr))',
+    'sys.argv = [gate, "--batch"]',
+    'runpy.run_path(gate, run_name="__main__")',
+  ].join('\n')
+  const task = join(goTasks, 'T1-add-items.md')
+  const corpusRoot = dirname(dirname(goTasks))
+  for (const dirs of [[goTasks, goTasks], [corpusRoot]]) {
+    const run = spawnSync(python, [...prefix, '-B', '-c', watch, task, gate], {
+      ...options, input: JSON.stringify(dirs),
+    })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(frames(run).map(answerOf), dirs.map(dir => single(dir)))
+    assert.equal(text(run.stderr).trim(), String(dirs.length), `one real open of this task per query: ${dirs}`)
+  }
+})
+
 // Runs a Python program with `subprocess.run` watched: `git rev-parse --show-object-format` is counted, and failed for
 // the first ask (`first`) or every ask (`all`); a child whose arguments name QH_TEST_HANG never returns; and what was
 // still unread on standard input when the first child started is measured. The counts go to stderr last.

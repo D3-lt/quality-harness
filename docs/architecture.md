@@ -181,8 +181,8 @@ baseline, skips), `adr-verify` (receipts), the review launcher (`reviews.jsonl`)
 5. The mutation campaign: `node scripts/mutate.mjs` runs `tests/mutations/<source>.json` (one file per mutated source,
    ADR-091) in a worktree of the working tree (ADR-075); CI shards it and reuses a verdict only when nothing it rests on
    changed (ADR-023).
-6. `node scripts/release-evidence.mjs <sha>` is the one answer to "may this sha be released": every job of a dispatched
-   full campaign concluded success, an outside run is filed for changed readers (`attest-import.mjs`, ADR-070), and a
+6. `node scripts/release-evidence.mjs <sha>` is the one answer to "may this sha be released": every job of the landing's
+   full campaign concluded success (ADR-126), an outside run is filed for changed readers (`attest-import.mjs`, ADR-070), and a
    recorded review covers every plugin commit since the last tag (ADR-100). Its exit codes are in its own header.
 
 ## The release path

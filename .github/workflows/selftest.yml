@@ -233,7 +233,7 @@ jobs:
           # reports, the merge refuses every run, and nothing anywhere says why.
           include-hidden-files: true
           retention-days: 1
-      - name: Is this landing a catalogue pin alone
+      - name: Is this landing one no release is cut from
         id: landing
         working-directory: landing
         run: node scripts/landing-class.mjs
@@ -388,7 +388,7 @@ jobs:
     # concluded `success` — it filters on `j.conclusion !== 'success'`, so
     # `skipped` is exit 1 there just like `failed`. Putting
     # `github.event_name != 'workflow_dispatch'` on the JOB would therefore have
-    # made every dispatched run — the only run a release may be cut from —
+    # made every dispatched run — then the only run a release was cut from —
     # permanently unreleasable, silently, and the first symptom would have been a
     # release refused for a job that did exactly what it was told.
     #

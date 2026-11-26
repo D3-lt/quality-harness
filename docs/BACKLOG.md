@@ -4929,6 +4929,9 @@ Filed with the evidence that found each; none is fixed by ADR-146.
 4. **A landing of records alone still runs the whole campaign.** The campaign reads the live backlog through the two
    `backlog-record-sweep` mutants (tests/mutations/scripts/backlog-record-sweep.mjs.json:33), and which catalogue tests read
    `docs/adr/` is not measured. Until it is, records ride with the next code landing.
+   **Closed 2026-11-25 for a landing of a released version (ADR-147 T1, T3 S1):** such a landing skips the campaign whatever
+   it changes, records included. Run 45698061821, attempt 1, at 45bc0a724: no shard ran, every required check succeeded,
+   and its job durations sum to 120 runner-minutes. A landing that carries a bump still runs the whole campaign.
 
 ## 476. Measured 2026-11-25 for ADR-147 — ADR-023's verdict key misses an input, and what a landing of a released version gives up
 

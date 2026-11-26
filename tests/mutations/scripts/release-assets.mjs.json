@@ -8,6 +8,27 @@
       "tests": [
         "tests/plugin-bundle.test.mjs"
       ]
+    },
+    {
+      "label": "BACKLOG §475.2: an artifact is asked for by its attempt's exact name",
+      "file": "scripts/release-assets.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "  const exact = `${name}-${attempt}`",
+      "to": "  const exact = name"
+    },
+    {
+      "label": "BACKLOG §475.2: an unknown attempt asks gh for nothing",
+      "file": "scripts/release-assets.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "  if (!/^[1-9][0-9]*$/.test(String(attempt))) throw new Error(`the attempt of run ${runId} is not known (${attempt}), so no artifact of it is asked for`)",
+      "to": "  if (false) throw new Error('')"
+    },
+    {
+      "label": "BACKLOG §475.2: a partial re-run's missing artifact is said with the remedy",
+      "file": "scripts/release-assets.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "  if (said.includes('no artifact matches any of the names or patterns provided')) {",
+      "to": "  if (false) {"
     }
   ]
 }

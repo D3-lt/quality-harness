@@ -4942,6 +4942,14 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    pass their checksum and receipt checks, so what is lost is "this attempt's files", not "this sha's files". The fix the
    review names: attempt-qualified artifact names in the workflow, the judged attempt passed to the downloader, and the same
    for the `outside-run` artifact `scripts/release-evidence.mjs:568` downloads. Not built: it was a third fix round (CLAUDE.md §12).
+   **Built 2026-11-26 as its own change, on the supervising session's request (memoryd quality-harness #162):** the workflow
+   names `qh-core`, `qh-plugin` and `outside-run` `<name>-${{ github.run_attempt }}`, and the outside run downloads its
+   own attempt's core. `downloadArtifact` (scripts/release-assets.mjs) asks for the judged attempt's exact name, and so do
+   `release-assets.mjs <run> <sha> <attempt>`, release-evidence's outside-run download (from the run's `attempt`) and
+   native-manifest (from the run's `run_attempt`). An attempt that cannot be read asks gh nothing. A re-run of only the failed
+   jobs leaves the judged attempt without the artifacts of the jobs it kept: the release then stops on
+   `run <id> has no artifact <name>-<n>`, with the remedy `gh run rerun <id>`. `tests/attempt-artifacts.test.mjs`; nine
+   catalogue mutants RED. A run from before this change has only the unsuffixed names, so it cannot be released from.
 3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
    45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
    read the pin, so a sound skip needs the file hidden from a job by construction.

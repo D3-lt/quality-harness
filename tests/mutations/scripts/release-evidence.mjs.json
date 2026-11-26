@@ -530,6 +530,10 @@
     { "label": "ADR-146 T2: a run with a skipped shard is not a release run", "file": "scripts/release-evidence.mjs", "tests": ["tests/landing-class-workflow.test.mjs"],
       "from": "  const bad = jobs.filter(j => j.conclusion !== 'success')", "to": "  const bad = jobs.filter(j => j.conclusion !== 'success' && j.conclusion !== 'skipped')", "only": "^a run whose shards were skipped or are absent is not a release run$" },
     { "label": "ADR-146 T2: a run that lists no shard is not a release run", "file": "scripts/release-evidence.mjs", "tests": ["tests/landing-class-workflow.test.mjs"],
-      "from": "} else if (missing.length) {", "to": "} else if (false) {", "only": "^a run whose shards were skipped or are absent is not a release run$" }
+      "from": "} else if (missing.length) {", "to": "} else if (false) {", "only": "^a run whose shards were skipped or are absent is not a release run$" },
+    { "label": "BACKLOG §475.2: the outside run is read from the judged attempt's own artifact", "file": "scripts/release-evidence.mjs", "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "    exec('gh', ['run', 'download', String(id), '-n', `outside-run-${attempt}`, '-D', dir],", "to": "    exec('gh', ['run', 'download', String(id), '-n', 'outside-run', '-D', dir],", "only": "^the outside run and the native manifest are read from the judged attempt too$" },
+    { "label": "BACKLOG §475.2: the release asks for the outside run of the run's judged attempt", "file": "scripts/release-evidence.mjs", "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "  if (!/^[1-9][0-9]*$/.test(String(attempt))) return { error: `the attempt of run ${id} is not known (${attempt}), so its outside run is not read` }", "to": "  if (false) return { error: '' }", "only": "^the outside run and the native manifest are read from the judged attempt too$" }
   ]
 }

@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { parseCoreManifest } from '../plugin/scripts/native-provenance.mjs'
-import { releaseAssetFiles } from './release-assets.mjs'
+import { downloadArtifact, releaseAssetFiles } from './release-assets.mjs'
 
 export function loadNativeManifest(id, at, { root = process.cwd(), run = spawnSync } = {}) {
   if (!/^[1-9][0-9]*$/.test(id) || !/^[a-f0-9]{40}$/.test(at)) return { refused: ['native landing run or source commit is malformed'] }
@@ -24,10 +24,11 @@ export function loadNativeManifest(id, at, { root = process.cwd(), run = spawnSy
     return { refused: ['native artifact is not from the designated full landing workflow'] }
   }
   if (observed.status !== 'completed' || observed.conclusion !== 'success') return { couldNotLook: 'the native landing run has not concluded success' }
+  // BACKLOG §475.2: the artifact of the run's latest attempt, by its exact name; `downloadArtifact` refuses an attempt it
+  // cannot read, so a run that does not say its attempt is could-not-look.
   const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-native-manifest-'))
   try {
-    const downloaded = run('gh', ['run', 'download', id, '--name', 'qh-core', '--dir', directory], options)
-    if (downloaded.error || downloaded.status !== 0) return { couldNotLook: 'the native landing artifact could not be downloaded' }
+    try { downloadArtifact(id, observed.run_attempt, 'qh-core', directory, run) } catch { return { couldNotLook: 'the native landing artifact could not be downloaded' } }
     releaseAssetFiles(directory)
     const manifest = parseCoreManifest(readFileSync(path.join(directory, 'SHA256SUMS.txt'), 'utf8'))
     if (manifest.source?.at !== at || manifest.source?.run !== id) return { refused: ['native manifest does not bind the named landing run and source commit'] }

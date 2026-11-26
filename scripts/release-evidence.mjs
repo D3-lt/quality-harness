@@ -568,18 +568,22 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
 export function releaseOutsideRun(sha, root = process.cwd(), run = null) {
   const reports = join(root, 'docs', 'corpus-reports')
   const exec = (bin, args, options) => execFileSync(bin, args, { ...options, cwd: root })
-  const ci = run?.databaseId ? { run: run.databaseId, artifact: downloadOutsideRun(run.databaseId, exec) } : null
+  const ci = run?.databaseId ? { run: run.databaseId, artifact: downloadOutsideRun(run.databaseId, run.attempt, exec) } : null
   return outsideRunEvidence(sha, exec, reports, { verify: file => verifyFile(join(reports, file), root), ci })
 }
 
-/** The release run's outside-run.json, parsed, or `{ error }`. */
-export function downloadOutsideRun(id, exec = execFileSync) {
+/**
+ * The release run's outside-run.json, parsed, or `{ error }`: the artifact of the attempt the run was judged at, by its exact
+ * name (BACKLOG §475.2), never the first `outside-run` of the run. An attempt that is not known asks gh nothing.
+ */
+export function downloadOutsideRun(id, attempt, exec = execFileSync) {
+  if (!/^[1-9][0-9]*$/.test(String(attempt))) return { error: `the attempt of run ${id} is not known (${attempt}), so its outside run is not read` }
   const dir = mkdtempSync(join(os.tmpdir(), 'qh-outside-run-'))
   try {
-    exec('gh', ['run', 'download', String(id), '-n', 'outside-run', '-D', dir], { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] })
+    exec('gh', ['run', 'download', String(id), '-n', `outside-run-${attempt}`, '-D', dir], { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] })
     return JSON.parse(readFileSync(join(dir, 'outside-run.json'), 'utf8'))
   } catch (error) {
-    return { error: `gh run download ${id}: ${String(error?.stderr ?? error?.message ?? error).trim().split('\n')[0]}` }
+    return { error: `gh run download ${id} outside-run-${attempt}: ${String(error?.stderr ?? error?.message ?? error).trim().split('\n')[0]}` }
   } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 

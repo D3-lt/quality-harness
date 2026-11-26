@@ -68,7 +68,7 @@ test('native CI lookup checks the run revision, all artifact checksums and sourc
   const manifest = coreManifest({ at, sources, run: id }, entries)
   let scratch
   const metadata = { id: Number(id), head_sha: at, status: 'completed', conclusion: 'success',
-    path: '.github/workflows/selftest.yml', event: 'push', head_branch: 'land/' + at }
+    path: '.github/workflows/selftest.yml', event: 'push', head_branch: 'land/' + at, run_attempt: 1 }
   const execute = (_cmd, args) => {
     if (args[0] === 'api') return { status: 0, stdout: JSON.stringify(metadata) }
     scratch = args[args.indexOf('--dir') + 1]

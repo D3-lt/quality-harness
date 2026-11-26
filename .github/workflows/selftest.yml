@@ -515,7 +515,7 @@ jobs:
         run: node scripts/build-core.mjs --assets qh-assets
       - uses: actions/upload-artifact@v7
         with:
-          name: qh-core
+          name: qh-core-${{ github.run_attempt }}
           path: qh-assets/*
           if-no-files-found: error
       - name: Package the complete offline plugin
@@ -524,7 +524,7 @@ jobs:
           node scripts/build-plugin.mjs qh-assets qh-plugin/quality-harness.zip
       - uses: actions/upload-artifact@v7
         with:
-          name: qh-plugin
+          name: qh-plugin-${{ github.run_attempt }}
           path: qh-plugin/*
           if-no-files-found: error
 
@@ -552,12 +552,12 @@ jobs:
           python-version: '3.12'
       - uses: actions/download-artifact@v8
         with:
-          name: qh-core
+          name: qh-core-${{ github.run_attempt }}
           path: qh-core
       - name: Probe the last tag and the candidate over corpora this repository does not own
         run: node scripts/outside-run.mjs --candidate-core qh-core/qh-windows-amd64.exe --out outside-run.json
       - uses: actions/upload-artifact@v7
         with:
-          name: outside-run
+          name: outside-run-${{ github.run_attempt }}
           path: outside-run.json
           if-no-files-found: error

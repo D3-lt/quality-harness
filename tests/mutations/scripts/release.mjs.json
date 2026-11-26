@@ -376,8 +376,16 @@
       "label": "BACKLOG §475.2: the assets come from the run release-evidence judged, not the run waited for",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-run-bound.test.mjs"],
-      "from": "  const prepared = ran('node', ['scripts/release-assets.mjs', judgedRun, sha])",
-      "to": "  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId), sha])"
+      "from": "  const prepared = ran('node', ['scripts/release-assets.mjs', judgedRun, sha, judgedAttempt])",
+      "to": "  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId), sha, judgedAttempt])"
+    },
+    {
+      "label": "BACKLOG §475.2: the judged attempt is handed to the asset download",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "  const prepared = ran('node', ['scripts/release-assets.mjs', judgedRun, sha, judgedAttempt])",
+      "to": "  const prepared = ran('node', ['scripts/release-assets.mjs', judgedRun, sha, '1'])",
+      "only": "^the release hands the judged attempt to the asset download$"
     },
     {
       "label": "BACKLOG §475.2: a success that names no run, or another sha, publishes nothing",

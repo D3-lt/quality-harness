@@ -55,8 +55,11 @@ export function rulesetDiffers(committed, applied) {
     if (!mine.has(type) || !theirs.has(type)) { differs.push(`rule ${type} is ${mine.has(type) ? 'missing on the forge' : 'on the forge and not in the file'}`); continue }
     const [ours, forge] = [mine.get(type), theirs.get(type)]
     if (canonical(checks(ours)) !== canonical(checks(forge))) differs.push(`rule ${type} requires ${checks(forge).join(', ')}, not ${checks(ours).join(', ')}`)
-    for (const [key, value] of Object.entries(ours.parameters ?? {})) {
-      if (key !== 'required_status_checks' && canonical(value) !== canonical(forge.parameters?.[key])) differs.push(`rule ${type} has ${key} ${canonical(forge.parameters?.[key])}, not ${canonical(value)}`)
+    const parameters = new Set([...Object.keys(ours.parameters ?? {}), ...Object.keys(forge.parameters ?? {})])
+    for (const key of parameters) {
+      const expected = canonical(ours.parameters?.[key])
+      const actual = canonical(forge.parameters?.[key])
+      if (key !== 'required_status_checks' && expected !== actual) differs.push(`rule ${type} has ${key} ${actual}, expected ${expected}`)
     }
   }
   return differs
@@ -124,19 +127,23 @@ export function land({ exec, log = console.log, now = Date.now, sleep, waitMaxMi
     const never = undeclared(required, declared)
     if (never.length) { log(`land: main requires ${never.join(', ')}, which no job of the workflow at ${sha} declares, so no landing can pass; nothing was pushed`); return 1 }
   }
-  // ADR-118 T2: a dry run pushes nothing, and passes only when main carries exactly the committed ruleset.
+  // ADR-118 and ADR-147. Compare the committed branch and tag protections before reporting what would land.
   if (dryRun) {
     if (!required.length) { log(`land: main requires no check, so .github/rulesets/main.json is not applied ${at}`); return 1 }
-    const committed = parsed(text('git', ['show', `${sha}:.github/rulesets/main.json`]) ?? '')
-    if (!committed?.name) { log(`land: .github/rulesets/main.json at ${sha} could not be read`); return 1 }
     const listed = parsed(text('gh', ['api', 'repos/{owner}/{repo}/rulesets', '--paginate', '--slurp']) ?? '')
-    const named = Array.isArray(listed) ? listed.flat().filter(ruleset => ruleset?.name === committed.name) : null
-    if (!named) { log("land: the forge's rulesets could not be listed"); return 1 }
-    if (named.length !== 1) { log(`land: the forge has ${named.length} ruleset(s) named "${committed.name}", not one`); return 1 }
-    const id = named[0].id
-    const differs = rulesetDiffers(committed, parsed(text('gh', ['api', `repos/{owner}/{repo}/rulesets/${id}`]) ?? ''))
-    if (differs.length) { log(`land: ruleset ${id} on the forge is not the committed one: ${differs.join('; ')}`); return 1 }
-    log(`land: main carries the committed ruleset (id ${id}); ${sha} would land through land/${sha} once ${required.length} required check(s) pass there`)
+    if (!Array.isArray(listed)) { log("land: the forge's rulesets could not be listed"); return 1 }
+    for (const target of ['main', 'tags']) {
+      const file = `.github/rulesets/${target}.json`
+      const committed = parsed(text('git', ['show', `${sha}:${file}`]) ?? '')
+      if (!committed?.name) { log(`land: ${file} at ${sha} could not be read`); return 1 }
+      const named = listed.flat().filter(ruleset => ruleset?.name === committed.name)
+      if (named.length !== 1) { log(`land: the forge has ${named.length} ruleset(s) named "${committed.name}", expected one`); return 1 }
+      const id = named[0].id
+      const differs = rulesetDiffers(committed, parsed(text('gh', ['api', `repos/{owner}/{repo}/rulesets/${id}`]) ?? ''))
+      if (differs.length) { log(`land: ruleset ${id} differs from ${file}: ${differs.join('; ')}`); return 1 }
+      log(`land: ${file} matches forge ruleset ${id}`)
+    }
+    log(`land: ${sha} would land through land/${sha} once ${required.length} required check(s) pass there`)
     return 0
   }
 

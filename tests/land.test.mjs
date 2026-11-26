@@ -29,6 +29,7 @@ const RULESET = {
   conditions: { ref_name: { include: ['~DEFAULT_BRANCH'], exclude: [] } }, bypass_actors: [],
   rules: [{ type: 'required_status_checks', parameters: { required_status_checks: REQUIRED.map(check => ({ context: check.context, integration_id: check.integration })) } }],
 }
+const TAG_RULESET = JSON.parse(readFileSync(new URL('../.github/rulesets/tags.json', import.meta.url), 'utf8'))
 const LANDING = `git push origin ${SHA}:refs/heads/land/${SHA}`
 const MAIN_PUSH = `git push origin ${SHA}:refs/heads/main`
 
@@ -74,8 +75,12 @@ function world(overrides = {}) {
     if (line.startsWith('git push origin --delete land/')) { (state.deleted ??= []).push(args[3].slice(5)); return ok() }
     // The ruleset as committed at the sha, and as the forge has it (ADR-118 T2's dry run).
     if (line === `git show ${SHA}:.github/rulesets/main.json`) return ok(JSON.stringify(state.committed))
-    if (line === 'gh api repos/{owner}/{repo}/rulesets --paginate --slurp') return ok(JSON.stringify([state.listed ?? [{ id: 7, name: state.committed?.name }]]))
+    if (line === `git show ${SHA}:.github/rulesets/tags.json`) return ok(JSON.stringify(TAG_RULESET))
+    if (line === 'gh api repos/{owner}/{repo}/rulesets --paginate --slurp') return ok(JSON.stringify([state.listed ?? [
+      { id: 7, name: state.committed?.name }, { id: 8, name: TAG_RULESET.name },
+    ]]))
     if (line === 'gh api repos/{owner}/{repo}/rulesets/7') return ok(JSON.stringify(state.applied))
+    if (line === 'gh api repos/{owner}/{repo}/rulesets/8') return ok(JSON.stringify(state.appliedTags ?? TAG_RULESET))
     throw new Error(`the fake has no answer for: ${line}`)
   }
   let clock = 0
@@ -236,6 +241,27 @@ test('land --dry-run passes only when main carries exactly the committed ruleset
     const { exit, w } = changed(edit)
     assert.equal(exit, 1, name)
     assert.ok(!anyPush(w.calls), name)
+  }
+})
+
+test('land --dry-run checks the release tag ruleset against the forge', () => {
+  const matches = world()
+  assert.equal(matches.go({ dryRun: true }), 0, matches.said.join('\n'))
+  assert.ok(matches.calls.includes('gh api repos/{owner}/{repo}/rulesets/8'))
+  assert.ok(!anyPush(matches.calls))
+
+  for (const change of [
+    ruleset => { ruleset.rules = ruleset.rules.filter(rule => rule.type !== 'deletion') },
+    ruleset => { ruleset.bypass_actors = [{ actor_type: 'RepositoryRole', actor_id: 5, bypass_mode: 'always' }] },
+    ruleset => { ruleset.conditions.ref_name.include = ['refs/tags/test-*'] },
+    ruleset => { ruleset.rules.find(rule => rule.type === 'update').parameters = { update_allows_fetch_and_merge: true } },
+  ]) {
+    const appliedTags = structuredClone(TAG_RULESET)
+    change(appliedTags)
+    const w = world({ appliedTags })
+    assert.equal(w.go({ dryRun: true }), 1, w.said.join('\n'))
+    assert.ok(w.said.some(line => line.includes('.github/rulesets/tags.json')), w.said.join('\n'))
+    assert.ok(!anyPush(w.calls))
   }
 })
 

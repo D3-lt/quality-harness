@@ -129,6 +129,14 @@
       "to": "    if (false) {"
     },
     {
+      "label": "ADR-147: the read-only ruleset comparison also checks released tags",
+      "file": "scripts/land.mjs",
+      "tests": ["tests/land.test.mjs"],
+      "from": "for (const target of ['main', 'tags']) {",
+      "to": "for (const target of ['main']) {",
+      "only": "land --dry-run checks the release tag ruleset against the forge"
+    },
+    {
       "label": "ADR-118 T2: the ruleset's top-level fields are compared, bypass actors included",
       "file": "scripts/land.mjs",
       "tests": ["tests/land.test.mjs"],

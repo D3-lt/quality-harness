@@ -5009,3 +5009,12 @@ test was rerun alone three times with `node --test --test-name-pattern`: all six
 
 Neither is reproduced here, and neither test is locked (`scripts/test-locks.py`). The proof for a fix is a Windows run of
 the whole suite.
+3. **`bsRunDrained` (core/hooks/observe_drain.go, branch fix-477-2-observe-drain, not landed): what it calls a deadline is decided
+   by when its caller is scheduled.** The Codex review of tree 7ced28cb, Medium, verbatim in substance: git can exit and both
+   readers post complete results before the deadline, yet the final `ctx.Err()` check discards them if the runner resumes after
+   the timer fires; conversely, a delayed timer callback can let work completed after the deadline report success; and the two
+   pipe-creation error returns bypass timeout classification. The smallest fix it names: record when `Wait` and both copies
+   complete, compare those to the absolute deadline, and apply the same rule to setup failures. Left open on purpose (2026-11-26):
+   neither direction reports bytes that were not read whole as an answer. The first says could-not-look for an answer it had; the
+   second gives a whole answer that finished a moment late. The proof for a fix is a test that holds the runner past its deadline
+   after both readers answered, and asserts what it reports.

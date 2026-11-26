@@ -14,7 +14,8 @@
 //   1  a step failed: a red check, a dead-code finding, a push or a gh call that failed, release-evidence exit 1
 //   2  a step needs an action this command does not take: an unclean tree, a version to bump, release-evidence's
 //      UNPROVEN (an outside run or a review to get), a tag without a release that the forge does not show at this sha, a
-//      draft release an unfinished run left, or a catalogue pin still to promote
+  //      draft release an unfinished run left, a newest run at the sha that changed across release-evidence, or a catalogue
+  //      pin still to promote
 //   3  a wait reached its deadline; it names what it waited for, and running again resumes
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
@@ -25,6 +26,7 @@ import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
 import { land } from './land.mjs'
 import { CORE_TARGETS, coreAsset } from '../plugin/scripts/core-assets.mjs'
 import { PLUGIN_ARCHIVE, PLUGIN_RECEIPT } from './build-plugin.mjs'
+import { selectRun } from './release-evidence.mjs'
 
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
@@ -276,6 +278,16 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   })
   if (!done) return 3
 
+  // BACKLOG §475.2: release-evidence judges the newest selftest run at the sha (`selectRun`), which need not be the release
+  // run waited for above: a run started after that wait, or a dispatch on another branch at the same sha, is newer, and the
+  // assets came from `done` (ADR-126 Decision 1: one run per release). Runs are never removed from a listing, so the newest
+  // run is read before the evidence and again after it: the same completed run both times is the run every evidence call
+  // between them judged, and the assets are taken from it. Any other answer stops the release before anything is published.
+  const newest = () => {
+    const run = selectRun(listRuns())
+    return run?.headSha === sha ? run : null
+  }
+  const before = newest()
   let evidence = null
   const cleared = waitFor(`release-evidence to say the run of ${sha} is finished`, () => {
     evidence = ran('node', ['scripts/release-evidence.mjs', sha])
@@ -297,7 +309,12 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     }
     return evidence.status === 1 ? 1 : 2
   }
-  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId), sha])
+  const after = newest()
+  if (!before || after?.databaseId !== before.databaseId || after.status !== 'completed') {
+    log(`release: the newest run at ${sha} was ${before?.databaseId ?? 'not one this could read'} before release-evidence and ${after?.databaseId ?? 'not one this could read'} after it ${at}, so which run it cleared cannot be told; nothing was published: run again`)
+    return 2
+  }
+  const prepared = ran('node', ['scripts/release-assets.mjs', String(after.databaseId), sha])
   const assets = prepared.status === 0 ? parsed(prepared.stdout) : null
   const expectedAssets = [...CORE_TARGETS.map(([os, arch]) => coreAsset(os, arch)), 'SHA256SUMS.txt', PLUGIN_ARCHIVE, PLUGIN_RECEIPT].sort()
   const names = Array.isArray(assets) && assets.every(file => typeof file === 'string')

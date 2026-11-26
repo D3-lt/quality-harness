@@ -404,6 +404,8 @@ jobs:
         with:
           node-version: '24'
       - uses: actions/setup-go@v7
+        # BACKLOG §475.1: nothing was checked out on a dispatch, so core/go.mod is not there to read.
+        if: github.event_name != 'workflow_dispatch'
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.mod

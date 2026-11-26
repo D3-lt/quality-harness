@@ -4909,7 +4909,7 @@ host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; ev
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two
 catalogue files, `.claude/rules/12-reviews.md` and CLAUDE.md §12; all are changed.
 
-## 475. PARTLY CLOSED 2026-11-25 (item 4) — found by the Codex review of ADR-146's draft, 2026-11-25: what a landing still spends, and two defects on the dispatch path
+## 475. PARTLY CLOSED 2026-11-26 (items 1, 2 and 4) — found by the Codex review of ADR-146's draft, 2026-11-25: what a landing still spends, and two defects on the dispatch path
 
 Filed with the evidence that found each; none is fixed by ADR-146.
 
@@ -4919,10 +4919,19 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    last dispatched runs (39777594469 and before, 2026-10-22) predate that step. A dispatch on main is the remedy
    `release-evidence` names for a sha whose landing run was not a full campaign, so the remedy may be closed. The fix is the
    same `if:` its sibling steps carry; the proof is one dispatched run.
+   **Fixed 2026-11-26:** the step carries its siblings' `if:` (`git log -L` names b504ac077, 2026-10-28, as the commit that
+   added it, after the last dispatch). `tests/dispatch-merge-job.test.mjs` reads every step of that job and fails on the
+   workflow as it was. No run was dispatched to observe it: that costs a full campaign, and the next dispatch shows it.
 2. **The run a release takes its assets from is not bound to the run that cleared it.** `scripts/release.mjs:220-261` waits
    for the first exact-branch landing push or main dispatch and uses that run's id for the assets, while
    `scripts/release-evidence.mjs:148-161` picks the newest selftest run at the sha, a dispatch winning a tie. With two runs at
    one sha the two can differ, which ADR-126 Decision 1 ("one run per release") does not allow. Nothing reproduces it yet.
+   **Fixed 2026-11-26:** reproduced in `tests/helpers/release-world.mjs`'s fake forge: a dispatch at the sha newer than the
+   landing's run was judged by `release-evidence` while the assets came from the landing's run, and a locked fixture of
+   tests/release.test.mjs had the same shape (a dispatch on `land/<sha>` tied with one on main). `release.mjs` now reads the
+   newest run (`selectRun`) before the evidence and after it, takes the assets from it when it is the same completed run of
+   this sha both times, and otherwise publishes nothing (exit 2). `tests/release-run-bound.test.mjs`; three catalogue mutants
+   on it, each RED.
 3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
    45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
    read the pin, so a sound skip needs the file hidden from a job by construction.

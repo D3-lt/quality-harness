@@ -4950,6 +4950,11 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    jobs leaves the judged attempt without the artifacts of the jobs it kept: the release then stops on
    `run <id> has no artifact <name>-<n>`, with the remedy `gh run rerun <id>`. `tests/attempt-artifacts.test.mjs`; nine
    catalogue mutants RED. A run from before this change has only the unsuffixed names, so it cannot be released from.
+   **Two residuals from the verification review of 80d833d16:** gh also reports “no valid artifacts found to download”
+   when artifacts have expired. `missingArtifact` in scripts/release-assets.mjs attributes every such absence to the attempt
+   never having built the artifact. The rerun remedy still applies. The historical workflow lookup in scripts/native-manifest.mjs
+   matches the literal indentation of the `qh-core` upload name. Reindenting that line would select the old artifact name
+   on a new run and prevent the attestation from being read. The review found both by inspection.
 3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
    45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
    read the pin, so a sound skip needs the file hidden from a job by construction.
@@ -5034,3 +5039,22 @@ the whole suite.
    with a starved output copy at 100% CPU; the error text was not captured (an err-recording core saw no failure in 180
    runs once the load had dropped). A fix is product code (retry such a status, or widen the pipe wait) and waits for that
    text.
+
+**Windows pilot at f76aa590a, 2026-11-26.** During about twelve minutes at full CPU load, ten of 184 observation trials
+failed. All thirteen Git error rows had exit 0 and `errors.Is(err, exec.ErrWaitDelay)` true. The affected operations included
+`rev-parse`, `add -A` and `write-tree`. A completed child with no descendant holding its output pipe also hit the error.
+The pilot stopped under memory pressure. Any remedy must preserve the remaining observation budget and reject incomplete output.
+
+A separate real-child cleanup fixture confirmed the deadline kill in 39 of 39 loaded trials. Its full set of checks
+passed in 37. One saw the pipe-wait error and another missed the child's startup handshake. The fixture's dirty twin
+left descendants alive and failed all three cases. Removing the pid read alone from the end-to-end stale-cache test
+still failed 11 of 12 loaded trials at the step requiring a complete refresh in two seconds. Both product and test
+changes remain open pending a candidate and a Windows full-suite run.
+
+## 478. Found 2026-11-26 in the verification review of da7051519 — the relock command changes a literal POSIX backslash
+
+In a macOS Git fixture with a moved-lock readiness answer, the task on disk was `docs/adr/ADR-001-x/tasks/T1-a\b.md`.
+`work-next --json` preserved that name in `unbackedDoneClaims` but printed `docs/adr/ADR-001-x/tasks/T1-a/b.md` in
+`next.remedy`. That path did not exist. The relock command in `plugin/scripts/work-next.mjs` replaces every backslash
+after the shared path formatter has already handled the host separator. Verify the suggested argument reaches the actual
+task when copied, including a name with a space, and retain the existing Windows separator and single-line display checks.

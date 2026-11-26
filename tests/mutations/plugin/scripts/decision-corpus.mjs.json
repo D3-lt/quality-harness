@@ -314,8 +314,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate))",
-      "to": "  ['README.md']"
+      "from": "    let rows = null\n    const readme = listedReadme(directory,\n      readmes.get(directory) ?? [],",
+      "to": "    let rows = null\n    const readme = listedReadme(directory,\n      readmes.get(directory) ?? ['README.md'],"
     },
     {
       "label": "catalog: a row speaks for the file its link names",
@@ -466,7 +466,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "the lifecycle archive reader reads a record by its stem",
-      "from": "  const directory = catalogDirectoryFor(file, root, reader, listed)",
+      "from": "  const directory = catalogDirectoryFor(file, root, reader, readmes)",
       "to": "  const directory = path.dirname(file)"
     },
     {
@@ -1067,7 +1067,7 @@
         "tests/corpus-shapes.test.mjs"
       ],
       "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root) == null && !recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (archiveDecisionEffect(file, reader, archiveEffects, readmes, root) == null && !recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
       "only": "a frozen archive catalog does not make a not-recognised file a record"
     },
     {

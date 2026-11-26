@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { remove } from './helpers/remove.mjs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import path, { join } from 'node:path'
 import test from 'node:test'
 import { adrCorpus, decisionContext, decisionsGoverning, listedReadme } from '../plugin/scripts/decision-corpus.mjs'
 import { pathInCode, quotedCorpusText } from '../plugin/scripts/corpus-text.mjs'
@@ -401,4 +401,24 @@ test('an unmarked archive is named only in a decision corpus, and only when it h
     writeFileSync(join(root, 'docs', 'archive', 'meeting-notes.md'), '# Notes\n')
     assert.deepEqual(adrCorpus(root).unmarkedArchives, ['docs/adr-archive'], 'a folder of notes is not an archive of records')
   } finally { remove(root) }
+})
+
+test('archive discovery bounds work on unrelated tracked files as records are added', t => {
+  const root = join(import.meta.dirname, 'fixtures', 'corpora', 'madr')
+  const unrelated = join(root, 'expected.json')
+  const dirname = path.dirname
+  let visits = 0
+  t.mock.method(path, 'dirname', file => {
+    if (file === unrelated) visits++
+    return dirname(file)
+  })
+  const records = ['0001-use-postgres.md', '0002-use-redis-for-sessions.md', '0003-sessions-in-postgres.md']
+  function observePrefix(count) {
+    visits = 0
+    const tracked = ['expected.json', ...records.slice(0, count).map(name => join('docs', 'adr', name))]
+    assert.equal(adrCorpus(root, { tracked }).length, count)
+    return visits
+  }
+  const single = observePrefix(1)
+  assert.ok(observePrefix(3) <= single, 'more records must not revisit unrelated entries for their archive lookup')
 })

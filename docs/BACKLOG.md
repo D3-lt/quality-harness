@@ -4909,7 +4909,7 @@ host-review.mjs and say what was measured on 0.162.0 and what ADR-119 T2 saw; ev
 gpt-6.1-sol review, which is history and stays. The live sites were the constant, both Codex skills, the launcher test, the two
 catalogue files, `.claude/rules/12-reviews.md` and CLAUDE.md §12; all are changed.
 
-## 475. Found by the Codex review of ADR-146's draft, 2026-11-25 — what a landing still spends, and two defects on the dispatch path
+## 475. PARTLY CLOSED 2026-11-25 (item 4) — found by the Codex review of ADR-146's draft, 2026-11-25: what a landing still spends, and two defects on the dispatch path
 
 Filed with the evidence that found each; none is fixed by ADR-146.
 
@@ -4933,7 +4933,7 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    it changes, records included. Run 45698061821, attempt 1, at 45bc0a724: no shard ran, every required check succeeded,
    and its job durations sum to 120 runner-minutes. A landing that carries a bump still runs the whole campaign.
 
-## 476. Measured 2026-11-25 for ADR-147 — ADR-023's verdict key misses an input, and what a landing of a released version gives up
+## 476. PARTLY CLOSED 2026-11-26 (item 1 decided) — measured 2026-11-25 for ADR-147: ADR-023's verdict key misses an input, and what a landing of a released version gives up
 
 Found while sizing verdict reuse across landings, which ADR-147 then did not build.
 

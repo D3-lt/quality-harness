@@ -32,6 +32,15 @@ test('the core collects branch state as the Node collect does', { skip: noGo }, 
   assert.match(said, /^--- PASS: TestBranchStateCollect \(/m, tail)
   assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTree \(/m, tail)
   assert.match(said, /^--- PASS: TestBranchStateCollectEndsTheTreeAfterAnEarlyExit \(/m, tail)
+  // BACKLOG §477.1: on Windows each observation is its own subtest, and one filtered out (an inherited GOFLAGS=-skip) would
+  // leave its parent PASS with no SKIP line, so every leaf is required by name (the Codex review of ccffe983e).
+  if (process.platform === 'win32') {
+    const leaves = ['TestBranchStateCollectEndsTheTree', 'TestBranchStateCollectEndsTheTreeAfterAnEarlyExit/holding_the_pipe',
+      'TestBranchStateCollectEndsTheTreeAfterAnEarlyExit/output_redirected']
+    for (const leaf of leaves) for (const part of ['descendants_gone', 'answer', 'returned_in_time']) {
+      assert.match(said, new RegExp(`^\\s*--- PASS: ${leaf}/${part} \\(`, 'm'), tail)
+    }
+  }
   for (const name of serving) assert.match(said, new RegExp(`^--- PASS: ${name} \\(`, 'm'), tail)
   assert.doesNotMatch(said, /--- SKIP|--- FAIL|no tests to run/, tail)
 })

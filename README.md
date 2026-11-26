@@ -60,8 +60,8 @@ the command invalidates the entry · duration. The tool writes the line; a model
 
 - A task states how it will be checked before the code is written.
 - The full mutation campaign is for CI and releases, not every edit.
-- The model takes more turns: 2.33× in the 2026-08-28 eval, one run per arm. See
-  [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for why that is the worst case for cost.
+- In the 2026-08-28 evaluation, the plugin run took 91 turns against 39 and cost 2.35× as much.
+  There was one run per arm. Typical adopter cost remains unmeasured. [Benchmarks](docs/BENCHMARKS.md#what-it-costs)
 - It runs the check you declare (`check` in `.quality-harness.json`) and has no opinion about your
   language or test runner.
 - `adr-lint` judges decision records against its own template. A MADR or Nygard record under an

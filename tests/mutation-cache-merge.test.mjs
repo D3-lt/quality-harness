@@ -240,6 +240,9 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
   const second = call()
   assert.equal(second.status, 0, second.stdout + second.stderr)
   assert.match(second.stdout, /reused a RED verdict/)
+  assert.match(second.stdout, /mutated file and test files are byte-identical/)
+  assert.match(second.stdout, /key does not hold everything a verdict depends on/)
+  assert.match(second.stdout, /no release rests on a reused one/)
   const reused = JSON.parse(readFileSync(cache, 'utf8'))
   assert.deepEqual(reused.measured, [], 'a reused verdict is not a measurement')
   assert.deepEqual(Object.keys(reused.entries), Object.keys(measured.entries),

@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-137: Native archive hints respect a literal backslash in a POSIX filename",
+      "file": "core/hooks/orientation.go",
+      "tests": [
+        "tests/decision-context-replay.test.mjs"
+      ],
+      "from": "\t\tp := listedPath(rel, dcPlatform())",
+      "to": "\t\tp := posixListed(rel)",
+      "only": "^(?:the core names unmarked archives as Node does, folding no letter outside ASCII)$"
+    },
+    {
       "label": "BACKLOG §439: the uninteresting rule lowers ASCII only, as JavaScript's /i without u does",
       "file": "core/hooks/orientation.go",
       "tests": [

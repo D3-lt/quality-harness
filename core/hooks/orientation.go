@@ -266,7 +266,7 @@ func unmarkedArchives(root string, listing []string) []string {
 	listed := []string{}
 	seen := map[string]bool{}
 	for _, rel := range listing {
-		p := posixListed(rel)
+		p := listedPath(rel, dcPlatform())
 		if !seen[p] {
 			seen[p] = true
 			listed = append(listed, p)

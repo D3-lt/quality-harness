@@ -1,6 +1,16 @@
 {
   "mutations": [
     {
+      "label": "ADR-137: Native archive lookup respects the platform separator of a listed README",
+      "file": "core/hooks/decisioncorpus_read.go",
+      "tests": [
+        "tests/decision-context-parity.test.mjs"
+      ],
+      "from": "\t\tnorm := listedPath(rel, platform)\n\t\tname := path.Base(norm)",
+      "to": "\t\tnorm := posixListed(rel)\n\t\tname := path.Base(norm)",
+      "only": "^(?:the core answers every per-platform record row as Node does)$"
+    },
+    {
       "label": "ADR-137 T2: each group names five records, then how many more",
       "file": "core/hooks/decisioncorpus_read.go",
       "tests": [

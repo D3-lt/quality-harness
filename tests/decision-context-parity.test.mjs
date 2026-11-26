@@ -578,6 +578,8 @@ function platformCorpusRows(scratch) {
       { path: `docs/adr-archive/${readme}`, text: [...catalogHeader, catalogRow('ADR-001-x.md', 'withdrawn'), ''].join('\n') }]
     const listed = ['docs/adr-archive/ADR-001-x.md', ...spellings.map(name => `docs/adr-archive/${name}`), 'src/a.js']
     add(files, 'docs/adr-archive/ADR-001-x.md', listed, listed.map(rel => rel.replaceAll('/', '\\')))
+    // Only the README has alternate separators. The record remains visible under every platform's listing rules.
+    add(files, 'docs/adr-archive/ADR-001-x.md', [listed[0], ...spellings.map(name => `docs\\adr-archive\\${name}`), 'src/a.js'])
   }
   // A record directory reached through a link (its real path is asked), listed with `/` and with backslashes.
   add([{ path: 'decisions/x.md', text: governing }, { path: 'notes/link', link: path.join('..', 'decisions') }], 'notes/link/x.md',

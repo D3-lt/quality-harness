@@ -180,6 +180,7 @@ const ARCHIVE_NAMES = [
   'archive-decisionſ/0002-y.md', 'templateſ/archive/ADR-3-x.md', 'TEMPLATEſ/archive/ADR-5.md', 'Templates/archive/ADR-4-x.md',
   'archive/ADR-6-x.md', 'ARCHIVE/ADR-7-x.md', 'docs/Archived/ADR-8-x.md', 'archiveK/ADR-9-x.md', 'decisions-archive/tasks/T1-x.md',
   'docs/templates/archive/ADR-10-x.md', 'ARCHIVES_RECORDS/2026-01-02-x.md', 'archive-adrK/ADR-11-x.md',
+  String.raw`notes\archive\ADR-012-literal.md`,
 ]
 
 test('the core names unmarked archives as Node does, folding no letter outside ASCII', { skip: noGo, timeout: GO_BUDGET_MS }, t => {

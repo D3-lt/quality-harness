@@ -1670,9 +1670,9 @@ func dcCorpusEligible(relative string) bool {
 }
 
 // dcListedAbsolute is listedAbsolute: a listed path under the root.
-func dcListedAbsolute(root, rel string) string {
+func dcListedAbsolute(root, normalized string) string {
 	parts := []string{root}
-	for _, part := range strings.Split(posixListed(rel), "/") {
+	for _, part := range strings.Split(normalized, "/") {
 		if part != "" && part != "." {
 			parts = append(parts, part)
 		}
@@ -1717,26 +1717,9 @@ func (r *dcReader) text(file string) (string, error) {
 
 const dcReadmeUnknownReason = "a README is listed beside it under another spelling, and whether that is this directory's catalog is not something this reader guesses — name it `README.md`"
 
-func dcListedNamesIn(directory string, listed map[string]bool) []string {
-	names := []string{}
-	for candidate := range listed {
-		if filepath.Dir(candidate) == directory {
-			names = append(names, filepath.Base(candidate))
-		}
-	}
-	sort.Strings(names)
-	return names
-}
-
 // dcListedReadme is listedReadme with the corpus reader: the exact `README.md` to read, or unknown when another spelling is
 // listed and carries the marker, cannot be read, or is one of several.
-func dcListedReadme(directory string, names []string, reader *dcReader) (string, bool) {
-	spellings := []string{}
-	for _, name := range names {
-		if dcJSLower(name) == "readme.md" {
-			spellings = append(spellings, name)
-		}
-	}
+func dcListedReadme(directory string, spellings []string, reader *dcReader) (string, bool) {
 	switch {
 	case len(spellings) == 0:
 		return "", false
@@ -1751,10 +1734,10 @@ func dcListedReadme(directory string, names []string, reader *dcReader) (string,
 
 // dcCatalogDirectoryFor is catalogDirectoryFor: the nearest listed directory, up to the root, whose README carries the
 // Lifecycle marker or cannot be read; the file's own directory when there is none.
-func dcCatalogDirectoryFor(file, root string, reader *dcReader, listed map[string]bool) string {
+func dcCatalogDirectoryFor(file, root string, reader *dcReader, readmes map[string][]string) string {
 	top := filepath.Clean(root)
 	for directory := filepath.Dir(file); ; directory = filepath.Dir(directory) {
-		readme, unknown := dcListedReadme(directory, dcListedNamesIn(directory, listed), reader)
+		readme, unknown := dcListedReadme(directory, readmes[directory], reader)
 		if unknown {
 			return directory
 		}
@@ -1803,12 +1786,12 @@ func dcCatalogCells(line string) []string {
 
 // dcArchiveDecisionEffect is archiveDecisionEffect: what the catalog of the archive a record sits in says its decision's
 // effect is now, or why it cannot say; nil when the record is under no listed archive.
-func dcArchiveDecisionEffect(file string, reader *dcReader, cache map[string]*dcCatalog, listed map[string]bool, root string) *dcArchived {
-	directory := dcCatalogDirectoryFor(file, root, reader, listed)
+func dcArchiveDecisionEffect(file string, reader *dcReader, cache map[string]*dcCatalog, readmes map[string][]string, root string) *dcArchived {
+	directory := dcCatalogDirectoryFor(file, root, reader, readmes)
 	catalog, ok := cache[directory]
 	if !ok {
 		catalog = &dcCatalog{}
-		readme, unknown := dcListedReadme(directory, dcListedNamesIn(directory, listed), reader)
+		readme, unknown := dcListedReadme(directory, readmes[directory], reader)
 		if unknown {
 			catalog.state = "unknown-readme"
 		} else if readme != "" {
@@ -1981,8 +1964,8 @@ func dcSupersededByStatus(status string) bool {
 }
 
 // dcRecordStanding is adrCorpus's status, kind and supersededBy for a recognised record.
-func dcRecordStanding(file, text string, reader *dcReader, cache map[string]*dcCatalog, listed map[string]bool, root string) dcStanding {
-	archived := dcArchiveDecisionEffect(file, reader, cache, listed, root)
+func dcRecordStanding(file, text string, reader *dcReader, cache map[string]*dcCatalog, readmes map[string][]string, root string) dcStanding {
+	archived := dcArchiveDecisionEffect(file, reader, cache, readmes, root)
 	standing := dcStanding{frozen: archived != nil}
 	effect := ""
 	if archived != nil {

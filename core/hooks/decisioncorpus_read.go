@@ -11,9 +11,11 @@ import (
 	"io/fs"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -351,13 +353,7 @@ func dcRecordFilesFromListing(root string, tracked []string, screenBudget int, p
 		if slash := strings.LastIndex(norm, "/"); slash >= 0 {
 			base, dirNorm = norm[slash+1:], norm[:slash]
 		}
-		parts := []string{root}
-		for _, part := range strings.Split(norm, "/") {
-			if part != "" && part != "." {
-				parts = append(parts, part)
-			}
-		}
-		absolute := filepath.Join(parts...)
+		absolute := dcListedAbsolute(root, norm)
 		if dcAdrFile(base) || dcCanonicalName(base) || specName(base) {
 			d.files = append(d.files, absolute)
 			d.byName[absolute] = true
@@ -672,9 +668,18 @@ func dcAdrCorpus(root string, tracked []string, screenBudget int, platform strin
 		c.look = "PARTIAL"
 	}
 	reader := newDcCorpusReader()
-	listed := map[string]bool{}
+	// Index only catalog spellings. Every record walks its ancestors, which otherwise rescan the whole listing.
+	readmes := map[string][]string{}
 	for _, rel := range tracked {
-		listed[dcListedAbsolute(root, rel)] = true
+		norm := listedPath(rel, platform)
+		name := path.Base(norm)
+		if dcJSLower(name) != "readme.md" {
+			continue
+		}
+		dir := filepath.Dir(dcListedAbsolute(root, norm))
+		if !slices.Contains(readmes[dir], name) {
+			readmes[dir] = append(readmes[dir], name)
+		}
 	}
 	discovered := dcRecordFilesFromListing(root, tracked, screenBudget, platform)
 	for _, entry := range discovered.failed {
@@ -721,7 +726,7 @@ func dcAdrCorpus(root string, tracked []string, screenBudget int, platform strin
 			continue
 		}
 		charged++
-		standing := dcRecordStanding(file, text, reader.dcReader, archiveEffects, listed, root)
+		standing := dcRecordStanding(file, text, reader.dcReader, archiveEffects, readmes, root)
 		if standing.unproven != "" {
 			c.look = "PARTIAL"
 		}

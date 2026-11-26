@@ -27,8 +27,8 @@ export function listedPath(rel, platform = process.platform) {
   return platform === 'win32' ? posixListed(rel) : String(rel)
 }
 
-function listedAbsolute(root, rel) {
-  const parts = posixListed(rel).split('/').filter(part => part && part !== '.')
+function listedAbsolute(root, normalized) {
+  const parts = normalized.split('/').filter(part => part && part !== '.')
   return parts.length ? path.join(root, ...parts) : root
 }
 
@@ -59,6 +59,7 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // its tasks are UNPROVEN, with the remedy — name the catalog `README.md` — said
 // where either would have been (fifth review; ADR-005).
 const README_UNKNOWN = Symbol('a README is listed here under another spelling')
+const isReadmeName = name => name.toLowerCase() === 'readme.md'
 
 // ⚠ AND ONLY A VARIANT THAT CARRIES THE MARKER IS THE AMBIGUOUS CASE. The rule above
 // was first applied to every `readme.md`, and an ordinary project keeps one in
@@ -87,7 +88,7 @@ const README_UNKNOWN = Symbol('a README is listed here under another spelling')
 // review); and three ways of asking the filesystem, all deleted. Each cell is a
 // case in tests/archive-not-in-flight.test.mjs.
 export function listedReadme(directory, names, read) {
-  const spellings = names.filter(name => name.toLowerCase() === 'readme.md')
+  const spellings = names.filter(isReadmeName)
   if (spellings.length === 0) return null
   if (spellings.length > 1) return README_UNKNOWN
   if (spellings[0] === 'README.md') return path.join(directory, 'README.md')
@@ -132,10 +133,10 @@ function underFrozenArchive(root, dirParts, cache, listed) {
 // cannot be established, false otherwise. work-next kept a NAME test of its own, so an
 // unadopted `docs/adr-archive/` was live here and hidden there — 29 disagreements over
 // one product corpus (BACKLOG §281 item 3).
-export function frozenArchiveOf(root, listing) {
+export function frozenArchiveOf(root, listing, platform = process.platform) {
   const cache = new Map()
-  const listed = new Set((listing ?? []).map(rel => posixListed(rel)))
-  return rel => underFrozenArchive(root, posixListed(rel).split('/').filter(Boolean).slice(0, -1), cache, listed)
+  const listed = new Set((listing ?? []).map(rel => listedPath(rel, platform)))
+  return rel => underFrozenArchive(root, listedPath(rel, platform).split('/').filter(Boolean).slice(0, -1), cache, listed)
 }
 
 // A directory NAMED like an archive. Only ever used to NAME one that carries no
@@ -156,9 +157,9 @@ const RECORD_SHAPED = /^(?:adr[-_]?\d+|\d{3,4}-|\d{4}-\d{2}-\d{2}-)/i
 // none and open no record content (CLAUDE.md §19; they read an archive's README for its marker, as ever),
 // so they keep the name test, widened to the name arms; a record-shaped name there is a hint about a
 // directory read without content. Neither path names a directory for a file under `templates/`.
-export function unmarkedArchives(root, listing, recognised = null) {
+export function unmarkedArchives(root, listing, recognised = null, platform = process.platform) {
   if (listing == null) return []
-  const listed = new Set(listing.map(rel => posixListed(rel)))
+  const listed = new Set(listing.map(rel => listedPath(rel, platform)))
   const cache = new Map()
   const found = new Set()
   for (const rel of listed) {
@@ -686,15 +687,11 @@ function catalogCells(line) {
 // further, to the nearest listed directory whose README carries the Lifecycle
 // marker — or whose README cannot be read, which the caller reports as unproven.
 // No such directory is the file's own, where the old answer, not an archive, stands.
-// The names git lists directly in `directory`: what `listedReadme` chooses among.
-const listedNamesIn = (directory, listed) =>
-  [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate))
-
-function catalogDirectoryFor(file, root, reader, listed) {
+function catalogDirectoryFor(file, root, reader, readmes) {
   const top = path.join(root)
   for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
     const readme = listedReadme(directory,
-      listedNamesIn(directory, listed),
+      readmes.get(directory) ?? [],
       candidate => reader.text(candidate))
     if (readme === README_UNKNOWN) return directory
     if (readme !== null) {
@@ -706,12 +703,12 @@ function catalogDirectoryFor(file, root, reader, listed) {
   }
 }
 
-function archiveDecisionEffect(file, reader, cache, listed, root) {
-  const directory = catalogDirectoryFor(file, root, reader, listed)
+function archiveDecisionEffect(file, reader, cache, readmes, root) {
+  const directory = catalogDirectoryFor(file, root, reader, readmes)
   if (!cache.has(directory)) {
     let rows = null
     const readme = listedReadme(directory,
-      listedNamesIn(directory, listed),
+      readmes.get(directory) ?? [],
       candidate => reader.text(candidate))
     if (readme === README_UNKNOWN) rows = 'unknown-readme'
     else if (readme !== null) {
@@ -1447,7 +1444,7 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET, p
     // path discovered, two hundred ordinary notes listed before one record in `docs/adr` spent it, and the
     // look said "200 records were read" over none (a gpt-6.1-sol review of ADR-092's execution, finding 16,
     // a regression against v3.8.10, which read that corpus as one record and look ok).
-    const absolute = path.join(root, ...norm.split('/').filter(part => part && part !== '.'))
+    const absolute = listedAbsolute(root, norm)
     if (ADR_FILE.test(base) || CANONICAL_NAME.test(base) || SPEC_NAME.test(base)) {
       files.push(absolute)
       byName.add(absolute)
@@ -1538,7 +1535,17 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
   })
   if (tracked == null) return records
   const reader = corpusReader()
-  const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
+  // Each record asks about its ancestors. Index the listing once, keeping distinct README spellings for collisions.
+  const readmes = new Map()
+  for (const rel of tracked) {
+    const norm = listedPath(rel, platform)
+    const name = path.posix.basename(norm)
+    if (!isReadmeName(name)) continue
+    const directory = path.dirname(listedAbsolute(root, norm))
+    const names = readmes.get(directory)
+    if (!names) readmes.set(directory, [name])
+    else if (!names.includes(name)) names.push(name)
+  }
   const discovered = recordFilesFromListing(root, tracked, { screenBudget, platform })
   const { files, byName } = discovered
   // What discovery cost: files found, and how many the content screen opened and how many bytes it
@@ -1625,7 +1632,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
-    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root)
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, readmes, root)
     if (archived?.unproven) records.look = 'PARTIAL'
     const effect = archived?.effect
     const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
@@ -1798,7 +1805,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
   // (ADR-092 Decision 11): after the read, since only the read knows what is a record.
   const recognisedFiles = new Set([...records.map(record => record.file),
     ...unreadable.filter(entry => !entry.reason && !entry.alias).map(entry => entry.file)])
-  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles), enumerable: false })
+  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles, platform), enumerable: false })
   return records
 }
 

@@ -37,6 +37,35 @@ A registration cannot be scoped to a project: Desktop's bridge takes no such arg
 server takes the corpus path **per call** instead, and every result names the paths it read back to
 you, because over MCP the client names a path it cannot see.
 
+## Cursor CLI
+
+Put the same `quality-harness` entry under `mcpServers` in the project's `.cursor/mcp.json`.
+From that project, enable the server you configured and ask Cursor which tools it discovered.
+
+```sh
+cursor-agent mcp enable quality-harness
+cursor-agent mcp list-tools quality-harness
+```
+
+A successful response lists tools such as `qh_adr_next` with their argument names.
+This discovery check ran on macOS with Cursor CLI `2026.11.11-043ef28`.
+
+## Codex CLI
+
+Register the server with the path to your copy of `qh-mcp`. Quote the path if it contains spaces.
+
+```sh
+codex mcp add quality-harness -- python3 "/absolute/path/to/quality-harness/plugin/bin/qh-mcp"
+```
+
+In a new session, choose an active, Accepted decision and ask Codex to call `qh_adr_next`
+with the absolute path to its `tasks` directory. The result gives readiness within that record.
+To compare records, pass only the absolute path to the active corpus root (for example,
+`docs/adr`). Check the owning record's status before starting a task. Add `all: true` to see
+completed tasks and blockers, or `json: true` for the machine-readable report grouped by record.
+On macOS, the Codex CLI `0.172.0` app server called this tool on the Go fixture and
+returned T2 as ready after T1 was done. [Codex MCP configuration](https://developers.openai.com/codex/mcp/)
+
 ## What you get
 
 The reading gates, one tool each — `tools/list` is the authority on how many, because this page

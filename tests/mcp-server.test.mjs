@@ -211,6 +211,22 @@ test("every reading gate is listed, and calling it returns that gate's own outpu
   }
 })
 
+test('qh_adr_next advertises the corpus root and reports tasks across its records', () => {
+  const tool = list().find(entry => entry.name === 'qh_adr_next')
+  assert.match(tool.inputSchema.properties.path.description, /corpus root/i)
+  const help = runPython([join(bin, 'adr-next'), '--help'], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(help.status, 0, help.stderr)
+  assert.match(help.stdout, /^Usage:.*corpus-root/m)
+
+  const corpus = join(repoRoot, 'tests', 'fixtures', 'corpora', 'php-multi-root', 'docs', 'adr')
+  const reply = call('qh_adr_next', { path: corpus, all: true })
+  assert.equal(reply.error, undefined, JSON.stringify(reply.error))
+  const text = reply.result.content[0].text
+  assert.match(text, /^adr-next exit 0/)
+  assert.match(text, /ADR-001-notes-can-be-pinned\s+READY\s+T1\b/)
+  assert.match(text, /ADR-002-a-note-needs-a-title\s+done\s+T1\b/)
+})
+
 test('qh_orientation returns the SessionStart orientation for a directory, and names its absence (BACKLOG §136)', () => {
   const reply = call('qh_orientation', { directory: repoRoot })
   assert.equal(reply.error, undefined, JSON.stringify(reply.error))

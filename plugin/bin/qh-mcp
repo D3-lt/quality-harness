@@ -388,19 +388,18 @@ reading_tool(
 
 reading_tool(
     "qh_adr_next",
-    "Report which task of an ADR is ready to start and why the others are not, "
-    "computed from the task files' Depends-on headers and their recorded "
-    "evidence. Exit 0 = a task is ready (printed alone, or among `all`'s rows); "
-    "exit 3 = nothing is ready: every task is done, blocked or stopped (`all` "
-    "still prints every row) - an answer, not a failure; exit 1 = the ADR or "
-    "tasks directory could not be read, or holds no task files, so there is no "
-    "report. Reads only; changes nothing.",
+    "Report task readiness within one ADR or across an active corpus. Choose an active, "
+    "Accepted record before starting work. Readiness follows dependencies and recorded "
+    "evidence. Exit 3 means nothing is ready. Exit 1 "
+    "means the gate could not determine readiness from the supplied path. For a corpus, "
+    "JSON groups tasks by record and lists any unreadable records.",
     {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Path to an ADR markdown file or a tasks directory."},
-            "all": {"type": "boolean", "description": "Report every task, not just the next one."},
-            "json": {"type": "boolean", "description": "Emit JSON instead of the human report."},
+            "path": {"type": "string", "description": "Path to an ADR markdown file, its record or tasks directory, "
+                                                      "or a corpus root containing the records (for example, docs/adr)."},
+            "all": {"type": "boolean", "description": "Include done, blocked and stopped tasks in the text report."},
+            "json": {"type": "boolean", "description": "Return full task details as JSON. The default text report is shorter."},
         },
         "required": ["path"],
         "additionalProperties": False,

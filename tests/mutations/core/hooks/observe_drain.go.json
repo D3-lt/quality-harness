@@ -28,8 +28,8 @@
       "label": "BACKLOG §477.2: the read ends carry no deadline, so a held read waits for its holder",
       "file": "core/hooks/observe_drain.go",
       "tests": ["tests/observe-drain.test.mjs"],
-      "from": "\t\tif err := r.SetReadDeadline(deadlineAt); err != nil {",
-      "to": "\t\tif err := r.SetReadDeadline(time.Time{}); err != nil {",
+      "from": "\tdeadlineAt, _ := ctx.Deadline()",
+      "to": "\tdeadlineAt := time.Time{}",
       "only": "^(?:the observation reads its git through the drained runner, bounded)$"
     }
   ]

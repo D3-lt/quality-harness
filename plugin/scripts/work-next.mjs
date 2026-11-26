@@ -23,7 +23,7 @@ import { isMainModule } from './main-module.mjs'
 import { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 import { danglingCorpusLinks } from './session-orientation.mjs'
 import { spawnGate } from './ready-lines.mjs'
-import { adrCorpus, aliasReason, corpusEligible, frozenArchiveOf, gfmTableRows, onceByRealPath, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
+import { adrCorpus, aliasReason, corpusEligible, frozenArchiveOf, gfmTableRows, listedPath as posixRel, onceByRealPath, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
 import { pathInCode, terminalText, visiblePath } from './corpus-text.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
@@ -237,10 +237,6 @@ export const STAGES = [
 // gpt-6.1-sol review of ADR-092's execution, finding 12).
 const read = file => {
   try { return readRegularText(file, 512 * 1024) } catch { return '' }
-}
-
-function posixRel(rel) {
-  return String(rel).replaceAll('\\', '/')
 }
 
 // ADR-092 Decision 9: EVERY NUMBERED CANDIDATE IS COUNTED, HELD UNDECIDED, OR NAMED. A candidate is an

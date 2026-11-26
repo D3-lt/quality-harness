@@ -318,6 +318,16 @@
       "to": "    let rows = null\n    const readme = listedReadme(directory,\n      readmes.get(directory) ?? ['README.md'],"
     },
     {
+      "label": "catalog: a literal POSIX backslash gives no other file archive authority",
+      "file": "plugin/scripts/decision-corpus.mjs",
+      "tests": [
+        "tests/listed-backslash.test.mjs"
+      ],
+      "from": "    const norm = listedPath(rel, platform)\n    const name = path.posix.basename(norm)",
+      "to": "    const norm = posixListed(rel)\n    const name = path.posix.basename(norm)",
+      "only": "^only a catalog listed in the archive directory can freeze its records and tasks$"
+    },
+    {
       "label": "catalog: a row speaks for the file its link names",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": [
@@ -1317,8 +1327,8 @@
       "tests": [
         "tests/unmarked-archives.test.mjs"
       ],
-      "from": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles), enumerable: false })",
-      "to": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked), enumerable: false })",
+      "from": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles, platform), enumerable: false })",
+      "to": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, null, platform), enumerable: false })",
       "only": "^the corpus reader names an archive by the records it holds and by nothing else$"
     },
     {

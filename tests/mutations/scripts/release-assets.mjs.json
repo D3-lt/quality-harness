@@ -36,6 +36,14 @@
       "tests": ["tests/attempt-artifacts.test.mjs"],
       "from": "/no artifact matches any of the names or patterns provided|no valid artifacts found to download/",
       "to": "/no artifact matches any of the names or patterns provided/"
+    },
+    {
+      "label": "BACKLOG §475.2: expiration does not establish that an attempt never built its artifact",
+      "file": "scripts/release-assets.mjs",
+      "tests": ["tests/attempt-artifacts.test.mjs"],
+      "from": "available to download. ",
+      "to": "because that attempt did not build it. ",
+      "only": "a partial re-run leaves the judged attempt without its artifact"
     }
   ]
 }

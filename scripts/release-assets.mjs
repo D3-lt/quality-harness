@@ -19,8 +19,8 @@ export { releaseAssetFiles } from './core-release-assets.mjs'
 export const artifactMissing = said => /no artifact matches any of the names or patterns provided|no valid artifacts found to download/.test(said)
 
 /** The remedy for an artifact the judged attempt lacks: a re-run of every job makes them all under one attempt. */
-export const missingArtifact = (runId, exact) => `run ${runId} has no artifact ${exact}: that attempt did not build it, as a re-run of only `
-  + `the failed jobs leaves it. Re-run every job of the run (\`gh run rerun ${runId}\`) and wait for it, then run the release again`
+export const missingArtifact = (runId, exact) => `run ${runId} has no artifact ${exact} available to download. `
+  + `Re-run every job of the run (\`gh run rerun ${runId}\`) and wait for it, then run the release again`
 
 /** One artifact of a run by its exact name, into `directory`; `options` reach gh (its working directory names the repository). */
 export function downloadNamed(runId, exact, directory, run = spawnSync, options = {}) {

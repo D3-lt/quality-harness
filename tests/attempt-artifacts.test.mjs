@@ -74,7 +74,8 @@ test('a partial re-run leaves the judged attempt without its artifact, and the r
   assert.deepEqual(none.asked, [])
   // gh's other "absent" answer: every artifact of the run is expired or gone.
   const expired = (bin, args) => ({ status: 1, stdout: '', stderr: 'no valid artifacts found to download\n' })
-  assert.throws(() => downloadArtifact('7', '2', 'qh-core', dir, expired), /run 7 has no artifact qh-core-2[\s\S]*gh run rerun 7/)
+  assert.throws(() => downloadArtifact('7', '2', 'qh-core', dir, expired),
+    /run 7 has no artifact qh-core-2 available to download\. Re-run every job[\s\S]*gh run rerun 7/)
 })
 
 test('the outside run and the native manifest are read from the judged attempt too', () => {

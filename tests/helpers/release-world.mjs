@@ -1,6 +1,7 @@
 // The fake git, gh and checks scripts/release.mjs runs against, shared by every release test (ADR-100 T3, ADR-126): nothing
 // here reaches a real remote, and the script is driven through its exported `release` (CLAUDE.md §9).
 import { release } from '../../scripts/release.mjs'
+import { selectRun } from '../../scripts/release-evidence.mjs'
 
 export const SHA = 'a'.repeat(40)
 // Runs on main, the dispatch the newer of the two (ADR-118: only a dispatch on main newer than main's push run is reused).
@@ -82,6 +83,8 @@ export function world(overrides = {}) {
       return ok(JSON.stringify(answer))
     }
     if (line.startsWith('gh run list --workflow')) return ok(JSON.stringify(state.inFlight))
+    // BACKLOG §475.2: what the forge says of the judged run's attempt once its assets are downloaded; `attempt` decides it.
+    if (/^gh run view \d+ --json attempt,headSha$/.test(line)) return ok(JSON.stringify({ attempt: state.attempt ?? 1, headSha: SHA }))
     if (line === 'gh workflow run selftest.yml --ref main') { state.dispatchSawPush = state.pushSeen === true; state.dispatchSawMainPush = state.mainPushSeen === true; return ok() }
     if (line === `node scripts/release-evidence.mjs --local ${SHA}`) {
       return { status: state.local ?? 0, stdout: `${state.local ? 'UNPROVEN' : 'READY'} — local evidence\n`, stderr: '' }
@@ -96,7 +99,10 @@ export function world(overrides = {}) {
     if (line.endsWith(`scripts/release-evidence.mjs ${SHA}`)) {
       const code = state.evidence[Math.min(evidenceCalls, state.evidence.length - 1)]
       evidenceCalls += 1
-      return { status: code, stdout: state.evidenceText ?? `${code === 0 ? 'SUCCESS' : 'UNPROVEN'} — evidence\n`, stderr: '' }
+      // A success names the run it judged, as release-evidence does: its own choice over the latest listing, at attempt 1.
+      const judged = selectRun(state.runs[state.runs.length - 1])
+      const named = code === 0 && judged ? `release-evidence judged run ${judged.databaseId} attempt 1 at ${SHA}\n` : ''
+      return { status: code, stdout: state.evidenceText ?? `${code === 0 ? 'SUCCESS' : 'UNPROVEN'} — evidence\n${named}`, stderr: '' }
     }
     if (line.startsWith('node scripts/release-assets.mjs ')) return {
       status: state.assetFailure ?? 0, stdout: JSON.stringify(state.assetFiles ?? [

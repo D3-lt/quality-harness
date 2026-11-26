@@ -226,7 +226,7 @@ export function fetchRun(sha, exec = execFileSync) {
     return null
   }
   if (!id) return null
-  const fields = 'databaseId,status,conclusion,headSha,headBranch,jobs,event'
+  const fields = 'attempt,databaseId,status,conclusion,headSha,headBranch,jobs,event'
   try {
     return JSON.parse(exec('gh', ['run', 'view', String(id), '--json', fields], { encoding: 'utf8', timeout: 60_000 }))
   } catch {
@@ -867,6 +867,8 @@ export function main(argv, { fetch = fetchRun, outside: outsideOf = releaseOutsi
     if (outside.verdict === 'unproven' || review.verdict === 'unproven') verdict = 'unproven'
   }
   log(`${verdict.toUpperCase()}${head} — ${reason}`)
+  // BACKLOG §475.2: the run a release takes its assets from is this one, by this line (scripts/release.mjs reads it).
+  if (verdict === 'success') log(`release-evidence judged run ${run.databaseId} attempt ${run.attempt ?? 'unknown'} at ${run.headSha}`)
   if (verdict === 'unproven') {
     // Each could-not-look said apart: nobody ran the readers, git could not check a run, a run
     // regressed or compared nothing, git could not say whether they changed (Codex review of 013149e,

@@ -4928,10 +4928,13 @@ Filed with the evidence that found each; none is fixed by ADR-146.
    one sha the two can differ, which ADR-126 Decision 1 ("one run per release") does not allow. Nothing reproduces it yet.
    **Fixed 2026-11-26:** reproduced in `tests/helpers/release-world.mjs`'s fake forge: a dispatch at the sha newer than the
    landing's run was judged by `release-evidence` while the assets came from the landing's run, and a locked fixture of
-   tests/release.test.mjs had the same shape (a dispatch on `land/<sha>` tied with one on main). `release.mjs` now reads the
-   newest run (`selectRun`) before the evidence and after it, takes the assets from it when it is the same completed run of
-   this sha both times, and otherwise publishes nothing (exit 2). `tests/release-run-bound.test.mjs`; three catalogue mutants
-   on it, each RED.
+   tests/release.test.mjs had the same shape (a dispatch on `land/<sha>` tied with one on main). A first fix that listed the
+   newest run before and after the evidence was refused by the Codex review of 26dbf7dee: the evidence process selects on
+   its own (a tie in another order, a run deleted between listings), and a re-run changes a run's attempt under one id. So
+   `release-evidence` now prints `release-evidence judged run <id> attempt <n> at <sha>` with a success, `release.mjs` takes
+   the assets from exactly that run, publishes nothing for a success that names none or another sha, and reads the run's
+   attempt again after the download, stopping if it moved (exit 2 each). `tests/release-run-bound.test.mjs`; three catalogue
+   mutants on it, each RED.
 3. **A catalogue-pin landing still runs every required job**, about 115 runner-minutes of the 489 measured on run
    45475508810: the two selftests, Windows, both coverage floors. Skipping a required job fails open, and five test files
    read the pin, so a sound skip needs the file hidden from a job by construction.
@@ -4964,6 +4967,17 @@ Found while sizing verdict reuse across landings, which ADR-147 then did not bui
    **Decided 2026-11-26 (the owner):** the cache stays for pull-request and local runs, and its summary line now says the
    key is the mutated file and its test files, that it does not hold everything a verdict depends on, and that no release
    rests on a reused verdict (scripts/mutate.mjs). The untraced cause of the eleven stays open here.
+   **Traced 2026-11-26:** b504ac077 changed every hook in plugin/hooks/hooks.json from `node <script>` to `sh <launcher>`
+   (the Go core) and deleted plugin/scripts/ledger-guard.mjs. The two GREEN mutants edit plugin/scripts/shell-words.mjs, and
+   tests/ledger-writes.test.mjs reaches it only through those hooks, so after the cutover it no longer ran the mutated code.
+   17f8ad621 re-bound both entries to tests/retained-cli.test.mjs the same day, and both are RED at 26dbf7dee
+   (`node scripts/mutate.mjs --case …`, each 1/1). The nine UNPROVEN were found again by recomputing `cacheKey` at
+   2a0d6c10e and at bb2476929 from `git show` of each entry's file and tests, over every `UNPROVEN` line of run 40722402241's
+   thirty-two failed shards (twenty-nine lines; nine kept their key). All nine record one cause, a baseline that failed
+   before the mutation: six on tests/corpus-matrix.test.mjs, two on tests/corpus-probe.test.mjs, one on
+   tests/mrw-way.test.mjs. All three suites drive the plugin through its hooks, so the input the key misses is the same:
+   whatever a test reaches through, which here was hooks.json and the Go core. Measuring that set is not built; the
+   cache's summary line already says the key does not hold it.
 2. **A landing of a released version no longer measures the entries it changed** (ADR-147). Over the forty-nine successful
    landings from 179c0d561 to 340710727, the fourteen that were neither a bump nor a pin changed between 0 and 139 keys.
    One job that measures only those entries would give the early notice back; ADR-147's first follow-up says when to

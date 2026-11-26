@@ -376,22 +376,22 @@
       "label": "BACKLOG §475.2: the assets come from the run release-evidence judged, not the run waited for",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-run-bound.test.mjs"],
-      "from": "  const prepared = ran('node', ['scripts/release-assets.mjs', String(after.databaseId), sha])",
+      "from": "  const prepared = ran('node', ['scripts/release-assets.mjs', judgedRun, sha])",
       "to": "  const prepared = ran('node', ['scripts/release-assets.mjs', String(done.databaseId), sha])"
     },
     {
-      "label": "BACKLOG §475.2: a newest run that changed across release-evidence, or is unfinished, publishes nothing",
+      "label": "BACKLOG §475.2: a success that names no run, or another sha, publishes nothing",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-run-bound.test.mjs"],
-      "from": "  if (!before || after?.databaseId !== before.databaseId || after.status !== 'completed') {",
-      "to": "  if (!before || !after) {"
+      "from": "  if (!judged || judged[3] !== sha) {",
+      "to": "  if (!judged) {"
     },
     {
-      "label": "BACKLOG §475.2: a newest run of another sha is not this sha's run",
+      "label": "BACKLOG §475.2: a run re-run after it was judged publishes nothing",
       "file": "scripts/release.mjs",
       "tests": ["tests/release-run-bound.test.mjs"],
-      "from": "    return run?.headSha === sha ? run : null",
-      "to": "    return run"
+      "from": "  if (String(attempt?.attempt) !== judgedAttempt || attempt?.headSha !== sha) {",
+      "to": "  if (attempt?.headSha !== sha) {"
     }
   ]
 }

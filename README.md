@@ -78,11 +78,11 @@ it on a throwaway prototype.
 | | What you get | Tested |
 |---|---|---|
 | **Claude Code** | Skills, hooks, workflows and every gate | Linux, macOS and Windows in CI on every push |
-| **MCP clients** (Claude Desktop, Cursor, Zed, Codex) | The read-only gates, through the bundled `qh-mcp` server | The server is tested; those clients are not |
+| **MCP clients** (Claude Desktop, Cursor, Zed, Codex) | The read-only gates, through the bundled `qh-mcp` server | Server tests in CI. On macOS, Cursor CLI discovered the tools and Codex CLI called `qh_adr_next`. [Client setup](docs/mcp.md) |
 | **Any shell or CI, no AI** | Every gate in `bin/`: a plain `python3` or `node` program with a meaningful exit code | This repository gates itself with them |
 
-`qh-mcp` exposes only gates that read; the two that run an acceptance command are not available
-over MCP. Codex is optional and used only as a reviewer from a different model lineage
+`qh-mcp` exposes the reading gates. Recording acceptance evidence requires a shell.
+Claude Code can also use the optional Codex CLI for a different-lineage review or second opinion
 (`codex-review`, `codex-advise`).
 
 ## Measured results
@@ -163,7 +163,7 @@ plugin; `sync-standalone.mjs --link --apply` replaces them with forwarders.
 - Python 3.9 or newer; CI tests 3.12.
 - Node.js; CI runs 24.
 - Bash (Git Bash on Windows) and Git.
-- Codex CLI, only for `codex-review` and `codex-advise`.
+- Codex CLI for the optional `codex-review` and `codex-advise` skills or as an MCP client.
 
 ## Developing the plugin
 

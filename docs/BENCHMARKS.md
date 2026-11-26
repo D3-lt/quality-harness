@@ -3,14 +3,17 @@
 Three questions, each measured its own way. Moved from the README on 2026-09-30; the figures carry the
 dates they were taken.
 
+For measurements of the next-task reader and its use from MCP clients, see the
+[agent task discovery experiment](research/2026-11-26-agent-task-discovery.md).
+
 ## Do the gates catch what they claim?
 
 A mutation campaign breaks one mechanism at a time, every entry in the catalogue under
 `tests/mutations/` (one file per source, ADR-091), and reports every test that did not notice:
-`node scripts/mutate.mjs`. A push to `main` (or to a `land/<sha>` branch) reuses the cached verdict
-of every entry whose inputs did not change (ADR-023). The whole catalogue with no reuse runs only
-in the dispatched run (`workflow_dispatch`), which is the run a release is cut from. No run is
-triggered by a tag.
+`node scripts/mutate.mjs`. Local and pull-request runs can reuse verdicts (ADR-023).
+A release requires a full campaign with freshly measured verdicts. A landing that carries a
+new plugin version runs that campaign. A landing of an already tagged version or a catalogue
+pin skips it (ADR-146, ADR-147). A manual dispatch also runs the full campaign.
 
 ## Do the written instructions change what a model does?
 

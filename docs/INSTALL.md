@@ -19,7 +19,7 @@ run here, it says so.
 | Node.js | Any current release. | **24**, in CI. |
 | Bash | Any. On Windows: Git for Windows (Git Bash). The hook runner finds it from `CLAUDE_CODE_GIT_BASH_PATH`, then `PATH` (skipping the System32 WSL stub), then the per-user and system Git for Windows installs. | Windows CI runs the whole suite through it. |
 | Git | Any. | — |
-| Codex CLI | Only for `/quality-harness:codex-review` and `:codex-advise`. Nothing else depends on it. | Not in CI. |
+| Codex CLI | Optional for `/quality-harness:codex-review` and `:codex-advise`, or as an MCP client. | MCP tool call checked on macOS. |
 | `jq` | Optional, Windows only — advisory JSON checks. Hook dispatch does not use it. `winget install jqlang.jq` | — |
 
 The marketplace installs a checksum-pinned ZIP containing the plugin and precompiled Go binaries for macOS and Linux
@@ -218,18 +218,16 @@ Two facts that belong here rather than there:
   says what to do at each update.
 - **From Desktop you can be told what is wrong; you cannot record that you fixed it.** The evidence
   half of the lifecycle — `adr-verify` — needs a shell (ADR-012 rules it out over MCP; whether a
-  digest-confirmed run may lift that is an open owner decision, 2026-09-23). Cursor, Zed, Codex and
-  any other MCP client get the same tools and the same limit; the server is tested here, those
-  clients are not. OpenCode has not been tried at all.
+  digest-confirmed run may lift that is an open owner decision, 2026-09-23). The same limit applies
+  in other MCP clients. [Cursor CLI setup and discovery check](mcp.md#cursor-cli)
 
 ## Codex
 
-Codex is a **reviewer** in this plugin, not a host. `/quality-harness:codex-review` and
-`:codex-advise` shell out to the Codex CLI for a verdict from a different model lineage. Install
-the Codex CLI and authenticate it; nothing else changes.
+Codex CLI can call the reading gates over MCP. Register the server, then ask for the next ready task
+in a decision's task directory. [Codex CLI setup](mcp.md#codex-cli)
 
-There is nothing to install into Codex as a host. The `AGENTS.md` in this repository exists so a
-Codex session can *develop the plugin*; it is not a surface the plugin offers to your project.
+For a different-lineage review from Claude Code, install and authenticate Codex CLI.
+The `/quality-harness:codex-review` and `:codex-advise` skills invoke it directly.
 
 ## No AI at all: CI and Makefiles
 

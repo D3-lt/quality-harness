@@ -5152,3 +5152,20 @@ computed from the original prefix, literal replacement and suffix. All seven nam
 
 A standalone campaign still reads the test process's exit status. These repairs establish which assertions
 caught these twelve faults. Other languages retain their existing verdict rules.
+
+## 480. Found 2026-11-27 while integrating §477.2 and §479 — a locked test that never closes, and three Windows mutants only a POSIX host kills
+
+1. **The parse sweep's test has no closing `})`.** In `tests/package.test.mjs`, the test that begins
+   `every catalogue mutant still parses, so a kill is behavioural` ends its assertions without closing its
+   callback. The next test, `every catalogue entry names tests the campaign can actually spawn`, is therefore
+   declared inside it and runs as its subtest. Both still run and both pass. ADR-091 T3 and ADR-100 T5 lock the
+   first test's bytes (`scripts/test-locks.py`), so it cannot be closed in place. Moving the closing brace means
+   relocking those tasks, a decision for the owner. Until then, a failure in the outer test's body also stops the
+   nested one before it is declared.
+2. **Three `core/hooks/observe_drain.go` mutants are caught only on a POSIX host.** The catalogue's first three
+   entries (the `observeGOOS` route set to `if false`, the read-error case set to `case false`, and the trace
+   taking the Wait's error) are caught by `core/hooks/observe_drain_test.go`, which is `//go:build !windows`.
+   A campaign run on a Windows host would grade them GREEN. The CI mutation shards run on `ubuntu-latest`
+   (`.github/workflows/selftest.yml`), so the campaign of record catches them. A Windows-host campaign does
+   not. Found by the same-lineage review of `4e95a79e..a746148f` (Codex was at its usage limit). The build tag
+   and the shard runner were read from source.

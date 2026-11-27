@@ -5169,3 +5169,22 @@ caught these twelve faults. Other languages retain their existing verdict rules.
    (`.github/workflows/selftest.yml`), so the campaign of record catches them. A Windows-host campaign does
    not. Found by the same-lineage review of `4e95a79e..a746148f` (Codex was at its usage limit). The build tag
    and the shard runner were read from source.
+
+## 481. OPEN 2026-11-27 — verification commands printed with a literal task path
+
+A task filename can contain a space or an apostrophe. An agent copying the per-record
+`adr-next` reply into Bash needs the complete filename as one argument, including on the
+human sign-off branch. The machine-readable task path remains the filename itself.
+
+With `T1-owner's draft.md`, Bash rejected both original commands. After quoting the argument,
+Bash received exactly the filename and, for a human sign-off, the two separate sign-off arguments.
+Restoring the unquoted path failed both tests in a fresh isolated mutation run.
+
+The source search on `d073bc499` was
+`rg -n 'adr-verify (\{|\$\{|" \+|%s)' plugin/bin plugin/scripts core/hooks tests/helpers/node-hooks`.
+It found the two `adr-next` suggestions at lines 1873 and 1878 and these remaining sites:
+
+- `plugin/bin/adr-lint` lines 2855, 2871 and 2880 interpolate the basename in human sign-off guidance.
+  Check the working directory as well as shell quoting before making the command copyable.
+- `core/hooks/turnend.go` line 100 and its reference in `tests/helpers/node-hooks/completion-rules.mjs`
+  line 369 interpolate the path in the end-of-turn verification reminder. Check native path spelling on Windows.

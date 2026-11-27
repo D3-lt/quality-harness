@@ -63,6 +63,8 @@ with the absolute path to its `tasks` directory. The result gives readiness with
 To compare records, pass only the absolute path to the active corpus root (for example,
 `docs/adr`). Check the owning record's status before starting a task. Add `all: true` to see
 completed tasks and blockers, or `json: true` for the machine-readable report grouped by record.
+The per-record text reply quotes the task path for Bash, including Git Bash on Windows. A client
+that starts `adr-verify` directly can pass the JSON task's `path` as one argument.
 On macOS, the Codex CLI `0.172.0` app server called this tool on the Go fixture and
 returned T2 as ready after T1 was done. [Codex MCP configuration](https://developers.openai.com/codex/mcp/)
 

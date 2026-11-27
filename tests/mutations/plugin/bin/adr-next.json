@@ -2011,6 +2011,16 @@
       "from": "            sys.stdout, sys.stderr, sys.argv = held",
       "to": "            pass",
       "only": "^(?:a status that is not an answer still gets its frame)$"
+    },
+    {
+      "label": "adr-next: paths in verification commands stop being a single Bash argument",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    task_arg = shlex.quote(inf[\"path\"])",
+      "to": "    task_arg = inf[\"path\"]",
+      "only": "^(?:the automated verification command gives Bash the exact task path|the human verification command gives Bash the exact task path)$"
     }
   ]
 }

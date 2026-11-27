@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { testBash } from './helpers/bash.mjs'
 import { remove } from './helpers/remove.mjs'
 import { linkDirectory } from './symlink-support.mjs'
 import os from 'node:os'
@@ -1787,3 +1788,24 @@ test('a tasks directory reached through a link is owned by the record beside the
   const target = JSON.parse(next(['--json', join(dir, 'elsewhere', 'real-tasks')], dir).stdout)
   assert.equal(target.owner_missing, true, JSON.stringify(target))
 })
+
+function checkVerificationCommand(human) {
+  const { dir, tasksDir } = corpus([])
+  const file = join(tasksDir, "T1-owner's draft.md")
+  writeFileSync(file, task({ id: 'T1', human }))
+  const result = next([tasksDir], dir)
+  assert.equal(result.status, 0, result.stderr)
+  const match = human ? result.stdout.match(/sign off with `(.+)`$/m) : result.stdout.match(/prove it:\s+(adr-verify .+)$/m)
+  assert.ok(match, result.stdout)
+  // The stand-in prints argv without verifying the task or recording a sign-off.
+  const run = spawnSync(testBash(), ['-c', `adr-verify() { printf '%s\\0' "$@"; }\n${match[1]}`],
+    { cwd: dir, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stderr)
+  const [received, ...flags] = run.stdout.split('\0')
+  assert.deepEqual(flags, human ? ['--human', '<who observed what>', ''] : [''])
+  assert.equal(received, result.stdout.match(/^  file: (.+)$/m)?.[1])
+  assert.equal(readFileSync(received, 'utf8'), readFileSync(file, 'utf8'))
+}
+
+test('the automated verification command gives Bash the exact task path', () => checkVerificationCommand(false))
+test('the human verification command gives Bash the exact task path', () => checkVerificationCommand(true))

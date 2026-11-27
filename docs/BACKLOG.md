@@ -5202,12 +5202,11 @@ The CI Windows job at the same sha (4 cores) passed both.
    WaitCompletionPacket 1. They arrived at return, after the holder ended, and between calls, and stayed after the
    thread idled. No File handle, no Process handle and no handle to the child or grandchild was left. In every call
    the deadline ended the read at 3.000 s, and the grandchild was alive at return and ended by the test.
-   The test now reads the handle table by type and fails on any added handle outside the runtime's per-thread set,
-   an unknown type included. It also fails when any other type has more handles after the call than before,
-   whatever their values. The count is logged only. On the native peer, at the tree before that per-type count was
-   added (`beee21fa`), the test passed 20 of 20 runs, two of them across a +6 runtime step. A mutant that stops
-   `bsRunDrained` closing its two pipe read ends failed 3 of 3, naming two File handles. Its count rose by only 2
-   each time, so the old +4 bound passed that leak.
+   The test now reads the handle table by type and fails on any added handle value outside the runtime's per-thread
+   set, an unknown type included. The process's handle count is logged only. On the native peer, at `beee21fa`, whose
+   check is the one committed, the test passed 20 of 20 runs, two of them across a +6 runtime step. A mutant that
+   stops `bsRunDrained` closing its two pipe read ends failed 3 of 3, naming two File handles. Its count rose by only
+   2 each time, so the old +4 bound passed that leak.
 2. **OPEN — the stale-cache hook test read the stand-in `gh`'s pid before that `gh` had started.**
    `tests/branch-state-native.test.mjs` failed with ENOENT on `gh.pid` (line 314) after the hook returned on its 2 s
    refresh budget. The stand-in, a copied `node.exe` with a preload, writes that file when the preload runs.
@@ -5215,3 +5214,10 @@ The CI Windows job at the same sha (4 cores) passed both.
    `node.exe`'s first start (about 600 ms measured there), the hook can end the refresh before the preload runs.
    The hook still answered stale within its hang guard. The test's "the refresh reached `gh`" step needs an
    observation that does not depend on how fast the stand-in starts.
+3. **OPEN — the by-type check compares handle values, so it cannot see a leak that reuses a closed handle's value.**
+   Found by the verification review of `c9bdd5e08`. That commit added a per-class count and claimed it closed this.
+   Every count increase is already a new value, though, so the count never decided a verdict; the next commit removed
+   it. A File or Process handle that existed before the call, closed during it, and had its value taken by a leaked
+   handle of the same type passes the test. Nothing in the call or the test is known to close such a handle during
+   the call, so no run has shown this. Detecting it needs object identity: duplicate the judged handles taken before
+   the call and compare each with the handle at the same value after (`CompareObjectHandles`).

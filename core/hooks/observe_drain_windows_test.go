@@ -107,47 +107,22 @@ func drainHandleType(t *testing.T, h uintptr) string {
 // ends of its two pipes (File) and the child's process (Process).
 var drainRuntimeTypes = map[string]bool{"Event": true, "IRTimer": true, "WaitCompletionPacket": true}
 
-// drainHandleClass is what a handle counts as when the call is judged: "" for the runtime's per-thread set (a thread of this
-// process, or a drainRuntimeTypes handle), and its type otherwise, an unknown type included.
-func drainHandleClass(h uintptr, kind string, self uint32) string {
-	if drainRuntimeTypes[kind] {
-		return ""
-	}
-	if kind == "Thread" {
-		if pid, _, _ := drainProcessIDOfThread.Call(h); uint32(pid) == self {
-			return ""
-		}
-		return "Thread of another process"
-	}
-	return kind
-}
-
-// drainHandlesMade names what the call left that is not the runtime's: each such handle in after that was not in before, and each
-// class with more handles after than before. The count is by class, not by handle value, so a leaked handle that reuses the value
-// of one closed during the call is still counted.
+// drainHandlesMade names each handle value in after that was not in before, with that type, and is not the runtime's: anything
+// but a thread of this process or a drainRuntimeTypes handle, an unknown type included. It compares values, not objects: a leak
+// that takes the value of a same-type handle that existed before and closed during the call is not seen (BACKLOG §482.3).
 func drainHandlesMade(before, after map[uintptr]string) []string {
 	self := uint32(os.Getpid())
 	var made []string
-	counts := map[string]int{}
-	for h, kind := range before {
-		if class := drainHandleClass(h, kind, self); class != "" {
-			counts[class]--
-		}
-	}
 	for h, kind := range after {
-		class := drainHandleClass(h, kind, self)
-		if class == "" {
+		if before[h] == kind || drainRuntimeTypes[kind] {
 			continue
 		}
-		counts[class]++
-		if before[h] != kind {
-			made = append(made, fmt.Sprintf("%#x %s", h, class))
+		if kind == "Thread" {
+			if pid, _, _ := drainProcessIDOfThread.Call(h); uint32(pid) == self {
+				continue
+			}
 		}
-	}
-	for class, more := range counts {
-		if more > 0 {
-			made = append(made, fmt.Sprintf("%d more %s than before", more, class))
-		}
+		made = append(made, fmt.Sprintf("%#x %s", h, kind))
 	}
 	sort.Strings(made)
 	return made

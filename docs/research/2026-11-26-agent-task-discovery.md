@@ -25,6 +25,11 @@ Three alternating pairs of `node plugin/scripts/work-next.mjs --json` on the cle
 
 A trace then put 6.979 s of a 7.284 s call in the Python batch. Its 128 queries called `load` 256 times. Reusing the parsed tasks within each query reduced the median of three further alternating pairs from 7.191 s to 5.706 s on the same macOS host and corpus. Each new run finished sooner than its paired baseline. All six CLI responses matched byte for byte (5,005 bytes), as did all 128 detailed batch replies (409,493 bytes). A regression counts real file opens when a batch asks about the same task directory twice.
 
+On native Windows, the peer ran the baseline (`137a21f16`) and candidate (`4e95a79e`) against one unchanged checkout.
+In baseline–candidate–candidate–baseline order, `work-next --json` took 30.137, 22.490, 21.792 and 29.723 seconds.
+The mean fell from 29.930 to 22.141 seconds (26.0%) on that machine. All four runs exited 0 with byte-identical
+5,005-byte output and empty stderr.
+
 The direct corpus query used by MCP also loaded each record once to discover it and again to report it. On the same checkout, one `adr-next docs/adr --json` comparison took 7.644 s before and 3.853 s with one read per record. Both returned the same 133 records, 400,259 stdout bytes, 655 diagnostic bytes and exit status. Peak resident memory was 45.96 MB and 43.07 MB respectively. The regression counts file opens through this entry point as well.
 
 Review also found a POSIX case outside that comparison. In a fresh Git repository, a tracked root-level filename containing literal backslashes made the baseline read a different, ignored README and report an Accepted record as withdrawn. The corrected reader kept the record active. Its results and operation counts on the corpora in the table still matched the indexed measurements. [Path regression tests](../../tests/listed-backslash.test.mjs)
@@ -34,6 +39,12 @@ Review also found a POSIX case outside that comparison. In a fresh Git repositor
 On macOS, Cursor CLI discovered the reading tools after the project registered and enabled the server. Codex CLI's app server called `qh_adr_next` on the Go fixture and returned T2 ready and T1 done. A second Codex check read the corpus-root option from the advertised schema and passed the PHP fixture's active corpus root. It returned two ready tasks across two records with tasks. Both clients used temporary configuration. [Client setup](../mcp.md)
 
 For a corpus-wide ready-task lookup, the default MCP text response on the PHP fixture took 315 UTF-8 bytes, compared with 696 with `all: true` and 5,181 with `json: true`. The JavaScript fixture took 226, 325 and 2,178 bytes respectively, and Go took 222, 308 and 1,878. These measurements include the path printed by the gate, so checkout location affects the byte counts. The default answers which tasks are ready. JSON also supplies dependencies, acceptance commands and other task details.
+
+A per-record comparison on `d073bc499` called the stdio server twice for each task directory with an
+`adrNext` expectation. Across 13 records in nine fixture corpora, the compact and JSON replies each named
+the expected ready tasks. Seven records had work ready, three had completed tasks, and three gave a reason
+work was stopped (duplicate IDs, a foreign task, or an unreadable task). The 13 compact replies totalled
+5,686 UTF-8 bytes against 19,684 for JSON, a 71.1% reduction in tool-result text on that checkout.
 
 Anthropic recommends offering concise and detailed responses when different tasks require different context. The existing text and JSON modes let this reader support both. The measurements above compare payload size. Measuring an agent's bill or task success requires the session experiment below. [Writing effective tools for AI agents](https://www.anthropic.com/research/writing-tools-for-agents)
 

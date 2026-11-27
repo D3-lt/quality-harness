@@ -5188,3 +5188,25 @@ It found the two `adr-next` suggestions at lines 1873 and 1878 and these remaini
   Check the working directory as well as shell quoting before making the command copyable.
 - `core/hooks/turnend.go` line 100 and its reference in `tests/helpers/node-hooks/completion-rules.mjs`
   line 369 interpolate the path in the end-of-turn verification reminder. Check native path spelling on Windows.
+
+## 482. Found 2026-11-27 by the 3.8.82 landing's native Windows check — two tests failed under the suite's default concurrency
+
+The Windows peer ran `bash scripts/selftest.sh` at `8f01ceb67` with the default concurrency for 16 cores. Two tests failed.
+The CI Windows job at the same sha (4 cores) passed both.
+
+1. **CLOSED 2026-11-27 — the held-read test bounded a handle count the Go runtime moves.**
+   `TestObservedRunEndsAHeldReadAtItsDeadline` required at most four more process handles after the call than before.
+   Run alone with `-count=5`, it failed once (101 before, 119 after). A diagnostic test then read the handle table with each
+   handle's type and owner around 10 held-read calls. Every added handle belonged to a new OS thread of the test process,
+   six per thread: its Thread, Event 2, IRTimer 2 and WaitCompletionPacket 1. They arrived at return, after the holder
+   ended, and once between calls. They stayed after the thread idled. No File handle, no Process handle and no
+   handle to the child or grandchild was left. In every call the deadline ended the read at 3.000 s, and the
+   grandchild was alive at return and ended by the test. The test now compares the handle table by type and fails on
+   any added handle that is not the runtime's per-thread set, an unknown type included. The count is logged only.
+2. **OPEN — the stale-cache hook test read the stand-in `gh`'s pid before that `gh` had started.**
+   `tests/branch-state-native.test.mjs` failed with ENOENT on `gh.pid` (line 314) after the hook returned on its 2 s
+   refresh budget. The stand-in, a copied `node.exe` with a preload, writes that file when the preload runs.
+   It passed 3 of 3 runs alone, and in CI's Windows job at 9.5 s. Under sixteen-way load, or on a copied
+   `node.exe`'s first start (about 600 ms measured there), the hook can end the refresh before the preload runs.
+   The hook still answered stale within its hang guard. The test's "the refresh reached `gh`" step needs an
+   observation that does not depend on how fast the stand-in starts.

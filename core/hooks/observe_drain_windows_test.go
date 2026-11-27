@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -39,6 +40,90 @@ func drainHandles(t *testing.T) int {
 		t.Fatalf("GetProcessHandleCount: %v", err)
 	}
 	return int(count)
+}
+
+var (
+	drainNtQueryInformationProcess = syscall.NewLazyDLL("ntdll.dll").NewProc("NtQueryInformationProcess")
+	drainNtQueryObject             = syscall.NewLazyDLL("ntdll.dll").NewProc("NtQueryObject")
+	drainProcessIDOfThread         = syscall.NewLazyDLL("kernel32.dll").NewProc("GetProcessIdOfThread")
+)
+
+// drainHandleTypes is this process's handle table, each handle by its object type. ProcessHandleTable (class 58) answers 32-bit
+// handle values, and ObjectTypeInformation (class 2) names a type without waiting on the object. A handle closed between the two
+// reads is not held and is left out; any other type that cannot be read fails the test, since an unread handle is not one known
+// to be the runtime's.
+func drainHandleTypes(t *testing.T) map[uintptr]string {
+	t.Helper()
+	size := uint32(1 << 16)
+	for attempt := 0; attempt < 8; attempt++ {
+		buf := make([]byte, size)
+		var ret uint32
+		st, _, _ := drainNtQueryInformationProcess.Call(uintptr(^uintptr(0)), 58, uintptr(unsafe.Pointer(&buf[0])), uintptr(size),
+			uintptr(unsafe.Pointer(&ret)))
+		if uint32(st) == 0xC0000004 { // STATUS_INFO_LENGTH_MISMATCH: ret is the size the table needs now
+			size = ret + 4096
+			continue
+		}
+		if uint32(st) != 0 {
+			t.Fatalf("NtQueryInformationProcess(ProcessHandleTable) answered status %#x, so the handles were not read", uint32(st))
+		}
+		types := map[uintptr]string{}
+		for at := uint32(0); at+4 <= ret; at += 4 {
+			h := uintptr(*(*uint32)(unsafe.Pointer(&buf[at])))
+			if kind := drainHandleType(t, h); kind != "" {
+				types[h] = kind
+			}
+		}
+		return types
+	}
+	t.Fatal("the handle table kept growing while it was read")
+	return nil
+}
+
+func drainHandleType(t *testing.T, h uintptr) string {
+	t.Helper()
+	buf := make([]byte, 4096)
+	var ret uint32
+	st, _, _ := drainNtQueryObject.Call(h, 2, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), uintptr(unsafe.Pointer(&ret)))
+	if uint32(st) == 0xC0000008 { // STATUS_INVALID_HANDLE: closed after the table was read
+		return ""
+	}
+	name := (*struct {
+		Length, MaximumLength uint16
+		Buffer                *uint16
+	})(unsafe.Pointer(&buf[0]))
+	if uint32(st) != 0 || name.Buffer == nil || name.Length == 0 {
+		t.Fatalf("handle %#x: NtQueryObject(ObjectTypeInformation) answered status %#x, so its type was not read", h, uint32(st))
+	}
+	kind := syscall.UTF16ToString(unsafe.Slice(name.Buffer, name.Length/2))
+	runtime.KeepAlive(buf)
+	return kind
+}
+
+// drainRuntimeTypes are the handles the Go runtime opens for each OS thread it starts in this process, besides the thread itself:
+// Event 2, IRTimer 2 and WaitCompletionPacket 1 with each new Thread of this process, whenever the scheduler adds one, and kept
+// after it idles (measured 2026-11-27 on a native Windows peer, go1.27.4, 20 calls, BACKLOG §482). The call opens none of these:
+// its handles are the four ends of its two pipes (File) and the child's process (Process).
+var drainRuntimeTypes = map[string]bool{"Event": true, "IRTimer": true, "WaitCompletionPacket": true}
+
+// drainHandlesMade names each handle in after that was not in before and is not the runtime's: anything but a thread of this
+// process or a drainRuntimeTypes handle, an unknown type included.
+func drainHandlesMade(before, after map[uintptr]string) []string {
+	self := uint32(os.Getpid())
+	var made []string
+	for h, kind := range after {
+		if before[h] == kind || drainRuntimeTypes[kind] {
+			continue
+		}
+		if kind == "Thread" {
+			if pid, _, _ := drainProcessIDOfThread.Call(h); uint32(pid) == self {
+				continue
+			}
+		}
+		made = append(made, fmt.Sprintf("%#x %s", h, kind))
+	}
+	sort.Strings(made)
+	return made
 }
 
 // TestObservedRunHelper is the child and the grandchild; it does nothing in an ordinary run. "bytes" is a child that writes a
@@ -191,11 +276,11 @@ func TestObservedRunEndsAHeldReadAtItsDeadline(t *testing.T) {
 	if exe, err := os.Executable(); err == nil {
 		bsRunDrained(drainTestBudget, "", nil, exe, "-test.run=^$")
 	}
-	handles, goroutines := drainHandles(t), runtime.NumGoroutine()
+	handles, table, goroutines := drainHandles(t), drainHandleTypes(t), runtime.NumGoroutine()
 	res, elapsed, procs := drainRun(t, bsRunDrained)
 	// Measured while the holder still holds the pipe: the read was ended by its deadline, not by the holder's exit. Then the
 	// holder, the test's own by its creation time, is ended, and must be gone.
-	nowGoroutines, nowHandles := runtime.NumGoroutine(), drainHandles(t)
+	nowGoroutines, nowHandles, nowTable := runtime.NumGoroutine(), drainHandles(t), drainHandleTypes(t)
 	alive, err := procAlive(procs["grandchild"])
 	if err != nil {
 		t.Fatalf("whether the held grandchild still runs could not be told: %v", err)
@@ -219,8 +304,10 @@ func TestObservedRunEndsAHeldReadAtItsDeadline(t *testing.T) {
 	if nowGoroutines > goroutines+1 {
 		t.Fatalf("%d goroutines after the call, %d before it", nowGoroutines, goroutines)
 	}
-	if nowHandles > handles+4 {
-		t.Fatalf("%d handles after the call, %d before it", nowHandles, handles)
+	// The handle count also moves when the runtime starts an OS thread, six handles each and at any moment (BACKLOG §482), so
+	// it is logged, not bounded: what the call made is judged by type, and none of its pipes or processes may still be open.
+	if made := drainHandlesMade(table, nowTable); len(made) > 0 {
+		t.Fatalf("handles the call made are still open after it returned: %s", strings.Join(made, ", "))
 	}
 }
 

@@ -102,25 +102,52 @@ func drainHandleType(t *testing.T, h uintptr) string {
 
 // drainRuntimeTypes are the handles the Go runtime opens for each OS thread it starts in this process, besides the thread itself:
 // Event 2, IRTimer 2 and WaitCompletionPacket 1 with each new Thread of this process, whenever the scheduler adds one, and kept
-// after it idles (measured 2026-11-27 on a native Windows peer, go1.27.4, 20 calls, BACKLOG §482). The call opens none of these:
-// its handles are the four ends of its two pipes (File) and the child's process (Process).
+// after it idles (measured 2026-11-27 on a native Windows peer, go1.27.4: every handle typed and owned across 10 held-read calls,
+// and the count beside the thread count across 20 more, BACKLOG §482). The call opens none of these: its handles are the four
+// ends of its two pipes (File) and the child's process (Process).
 var drainRuntimeTypes = map[string]bool{"Event": true, "IRTimer": true, "WaitCompletionPacket": true}
 
-// drainHandlesMade names each handle in after that was not in before and is not the runtime's: anything but a thread of this
-// process or a drainRuntimeTypes handle, an unknown type included.
+// drainHandleClass is what a handle counts as when the call is judged: "" for the runtime's per-thread set (a thread of this
+// process, or a drainRuntimeTypes handle), and its type otherwise, an unknown type included.
+func drainHandleClass(h uintptr, kind string, self uint32) string {
+	if drainRuntimeTypes[kind] {
+		return ""
+	}
+	if kind == "Thread" {
+		if pid, _, _ := drainProcessIDOfThread.Call(h); uint32(pid) == self {
+			return ""
+		}
+		return "Thread of another process"
+	}
+	return kind
+}
+
+// drainHandlesMade names what the call left that is not the runtime's: each such handle in after that was not in before, and each
+// class with more handles after than before. The count is by class, not by handle value, so a leaked handle that reuses the value
+// of one closed during the call is still counted.
 func drainHandlesMade(before, after map[uintptr]string) []string {
 	self := uint32(os.Getpid())
 	var made []string
+	counts := map[string]int{}
+	for h, kind := range before {
+		if class := drainHandleClass(h, kind, self); class != "" {
+			counts[class]--
+		}
+	}
 	for h, kind := range after {
-		if before[h] == kind || drainRuntimeTypes[kind] {
+		class := drainHandleClass(h, kind, self)
+		if class == "" {
 			continue
 		}
-		if kind == "Thread" {
-			if pid, _, _ := drainProcessIDOfThread.Call(h); uint32(pid) == self {
-				continue
-			}
+		counts[class]++
+		if before[h] != kind {
+			made = append(made, fmt.Sprintf("%#x %s", h, class))
 		}
-		made = append(made, fmt.Sprintf("%#x %s", h, kind))
+	}
+	for class, more := range counts {
+		if more > 0 {
+			made = append(made, fmt.Sprintf("%d more %s than before", more, class))
+		}
 	}
 	sort.Strings(made)
 	return made

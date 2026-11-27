@@ -5196,13 +5196,18 @@ The CI Windows job at the same sha (4 cores) passed both.
 
 1. **CLOSED 2026-11-27 — the held-read test bounded a handle count the Go runtime moves.**
    `TestObservedRunEndsAHeldReadAtItsDeadline` required at most four more process handles after the call than before.
-   Run alone with `-count=5`, it failed once (101 before, 119 after). A diagnostic test then read the handle table with each
-   handle's type and owner around 10 held-read calls. Every added handle belonged to a new OS thread of the test process,
-   six per thread: its Thread, Event 2, IRTimer 2 and WaitCompletionPacket 1. They arrived at return, after the holder
-   ended, and once between calls. They stayed after the thread idled. No File handle, no Process handle and no
-   handle to the child or grandchild was left. In every call the deadline ended the read at 3.000 s, and the
-   grandchild was alive at return and ended by the test. The test now compares the handle table by type and fails on
-   any added handle that is not the runtime's per-thread set, an unknown type included. The count is logged only.
+   Run alone with `-count=5`, it failed once (101 before, 119 after). Two diagnostic runs of 10 held-read calls read the
+   handle count beside the thread count, then a third read every handle's type and owner around 10 more. Every added
+   handle belonged to a new OS thread of the test process, six per thread: its Thread, Event 2, IRTimer 2 and
+   WaitCompletionPacket 1. They arrived at return, after the holder ended, and between calls, and stayed after the
+   thread idled. No File handle, no Process handle and no handle to the child or grandchild was left. In every call
+   the deadline ended the read at 3.000 s, and the grandchild was alive at return and ended by the test.
+   The test now reads the handle table by type and fails on any added handle outside the runtime's per-thread set,
+   an unknown type included. It also fails when any other type has more handles after the call than before,
+   whatever their values. The count is logged only. On the native peer, at the tree before that per-type count was
+   added (`beee21fa`), the test passed 20 of 20 runs, two of them across a +6 runtime step. A mutant that stops
+   `bsRunDrained` closing its two pipe read ends failed 3 of 3, naming two File handles. Its count rose by only 2
+   each time, so the old +4 bound passed that leak.
 2. **OPEN — the stale-cache hook test read the stand-in `gh`'s pid before that `gh` had started.**
    `tests/branch-state-native.test.mjs` failed with ENOENT on `gh.pid` (line 314) after the hook returned on its 2 s
    refresh budget. The stand-in, a copied `node.exe` with a preload, writes that file when the preload runs.

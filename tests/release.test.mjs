@@ -193,3 +193,20 @@ test('evidence this clone can read is asked for before anything lands, and an un
   assert.equal(other.run(), 2)
   assert.match(other.said.join('\n'), /not clean/)
 })
+
+test('a release-evidence refusal is not tagged even when its output names the judged run', () => {
+  // ADR-100 T3: the exit code decides. Since BACKLOG §475.2 a release also needs the judged-run line, which release-evidence
+  // prints only on success, so every refusal above is stopped twice and a release that read only that line still passed
+  // them (the 3.8.82 landing's mutation shard). Here the refusal names the run, so the exit code alone must stop the tag.
+  const named = `release-evidence judged run 2 attempt 1 at ${SHA}\n`
+  for (const code of [2, 4]) {
+    const refused = world({ evidence: [code], evidenceText: `UNPROVEN — evidence\n${named}` })
+    assert.equal(refused.run(), 2, refused.said.join('\n'))
+    assert.ok(!tagged(refused.calls), `release-evidence exit ${code} must not be tagged`)
+    assert.ok(!refused.calls.some(line => line.includes(':refs/tags/')), `release-evidence exit ${code} must not push a tag`)
+  }
+  // The same output on exit 0 is tagged, so the line above is one a release would act on.
+  const cleared = world({ evidenceText: `SUCCESS — evidence\n${named}` })
+  assert.equal(cleared.run(), 0, cleared.said.join('\n'))
+  assert.ok(tagged(cleared.calls))
+})

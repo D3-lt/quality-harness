@@ -264,6 +264,18 @@ const reader = files => p => (p in files ? files[p] : null)
 const ENTRY = { label: 'x', file: 'plugin/bin/g', from: 'a', to: 'b', tests: ['tests/t.test.mjs'] }
 const FILES = { 'plugin/bin/g': 'def a(): pass\n', 'tests/t.test.mjs': 'assert(1)\n' }
 
+test('a catalogue replacement writes the literal dollar sequences between the original bytes', () => {
+  const to = ["$'", '$`', '$&', '$$'].join(' ')
+  assert.equal(mutateModule.applyMutation('left x right', { from: 'x', to }), 'left ' + to + ' right')
+})
+
+test('only verdicts exposed to replacement expansion lose their previous cache key', () => {
+  const key = to => cacheKey({ file: 'f', from: 'x', to, tests: ['t'] }, reader({ f: 'prefix x suffix', t: 'test' }))
+  // Keys produced by the campaign before it wrote literal replacements.
+  assert.equal(key('plain'), '50d16cc754976b042fae6b96bf2add9b74c13f556429b7495a16e09a3cbea744')
+  assert.notEqual(key('$&'), '99e84a538c3199d5f963596dffe29caa6d3f736447d80f9bd2c9c4f4c073d0ba')
+})
+
 test('an exact content match reuses a RED verdict', () => {
   const key = cacheKey(ENTRY, reader(FILES))
   assert.ok(key, 'every input was readable, so the entry has a key')

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { pythonArgv } from '../scripts/python-interpreter.mjs'
 import { fileURLToPath } from 'node:url'
-import { loadCatalogue } from '../scripts/mutate.mjs'
+import { applyMutation, loadCatalogue } from '../scripts/mutate.mjs'
 import { readBacklog } from '../scripts/backlog-record-sweep.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -1656,4 +1656,30 @@ test('no tracked path is long enough to fail a default Windows install', () => {
     'the check must be able to find a long path')
   assert.deepEqual(tooLong(tracked()), [],
     `shorten these task or record names before committing them: a Windows clone fails past 260 characters`)
+})
+
+test('the parse sweep judges the mutant the campaign applies', () => {
+  // The sweep above (locked by ADR-091 T3 and ADR-100 T5, so it stays byte-identical) writes `source.replace(from, to)`, which
+  // expands `$&`, `$'`, `` $` `` and `$$` in `to`; the campaign applies `to` literally (applyMutation, BACKLOG §479). Where the two
+  // differ, the sweep parses a mutant the campaign never runs, so no entry it judges may differ. Measured on tree 98529729: the
+  // seven entries that do differ are Go and shell, which the sweep does not parse.
+  const differs = (source, entry) => applyMutation(source, entry) !== source.replace(entry.from, entry.to)
+  assert.ok(differs('a = 1\n', { from: '1', to: '$&2' }), 'a replacement holding $& must be told apart')
+  assert.ok(!differs('a = 1\n', { from: '1', to: '2' }), 'a plain replacement is the same mutant either way')
+  const judged = []
+  const differing = []
+  for (const entry of realCatalogue().mutations) {
+    const target = join(repoRoot, entry.file)
+    if (!existsSync(target)) continue
+    const source = readFileSync(target, 'utf8')
+    if (source.split(entry.from).length - 1 !== 1) continue
+    const isJs = /\.(mjs|js)$/.test(entry.file)
+    const isPy = entry.file.startsWith('plugin/bin/') || entry.file.endsWith('.py')
+    if (!isJs && !isPy) continue
+    judged.push(entry.label)
+    if (differs(source, entry)) differing.push(`${entry.label} (${entry.file})`)
+  }
+  assert.ok(judged.length > 100, `the sweep must have real entries to judge: ${judged.length}`)
+  assert.deepEqual(differing, [],
+    'the parse sweep reads these as String.replace expands them, not as the campaign applies them: move them to a literal check')
 })

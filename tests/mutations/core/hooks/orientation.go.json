@@ -65,7 +65,7 @@
         "tests/plugin-root.test.mjs"
       ],
       "from": "strings.Contains(\"\\n\"+existing, \"\\n\"+strings.TrimSuffix(rootExport, \"\\n\")+\"\\n\")",
-      "to": "false",
+      "to": "false && existing != \"\"",
       "only": "^(?:Go\\ optional\\ commit\\ tracking\\ keeps\\ root\\ exports\\ and\\ installation\\ idempotent)$"
     },
     {

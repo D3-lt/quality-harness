@@ -67,7 +67,7 @@
         "tests/branch-state-collect.test.mjs"
       ],
       "from": "\t\t\t\t\tif index > 0 && clock()-viewing >= bsJobViewBudgetMs {",
-      "to": "\t\t\t\t\tif false {",
+      "to": "\t\t\t\t\tif false && index > 0 {",
       "only": "^(?:the core collects branch state as the Node collect does)$"
     },
     {

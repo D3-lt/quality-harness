@@ -5109,3 +5109,46 @@ Commit `074d7c6e7` uses the path formatter's result once and quotes the task arg
 The macOS command test read the suggested argument back through Bash and matched the filename on disk, including
 a space, an apostrophe and a literal backslash. Restoring the extra separator replacement, omitting the quoting and
 omitting the apostrophe escape each failed the fixture. The human-readable remedy still prints on one line.
+
+## 479. PARTLY CLOSED 2026-11-27 — the Go compiler rejected twelve catalogue mutations before a test could run
+
+The review of the §477 deadline test found that removing a read deadline left a local variable unused.
+The Node test returned the Go build failure. With a passing baseline, `scripts/mutate.mjs` grades a nonzero
+test exit RED. The corrected §477 mutation compiled and its held-read test failed on elapsed time.
+
+At `4e95a79e`, the same problem affected twelve of the 150 entries for `core/hooks` on darwin/arm64.
+Each original substitution failed a separate `go build` with an unused local. The corrected entries keep
+the fault described by their labels. All 150 type-checked on that host. The twelve corrected entries each
+ran through `mutate.mjs --no-cache --case` and were caught by a test.
+
+| Mutated behavior | What the failed test observed |
+|---|---|
+| End the process group after an early exit | A grandchild survived its parent with its output held or redirected. |
+| Walk up to the archive catalogue | Three record classifications disagreed with the Node reader. The existing record-rule fixture covers them directly. |
+| Finish tracing a failed adoption | The trace held the attempt without its ending row. |
+| Recognize scratch paths beside a repository under the temp root | An orphan task beside the checkout was treated as part of it. |
+| Keep a newer snapshot and return its answer (two entries) | An older observation replaced the newer one or the caller returned the older state. |
+| Enforce the inline refresh cutoff (two entries) | The hook reported the late refresh instead of serving the stored answer as stale. |
+| Stop skipped-job lookups at their budget | The collector's skipped-view budget case failed. |
+| Decode an ill-formed UTF-8 subsequence | The native record reader disagreed with the reference reader. |
+| Export the plugin root once | A second startup wrote the same export a second time. |
+| Keep a finding when the current artifact identity is unreadable | The importer suppressed the finding without evidence of supersession. |
+
+The self-test reads the campaign catalogue and checks each applicable production substitution twice.
+It type-checks the host's production files alone, then with the in-package test files. A test-file
+substitution runs through the second check. A control that used a test-only helper in production
+failed with an undefined name. Stale entries fail the check with their match counts. The summary
+counts build-excluded entries separately. The guard rejected all twelve originals and accepted
+their repairs. A compiling substitution still needs its named behavior test.
+
+The Go check also exposed a difference between the catalogue text and the file the campaign wrote.
+Two Go replacements contained a dollar sign followed by a backtick. Five shell replacements contained
+a dollar sign followed by an apostrophe. JavaScript inserted the text before or after the match.
+The runner and its syntax check now write the replacement literally. Existing cache keys for a
+replacement containing one of the four expansion sequences must be measured again. Five of the
+seven labels had old RED rows in the local cache. No signed task log cited those labels.
+In seven fresh isolated campaigns, each test process read the exact SHA-256 digest independently
+computed from the original prefix, literal replacement and suffix. All seven named tests caught the edit.
+
+A standalone campaign still reads the test process's exit status. These repairs establish which assertions
+caught these twelve faults. Other languages retain their existing verdict rules.

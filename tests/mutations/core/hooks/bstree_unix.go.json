@@ -7,7 +7,7 @@
         "tests/branch-state-collect.test.mjs"
       ],
       "from": "\tend := func() { once.Do(func() { _ = syscall.Kill(-pid, syscall.SIGKILL) }) }",
-      "to": "\tend := func() { once.Do(func() {}) }",
+      "to": "\tend := func() { once.Do(func() { _ = pid }) }",
       "only": "^(?:the core collects branch state as the Node collect does)$"
     }
   ]

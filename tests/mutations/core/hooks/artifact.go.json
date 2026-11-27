@@ -26,7 +26,7 @@
         "tests/native-artifact-delivery.test.mjs"
       ],
       "from": "if !known || currentBlob == blob {",
-      "to": "if currentBlob == blob {"
+      "to": "if (false && !known) || currentBlob == blob {"
     },
     {
       "label": "artifact reconciliation: repeated verdicts read each current file only once",

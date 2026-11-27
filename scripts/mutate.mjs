@@ -792,6 +792,12 @@ export function renderLine(result, width) {
   return `${result.verdict.padEnd(8)} ${result.label.padEnd(width)}${note}`
 }
 
+// The catalogue supplies literal source text. A function replacement keeps dollar sequences
+// in shell commands and regular expressions byte-for-byte as the entry spells them.
+export function applyMutation(source, entry) {
+  return source.replace(entry.from, () => entry.to)
+}
+
 /**
  * The campaign's counts. An UNPROVEN entry is in NEITHER half of the ratio:
  * counting it in the denominator would make a broken suite read as a campaign
@@ -818,6 +824,8 @@ export function renderLine(result, width) {
  */
 export function cacheKey(mutation, readFile) {
   const hash = createHash('sha256')
+  // Older campaigns expanded these sequences when writing the source. Remeasure their verdicts.
+  if (/\$[$&'`]/.test(mutation.to)) hash.update('literal-replacement\0')
   // The edit itself, first: a mutation whose from/to text changed is a
   // different mutant even against identical files.
   for (const part of [mutation.file, mutation.from, mutation.to, mutation.only ?? '']) {
@@ -1856,7 +1864,7 @@ export function main(argv) {
 
     process.stderr.write(`mutate: ${new Date().toISOString()} mutant ${mutation.label}\n`)
     begin(file, original)
-    writeFileSync(file, original.replace(mutation.from, mutation.to))
+    writeFileSync(file, applyMutation(original, mutation))
     const startedAt = Date.now()
     const run = runChild(root, testArgs(root, mutation), timeoutMs)
     const elapsedMs = Date.now() - startedAt

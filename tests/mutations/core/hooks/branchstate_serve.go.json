@@ -7,7 +7,7 @@
         "tests/branch-state-collect.test.mjs"
       ],
       "from": "ok && held > at && bsUsableCache(standing, bsNowMs()) {",
-      "to": "false {",
+      "to": "false && ok && held > at {",
       "only": "^(?:the core collects branch state as the Node collect does)$"
     },
     {
@@ -17,7 +17,7 @@
         "tests/branch-state-collect.test.mjs"
       ],
       "from": "ok && held > at && held <= bsNowMs() {",
-      "to": "false {",
+      "to": "false && ok && held > at {",
       "only": "^(?:the core collects branch state as the Node collect does)$"
     },
     {
@@ -80,7 +80,7 @@
       "file": "core/hooks/branchstate_serve.go",
       "tests": ["tests/branch-state-native.test.mjs"],
       "from": "\t\tif bsRefreshPublishable(cut, bsNowMs(), deadline) {",
-      "to": "\t\tif true {",
+      "to": "\t\tif true || bsRefreshPublishable(cut, bsNowMs(), deadline) {",
       "only": "^(?:a stale cache past the budget is served marked stale and nothing outlives the hook)$"
     },
     {
@@ -88,7 +88,7 @@
       "file": "core/hooks/branchstate_serve.go",
       "tests": ["tests/branch-state-native.test.mjs"],
       "from": "\t\tif bsRefreshPublishable(cut, bsNowMs(), deadline) {",
-      "to": "\t\tif !cut {",
+      "to": "\t\t_ = deadline\n\t\tif !cut {",
       "only": "^(?:a stale cache past the budget is served marked stale and nothing outlives the hook)$"
     }
   ]

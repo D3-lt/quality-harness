@@ -137,18 +137,18 @@
         "tests/decision-context-parity.test.mjs"
       ],
       "from": "\t\tif whole {",
-      "to": "\t\tif true {",
+      "to": "\t\tif true || whole {",
       "only": "^(?:the core answers every record-rule row as the Node reader does)$"
     },
     {
       "label": "ADR-137 T2: the catalog is found by walking up to the archive's README",
       "file": "core/hooks/decisioncorpus.go",
       "tests": [
-        "tests/decision-context-replay.test.mjs"
+        "tests/decision-context-parity.test.mjs"
       ],
       "from": "\t\tif directory == top || filepath.Dir(directory) == directory {",
-      "to": "\t\tif true {",
-      "only": "^(?:the core gives the decision context Node gives over every replayed corpus)$"
+      "to": "\t\tif directory == top || directory == filepath.Dir(file) {",
+      "only": "^(?:the core answers every record-rule row as the Node reader does)$"
     },
     {
       "label": "BACKLOG §448: the core drops a comma piece that held a span, as Node does",

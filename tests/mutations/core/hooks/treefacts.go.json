@@ -13,7 +13,7 @@
       "file": "core/hooks/treefacts.go",
       "tests": ["tests/lifecycle.test.mjs"],
       "from": "\treturn outside(spelled, resolvePath(file)) && outside(real(base), real(file))",
-      "to": "\treturn !underTempRoot(cwd)",
+      "to": "\t_, _ = outside, spelled\n\treturn !underTempRoot(cwd)",
       "only": "^(?:the Go core's scratch rule answers as the Node one does)$"
     },
     {

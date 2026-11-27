@@ -215,7 +215,7 @@
       "file": "core/hooks/shellhook_run.go",
       "tests": ["tests/core-win-tree.test.mjs"],
       "from": "\t\ttrace.ended(traced, err, false)\n\t\treturn res",
-      "to": "\t\treturn res",
+      "to": "\t\t_ = traced\n\t\treturn res",
       "only": "^(?:a failed adoption and an unconfirmed cleanup write the trace rows they claim)$"
     },
     {

@@ -5062,6 +5062,43 @@ The original runner received all five output bytes but returned `ErrWaitDelay` t
 A prototype returned the correct status and bytes both times. Review found that a blocking Windows pipe could still hang
 during cleanup. The production change remains open. The cause of the earlier failures under CPU load also remains open.
 
+**Windows observation fix, 2026-11-27: candidate `ba56e7fc3`, tree `9391b962`, not landed.** On Windows only, an observation's git
+(`boundedGit` → `gitObserved`) runs through `bsRunDrained` (core/hooks/observe_drain.go). The child gets pipes the runner owns.
+Both read ends carry the command's deadline as a read deadline before either reader starts. On Windows each read end is an
+overlapped named pipe (core/hooks/drain_pipe_windows.go), so Go's poller can cancel the pending read. The readers are always
+joined before the read ends close. A read cut at the deadline is timed out, never an answer. The 2 s refresh and every other
+platform are unchanged. Two Codex rounds, inspection only: the close-based prototype's Close/CancelIoEx race was removed by the
+read deadline, and a catalogue mutant that did not compile was replaced (`49da0d373..ba56e7fc3`, APPROVE).
+
+Measured once on the Windows peer at idle, on that exact tree (go1.27.0; 2026-11-26 23:48:00–23:49:39Z; CPU 17–34%; 7.4 GB
+available):
+- Native vet exited 0. Every targeted Go test passed, and node passed 2 of 2.
+- With a grandchild holding the output pipe, the original runner lost a finished child's answer in 2 of 2 pairs (status -1,
+  `ErrWaitDelay` at about 350 ms). The drained runner kept it in 2 of 2 (status 0, about 100 ms).
+- A held read whose holder the tree's end could not reach timed out at 3.0003 s with the holder still running. Goroutines
+  (2→2) and handles (138→138) returned to their baseline.
+- A 256 KiB payload came back exact from both runners.
+- The dirty twin without `FILE_FLAG_OVERLAPPED` failed both of its tests in 2.4 s, with no hang. The pipe test said "the read
+  end takes no deadline … file type does not support deadline". The runner answered with an error after 531 µs, before any
+  child ran. The refusal's own wording ("the output could not be given a deadline") was not printed, because the fixture prints
+  the answer with `%+v`: an evidence limit.
+- The file was restored, and the tree was `9391b962` again.
+- A disposable probe observed the unchanged corpus twice: through the old path (`observeGOOS=linux`, set by the linker) and the
+  new one. Both were ok and named its HEAD and tree, and the two outputs were byte-identical (163 bytes, sha256
+  1594fc6864aa756723b2983522e058d4869aca313fe20f647e31c4f804270bcc). This is path parity, not timing.
+
+The controlled held-pipe defect is therefore fixed in the candidate. Two things stay open:
+- The original failures under full CPU load (10 of 184 trials). The cause of the late output is not traced, and nothing
+  above ran under load.
+- How the drained runner decides a deadline (the Codex review of tree 7ced28cb, Medium). Git can exit and both readers can
+  post complete results before the deadline, yet the final `ctx.Err()` check discards them if the runner resumes after the
+  timer fires. Conversely, a delayed timer callback can let work completed after the deadline report success. And the two
+  pipe-creation error returns bypass timeout classification. Neither direction reports bytes that were not read whole as an
+  answer: the first says could-not-look for an answer it had, and the second gives a whole answer that finished a moment
+  late. The fix the review names is to record when `Wait` and both copies complete, compare those times to the absolute
+  deadline, and apply the same rule to setup failures. The proof for a fix is a test that holds the runner past its deadline
+  after both readers answered, and asserts what it reports.
+
 ## 478. CLOSED 2026-11-27 — the relock command changed a literal POSIX backslash
 
 In a macOS Git fixture with a moved-lock readiness answer, the task on disk was `docs/adr/ADR-001-x/tasks/T1-a\b.md`.

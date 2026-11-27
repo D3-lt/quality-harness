@@ -68,10 +68,15 @@ func run(timeout time.Duration, dir string, env map[string]string, stdin string,
 
 // git runs git with GIT_OPTIONAL_LOCKS=0 over process.env and `env`.
 func git(timeout time.Duration, env map[string]string, args ...string) runResult {
+	return run(timeout, "", gitEnv(env), "", "git", args...)
+}
+
+// gitEnv is `env` with GIT_OPTIONAL_LOCKS=0 laid over it, whatever `env` says.
+func gitEnv(env map[string]string) map[string]string {
 	merged := map[string]string{"GIT_OPTIONAL_LOCKS": "0"}
 	for k, v := range env {
 		merged[k] = v
 	}
 	merged["GIT_OPTIONAL_LOCKS"] = "0"
-	return run(timeout, "", merged, "", "git", args...)
+	return merged
 }

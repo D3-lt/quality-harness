@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "BACKLOG §477.2: the observation's git is routed back to the runner whose WaitDelay loses a held-pipe answer",
+      "file": "core/hooks/observe_drain.go",
+      "tests": ["tests/observe-drain.test.mjs"],
+      "from": "\tif observeGOOS == \"windows\" {",
+      "to": "\tif false {",
+      "only": "^(?:the observation reads its git through the drained runner, bounded)$"
+    },
+    {
+      "label": "BACKLOG §477.2: a read that failed before the deadline is given the command's success",
+      "file": "core/hooks/observe_drain.go",
+      "tests": ["tests/observe-drain.test.mjs"],
+      "from": "\tcase errors.Join(readErrs...) != nil:",
+      "to": "\tcase false:",
+      "only": "^(?:the observation reads its git through the drained runner, bounded)$"
+    },
+    {
+      "label": "BACKLOG §477.2: the trace says the Wait's success for a read that failed",
+      "file": "core/hooks/observe_drain.go",
+      "tests": ["tests/observe-drain.test.mjs"],
+      "from": "\t\ttraceErr = res.err",
+      "to": "\t\ttraceErr = err",
+      "only": "^(?:the observation reads its git through the drained runner, bounded)$"
+    },
+    {
+      "label": "BACKLOG §477.2: the read ends carry no deadline, so a held read waits for its holder",
+      "file": "core/hooks/observe_drain.go",
+      "tests": ["tests/observe-drain.test.mjs"],
+      "from": "\tdeadlineAt, _ := ctx.Deadline()",
+      "to": "\tdeadlineAt := time.Time{}",
+      "only": "^(?:the observation reads its git through the drained runner, bounded)$"
+    }
+  ]
+}

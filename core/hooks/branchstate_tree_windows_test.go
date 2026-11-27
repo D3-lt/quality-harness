@@ -7,20 +7,18 @@
 // child whose grandchild says it is running (its own marker, from the branch where it sleeps), and a child that publishes both
 // identities only after that. A missing marker is a failure that names the child as never started, never a kill that worked.
 //
-// Each process is known by its pid AND its creation time, which it records itself, so a pid Windows has reused names another
-// process and is not mistaken for, or ended as, the one the test started (the Codex review of ccffe983e). A liveness query that
+// Each process is known by its pid AND its creation time, which it records itself (proc_identity_windows_test.go), so a pid Windows
+// has reused names another process and is not mistaken for, or ended as, the one the test started (the Codex review of ccffe983e). A liveness query that
 // fails is "could not tell", a failure, never "gone". Whether the descendants are gone, what the command answered and whether it
 // returned in time are three sibling subtests, the descendants first and whatever the answer.
 package hooks
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -28,27 +26,6 @@ import (
 // bsTreeBudgetMs is the budget these tests give the runner: long enough for the helper and its grandchild to start on a loaded
 // runner, and short enough that the hang guard below still means something. It is the test's, not the product's 2 s (CLAUDE.md §7).
 const bsTreeBudgetMs = 6000.0
-
-// bsTreeProc is a process as it recorded itself: its pid, and its creation time in nanoseconds since 1601 (GetProcessTimes).
-type bsTreeProc struct {
-	PID     int   `json:"pid"`
-	Created int64 `json:"created"`
-}
-
-func bsTreeSelf() bsTreeProc {
-	var created, exited, kernel, user syscall.Filetime
-	self, _ := syscall.GetCurrentProcess()
-	if syscall.GetProcessTimes(self, &created, &exited, &kernel, &user) != nil {
-		return bsTreeProc{PID: os.Getpid()}
-	}
-	return bsTreeProc{PID: os.Getpid(), Created: created.Nanoseconds()}
-}
-
-// bsTreeWrite publishes a marker whole: a reader sees the file only once it is complete.
-func bsTreeWrite(path string, value any) bool {
-	text, err := json.Marshal(value)
-	return err == nil && os.WriteFile(path+".tmp", text, 0600) == nil && os.Rename(path+".tmp", path) == nil
-}
 
 // TestBranchStateTreeHelper is the child and the grandchild: QH_BS_TREE_HELPER says which part it plays, and an ordinary run
 // does nothing.
@@ -60,7 +37,7 @@ func TestBranchStateTreeHelper(t *testing.T) {
 	ready := os.Getenv("QH_BS_TREE_MARKER") + ".grandchild"
 	if mode == "grandchild" {
 		// Running, and about to sleep: only now does the grandchild say so.
-		if !bsTreeWrite(ready, bsTreeSelf()) {
+		if !procMark(ready, procSelf()) {
 			os.Exit(95)
 		}
 		time.Sleep(time.Hour)
@@ -79,7 +56,7 @@ func TestBranchStateTreeHelper(t *testing.T) {
 	if err := grandchild.Start(); err != nil {
 		os.Exit(92)
 	}
-	var running bsTreeProc
+	var running procID
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
 		if text, err := os.ReadFile(ready); err == nil && json.Unmarshal(text, &running) == nil && running.PID == grandchild.Process.Pid {
 			break
@@ -88,7 +65,7 @@ func TestBranchStateTreeHelper(t *testing.T) {
 			os.Exit(94)
 		}
 	}
-	if !bsTreeWrite(os.Getenv("QH_BS_TREE_MARKER"), map[string]bsTreeProc{"child": bsTreeSelf(), "grandchild": running}) {
+	if !procMark(os.Getenv("QH_BS_TREE_MARKER"), map[string]procID{"child": procSelf(), "grandchild": running}) {
 		os.Exit(93)
 	}
 	if mode == "block" {
@@ -99,7 +76,7 @@ func TestBranchStateTreeHelper(t *testing.T) {
 
 // bsTreeRun runs the helper in `mode` through the refresh's runner and returns its answer, how long it took, and the processes its
 // marker names. No marker fails the test: the child never said both had started, so nothing about ending them was observed.
-func bsTreeRun(t *testing.T, mode string) (bsAnswer, time.Duration, map[string]bsTreeProc) {
+func bsTreeRun(t *testing.T, mode string) (bsAnswer, time.Duration, map[string]procID) {
 	t.Helper()
 	marker := filepath.Join(t.TempDir(), "started.json")
 	t.Setenv("QH_BS_TREE_HELPER", mode)
@@ -117,77 +94,21 @@ func bsTreeRun(t *testing.T, mode string) (bsAnswer, time.Duration, map[string]b
 		t.Fatalf("the child never said it and its grandchild had started within the %v ms budget (%v), so nothing about ending them was observed; answer %+v after %v",
 			bsTreeBudgetMs, err, answer, elapsed)
 	}
-	procs := map[string]bsTreeProc{}
+	procs := map[string]procID{}
 	if err := json.Unmarshal(text, &procs); err != nil || procs["child"].PID <= 0 || procs["grandchild"].PID <= 0 ||
-		procs["child"].Created <= 0 || procs["grandchild"].Created <= 0 {
+		procs["child"].Created == 0 || procs["grandchild"].Created == 0 {
 		t.Fatalf("the marker does not name both processes with their creation times: %q", text)
 	}
 	t.Logf("mode %s: marker %s, answer %+v after %v", mode, text, answer, elapsed)
 	return answer, elapsed, procs
 }
 
-// bsTreeState says whether the process the test started is gone or still running; an error is "could not tell". A pid that now
-// names a process created at another time is the original gone, the pid reused.
-func bsTreeState(p bsTreeProc) (alive bool, err error) {
-	// PROCESS_QUERY_LIMITED_INFORMATION; ERROR_INVALID_PARAMETER (87) is the answer for a pid no process has.
-	handle, err := syscall.OpenProcess(0x1000, false, uint32(p.PID))
-	if err == syscall.Errno(87) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("OpenProcess(%d): %v", p.PID, err)
-	}
-	defer syscall.CloseHandle(handle)
-	var created, exited, kernel, user syscall.Filetime
-	if err := syscall.GetProcessTimes(handle, &created, &exited, &kernel, &user); err != nil {
-		return false, fmt.Errorf("GetProcessTimes(%d): %v", p.PID, err)
-	}
-	if created.Nanoseconds() != p.Created {
-		return false, nil
-	}
-	var code uint32
-	if err := syscall.GetExitCodeProcess(handle, &code); err != nil {
-		return false, fmt.Errorf("GetExitCodeProcess(%d): %v", p.PID, err)
-	}
-	return code == 259, nil // STILL_ACTIVE
-}
-
-// bsTreeEnd ends a survivor, but only the process the test started: the handle that terminates it is the one whose creation
-// time was checked.
-func bsTreeEnd(p bsTreeProc) {
-	handle, err := syscall.OpenProcess(0x1000|0x0001, false, uint32(p.PID)) // QUERY_LIMITED_INFORMATION | TERMINATE
-	if err != nil {
-		return
-	}
-	defer syscall.CloseHandle(handle)
-	var created, exited, kernel, user syscall.Filetime
-	if syscall.GetProcessTimes(handle, &created, &exited, &kernel, &user) == nil && created.Nanoseconds() == p.Created {
-		_ = syscall.TerminateProcess(handle, 1)
-	}
-}
-
 // bsTreeGone requires both processes to be gone within two seconds of the runner's return; one still running, or one whose state
-// could not be read, fails.
-func bsTreeGone(t *testing.T, procs map[string]bsTreeProc) {
+// could not be read, fails, and a survivor is ended through its identity-checked handle first.
+func bsTreeGone(t *testing.T, procs map[string]procID) {
 	t.Helper()
 	for _, role := range []string{"child", "grandchild"} {
-		p := procs[role]
-		var alive bool
-		var err error
-		for i := 0; i < 40; i++ {
-			if alive, err = bsTreeState(p); err != nil || !alive {
-				break
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
-		if err != nil {
-			bsTreeEnd(p)
-			t.Fatalf("whether the %s (pid %d) is gone could not be told: %v", role, p.PID, err)
-		}
-		if alive {
-			bsTreeEnd(p)
-			t.Fatalf("the %s (pid %d) outlived the command the refresh's runner started", role, p.PID)
-		}
+		procGone(t, role, procs[role])
 	}
 }
 

@@ -229,7 +229,7 @@ func boundedGit(directory string, started time.Time, budgetMs int) gitRunner {
 		if remaining <= 0 {
 			return runResult{}, observeFailure{fmt.Sprintf("git took more than %d ms", budgetMs)}
 		}
-		r := git(remaining, env, append([]string{"-C", directory}, args...)...)
+		r := gitObserved(remaining, env, append([]string{"-C", directory}, args...)...)
 		if r.timedOut {
 			return r, observeFailure{fmt.Sprintf("git took more than %d ms", budgetMs)}
 		}
